@@ -50,8 +50,8 @@ export default function TSFOperatorPage() {
   const [machineChecks, setMachineChecks] = useState([])
 
   const [selPart, setSelPart] = useState(null)
-  const [selDept, setSelDept] = useState('')
-  const [selInspector, setSelInspector] = useState('')
+  const [selDept, setSelDept] = useState(() => localStorage.getItem('iconfirm_tsf_dept') || '')
+  const [selInspector, setSelInspector] = useState(() => localStorage.getItem('iconfirm_tsf_inspector') || '')
   const [selectError, setSelectError] = useState('')
 
   const [scanPN, setScanPN] = useState('')
@@ -73,6 +73,8 @@ export default function TSFOperatorPage() {
   const [editRow, setEditRow] = useState(null)
   const [editMode, setEditMode] = useState(false)
   const [editForm, setEditForm] = useState({ SerialNumber: '', ActualPartNo: '' })
+  const [editPhoto, setEditPhoto] = useState(null)
+  const [editPhotoPreview, setEditPhotoPreview] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError] = useState('')
 
@@ -160,6 +162,9 @@ export default function TSFOperatorPage() {
       setSelectError('กรุณาเลือกพนักงาน')
       return
     }
+    // จำแผนก/พนักงานไว้ใน localStorage ไม่ต้องเลือกซ้ำทุกรอบ
+    localStorage.setItem('iconfirm_tsf_dept', selDept)
+    localStorage.setItem('iconfirm_tsf_inspector', selInspector)
     setScanPN('')
     setScanSN('')
     setPhoto(null)
@@ -249,7 +254,8 @@ export default function TSFOperatorPage() {
     }
   }
 
-  // ===== STEP 4: ผลลัพธ์ -> วนกลับไปเลือก Part ถัดไปของเครื่องเดิม =====
+  // ===== STEP 4: ผลลัพธ์ =====
+  // เลือกตรวจ part อื่นของเครื่องเดิมต่อ (กดเองเท่านั้น ไม่ auto)
   async function backToSelectNext() {
     try {
       const checks = await getTsfByMachine(machineSpec.MachineNo)
@@ -263,9 +269,19 @@ export default function TSFOperatorPage() {
     setScanStep('select')
   }
 
+  // PASS แล้วกลับไปหน้า SCAN HERE ให้สแกนเครื่องถัดไปได้เลย (auto)
+  async function backToIdle() {
+    await loadHistory()
+    setResult(null)
+    setSelPart(null)
+    setMachineSpec(null)
+    setMachineChecks([])
+    setScanStep('idle')
+  }
+
   useEffect(() => {
     if (scanStep === 'result' && result?.pass) {
-      const t = setTimeout(backToSelectNext, 2200)
+      const t = setTimeout(backToIdle, 1800)
       return () => clearTimeout(t)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -276,16 +292,35 @@ export default function TSFOperatorPage() {
     setEditRow(row)
     setEditMode(false)
     setEditForm({ SerialNumber: row.SerialNumber, ActualPartNo: row.ActualPartNo })
+    setEditPhoto(null)
+    setEditPhotoPreview('')
     setEditError('')
+  }
+
+  function handleEditPhotoChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setEditPhoto(file)
+    setEditPhotoPreview(URL.createObjectURL(file))
   }
 
   async function saveEdit() {
     setSavingEdit(true)
     setEditError('')
     try {
-      await updateTsfScan(editRow.ID, editForm)
+      const payload = { ...editForm }
+
+      if (editPhoto) {
+        const uploaded = await uploadPhoto(editPhoto)
+        payload.PhotoURL = uploaded.url
+        payload.FileName = uploaded.file_name
+      }
+
+      await updateTsfScan(editRow.ID, payload)
       setEditRow(null)
       setEditMode(false)
+      setEditPhoto(null)
+      setEditPhotoPreview('')
       await loadHistory()
     } catch (err) {
       setEditError(err.message || 'บันทึกไม่สำเร็จ')
@@ -529,7 +564,10 @@ export default function TSFOperatorPage() {
                   <div className="scan-result-icon">✅</div>
                   <h3 className="scan-result-title">PASS</h3>
                   <p className="wh-subtitle">ข้อมูลตรงกับ Master Data — ส่งข้อมูลตรวจสอบไปยัง QA แล้ว</p>
-                  <p className="wh-subtitle">กำลังไปหน้ารายการถัดไปอัตโนมัติ...</p>
+                  <p className="wh-subtitle">กำลังไปหน้าสแกนเครื่องถัดไปอัตโนมัติ...</p>
+                  <button className="wh-modal-cancel" style={{ marginTop: 10 }} onClick={backToSelectNext}>
+                    ตรวจ Part อื่นของเครื่องนี้ต่อ
+                  </button>
                 </>
               ) : (
                 <>
@@ -762,8 +800,35 @@ export default function TSFOperatorPage() {
                 </span>
               </div>
 
-              {editRow.PhotoURL && (
-                <img className="tsf-detail-photo" src={photoUrl(editRow.PhotoURL)} alt="รูปยืนยันการติดตั้ง" />
+              {editMode ? (
+                <>
+                  <label className="wh-modal-label">เปลี่ยนรูปถ่าย (ถ้าต้องการ)</label>
+                  <label
+                    className={'upload-dropzone' + (editPhoto ? ' upload-dropzone-filled' : '')}
+                    htmlFor="editTsfPhoto"
+                  >
+                    <input
+                      id="editTsfPhoto"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleEditPhotoChange}
+                      className="upload-card-input-hidden"
+                    />
+                    <CameraPlusIcon />
+                    <span className="upload-dropzone-text">
+                      {editPhoto ? editPhoto.name : 'คลิกเพื่อเลือกรูปใหม่ (ไม่บังคับ)'}
+                    </span>
+                  </label>
+                  <img
+                    className="tsf-detail-photo"
+                    src={editPhotoPreview || photoUrl(editRow.PhotoURL)}
+                    alt="รูปยืนยันการติดตั้ง"
+                  />
+                </>
+              ) : (
+                editRow.PhotoURL && (
+                  <img className="tsf-detail-photo" src={photoUrl(editRow.PhotoURL)} alt="รูปยืนยันการติดตั้ง" />
+                )
               )}
             </div>
           </div>
