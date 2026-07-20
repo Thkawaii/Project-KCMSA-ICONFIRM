@@ -1,17 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 import { getQaQueue, confirmQaResult, getAuditLog } from '../../api/qa.js'
-import { logout } from '../../api/auth.js'
+import AppShell from '../../components/AppShell.jsx'
 
 const navItems = [
   { to: 'dashboard', label: 'Dashboard', icon: '▦' },
-  { to: 'production-orders', label: 'Production Orders', icon: '📋' },
-  { to: 'scan-validate', label: 'Scan & Validate', icon: '⇄' },
   { to: 'validation-results', label: 'Validation Results', icon: '✓' },
-  { to: 'master-data', label: 'Master Data', icon: '🗄' },
-  { to: 'traceability', label: 'Traceability', icon: '🔗' },
-  { to: 'quality-alerts', label: 'Quality Alerts', icon: '⚠' },
-  { to: 'part-comparison', label: 'Part Comparison', icon: '⇅' },
 ]
 
 // ใช้ map part_no -> ชื่อ component เพื่อโชว์ใน Recent Validation Activity ของ Dashboard
@@ -22,7 +16,6 @@ export const componentNameByPartNo = {
 }
 
 export default function QALayout() {
-  const navigate = useNavigate()
   const [queue, setQueue] = useState([])
   const [auditLog, setAuditLog] = useState([])
   const [remarkDraft, setRemarkDraft] = useState({})
@@ -72,43 +65,9 @@ export default function QALayout() {
     [queue, auditLog, remarkDraft, loading, loadError]
   )
 
-  function handleLogout() {
-    logout()
-    navigate('/login')
-  }
-
   return (
-    <div className="qa-shell">
-      <aside className="qa-sidebar">
-        <div className="qa-sidebar-brand">
-          <span className="brand-badge">KOBELCO</span>
-          <div>
-            <h1 className="qa-sidebar-title">I-CONFIRM</h1>
-            <p className="qa-sidebar-subtitle">Traceability System</p>
-          </div>
-        </div>
-
-        <nav className="qa-nav">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => 'qa-nav-item' + (isActive ? ' qa-nav-item-active' : '')}
-            >
-              <span className="qa-nav-icon">{item.icon}</span>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-
-        <button className="qa-logout-btn" onClick={handleLogout}>
-          Logout
-        </button>
-      </aside>
-
-      <div className="qa-content">
-        <Outlet context={outletContext} />
-      </div>
-    </div>
+    <AppShell navItems={navItems} roleLabel="QA">
+      <Outlet context={outletContext} />
+    </AppShell>
   )
 }

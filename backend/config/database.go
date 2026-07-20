@@ -27,6 +27,8 @@ func ConnectDB() {
 
 		&models.MasterData{},
 
+		&models.MachineSpec{},
+
 		&models.Warehouse{},
 
 		&models.WHConfirm{},
