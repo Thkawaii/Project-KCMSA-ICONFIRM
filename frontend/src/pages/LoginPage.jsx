@@ -9,6 +9,7 @@ function resolveRoute(role) {
   if (normalized === 'WH') return '/warehouse'
   if (normalized === 'QA') return '/qa'
   if (normalized === 'TSF') return '/tsf'
+  if (normalized === 'UPLOAD') return '/upload'
 
   return '/dashboard'
 }

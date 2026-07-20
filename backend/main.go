@@ -16,6 +16,9 @@ func main() {
 
 	r.Use(middleware.CORSMiddleware())
 
+	// รูปที่อัปโหลด (TSF/WH/QA) ถูก serve ตรงๆ จากตรงนี้ — /uploads/xxx.jpg
+	r.Static("/uploads", "./uploads")
+
 	routes.SetupRoutes(r)
 
 	r.Run(":8080")

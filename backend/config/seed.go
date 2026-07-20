@@ -34,6 +34,13 @@ func SeedData() {
 			Status:   "Active",
 			Name:     "TSF Operator",
 		},
+		{
+			RoleName: "UPLOAD",
+			Username: "uploadview@kobelco.com",
+			Password: "uploadview.kobelco",
+			Status:   "Active",
+			Name:     "Upload View",
+		},
 	}
 
 	DB.Create(&users)
