@@ -29,11 +29,15 @@ func GetPartChecks(c *gin.Context) {
 }
 
 type ScanPartCheckRequest struct {
-	Tag string `json:"tag" binding:"required"`
+	MachineTag string `json:"machineTag" binding:"required"`
+	PartType   string `json:"partType" binding:"required"`
+	PN         string `json:"pn"`
+	SN         string `json:"sn" binding:"required"`
 }
 
-// ScanPartCheck: WH ยิงบาร์โค้ด tag (รูปแบบ "PREFIX-รหัส" เช่น "MC-LC14405563")
-// -> แยก prefix เพื่อรู้ประเภท -> บันทึกทันที ไม่ต้องกรอกอะไรเพิ่ม
+// ScanPartCheck: WH เลือกชนิดพาร์ทก่อน แล้วยิงบาร์โค้ด tag เครื่อง (รูปแบบ
+// "MC-รหัส" เช่น "MC-LC14405563") จากนั้น frontend จะเด้ง popup ให้สแกน P/N
+// และ S/N ของพาร์ทที่เลือกไว้ -> บันทึกทั้งหมดในรายการเดียว
 func ScanPartCheck(c *gin.Context) {
 
 	var req ScanPartCheckRequest
@@ -42,15 +46,15 @@ func ScanPartCheck(c *gin.Context) {
 		return
 	}
 
-	raw := strings.TrimSpace(req.Tag)
-	if raw == "" {
-		c.JSON(400, gin.H{"message": "ไม่พบข้อมูล tag ที่สแกน"})
+	rawTag := strings.TrimSpace(req.MachineTag)
+	if rawTag == "" {
+		c.JSON(400, gin.H{"message": "ไม่พบข้อมูล tag เครื่องที่สแกน"})
 		return
 	}
 
-	parts := strings.SplitN(raw, "-", 2)
+	parts := strings.SplitN(rawTag, "-", 2)
 	tagType := ""
-	refNo := raw
+	refNo := rawTag
 
 	if len(parts) == 2 {
 		prefix := strings.ToUpper(strings.TrimSpace(parts[0]))
@@ -60,19 +64,38 @@ func ScanPartCheck(c *gin.Context) {
 		}
 	}
 
-	if tagType == "" {
+	if tagType != "MC" {
 		c.JSON(400, gin.H{
-			"message": "รูปแบบ tag ไม่ถูกต้อง ต้องขึ้นต้นด้วย MC- / ITC- / CV- / SM- / MP- / PH-",
+			"message": "รูปแบบ tag เครื่องไม่ถูกต้อง ต้องขึ้นต้นด้วย MC-",
 		})
+		return
+	}
+
+	partType := strings.ToUpper(strings.TrimSpace(req.PartType))
+	if partType == "MC" {
+		c.JSON(400, gin.H{"message": "กรุณาเลือกชนิดพาร์ทที่ต้องการยืนยัน"})
+		return
+	}
+	if _, ok := tagTypeLabels[partType]; !ok {
+		c.JSON(400, gin.H{"message": "ชนิดพาร์ทไม่ถูกต้อง"})
+		return
+	}
+
+	sn := strings.TrimSpace(req.SN)
+	if sn == "" {
+		c.JSON(400, gin.H{"message": "ไม่พบข้อมูล S/N ที่สแกน"})
 		return
 	}
 
 	userID, name := lookupUserName(c)
 
 	check := models.PartCheck{
-		Tag:             raw,
+		Tag:             rawTag,
 		TagType:         tagType,
 		RefNo:           refNo,
+		PartType:        partType,
+		PN:              strings.TrimSpace(req.PN),
+		SN:              sn,
 		CheckedBy:       name,
 		CheckedDatetime: time.Now(),
 		UserID:          userID,
@@ -83,7 +106,7 @@ func ScanPartCheck(c *gin.Context) {
 		return
 	}
 
-	CreateAuditLog("PART_CHECK", check.ID, "scan_check", tagType, userID, name)
+	CreateAuditLog("PART_CHECK", check.ID, "scan_check", partType, userID, name)
 
 	c.JSON(201, check)
 }

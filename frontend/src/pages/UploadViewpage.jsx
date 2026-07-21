@@ -26,6 +26,7 @@ export default function UploadViewPage() {
   const [pendingFiles, setPendingFiles] = useState({})
   const [uploadingType, setUploadingType] = useState('')
   const [uploadMsg, setUploadMsg] = useState({})
+  const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0].type)
 
   const [exporting, setExporting] = useState(false)
 
@@ -134,14 +135,34 @@ export default function UploadViewPage() {
         </p>
       )}
 
-      {/* ===== ส่วนบน: การ์ดอัปโหลด 5 หมวด ===== */}
-      <div className="upload-card-grid">
-        {CATEGORIES.map((cat) => (
-          <div className="upload-card" key={cat.type}>
-            <div className="upload-card-icon">{cat.icon}</div>
-            <h3 className="upload-card-title">{cat.label}</h3>
+      {(() => {
+        const cat = CATEGORIES.find((c) => c.type === selectedCategory)
+        if (!cat) return null
+        return (
+          <div className="upload-panel">
+            <div className="upload-panel-field">
+              <label className="upload-panel-label" htmlFor="upload-category-select">
+                หมวดข้อมูล
+              </label>
+              <select
+                id="upload-category-select"
+                className="upload-panel-select"
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.type} value={c.type}>
+                    {c.icon} {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <label
-              className={'upload-dropzone' + (pendingFiles[cat.type] ? ' upload-dropzone-filled' : '')}
+              className={
+                'upload-dropzone upload-panel-dropzone' +
+                (pendingFiles[cat.type] ? ' upload-dropzone-filled' : '')
+              }
               htmlFor={`file-${cat.type}`}
             >
               <input
@@ -159,7 +180,7 @@ export default function UploadViewPage() {
             </label>
 
             <button
-              className="wh-issue-btn upload-card-btn"
+              className="wh-issue-btn upload-panel-btn"
               disabled={uploadingType === cat.type}
               onClick={() => handleUpload(cat.type)}
             >
@@ -172,8 +193,8 @@ export default function UploadViewPage() {
               <p className="upload-card-msg upload-card-msg-err">{uploadMsg[cat.type].error}</p>
             )}
           </div>
-        ))}
-      </div>
+        )
+      })()}
 
       {/* ===== ส่วนล่าง: รายการที่อัปโหลดแล้ว ===== */}
       <div className="wh-heading-row" style={{ marginTop: 36 }}>
@@ -210,16 +231,13 @@ export default function UploadViewPage() {
               <th>Part Type</th>
               <th>P/N</th>
               <th>S/N</th>
-              <th>File Name</th>
-              <th>Upload By</th>
-              <th>Upload Date</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={8} className="wh-empty-cell">
+                <td colSpan={5} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -235,9 +253,6 @@ export default function UploadViewPage() {
                     <td>{categoryLabel(row.ComponentType)}</td>
                     <td>{pn}</td>
                     <td>{sn}</td>
-                    <td>{row.FileName}</td>
-                    <td>{row.User?.Name || '—'}</td>
-                    <td>{row.UploadDate ? new Date(row.UploadDate).toLocaleString('th-TH') : '—'}</td>
                     <td>
                       <button className="qa-fail-btn" onClick={(e) => handleDelete(row.ID, e)}>
                         ลบ
@@ -248,7 +263,7 @@ export default function UploadViewPage() {
               })}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={8} className="wh-empty-cell">
+                <td colSpan={5} className="wh-empty-cell">
                   ยังไม่มีรายการที่อัปโหลด
                 </td>
               </tr>

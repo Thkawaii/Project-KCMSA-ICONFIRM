@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getPartChecks, scanPartCheck } from '../api/partCheck.js'
+import { getPartChecks, scanPartCheck } from '../api/partcheck.js'
 import AppShell from '../components/AppShell.jsx'
 
 const navItems = [
@@ -16,8 +16,11 @@ const TAG_TYPES = [
   { code: 'PH', label: 'Pump Assy HYD', icon: '💧' },
 ]
 
+// ชนิดพาร์ทที่เลือกได้ในฟอร์ม (ไม่รวม Machine เพราะ Machine คือ tag ที่ใช้ระบุตัวเครื่อง)
+const PART_TYPES = TAG_TYPES.filter((t) => t.code !== 'MC')
+
 function tagLabel(code) {
-  return TAG_TYPES.find((t) => t.code === code)?.label || code
+  return TAG_TYPES.find((t) => t.code === code)?.label || code || '—'
 }
 
 export default function WHPartConfirmationPage() {
@@ -25,11 +28,23 @@ export default function WHPartConfirmationPage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
-  const [idleValue, setIdleValue] = useState('')
-  const [idleError, setIdleError] = useState('')
-  const [idleMsg, setIdleMsg] = useState('')
-  const [scanning, setScanning] = useState(false)
-  const idleInputRef = useRef(null)
+  // ===== ขั้นที่ 1: เลือกชนิดพาร์ท + สแกน tag เครื่อง =====
+  const [selectedPartType, setSelectedPartType] = useState('')
+  const [machineValue, setMachineValue] = useState('')
+  const [machineError, setMachineError] = useState('')
+  const machineInputRef = useRef(null)
+
+  // ===== ขั้นที่ 2 (popup): สแกน P/N แล้วต่อด้วย S/N =====
+  const [popupOpen, setPopupOpen] = useState(false)
+  const [popupStep, setPopupStep] = useState('pn') // 'pn' | 'sn'
+  const [pendingMachineTag, setPendingMachineTag] = useState('')
+  const [pnValue, setPnValue] = useState('')
+  const [snValue, setSnValue] = useState('')
+  const [popupError, setPopupError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [successMsg, setSuccessMsg] = useState('')
+  const pnInputRef = useRef(null)
+  const snInputRef = useRef(null)
 
   const [dateTab, setDateTab] = useState('all')
   const [search, setSearch] = useState('')
@@ -56,39 +71,93 @@ export default function WHPartConfirmationPage() {
   }, [])
 
   useEffect(() => {
-    idleInputRef.current?.focus()
-  }, [])
+    if (!popupOpen) machineInputRef.current?.focus()
+  }, [popupOpen, selectedPartType])
+
+  useEffect(() => {
+    if (popupOpen && popupStep === 'pn') pnInputRef.current?.focus()
+    if (popupOpen && popupStep === 'sn') snInputRef.current?.focus()
+  }, [popupOpen, popupStep])
 
   useEffect(() => {
     setPage(1)
   }, [dateTab, search, pageSize])
 
-  async function handleScanSubmit(e) {
+  // รอบแรก: สแกน tag เครื่อง -> ถ้ารูปแบบถูกต้อง เด้ง popup ให้สแกนรอบสอง (P/N -> S/N)
+  function handleMachineSubmit(e) {
     e.preventDefault()
-    const tag = idleValue.trim()
+    const tag = machineValue.trim()
+    setMachineError('')
     if (!tag) return
 
-    setScanning(true)
-    setIdleError('')
-    setIdleMsg('')
-    try {
-      const created = await scanPartCheck(tag)
-      setIdleMsg(`บันทึกแล้ว: ${tagLabel(created.TagType)} — ${created.RefNo}`)
-      setIdleValue('')
-      await loadRows()
-      setTimeout(() => setIdleMsg(''), 2500)
-    } catch (err) {
-      setIdleError(err.message || 'สแกนไม่สำเร็จ')
-      setIdleValue('')
-    } finally {
-      setScanning(false)
-      idleInputRef.current?.focus()
+    if (!/^MC-/i.test(tag)) {
+      setMachineError('รูปแบบ tag เครื่องไม่ถูกต้อง ต้องขึ้นต้นด้วย MC-')
+      setMachineValue('')
+      return
     }
+
+    setPendingMachineTag(tag)
+    setMachineValue('')
+    setPnValue('')
+    setSnValue('')
+    setPopupError('')
+    setPopupStep('pn')
+    setPopupOpen(true)
+  }
+
+  // รอบสอง ส่วนที่ 1: สแกน P/N -> เลื่อนไปช่อง S/N ต่อทันที
+  function handlePnSubmit(e) {
+    e.preventDefault()
+    if (!pnValue.trim()) {
+      setPopupError('กรุณาสแกน P/N ก่อน')
+      return
+    }
+    setPopupError('')
+    setPopupStep('sn')
+  }
+
+  // รอบสอง ส่วนที่ 2: สแกน S/N -> บันทึกการตรวจสอบทั้งหมด
+  async function handleSnSubmit(e) {
+    e.preventDefault()
+    const sn = snValue.trim()
+    if (!sn) {
+      setPopupError('กรุณาสแกน S/N ก่อน')
+      return
+    }
+
+    setSubmitting(true)
+    setPopupError('')
+    try {
+      const created = await scanPartCheck({
+        machineTag: pendingMachineTag,
+        partType: selectedPartType,
+        pn: pnValue.trim(),
+        sn,
+      })
+      setSuccessMsg(`บันทึกแล้ว: ${tagLabel(created.PartType)} — ${created.Tag}`)
+      setTimeout(() => setSuccessMsg(''), 2500)
+      closePopup()
+      await loadRows()
+    } catch (err) {
+      setPopupError(err.message || 'บันทึกไม่สำเร็จ')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  function closePopup() {
+    setPopupOpen(false)
+    setPopupStep('pn')
+    setPendingMachineTag('')
+    setPnValue('')
+    setSnValue('')
+    setPopupError('')
   }
 
   const typeCounts = useMemo(() => {
     const counts = {}
-    for (const t of TAG_TYPES) counts[t.code] = rows.filter((r) => r.TagType === t.code).length
+    for (const t of PART_TYPES) counts[t.code] = rows.filter((r) => r.PartType === t.code).length
+    counts.MC = new Set(rows.map((r) => r.Tag)).size
     return counts
   }, [rows])
 
@@ -111,7 +180,8 @@ export default function WHPartConfirmationPage() {
       list = list.filter(
         (r) =>
           (r.Tag || '').toLowerCase().includes(term) ||
-          (r.RefNo || '').toLowerCase().includes(term) ||
+          (r.PN || '').toLowerCase().includes(term) ||
+          (r.SN || '').toLowerCase().includes(term) ||
           (r.CheckedBy || '').toLowerCase().includes(term)
       )
     }
@@ -125,12 +195,16 @@ export default function WHPartConfirmationPage() {
     setPage(Math.min(Math.max(1, p), totalPages))
   }
 
+  const selectedPartLabel = tagLabel(selectedPartType)
+
   return (
     <AppShell navItems={navItems} roleLabel="Warehouse">
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">Part Confirmation</h2>
-          <p className="wh-subtitle">ยิงบาร์โค้ด TAG เพื่อบันทึกการตรวจสอบทันที — ไม่ต้องกรอกอะไรเพิ่ม</p>
+          <p className="wh-subtitle">
+            เลือกชนิดพาร์ท แล้วยิงบาร์โค้ด TAG เครื่อง — ระบบจะเด้งให้สแกน P/N และ S/N ของพาร์ทต่อทันที
+          </p>
         </div>
       </div>
 
@@ -141,32 +215,58 @@ export default function WHPartConfirmationPage() {
       )}
 
       <div className="scan-hero" style={{ paddingBottom: 24 }}>
-        <div className="scan-hero-graphic" style={{ padding: '26px 40px' }}>
-          <BigBarcode />
-          <div className="scan-hero-label">SCAN HERE</div>
+        <div className="pc-part-select-field">
+          <label className="upload-panel-label" htmlFor="pc-part-type">
+            ชนิดพาร์ทที่ต้องการยืนยัน
+          </label>
+          <select
+            id="pc-part-type"
+            className="upload-panel-select"
+            value={selectedPartType}
+            onChange={(e) => setSelectedPartType(e.target.value)}
+          >
+            <option value="">-- เลือกชนิดพาร์ท --</option>
+            {PART_TYPES.map((t) => (
+              <option key={t.code} value={t.code}>
+                {t.icon} {t.label}
+              </option>
+            ))}
+          </select>
         </div>
-        <p className="scan-hero-hint">
-          รูปแบบ TAG: <code>MC-</code>Machine · <code>ITC-</code>IT Controller · <code>CV-</code>Control Valve ·{' '}
-          <code>SM-</code>Swing Motor · <code>MP-</code>Motor Propel · <code>PH-</code>Pump Assy HYD
-        </p>
-        <form onSubmit={handleScanSubmit} className="scan-hero-form">
-          <input
-            ref={idleInputRef}
-            className="scan-hero-input"
-            type="text"
-            placeholder="รอรับสัญญาณจากเครื่องสแกน..."
-            value={idleValue}
-            onChange={(e) => setIdleValue(e.target.value)}
-            disabled={scanning}
-            autoFocus
-          />
-        </form>
-        {scanning && <p className="wh-subtitle">กำลังบันทึก...</p>}
-        {idleMsg && <p className="upload-card-msg-ok" style={{ fontWeight: 700 }}>{idleMsg}</p>}
-        {idleError && (
-          <p className="form-error" role="alert">
-            {idleError}
-          </p>
+
+        {selectedPartType && (
+          <>
+            <div className="scan-hero-graphic" style={{ padding: '26px 40px' }}>
+              <BigBarcode />
+              <div className="scan-hero-label">SCAN HERE</div>
+            </div>
+            <p className="scan-hero-hint">
+              ขั้นที่ 1: สแกน TAG เครื่อง รูปแบบ <code>MC-</code>ตามด้วยรหัสเครื่อง — ระบบจะเด้งให้สแกน P/N
+              และ S/N ของ <strong>{selectedPartLabel}</strong> ต่อในขั้นที่ 2
+            </p>
+            <form onSubmit={handleMachineSubmit} className="scan-hero-form">
+              <input
+                ref={machineInputRef}
+                className="scan-hero-input"
+                type="text"
+                placeholder="รอรับสัญญาณจากเครื่องสแกน (MC-...)"
+                value={machineValue}
+                onChange={(e) => setMachineValue(e.target.value)}
+                disabled={popupOpen}
+                autoFocus
+              />
+            </form>
+            {successMsg && (
+              <p className="upload-card-msg-ok" style={{ fontWeight: 700 }}>
+                {successMsg}
+              </p>
+            )}
+            {machineError && (
+              <p className="form-error" role="alert">
+                {machineError}
+              </p>
+            )}
+          </>
         )}
       </div>
 
@@ -219,7 +319,7 @@ export default function WHPartConfirmationPage() {
         <input
           className="wh-search"
           type="text"
-          placeholder="ค้นหา Tag / รหัส / ผู้ตรวจสอบ"
+          placeholder="ค้นหา Tag / P/N / S/N / ผู้ตรวจสอบ"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -229,8 +329,10 @@ export default function WHPartConfirmationPage() {
         <table className="wh-table">
           <thead>
             <tr>
-              <th>TAG</th>
+              <th>Machine TAG</th>
               <th>Part</th>
+              <th>P/N</th>
+              <th>S/N</th>
               <th>Checked By</th>
               <th>วันที่</th>
               <th></th>
@@ -239,7 +341,7 @@ export default function WHPartConfirmationPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={5} className="wh-empty-cell">
+                <td colSpan={7} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -248,9 +350,11 @@ export default function WHPartConfirmationPage() {
               paged.map((r) => (
                 <tr key={r.ID}>
                   <td>
-                    <strong>{r.TagType}</strong>
+                    <strong>{r.Tag}</strong>
                   </td>
-                  <td>{tagLabel(r.TagType)}</td>
+                  <td>{tagLabel(r.PartType)}</td>
+                  <td>{r.PN || '—'}</td>
+                  <td>{r.SN || '—'}</td>
                   <td>{r.CheckedBy}</td>
                   <td>{new Date(r.CheckedDatetime).toLocaleString('th-TH')}</td>
                   <td>
@@ -262,7 +366,7 @@ export default function WHPartConfirmationPage() {
               ))}
             {!loading && paged.length === 0 && (
               <tr>
-                <td colSpan={5} className="wh-empty-cell">
+                <td colSpan={7} className="wh-empty-cell">
                   ยังไม่มีรายการตรวจสอบ
                 </td>
               </tr>
@@ -302,10 +406,11 @@ export default function WHPartConfirmationPage() {
           <div className="wh-modal" onClick={(e) => e.stopPropagation()}>
             <h3 className="wh-modal-title">รายละเอียดการตรวจสอบ</h3>
             <p className="wh-modal-line">
-              TAG: <strong>{detailRow.Tag}</strong>
+              Machine TAG: <strong>{detailRow.Tag}</strong>
             </p>
-            <p className="wh-modal-line">ประเภท: {tagLabel(detailRow.TagType)}</p>
-            <p className="wh-modal-line">รหัสอ้างอิง: {detailRow.RefNo}</p>
+            <p className="wh-modal-line">ชนิดพาร์ท: {tagLabel(detailRow.PartType)}</p>
+            <p className="wh-modal-line">P/N: {detailRow.PN || '—'}</p>
+            <p className="wh-modal-line">S/N: {detailRow.SN || '—'}</p>
             <p className="wh-modal-line">ตรวจสอบโดย: {detailRow.CheckedBy}</p>
             <p className="wh-modal-line">
               เวลา: {new Date(detailRow.CheckedDatetime).toLocaleString('th-TH')}
@@ -314,6 +419,82 @@ export default function WHPartConfirmationPage() {
               <button className="wh-modal-cancel" onClick={() => setDetailRow(null)}>
                 ปิด
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Popup รอบสอง: สแกน P/N แล้วต่อด้วย S/N ===== */}
+      {popupOpen && (
+        <div className="wh-modal-overlay">
+          <div className="wh-modal pc-scan-popup" onClick={(e) => e.stopPropagation()}>
+            <h3 className="wh-modal-title">
+              สแกน P/N และ S/N — {selectedPartLabel}
+            </h3>
+            <p className="wh-modal-line">
+              Machine TAG: <strong>{pendingMachineTag}</strong>
+            </p>
+
+            <div className="pc-scan-steps">
+              <span className={'pc-scan-step' + (popupStep === 'pn' ? ' pc-scan-step-active' : ' pc-scan-step-done')}>
+                1. P/N
+              </span>
+              <span className={'pc-scan-step' + (popupStep === 'sn' ? ' pc-scan-step-active' : '')}>2. S/N</span>
+            </div>
+
+            {popupStep === 'pn' && (
+              <form onSubmit={handlePnSubmit}>
+                <label className="upload-panel-label" htmlFor="pc-pn-input">
+                  สแกน P/N
+                </label>
+                <input
+                  id="pc-pn-input"
+                  ref={pnInputRef}
+                  className="scan-hero-input"
+                  type="text"
+                  placeholder="รอรับสัญญาณจากเครื่องสแกน..."
+                  value={pnValue}
+                  onChange={(e) => setPnValue(e.target.value)}
+                />
+              </form>
+            )}
+
+            {popupStep === 'sn' && (
+              <form onSubmit={handleSnSubmit}>
+                <p className="wh-modal-line">
+                  P/N: <strong>{pnValue}</strong>
+                </p>
+                <label className="upload-panel-label" htmlFor="pc-sn-input">
+                  สแกน S/N
+                </label>
+                <input
+                  id="pc-sn-input"
+                  ref={snInputRef}
+                  className="scan-hero-input"
+                  type="text"
+                  placeholder="รอรับสัญญาณจากเครื่องสแกน..."
+                  value={snValue}
+                  onChange={(e) => setSnValue(e.target.value)}
+                  disabled={submitting}
+                />
+              </form>
+            )}
+
+            {popupError && (
+              <p className="form-error" role="alert">
+                {popupError}
+              </p>
+            )}
+
+            <div className="wh-modal-actions">
+              <button className="wh-modal-cancel" onClick={closePopup} disabled={submitting}>
+                ยกเลิก
+              </button>
+              {popupStep === 'sn' && (
+                <button className="wh-issue-btn" onClick={handleSnSubmit} disabled={submitting}>
+                  {submitting ? 'กำลังบันทึก...' : 'ยืนยัน'}
+                </button>
+              )}
             </div>
           </div>
         </div>

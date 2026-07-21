@@ -1,4 +1,4 @@
-/* ===== AppShell: shared topbar + overlay drawer (WH / TSF / QA) ===== */
+/* ===== AppShell: topbar + inline subnav (WH / TSF / QA) — no sidebar drawer ===== */
 
 .shell {
   min-height: 100vh;
@@ -14,15 +14,13 @@
   padding: 14px 24px;
 }
 
-.shell-topbar .brand-row,
-.shell-drawer-topbar .brand-row {
+.shell-topbar .brand-row {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.shell-topbar .brand-badge,
-.shell-drawer-topbar .brand-badge {
+.shell-topbar .brand-badge {
   background: #ffffff;
   color: #0f766e;
   font-weight: 700;
@@ -32,18 +30,66 @@
   border-radius: 6px;
 }
 
-.shell-hamburger {
-  background: none;
-  border: none;
-  color: #ffffff;
-  cursor: pointer;
-  padding: 6px;
+.shell-topbar-right {
   display: flex;
-  border-radius: 6px;
+  align-items: center;
+  gap: 14px;
 }
 
-.shell-hamburger:hover {
-  background: rgba(255, 255, 255, 0.15);
+.shell-user {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.shell-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.shell-user-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.shell-user-name {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.shell-user-role {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+}
+
+.shell-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.shell-logout-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .shell-main {
@@ -52,135 +98,68 @@
   padding: 32px 28px 60px;
 }
 
-/* Overlay drawer */
+/* Inline sub-navigation (replaces the old drawer nav) */
 
-.shell-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.55);
-  z-index: 60;
+.shell-subnav {
   display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0 24px;
 }
 
-.shell-drawer {
-  width: 320px;
-  max-width: 85vw;
-  height: 100%;
-  background: #0f172a;
-  display: flex;
-  flex-direction: column;
-  padding: 0 14px 18px;
-  box-shadow: 8px 0 30px rgba(0, 0, 0, 0.3);
-}
-
-.shell-drawer-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 4px 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 10px;
-}
-
-.shell-close {
-  background: none;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #ffffff;
-  border-radius: 6px;
-  padding: 5px;
-  cursor: pointer;
-  display: flex;
-}
-
-.shell-close:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.shell-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  flex: 1;
-  overflow-y: auto;
-}
-
-.shell-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 11px 12px;
-  border-radius: 8px;
-  color: #cbd5e1;
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-  transition: background 0.15s ease;
-}
-
-.shell-nav-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.shell-nav-item-active {
-  background: #17c3b2;
-  color: #ffffff;
-  font-weight: 600;
-}
-
-.shell-nav-icon {
-  width: 18px;
-  text-align: center;
-}
-
-.shell-profile {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  margin-top: 8px;
-}
-
-.shell-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #17c3b2;
-  color: #ffffff;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.shell-profile-name {
-  color: #ffffff;
-  font-size: 13.5px;
-  font-weight: 600;
-}
-
-.shell-profile-role {
-  color: #94a3b8;
-  font-size: 12px;
-}
-
-.shell-signout {
+.shell-subnav-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #cbd5e1;
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 13px;
-  cursor: pointer;
-  margin: 4px 8px 0;
+  padding: 13px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #64748b;
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 2.5px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
 
-.shell-signout:hover {
-  background: rgba(255, 255, 255, 0.08);
+.shell-subnav-item:hover {
+  color: #0f766e;
+}
+
+.shell-subnav-item-active {
+  color: #0f766e;
+  border-bottom-color: #17c3b2;
+}
+
+.shell-subnav-icon {
+  font-size: 15px;
+}
+
+@media (max-width: 560px) {
+  .shell-topbar {
+    padding: 12px 16px;
+  }
+
+  .shell-user-info {
+    display: none;
+  }
+
+  .shell-logout-btn span {
+    display: none;
+  }
+
+  .shell-logout-btn {
+    padding: 8px;
+  }
+
+  .shell-main {
+    padding: 22px 16px 44px;
+  }
+
+  .shell-subnav {
+    padding: 0 12px;
+  }
 }
 
 /* ===== Validation Results: filter tabs + expandable table ===== */
@@ -265,12 +244,98 @@
   color: #b91c1c;
 }
 
-/* ===== Upload View: category upload cards ===== */
+/* ===== Upload View: single upload panel (category chosen via dropdown) ===== */
+
+.upload-panel {
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  padding: 28px;
+  max-width: 420px;
+  text-align: center;
+}
+
+.upload-panel-field {
+  text-align: left;
+  margin-bottom: 20px;
+}
+
+.upload-panel-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.upload-panel-select {
+  width: 100%;
+  appearance: none;
+  background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%2364748b' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 14px center;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 38px 12px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.upload-panel-select:hover,
+.upload-panel-select:focus {
+  border-color: #17c3b2;
+  outline: none;
+}
+
+.upload-panel-dropzone {
+  padding: 28px 16px;
+}
+
+.upload-panel-btn {
+  width: 100%;
+}
+
+@media (max-width: 560px) {
+  .upload-panel {
+    padding: 20px;
+    max-width: 100%;
+  }
+
+  .upload-panel-dropzone {
+    padding: 20px 12px;
+  }
+}
+
+/* ===== Upload View: category upload cards (legacy grid, kept in case reverted) ===== */
 
 .upload-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
+}
+
+@media (max-width: 1100px) {
+  .upload-card-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .upload-card-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+}
+
+@media (max-width: 560px) {
+  .upload-card-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
 }
 
 .upload-card {
@@ -279,6 +344,19 @@
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
   padding: 20px;
   text-align: center;
+  min-width: 0;
+}
+
+@media (max-width: 860px) {
+  .upload-card {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 560px) {
+  .upload-card {
+    padding: 14px;
+  }
 }
 
 .upload-card-icon {
@@ -292,6 +370,13 @@
   color: #0f172a;
   margin: 0 0 14px;
   min-height: 36px;
+}
+
+@media (max-width: 560px) {
+  .upload-card-title {
+    font-size: 13px;
+    min-height: 0;
+  }
 }
 
 .upload-card-input-hidden {
@@ -351,6 +436,16 @@
 .upload-dropzone-hint {
   font-size: 10.5px;
   color: #94a3b8;
+}
+
+@media (max-width: 560px) {
+  .upload-dropzone {
+    padding: 16px 10px;
+  }
+
+  .upload-dropzone-text {
+    font-size: 12px;
+  }
 }
 
 /* ===== Barcode scanner ===== */
@@ -709,6 +804,48 @@
 
 .scan-hero-input:focus {
   box-shadow: 0 0 0 4px rgba(23, 195, 178, 0.2);
+}
+
+/* ===== Part Confirmation: part-type select + two-step scan popup ===== */
+
+.pc-part-select-field {
+  width: 100%;
+  max-width: 320px;
+  text-align: left;
+  margin-bottom: 20px;
+}
+
+.pc-scan-popup {
+  max-width: 420px;
+}
+
+.pc-scan-steps {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0 18px;
+}
+
+.pc-scan-step {
+  flex: 1;
+  text-align: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #94a3b8;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.pc-scan-step-active,
+.pc-scan-step-done {
+  background: rgba(23, 195, 178, 0.12);
+  color: #0f766e;
+}
+
+@media (max-width: 560px) {
+  .pc-part-select-field {
+    max-width: 100%;
+  }
 }
 
 .scan-capture-card {
