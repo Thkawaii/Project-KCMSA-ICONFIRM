@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './pages/LoginPage.jsx'
 import WarehousePage from './pages/WarehousePage.jsx'
+import WHPartConfirmationPage from './pages/WHPartConfirmationPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
 import TSFOperatorPage from './pages/TSFOperatorPage.jsx'
 import TSFReceivePage from './pages/TSFReceivePage.jsx'
@@ -20,6 +21,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/warehouse" element={<WarehousePage />} />
+        <Route path="/warehouse/confirm" element={<WHPartConfirmationPage />} />
         <Route path="/tsf" element={<TSFOperatorPage />} />
         <Route path="/tsf/receive" element={<TSFReceivePage />} />
         <Route path="/upload" element={<UploadViewPage />} />

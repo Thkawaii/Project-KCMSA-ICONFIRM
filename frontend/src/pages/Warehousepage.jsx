@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getWarehouseStock, issueWarehouseStock, getWhConfirms, uploadWarehouseStock } from '../api/warehouse.js'
+import { getWarehouseStock, issueWarehouseStock, uploadWarehouseStock } from '../api/warehouse.js'
 import AppShell from '../components/AppShell.jsx'
 import BarcodeScannerModal from '../components/BarcodeScannerModal.jsx'
 
-const navItems = [{ to: '/warehouse', label: 'Issue Parts', icon: '📦' }]
+const navItems = [
+  { to: '/warehouse', label: 'จ่ายของ (FIFO & S/O)', icon: '📦' },
+  { to: '/warehouse/confirm', label: 'Part Confirmation', icon: '✅' },
+]
 
 const STOCK_TABS = [
   { key: 'all', label: 'ทั้งหมด' },
@@ -12,9 +15,7 @@ const STOCK_TABS = [
 ]
 
 export default function WarehousePage() {
-  const [pageTab, setPageTab] = useState('issue') // 'issue' | 'confirm'
   const [stock, setStock] = useState([])
-  const [transfers, setTransfers] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
@@ -36,21 +37,12 @@ export default function WarehousePage() {
   const [soUploading, setSoUploading] = useState(false)
   const [soMsg, setSoMsg] = useState(null)
 
-  // ===== Part Confirmation dashboard (ตาราง WHConfirm) =====
-  const [partFilter, setPartFilter] = useState('')
-  const [machineFilter, setMachineFilter] = useState('')
-  const [dateTab, setDateTab] = useState('all') // all | day | week | month
-  const [pcSearch, setPcSearch] = useState('')
-  const [pageSize, setPageSize] = useState(10)
-  const [page, setPage] = useState(1)
-
   async function loadAll() {
     setLoading(true)
     setLoadError('')
     try {
-      const [stockData, transferData] = await Promise.all([getWarehouseStock(), getWhConfirms()])
+      const stockData = await getWarehouseStock()
       setStock(stockData || [])
-      setTransfers(transferData || [])
     } catch (err) {
       setLoadError(err.message || 'โหลดข้อมูลคลังไม่สำเร็จ')
     } finally {
@@ -61,10 +53,6 @@ export default function WarehousePage() {
   useEffect(() => {
     loadAll()
   }, [])
-
-  useEffect(() => {
-    setPage(1)
-  }, [partFilter, machineFilter, dateTab, pcSearch, pageSize])
 
   async function handleSoFile(e) {
     const file = e.target.files?.[0]
@@ -126,53 +114,6 @@ export default function WarehousePage() {
     return Array.from(map.entries()).map(([orderNo, v]) => ({ orderNo, ...v }))
   }, [stock])
 
-  const filteredTransfers = useMemo(() => {
-    let rows = transfers
-
-    if (partFilter) rows = rows.filter((t) => t.PartName === partFilter)
-    if (machineFilter) rows = rows.filter((t) => t.MachineModel === machineFilter)
-
-    if (dateTab !== 'all') {
-      const now = new Date()
-      rows = rows.filter((t) => {
-        const diffDays = (now - new Date(t.ConfirmDatetime)) / (1000 * 60 * 60 * 24)
-        if (dateTab === 'day') return diffDays <= 1
-        if (dateTab === 'week') return diffDays <= 7
-        if (dateTab === 'month') return diffDays <= 31
-        return true
-      })
-    }
-
-    const term = pcSearch.trim().toLowerCase()
-    if (term) {
-      rows = rows.filter(
-        (t) =>
-          (t.PartNo || '').toLowerCase().includes(term) ||
-          (t.PartName || '').toLowerCase().includes(term) ||
-          (t.MachineModel || '').toLowerCase().includes(term) ||
-          (t.OrderNo || '').toLowerCase().includes(term) ||
-          (t.Name || '').toLowerCase().includes(term)
-      )
-    }
-
-    return [...rows].sort((a, b) => new Date(b.ConfirmDatetime) - new Date(a.ConfirmDatetime))
-  }, [transfers, partFilter, machineFilter, dateTab, pcSearch])
-
-  const partOptions = useMemo(
-    () => Array.from(new Set(transfers.map((t) => t.PartName).filter(Boolean))),
-    [transfers]
-  )
-  const machineOptions = useMemo(
-    () => Array.from(new Set(transfers.map((t) => t.MachineModel).filter(Boolean))),
-    [transfers]
-  )
-
-  const pcTotalPages = Math.max(1, Math.ceil(filteredTransfers.length / pageSize))
-  const pagedTransfers = filteredTransfers.slice((page - 1) * pageSize, page * pageSize)
-  function goToPage(p) {
-    setPage(Math.min(Math.max(1, p), pcTotalPages))
-  }
-
   const stockCounts = useMemo(
     () => ({
       all: stock.length,
@@ -180,15 +121,6 @@ export default function WarehousePage() {
       not_issued: stock.filter((r) => !r.StockOutNo).length,
     }),
     [stock]
-  )
-
-  const transferCounts = useMemo(
-    () => ({
-      all: transfers.length,
-      SENT: transfers.filter((t) => t.TransferStatus === 'SENT').length,
-      RECEIVED: transfers.filter((t) => t.TransferStatus === 'RECEIVED').length,
-    }),
-    [transfers]
   )
 
   function openIssueModal(row) {
@@ -267,24 +199,9 @@ export default function WarehousePage() {
     <AppShell navItems={navItems} roleLabel="Warehouse">
         <div className="wh-heading-row">
           <div>
-            <h2 className="wh-title">Warehouse</h2>
-            <p className="wh-subtitle">เลือกโหมดการทำงาน</p>
+            <h2 className="wh-title">Warehouse — จ่ายชิ้นส่วน (Issue Parts)</h2>
+            <p className="wh-subtitle">จ่ายชิ้นส่วนตามหลัก FIFO &amp; Sales Order</p>
           </div>
-        </div>
-
-        <div className="vr-tabs" style={{ marginBottom: 24 }}>
-          <button
-            className={'vr-tab' + (pageTab === 'issue' ? ' vr-tab-active' : '')}
-            onClick={() => setPageTab('issue')}
-          >
-            📦 จ่ายของ (FIFO &amp; S/O)
-          </button>
-          <button
-            className={'vr-tab' + (pageTab === 'confirm' ? ' vr-tab-active' : '')}
-            onClick={() => setPageTab('confirm')}
-          >
-            ✅ Part Confirmation
-          </button>
         </div>
 
         {toast && <div className="wh-toast">{toast}</div>}
@@ -294,8 +211,6 @@ export default function WarehousePage() {
           </p>
         )}
 
-    {pageTab === 'issue' && (
-      <>
         <div className="upload-card" style={{ maxWidth: 320, marginBottom: 24, textAlign: 'left', padding: 14 }}>
           <p className="wh-subtitle" style={{ margin: '0 0 8px', fontSize: 12 }}>
             อัปโหลด SO / สต็อกเข้าคลัง (Excel)
@@ -438,184 +353,6 @@ export default function WarehousePage() {
             </div>
           </>
         )}
-      </>
-    )}
-
-    {pageTab === 'confirm' && (
-      <>
-        <div className="wh-heading-row">
-          <div>
-            <h2 className="wh-title" style={{ fontSize: 19 }}>
-              Part Confirmation
-            </h2>
-            <p className="wh-subtitle">รายการที่จ่ายแล้ว — รอ TSF กด "รับอะไหล่" ที่หน้า TSF Operator</p>
-          </div>
-        </div>
-
-        <div className="tsf-form-card" style={{ marginBottom: 20 }}>
-          <label className="wh-modal-label">เลือกพาร์ท</label>
-          <select className="wh-modal-input" value={partFilter} onChange={(e) => setPartFilter(e.target.value)}>
-            <option value="">-- ทั้งหมด --</option>
-            {partOptions.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-
-          <label className="wh-modal-label">เลือก Machine No.</label>
-          <select className="wh-modal-input" value={machineFilter} onChange={(e) => setMachineFilter(e.target.value)}>
-            <option value="">-- ทั้งหมด --</option>
-            {machineOptions.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="tsf-stats-row">
-          <div className="tsf-stat-card">
-            <span className="tsf-stat-icon">📦</span>
-            <div>
-              <div className="tsf-stat-value">{transferCounts.all}</div>
-              <div className="tsf-stat-label">ทั้งหมด</div>
-            </div>
-          </div>
-          <div className="tsf-stat-card">
-            <span className="tsf-stat-icon">🚚</span>
-            <div>
-              <div className="tsf-stat-value">{transferCounts.SENT}</div>
-              <div className="tsf-stat-label">รอ TSF รับ</div>
-            </div>
-          </div>
-          <div className="tsf-stat-card">
-            <span className="tsf-stat-icon">✅</span>
-            <div>
-              <div className="tsf-stat-value">{transferCounts.RECEIVED}</div>
-              <div className="tsf-stat-label">TSF รับแล้ว</div>
-            </div>
-          </div>
-          <div className="tsf-stat-card">
-            <span className="tsf-stat-icon">🧾</span>
-            <div>
-              <div className="tsf-stat-value">{salesOrders.length}</div>
-              <div className="tsf-stat-label">Sales Order ที่มีการจ่าย</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="wh-heading-row">
-          <div />
-          <div className="vr-tabs">
-            {[
-              { key: 'all', label: 'ทั้งหมด' },
-              { key: 'day', label: 'รายวัน' },
-              { key: 'week', label: 'รายสัปดาห์' },
-              { key: 'month', label: 'รายเดือน' },
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                className={'vr-tab' + (dateTab === tab.key ? ' vr-tab-active' : '')}
-                onClick={() => setDateTab(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="tsf-history-toolbar">
-          <label className="tsf-history-pagesize">
-            <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-            entries per page
-          </label>
-          <input
-            className="wh-search"
-            type="text"
-            placeholder="ค้นหา Part No / Machine No / SO / ผู้จ่าย"
-            value={pcSearch}
-            onChange={(e) => setPcSearch(e.target.value)}
-          />
-        </div>
-
-        <div className="wh-table-card">
-          <table className="wh-table">
-            <thead>
-              <tr>
-                <th>Sales Order</th>
-                <th>Part No.</th>
-                <th>Part Name</th>
-                <th>Machine No.</th>
-                <th>จ่ายโดย</th>
-                <th>เวลาจ่าย</th>
-                <th>สถานะ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!loading &&
-                pagedTransfers.map((t) => (
-                  <tr key={t.ID}>
-                    <td>{t.OrderNo || '—'}</td>
-                    <td>{t.PartNo}</td>
-                    <td>{t.PartName}</td>
-                    <td>{t.MachineModel || '—'}</td>
-                    <td>{t.Name}</td>
-                    <td>{new Date(t.ConfirmDatetime).toLocaleString('th-TH')}</td>
-                    <td>
-                      <span
-                        className={
-                          t.TransferStatus === 'RECEIVED' ? 'wh-qty-badge' : 'wh-qty-badge wh-qty-zero'
-                        }
-                      >
-                        {t.TransferStatus === 'RECEIVED' ? 'TSF รับแล้ว' : 'รอ TSF รับ'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              {!loading && pagedTransfers.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="wh-empty-cell">
-                    ไม่พบรายการ
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {!loading && filteredTransfers.length > 0 && (
-          <div className="tsf-pagination">
-            <span className="wh-subtitle" style={{ fontSize: 13 }}>
-              Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, filteredTransfers.length)} of{' '}
-              {filteredTransfers.length} entries
-            </span>
-            <div className="tsf-pagination-buttons">
-              <button className="wh-modal-cancel" onClick={() => goToPage(1)} disabled={page === 1}>
-                «
-              </button>
-              <button className="wh-modal-cancel" onClick={() => goToPage(page - 1)} disabled={page === 1}>
-                ‹
-              </button>
-              <span className="tsf-pagination-current">
-                {page} / {pcTotalPages}
-              </span>
-              <button className="wh-modal-cancel" onClick={() => goToPage(page + 1)} disabled={page === pcTotalPages}>
-                ›
-              </button>
-              <button className="wh-modal-cancel" onClick={() => goToPage(pcTotalPages)} disabled={page === pcTotalPages}>
-                »
-              </button>
-            </div>
-          </div>
-        )}
-      </>
-    )}
     </AppShell>
 
       {issuingRow && (

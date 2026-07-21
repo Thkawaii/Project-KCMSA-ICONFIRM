@@ -43,6 +43,8 @@ func ConnectDB() {
 
 		&models.AuditLog{},
 
+		&models.PartCheck{},
+
 	)
 
 	SeedData()
