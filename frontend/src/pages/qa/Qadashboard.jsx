@@ -145,9 +145,9 @@ export default function QADashboard() {
             <tbody>
               {auditLog.slice(0, 6).map((log) => (
                 <tr key={log.ID}>
-                  <td>{log.Action}</td>
-                  <td>{log.Name}</td>
-                  <td>
+                  <td className="wh-cell-head" data-label="Action">{log.Action}</td>
+                  <td data-label="โดย">{log.Name}</td>
+                  <td data-label="Status">
                     <span
                       className={
                         log.ResultStatus === 'PASS' ? 'qa-result-badge qa-pass' : 'qa-result-badge qa-fail'

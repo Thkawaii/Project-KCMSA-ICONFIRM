@@ -203,7 +203,7 @@ export default function UploadViewPage() {
             รายการที่อัปโหลดแล้ว
           </h2>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div className="uv-list-tools" style={{ display: 'flex', gap: 10 }}>
           <select
             className="wh-search"
             value={filterType}
@@ -247,13 +247,13 @@ export default function UploadViewPage() {
                 const { pn, sn } = pnSnForRow(row)
                 return (
                   <tr key={row.ID}>
-                    <td>
+                    <td className="wh-cell-head" data-label="Machine No">
                       <strong>{row.MachineNo || '—'}</strong>
                     </td>
-                    <td>{categoryLabel(row.ComponentType)}</td>
-                    <td>{pn}</td>
-                    <td>{sn}</td>
-                    <td>
+                    <td data-label="Part Type">{categoryLabel(row.ComponentType)}</td>
+                    <td data-label="P/N">{pn}</td>
+                    <td data-label="S/N">{sn}</td>
+                    <td className="wh-cell-action">
                       <button className="qa-fail-btn" onClick={(e) => handleDelete(row.ID, e)}>
                         ลบ
                       </button>

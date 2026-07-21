@@ -50,20 +50,20 @@ export default function QAValidationResults() {
                 const confirmed = Boolean(row.Result)
                 return (
                   <tr key={row.ID}>
-                    <td>{row.ExpectedPartNo}</td>
-                    <td className={mismatch && row.ExpectedPartNo !== row.ActualPartNo ? 'qa-cell-fail' : ''}>
+                    <td className="wh-cell-head" data-label="Expected P/N">{row.ExpectedPartNo}</td>
+                    <td data-label="Actual P/N" className={mismatch && row.ExpectedPartNo !== row.ActualPartNo ? 'qa-cell-fail' : ''}>
                       {row.ActualPartNo}
                     </td>
-                    <td>{row.ExpectedSpec}</td>
-                    <td className={mismatch && row.ExpectedSpec !== row.ActualSpec ? 'qa-cell-fail' : ''}>
+                    <td data-label="Expected Spec">{row.ExpectedSpec}</td>
+                    <td data-label="Actual Spec" className={mismatch && row.ExpectedSpec !== row.ActualSpec ? 'qa-cell-fail' : ''}>
                       {row.ActualSpec}
                     </td>
-                    <td>
+                    <td data-label="ผลเทียบ">
                       <span className={mismatch ? 'wh-qty-badge wh-qty-zero' : 'wh-qty-badge'}>
                         {mismatch ? 'ไม่ตรง' : 'ตรงกัน'}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Remark">
                       <input
                         className="qa-remark-input"
                         type="text"
@@ -75,7 +75,7 @@ export default function QAValidationResults() {
                         }
                       />
                     </td>
-                    <td>
+                    <td data-label="ผลยืนยัน">
                       {row.Result ? (
                         <span
                           className={
@@ -133,9 +133,9 @@ export default function QAValidationResults() {
           <tbody>
             {auditLog.map((log) => (
               <tr key={log.ID}>
-                <td>{log.SourceTable}</td>
-                <td>{log.Action}</td>
-                <td>
+                <td className="wh-cell-head" data-label="Source">{log.SourceTable}</td>
+                <td data-label="Action">{log.Action}</td>
+                <td data-label="ผล">
                   <span
                     className={
                       log.ResultStatus === 'PASS' ? 'qa-result-badge qa-pass' : 'qa-result-badge qa-fail'
@@ -144,8 +144,8 @@ export default function QAValidationResults() {
                     {log.ResultStatus}
                   </span>
                 </td>
-                <td>{log.Name}</td>
-                <td>{new Date(log.ActionDatetime).toLocaleString('th-TH')}</td>
+                <td data-label="โดย">{log.Name}</td>
+                <td data-label="เวลา">{new Date(log.ActionDatetime).toLocaleString('th-TH')}</td>
               </tr>
             ))}
             {auditLog.length === 0 && (

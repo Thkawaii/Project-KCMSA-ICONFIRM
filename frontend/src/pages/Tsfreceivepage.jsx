@@ -83,12 +83,12 @@ export default function TSFReceivePage() {
             {!loading &&
               pendingTransfers.map((t) => (
                 <tr key={t.ID}>
-                  <td>{t.OrderNo || '—'}</td>
-                  <td>{t.PartNo}</td>
-                  <td>{t.SerialNo || '—'}</td>
-                  <td>{t.PartName}</td>
-                  <td>{t.Name}</td>
-                  <td>
+                  <td className="wh-cell-head" data-label="Sales Order">{t.OrderNo || '—'}</td>
+                  <td data-label="Part No.">{t.PartNo}</td>
+                  <td data-label="S/N">{t.SerialNo || '—'}</td>
+                  <td data-label="Part Name">{t.PartName}</td>
+                  <td data-label="จ่ายโดย">{t.Name}</td>
+                  <td className="wh-cell-action">
                     <button
                       className="wh-issue-btn"
                       disabled={receivingId === t.ID}

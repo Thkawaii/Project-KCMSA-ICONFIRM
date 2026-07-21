@@ -286,7 +286,16 @@
 
 @media (max-width: 560px) {
   .wh-stats-row.dash-stats-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .wh-stats-row .dash-stat-card {
+    padding: 12px 14px;
+  }
+
+  .wh-stats-row .dash-stat-value {
+    font-size: 22px;
   }
 }
 
@@ -1230,5 +1239,486 @@
   }
   .qa-sidebar {
     width: 100%;
+  }
+}
+
+/* =========================================================
+   App-wide mobile / responsive layer (all roles & pages)
+   ========================================================= */
+
+/* ---- Stat card grids: 2-up on phones (used by WH / QA / TSF) ---- */
+@media (max-width: 560px) {
+  .dash-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .dash-stat-card {
+    padding: 12px 14px;
+  }
+
+  .dash-stat-value {
+    font-size: 22px;
+  }
+
+  .tsf-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+}
+
+/* ---- Heading rows with inline tool clusters ---- */
+@media (max-width: 640px) {
+  .wh-heading-row {
+    margin-bottom: 16px;
+  }
+
+  .wh-title {
+    font-size: 20px;
+  }
+
+  /* generic inline tool group placed on the right of a heading row */
+  .wh-heading-row > div:last-child {
+    width: 100%;
+  }
+
+  .uv-list-tools {
+    width: 100%;
+  }
+
+  .uv-list-tools select,
+  .uv-list-tools .wh-search {
+    flex: 1;
+    min-width: 0 !important;
+  }
+}
+
+/* ---- QA filter card: stack date pickers + button ---- */
+@media (max-width: 640px) {
+  .qa-filter-card {
+    padding: 16px;
+  }
+
+  .qa-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .qa-filter-field {
+    width: 100%;
+  }
+
+  .qa-filter-field input {
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .qa-filter-btn {
+    width: 100%;
+  }
+}
+
+/* ---- Table toolbars (QA list / TSF history / part confirmation) ---- */
+@media (max-width: 640px) {
+  .qa-table-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .qa-table-toolbar .wh-search {
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .tsf-history-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tsf-history-toolbar .wh-search {
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .tsf-pagination {
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+/* ---- Tabs: allow horizontal scroll instead of overflow ---- */
+@media (max-width: 640px) {
+  .vr-tabs {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  .vr-tab {
+    white-space: nowrap;
+  }
+}
+
+/* ---- Daily trends chart: keep bars legible, scroll horizontally ---- */
+@media (max-width: 640px) {
+  .dash-chart-card {
+    padding: 16px 14px;
+  }
+
+  .dash-chart-area {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dash-chart-area > .dash-chart-col {
+    min-width: 14px;
+  }
+}
+
+/* ---- QA detail header: let status badge sit inline on phones ---- */
+@media (max-width: 560px) {
+  .qa-detail-header-status {
+    position: static;
+    display: inline-block;
+    margin-top: 10px;
+  }
+
+  .qa-detail-header-title {
+    font-size: 19px;
+    padding-right: 0;
+  }
+}
+
+/* =========================================================
+   Universal table -> stacked cards on phones
+   Any .wh-table becomes cards; cells use data-label for
+   their field name. Mark the primary cell .wh-cell-head and
+   the action cell .wh-cell-action in the markup.
+   ========================================================= */
+@media (max-width: 720px) {
+  .wh-table-card {
+    overflow-x: visible;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+  }
+
+  .wh-table,
+  .wh-table tbody,
+  .wh-table tr,
+  .wh-table tbody td {
+    display: block;
+    width: 100%;
+  }
+
+  .wh-table thead {
+    display: none;
+  }
+
+  .wh-table tr {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+
+  .wh-table tbody td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    text-align: right;
+    white-space: normal;
+    border-bottom: 1px solid #f1f4f6;
+  }
+
+  /* Field label pulled from data-label */
+  .wh-table tbody td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    text-align: left;
+    color: #64748b;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+
+  /* Cells without a label (and not special) show no empty label box */
+  .wh-table tbody td:not([data-label]):not(.wh-cell-action):not(.wh-empty-cell)::before {
+    content: none;
+  }
+
+  /* Primary identifier -> card header */
+  .wh-table tbody td.wh-cell-head {
+    justify-content: flex-start;
+    gap: 8px;
+    background: #f7f9fc;
+    border-bottom: 1px solid #eef1f4;
+    padding: 12px 16px;
+    color: #0f172a;
+    font-weight: 700;
+    font-size: 15px;
+    text-align: left;
+  }
+
+  .wh-table tbody td.wh-cell-head[data-label]::before {
+    color: #0f766e;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .wh-table tbody td.wh-cell-head strong {
+    font-weight: 700;
+  }
+
+  /* Action cell -> full-width footer buttons */
+  .wh-table tbody td.wh-cell-action {
+    padding: 12px 16px 14px;
+    border-bottom: none;
+    gap: 10px;
+  }
+
+  .wh-table tbody td.wh-cell-action::before {
+    content: none;
+  }
+
+  .wh-table tbody td.wh-cell-action .wh-issue-btn,
+  .wh-table tbody td.wh-cell-action .tsf-action-btn,
+  .wh-table tbody td.wh-cell-action > button {
+    flex: 1;
+    width: 100%;
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  /* Two-button decision cells (QA PASS / FAIL) */
+  .wh-table tbody td.qa-action-cell {
+    justify-content: stretch;
+    gap: 10px;
+    border-bottom: none;
+    padding: 12px 16px 14px;
+  }
+
+  .wh-table tbody td.qa-action-cell::before {
+    content: none;
+  }
+
+  .wh-table tbody td.qa-action-cell .qa-pass-btn,
+  .wh-table tbody td.qa-action-cell .qa-fail-btn {
+    flex: 1;
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  /* Inline remark input becomes full width */
+  .wh-table tbody td .qa-remark-input {
+    width: 100%;
+  }
+
+  /* Loading / empty spans whole card, centered */
+  .wh-table tbody td.wh-empty-cell {
+    display: block;
+    text-align: center;
+    border-bottom: none;
+  }
+
+  .wh-table tbody td.wh-empty-cell::before {
+    content: none;
+  }
+
+  /* Tables nested inside a summary card: lighter, no double shadow */
+  .dash-summary-card .wh-table tr {
+    box-shadow: none;
+    border: 1px solid #eef1f4;
+  }
+}
+
+/* =========================================================
+   Part Confirmation — part-type picker + scan popup polish
+   ========================================================= */
+.pc-parttype-block {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto 4px;
+}
+
+.pc-parttype-heading {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+}
+
+.pc-parttype-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 12px;
+}
+
+.pc-parttype-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px 14px 16px;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease, background 0.15s ease;
+}
+
+.pc-parttype-card:hover {
+  border-color: #17c3b2;
+  box-shadow: 0 6px 16px -8px rgba(15, 118, 110, 0.4);
+}
+
+.pc-parttype-card:active {
+  transform: translateY(1px);
+}
+
+.pc-parttype-card:focus-visible {
+  outline: 2px solid #17c3b2;
+  outline-offset: 2px;
+}
+
+.pc-parttype-card-selected {
+  border-color: #17c3b2;
+  background: rgba(23, 195, 178, 0.06);
+  box-shadow: 0 8px 20px -8px rgba(15, 118, 110, 0.45);
+}
+
+.pc-parttype-icon {
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  background: #f1f5f9;
+  border-radius: 12px;
+}
+
+.pc-parttype-card-selected .pc-parttype-icon {
+  background: #e0f2f1;
+}
+
+.pc-parttype-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.pc-parttype-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.pc-badge-full {
+  background: #e0edff;
+  color: #2563eb;
+}
+
+.pc-badge-sn {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.pc-parttype-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #17c3b2;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* selected-part chip shown above the machine barcode */
+.pc-selected-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #e0f2f1;
+  color: #0f766e;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 999px;
+  margin: 6px 0 2px;
+}
+
+.pc-selected-chip button {
+  background: #ffffff;
+  border: 1px solid #99e2db;
+  color: #0f766e;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  transition: background 0.15s ease;
+}
+
+.pc-selected-chip button:hover {
+  background: #0f766e;
+  color: #ffffff;
+  border-color: #0f766e;
+}
+
+/* popup summary card */
+.pc-scan-summary {
+  background: #f7f9fc;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 2px 0 2px;
+  text-align: left;
+}
+
+.pc-scan-summary .wh-modal-line {
+  margin: 0 0 4px;
+}
+
+.pc-scan-summary .wh-modal-line:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 560px) {
+  .pc-parttype-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .pc-parttype-card {
+    padding: 14px 10px 13px;
+  }
+
+  .pc-parttype-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 21px;
   }
 }
