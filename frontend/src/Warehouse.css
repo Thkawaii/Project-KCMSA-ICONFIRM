@@ -274,6 +274,22 @@
   margin-bottom: 22px;
 }
 
+.wh-stats-row.dash-stats-row {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 900px) {
+  .wh-stats-row.dash-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .wh-stats-row.dash-stats-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .wh-upload-card {
   display: flex;
   align-items: center;
