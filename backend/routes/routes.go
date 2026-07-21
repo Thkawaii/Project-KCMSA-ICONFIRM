@@ -42,6 +42,14 @@ func SetupRoutes(r *gin.Engine) {
 		}
 	}
 
+	// Part Confirmation — สแกน tag แล้วบันทึกทันที (MC/ITC/CV/SM/MP/PH)
+	partCheck := auth.Group("/part-check")
+	partCheck.Use(middleware.RoleMiddleware("WH"))
+	{
+		partCheck.GET("", controllers.GetPartChecks)
+		partCheck.POST("", controllers.ScanPartCheck)
+	}
+
 	// Warehouse
 	warehouse := auth.Group("/warehouse")
 	warehouse.Use(middleware.RoleMiddleware("WH"))
