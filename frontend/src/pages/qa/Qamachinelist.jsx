@@ -254,12 +254,12 @@ export default function QAMachineList() {
                   className="qa-clickable-row"
                   onClick={() => navigate(`/qa/machine/${encodeURIComponent(row.MachineNo)}`)}
                 >
-                  <td>
+                  <td className="wh-cell-head" data-label="Machine">
                     <strong>{row.MachineNo}</strong>
                   </td>
-                  <td>{row.Spec1 || '—'}</td>
-                  <td>{row.BaseSpec || '—'}</td>
-                  <td>
+                  <td data-label="Spec">{row.Spec1 || '—'}</td>
+                  <td data-label="Base Spec">{row.BaseSpec || '—'}</td>
+                  <td data-label="สถานะ">
                     <span className={`qa-status-badge qa-status-${row.__status.toLowerCase()}`}>
                       {row.__status === 'OK' ? 'OK' : STATUS_LABEL[row.__status]}
                     </span>

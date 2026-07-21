@@ -329,21 +329,21 @@ export default function WarehousePage() {
                   {!loading &&
                     filtered.map((row, idx) => (
                       <tr key={row.ID} className={row.RemainQty <= 0 ? 'wh-row-empty' : ''}>
-                        <td>#{idx + 1}</td>
-                        <td>{row.PartNo}</td>
-                        <td>{row.PartName}</td>
-                        <td>{row.AssemblyPartName}</td>
-                        <td>
+                        <td className="wh-cell-head" data-label="FIFO">#{idx + 1}</td>
+                        <td data-label="Part No.">{row.PartNo}</td>
+                        <td data-label="Part Name">{row.PartName}</td>
+                        <td data-label="Assembly For">{row.AssemblyPartName}</td>
+                        <td data-label="Shelf">
                           {row.Shelf1}-{row.Shelf2}
                         </td>
-                        <td>
+                        <td data-label="Remain Qty">
                           <span className={row.RemainQty <= 0 ? 'wh-qty-badge wh-qty-zero' : 'wh-qty-badge'}>
                             {row.RemainQty}
                           </span>
                         </td>
-                        <td>{row.UploadDate ? new Date(row.UploadDate).toLocaleDateString('th-TH') : '—'}</td>
-                        <td>{row.StockOutNo || '—'}</td>
-                        <td>
+                        <td data-label="Upload Date">{row.UploadDate ? new Date(row.UploadDate).toLocaleDateString('th-TH') : '—'}</td>
+                        <td data-label="Stock Out No.">{row.StockOutNo || '—'}</td>
+                        <td className="wh-cell-action">
                           <button
                             className="wh-issue-btn"
                             disabled={row.RemainQty <= 0}

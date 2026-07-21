@@ -8,15 +8,16 @@ const navItems = [
 ]
 
 const TAG_TYPES = [
-  { code: 'MC', label: 'Machine', icon: '🚜' },
-  { code: 'ITC', label: 'IT Controller', icon: '🛰️' },
-  { code: 'CV', label: 'Control Valve', icon: '🔧' },
-  { code: 'SM', label: 'Swing Motor', icon: '⚙️' },
-  { code: 'MP', label: 'Motor Propel', icon: '🚜' },
-  { code: 'PH', label: 'Pump Assy HYD', icon: '💧' },
+  { code: 'MC', label: 'Machine', icon: '🚜', needsPN: false },
+  { code: 'ITC', label: 'IT Controller', icon: '🛰️', needsPN: true },
+  { code: 'CV', label: 'Control Valve', icon: '🔧', needsPN: false },
+  { code: 'SM', label: 'Swing Motor', icon: '⚙️', needsPN: false },
+  { code: 'MP', label: 'Motor Propel', icon: '🚜', needsPN: false },
+  { code: 'PH', label: 'Pump Assy HYD', icon: '💧', needsPN: false },
 ]
 
 // ชนิดพาร์ทที่เลือกได้ในฟอร์ม (ไม่รวม Machine เพราะ Machine คือ tag ที่ใช้ระบุตัวเครื่อง)
+// IT Controller ต้องสแกนทั้ง P/N และ S/N ส่วนพาร์ทอื่นสแกนเฉพาะ S/N
 const PART_TYPES = TAG_TYPES.filter((t) => t.code !== 'MC')
 
 function tagLabel(code) {
@@ -101,7 +102,7 @@ export default function WHPartConfirmationPage() {
     setPnValue('')
     setSnValue('')
     setPopupError('')
-    setPopupStep('pn')
+    setPopupStep(needsPN ? 'pn' : 'sn')
     setPopupOpen(true)
   }
 
@@ -131,7 +132,7 @@ export default function WHPartConfirmationPage() {
       const created = await scanPartCheck({
         machineTag: pendingMachineTag,
         partType: selectedPartType,
-        pn: pnValue.trim(),
+        pn: needsPN ? pnValue.trim() : '',
         sn,
       })
       setSuccessMsg(`บันทึกแล้ว: ${tagLabel(created.PartType)} — ${created.Tag}`)
@@ -196,6 +197,8 @@ export default function WHPartConfirmationPage() {
   }
 
   const selectedPartLabel = tagLabel(selectedPartType)
+  const selectedPart = PART_TYPES.find((t) => t.code === selectedPartType)
+  const needsPN = Boolean(selectedPart?.needsPN)
 
   return (
     <AppShell navItems={navItems} roleLabel="Warehouse">
@@ -215,34 +218,48 @@ export default function WHPartConfirmationPage() {
       )}
 
       <div className="scan-hero" style={{ paddingBottom: 24 }}>
-        <div className="pc-part-select-field">
-          <label className="upload-panel-label" htmlFor="pc-part-type">
-            ชนิดพาร์ทที่ต้องการยืนยัน
-          </label>
-          <select
-            id="pc-part-type"
-            className="upload-panel-select"
-            value={selectedPartType}
-            onChange={(e) => setSelectedPartType(e.target.value)}
-          >
-            <option value="">-- เลือกชนิดพาร์ท --</option>
-            {PART_TYPES.map((t) => (
-              <option key={t.code} value={t.code}>
-                {t.icon} {t.label}
-              </option>
-            ))}
-          </select>
+        <div className="pc-parttype-block">
+          <p className="pc-parttype-heading">1. เลือกชนิดพาร์ทที่ต้องการยืนยัน</p>
+          <div className="pc-parttype-grid">
+            {PART_TYPES.map((t) => {
+              const active = selectedPartType === t.code
+              return (
+                <button
+                  type="button"
+                  key={t.code}
+                  className={'pc-parttype-card' + (active ? ' pc-parttype-card-selected' : '')}
+                  onClick={() => setSelectedPartType(t.code)}
+                  aria-pressed={active}
+                >
+                  {active && <span className="pc-parttype-check">✓</span>}
+                  <span className="pc-parttype-icon">{t.icon}</span>
+                  <span className="pc-parttype-label">{t.label}</span>
+                  <span className={'pc-parttype-badge ' + (t.needsPN ? 'pc-badge-full' : 'pc-badge-sn')}>
+                    {t.needsPN ? 'P/N & S/N' : 'S/N'}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {selectedPartType && (
           <>
+            <div className="pc-selected-chip">
+              <span>
+                {selectedPart?.icon} {selectedPartLabel} · สแกน {needsPN ? 'P/N & S/N' : 'S/N'}
+              </span>
+              <button type="button" onClick={() => setSelectedPartType('')}>
+                เปลี่ยน
+              </button>
+            </div>
             <div className="scan-hero-graphic" style={{ padding: '26px 40px' }}>
               <BigBarcode />
               <div className="scan-hero-label">SCAN HERE</div>
             </div>
             <p className="scan-hero-hint">
-              ขั้นที่ 1: สแกน TAG เครื่อง รูปแบบ <code>MC-</code>ตามด้วยรหัสเครื่อง — ระบบจะเด้งให้สแกน P/N
-              และ S/N ของ <strong>{selectedPartLabel}</strong> ต่อในขั้นที่ 2
+              2. สแกน TAG เครื่อง รูปแบบ <code>MC-</code>ตามด้วยรหัสเครื่อง — ระบบจะเด้งให้สแกน{' '}
+              {needsPN ? 'P/N และ S/N' : 'S/N'} ของ <strong>{selectedPartLabel}</strong> ต่อทันที
             </p>
             <form onSubmit={handleMachineSubmit} className="scan-hero-form">
               <input
@@ -349,15 +366,15 @@ export default function WHPartConfirmationPage() {
             {!loading &&
               paged.map((r) => (
                 <tr key={r.ID}>
-                  <td>
+                  <td className="wh-cell-head" data-label="Machine TAG">
                     <strong>{r.Tag}</strong>
                   </td>
-                  <td>{tagLabel(r.PartType)}</td>
-                  <td>{r.PN || '—'}</td>
-                  <td>{r.SN || '—'}</td>
-                  <td>{r.CheckedBy}</td>
-                  <td>{new Date(r.CheckedDatetime).toLocaleString('th-TH')}</td>
-                  <td>
+                  <td data-label="Part">{tagLabel(r.PartType)}</td>
+                  <td data-label="P/N">{r.PN || '—'}</td>
+                  <td data-label="S/N">{r.SN || '—'}</td>
+                  <td data-label="Checked By">{r.CheckedBy}</td>
+                  <td data-label="วันที่">{new Date(r.CheckedDatetime).toLocaleString('th-TH')}</td>
+                  <td className="wh-cell-action">
                     <button className="tsf-action-btn" onClick={() => setDetailRow(r)}>
                       รายละเอียด
                     </button>
@@ -429,17 +446,31 @@ export default function WHPartConfirmationPage() {
         <div className="wh-modal-overlay">
           <div className="wh-modal pc-scan-popup" onClick={(e) => e.stopPropagation()}>
             <h3 className="wh-modal-title">
-              สแกน P/N และ S/N — {selectedPartLabel}
+              สแกน {needsPN ? 'P/N และ S/N' : 'S/N'} — {selectedPartLabel}
             </h3>
-            <p className="wh-modal-line">
-              Machine TAG: <strong>{pendingMachineTag}</strong>
-            </p>
+
+            <div className="pc-scan-summary">
+              <p className="wh-modal-line">
+                ชนิดพาร์ท: <strong>{selectedPart?.icon} {selectedPartLabel}</strong>
+              </p>
+              <p className="wh-modal-line">
+                Machine TAG: <strong>{pendingMachineTag}</strong>
+              </p>
+            </div>
 
             <div className="pc-scan-steps">
-              <span className={'pc-scan-step' + (popupStep === 'pn' ? ' pc-scan-step-active' : ' pc-scan-step-done')}>
-                1. P/N
+              {needsPN && (
+                <span
+                  className={
+                    'pc-scan-step' + (popupStep === 'pn' ? ' pc-scan-step-active' : ' pc-scan-step-done')
+                  }
+                >
+                  1. P/N
+                </span>
+              )}
+              <span className={'pc-scan-step' + (popupStep === 'sn' ? ' pc-scan-step-active' : '')}>
+                {needsPN ? '2. S/N' : 'S/N'}
               </span>
-              <span className={'pc-scan-step' + (popupStep === 'sn' ? ' pc-scan-step-active' : '')}>2. S/N</span>
             </div>
 
             {popupStep === 'pn' && (

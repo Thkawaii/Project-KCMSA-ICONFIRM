@@ -654,14 +654,14 @@ export default function TSFOperatorPage() {
               {!loading &&
                 pagedHistory.map((s) => (
                   <tr key={s.ID}>
-                    <td>{s.MachineNo || '—'}</td>
-                    <td>{CATEGORIES.find((c) => c.type === s.ComponentType)?.label || s.ComponentType}</td>
-                    <td>{s.Department || '—'}</td>
-                    <td>{s.SerialNumber}</td>
-                    <td>{s.ActualPartNo || '—'}</td>
-                    <td>{s.InspectedBy}</td>
-                    <td>{s.UploadDate ? new Date(s.UploadDate).toLocaleString('th-TH') : '—'}</td>
-                    <td>
+                    <td className="wh-cell-head" data-label="Machine No">{s.MachineNo || '—'}</td>
+                    <td data-label="Part">{CATEGORIES.find((c) => c.type === s.ComponentType)?.label || s.ComponentType}</td>
+                    <td data-label="แผนก">{s.Department || '—'}</td>
+                    <td data-label="S/N">{s.SerialNumber}</td>
+                    <td data-label="P/N">{s.ActualPartNo || '—'}</td>
+                    <td data-label="ผู้ตรวจสอบ">{s.InspectedBy}</td>
+                    <td data-label="วันที่">{s.UploadDate ? new Date(s.UploadDate).toLocaleString('th-TH') : '—'}</td>
+                    <td data-label="รูปภาพ">
                       {s.PhotoURL ? (
                         <button className="tsf-thumb-btn" onClick={() => setLightboxUrl(photoUrl(s.PhotoURL))}>
                           <img className="tsf-thumb" src={photoUrl(s.PhotoURL)} alt={s.FileName} />
@@ -670,7 +670,7 @@ export default function TSFOperatorPage() {
                         '—'
                       )}
                     </td>
-                    <td>
+                    <td data-label="สถานะ">
                       <span
                         className={
                           s.ValidationStatus === 'PASS' ? 'wh-qty-badge' : 'wh-qty-badge wh-qty-zero'
@@ -679,7 +679,7 @@ export default function TSFOperatorPage() {
                         {s.ValidationStatus}
                       </span>
                     </td>
-                    <td>
+                    <td className="wh-cell-action">
                       <button className="tsf-action-btn" onClick={() => openEdit(s)}>
                         แก้ไข
                       </button>
