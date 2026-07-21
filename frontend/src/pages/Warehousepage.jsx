@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getWarehouseStock, issueWarehouseStock, uploadWarehouseStock } from '../api/warehouse.js'
 import AppShell from '../components/AppShell.jsx'
-import BarcodeScannerModal from '../components/BarcodeScannerModal.jsx'
 
 const navItems = [
   { to: '/warehouse', label: 'จ่ายของ (FIFO & S/O)', icon: '📦' },
@@ -24,13 +23,10 @@ export default function WarehousePage() {
 
   const [issuingRow, setIssuingRow] = useState(null)
   const [issueQty, setIssueQty] = useState('')
-  const [scanPartNo, setScanPartNo] = useState('')
-  const [scanSerial, setScanSerial] = useState('')
   const [issueRemark, setIssueRemark] = useState('')
   const [issuing, setIssuing] = useState(false)
   const [issueError, setIssueError] = useState('')
   const [toast, setToast] = useState('')
-  const [scanningField, setScanningField] = useState(null) // 'part' | 'serial' | null
 
   // ===== อัปโหลด SO / สต็อกเข้าคลัง =====
   const [soFile, setSoFile] = useState(null)
@@ -123,27 +119,19 @@ export default function WarehousePage() {
     [stock]
   )
 
+  const currentSO = salesOrders.find((s) => s.orderNo === selectedSO)
+
   function openIssueModal(row) {
     if (row.RemainQty <= 0) return
     setIssuingRow(row)
     setIssueQty('1')
-    setScanPartNo('')
-    setScanSerial('')
     setIssueRemark('')
     setIssueError('')
-  }
-
-  function handleScanned(value) {
-    if (scanningField === 'part') setScanPartNo(value)
-    if (scanningField === 'serial') setScanSerial(value)
-    setScanningField(null)
   }
 
   function closeIssueModal() {
     setIssuingRow(null)
     setIssueQty('')
-    setScanPartNo('')
-    setScanSerial('')
     setIssueRemark('')
     setIssueError('')
   }
@@ -155,29 +143,15 @@ export default function WarehousePage() {
       return
     }
 
-    if (!scanPartNo.trim()) {
-      setIssueError('กรุณา Scan P/N ก่อนยืนยัน')
-      return
-    }
-
-    if (scanPartNo.trim() !== issuingRow.PartNo) {
-      setIssueError(`Scan P/N ไม่ตรงกับรายการนี้ (สแกนได้ "${scanPartNo.trim()}" แต่รายการคือ "${issuingRow.PartNo}")`)
-      return
-    }
-
-    if (!scanSerial.trim()) {
-      setIssueError('กรุณา Scan S/N ก่อนยืนยัน')
-      return
-    }
-
     setIssuing(true)
     setIssueError('')
 
     try {
+      // ไม่ต้อง scan P/N หรือ S/N อีกต่อไป — ใช้ P/N ของรายการที่กด "จ่ายของ" ส่งไปยืนยันแทนอัตโนมัติ
       const result = await issueWarehouseStock(issuingRow.ID, {
         qty,
-        scannedPartNo: scanPartNo.trim(),
-        scannedSerial: scanSerial.trim(),
+        scannedPartNo: issuingRow.PartNo,
+        scannedSerial: `WH-${issuingRow.ID}-${Date.now()}`,
         remark: issueRemark,
       })
 
@@ -196,11 +170,10 @@ export default function WarehousePage() {
 
   return (
     <>
-    <AppShell navItems={navItems} roleLabel="Warehouse">
+      <AppShell navItems={navItems} roleLabel="Warehouse">
         <div className="wh-heading-row">
           <div>
-            <h2 className="wh-title">Warehouse — จ่ายชิ้นส่วน (Issue Parts)</h2>
-            <p className="wh-subtitle">จ่ายชิ้นส่วนตามหลัก FIFO &amp; Sales Order</p>
+            <h2 className="wh-title">Warehouse(Issue Parts)</h2>
           </div>
         </div>
 
@@ -211,30 +184,63 @@ export default function WarehousePage() {
           </p>
         )}
 
-        <div className="upload-card" style={{ maxWidth: 320, marginBottom: 24, textAlign: 'left', padding: 14 }}>
-          <p className="wh-subtitle" style={{ margin: '0 0 8px', fontSize: 12 }}>
-            อัปโหลด SO / สต็อกเข้าคลัง (Excel)
-          </p>
-          <label className={'upload-dropzone' + (soFile ? ' upload-dropzone-filled' : '')} htmlFor="soFile" style={{ padding: 12 }}>
-            <input id="soFile" type="file" accept=".xlsx,.xls" onChange={handleSoFile} className="upload-card-input-hidden" />
+        <div className="dash-stats-row wh-stats-row">
+          <div className="dash-stat-card">
+            <div className="dash-stat-label">
+              <span>รายการทั้งหมด</span>
+              <span className="dash-stat-icon dash-icon-blue">▦</span>
+            </div>
+            <div className="dash-stat-value">{stockCounts.all}</div>
+          </div>
+          <div className="dash-stat-card">
+            <div className="dash-stat-label">
+              <span>ยังไม่เคยจ่าย</span>
+              <span className="dash-stat-icon dash-icon-yellow">⏳</span>
+            </div>
+            <div className="dash-stat-value">{stockCounts.not_issued}</div>
+          </div>
+          <div className="dash-stat-card">
+            <div className="dash-stat-label">
+              <span>จ่ายแล้ว</span>
+              <span className="dash-stat-icon dash-icon-green">✓</span>
+            </div>
+            <div className="dash-stat-value">{stockCounts.issued}</div>
+          </div>
+          <div className="dash-stat-card">
+            <div className="dash-stat-label">
+              <span>Sales Order</span>
+              <span className="dash-stat-icon dash-icon-red">🧾</span>
+            </div>
+            <div className="dash-stat-value">{salesOrders.length}</div>
+          </div>
+        </div>
+
+        <div className="wh-upload-card">
+          <div className="wh-upload-card-icon">
             <UploadCloudIcon />
-            <span className="upload-dropzone-text">{soFile ? soFile.name : 'คลิกเพื่อเลือกไฟล์ Excel'}</span>
+          </div>
+          <div className="wh-upload-card-body">
+            <p className="wh-upload-card-title">อัปโหลด SO / สต็อกเข้าคลัง</p>
+            <p className="wh-upload-card-hint">ไฟล์ Excel (.xlsx, .xls)</p>
+          </div>
+          <label className={'wh-upload-pick' + (soFile ? ' wh-upload-pick-filled' : '')} htmlFor="soFile">
+            {soFile ? soFile.name : 'เลือกไฟล์'}
+            <input id="soFile" type="file" accept=".xlsx,.xls" onChange={handleSoFile} className="upload-card-input-hidden" />
           </label>
-          <button className="wh-issue-btn upload-card-btn" onClick={handleSoUpload} disabled={soUploading}>
+          <button className="wh-issue-btn" onClick={handleSoUpload} disabled={soUploading}>
             {soUploading ? 'กำลังอัปโหลด...' : 'อัปโหลด'}
           </button>
-          {soMsg?.success && <p className="upload-card-msg upload-card-msg-ok">{soMsg.success}</p>}
-          {soMsg?.error && <p className="upload-card-msg upload-card-msg-err">{soMsg.error}</p>}
+          {soMsg?.success && <p className="upload-card-msg upload-card-msg-ok wh-upload-msg">{soMsg.success}</p>}
+          {soMsg?.error && <p className="upload-card-msg upload-card-msg-err wh-upload-msg">{soMsg.error}</p>}
         </div>
 
         {!selectedSO ? (
-          <div className="tsf-form-card" style={{ maxWidth: 420 }}>
-            <h3 className="tsf-form-title">1. เลือก Sales Order ก่อนเริ่มจ่ายของ</h3>
-            <p className="wh-subtitle" style={{ marginBottom: 14 }}>
-              ระบบจะโชว์เฉพาะของที่ต้องจ่ายให้ S/O นี้ เรียง FIFO (เก่าสุดก่อน) ให้อัตโนมัติ
-            </p>
+          <div className="wh-so-picker-card">
+            <div className="wh-so-picker-icon">📋</div>
+            <h3 className="tsf-form-title" style={{ marginBottom: 4 }}>
+            </h3>
             <select
-              className="wh-modal-input"
+              className="wh-modal-input wh-so-select"
               value={selectedSO}
               onChange={(e) => setSelectedSO(e.target.value)}
             >
@@ -253,41 +259,48 @@ export default function WarehousePage() {
           </div>
         ) : (
           <>
-            <div className="wh-heading-row">
+            <div className="wh-so-active-bar">
               <div>
-                <h3 className="tsf-form-title" style={{ marginBottom: 2 }}>
-                  2. จ่ายของสำหรับ S/O: {selectedSO}
-                </h3>
-                <p className="wh-subtitle">
-                  เรียง FIFO (เก่าสุดก่อน) ·{' '}
-                  {salesOrders.find((s) => s.orderNo === selectedSO)?.issued || 0}/
-                  {salesOrders.find((s) => s.orderNo === selectedSO)?.total || 0} รายการจ่ายแล้ว
-                </p>
+                <span className="wh-so-active-label">Sales Order ที่กำลังจ่าย</span>
+                <h3 className="wh-so-active-name">{selectedSO}</h3>
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <input
-                  className="wh-search"
-                  type="text"
-                  placeholder="ค้นหาด้วย Part No / Part Name"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-                <button className="wh-modal-cancel" onClick={() => setSelectedSO('')}>
-                  เปลี่ยน S/O
-                </button>
+              <div className="wh-so-active-progress">
+                <div className="wh-so-progress-track">
+                  <div
+                    className="wh-so-progress-fill"
+                    style={{
+                      width: `${currentSO && currentSO.total ? (currentSO.issued / currentSO.total) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+                <span className="wh-so-progress-label">
+                  {currentSO?.issued || 0}/{currentSO?.total || 0} รายการจ่ายแล้ว
+                </span>
               </div>
+              <button className="wh-modal-cancel" onClick={() => setSelectedSO('')}>
+                เปลี่ยน S/O
+              </button>
             </div>
 
-            <div className="vr-tabs">
-              {STOCK_TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  className={'vr-tab' + (stockTab === tab.key ? ' vr-tab-active' : '')}
-                  onClick={() => setStockTab(tab.key)}
-                >
-                  {tab.label} ({stockCounts[tab.key]})
-                </button>
-              ))}
+            <div className="wh-toolbar-row">
+              <div className="vr-tabs">
+                {STOCK_TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    className={'vr-tab' + (stockTab === tab.key ? ' vr-tab-active' : '')}
+                    onClick={() => setStockTab(tab.key)}
+                  >
+                    {tab.label} ({stockCounts[tab.key]})
+                  </button>
+                ))}
+              </div>
+              <input
+                className="wh-search"
+                type="text"
+                placeholder="ค้นหาด้วย Part No / Part Name"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
 
             <div className="wh-table-card">
@@ -353,17 +366,21 @@ export default function WarehousePage() {
             </div>
           </>
         )}
-    </AppShell>
+      </AppShell>
 
       {issuingRow && (
         <div className="wh-modal-overlay" onClick={closeIssueModal}>
           <div className="wh-modal" onClick={(e) => e.stopPropagation()}>
             <h3 className="wh-modal-title">ยืนยันการจ่ายชิ้นส่วน</h3>
-            <p className="wh-modal-line">
-              <strong>{issuingRow.PartName}</strong> ({issuingRow.PartNo})
-            </p>
-            <p className="wh-modal-line">Sales Order: {issuingRow.OrderNo}</p>
-            <p className="wh-modal-line">คงเหลือ: {issuingRow.RemainQty} ชิ้น</p>
+
+            <div className="wh-modal-summary">
+              <p className="wh-modal-line">
+                <strong>{issuingRow.PartName}</strong>
+              </p>
+              <p className="wh-modal-line">P/N: {issuingRow.PartNo}</p>
+              <p className="wh-modal-line">Sales Order: {issuingRow.OrderNo}</p>
+              <p className="wh-modal-line">คงเหลือ: {issuingRow.RemainQty} ชิ้น</p>
+            </div>
 
             <label className="wh-modal-label" htmlFor="issueQty">
               จำนวนที่จะจ่าย
@@ -378,50 +395,6 @@ export default function WarehousePage() {
               onChange={(e) => setIssueQty(e.target.value)}
               autoFocus
             />
-
-            <label className="wh-modal-label" htmlFor="scanPartNo">
-              Scan P/N (ต้องตรงกับ {issuingRow.PartNo})
-            </label>
-            <div className="scan-input-row">
-              <input
-                id="scanPartNo"
-                type="text"
-                className="wh-modal-input"
-                placeholder="สแกนหรือกรอก P/N"
-                value={scanPartNo}
-                onChange={(e) => setScanPartNo(e.target.value)}
-              />
-              <button
-                type="button"
-                className="scan-icon-btn"
-                aria-label="เปิดกล้องสแกน P/N"
-                onClick={() => setScanningField('part')}
-              >
-                <CameraIcon />
-              </button>
-            </div>
-
-            <label className="wh-modal-label" htmlFor="scanSerial">
-              Scan S/N
-            </label>
-            <div className="scan-input-row">
-              <input
-                id="scanSerial"
-                type="text"
-                className="wh-modal-input"
-                placeholder="สแกนหรือกรอก S/N"
-                value={scanSerial}
-                onChange={(e) => setScanSerial(e.target.value)}
-              />
-              <button
-                type="button"
-                className="scan-icon-btn"
-                aria-label="เปิดกล้องสแกน S/N"
-                onClick={() => setScanningField('serial')}
-              >
-                <CameraIcon />
-              </button>
-            </div>
 
             <label className="wh-modal-label" htmlFor="issueRemark">
               หมายเหตุ (ถ้ามี)
@@ -451,21 +424,13 @@ export default function WarehousePage() {
           </div>
         </div>
       )}
-
-      {scanningField && (
-        <BarcodeScannerModal
-          title={scanningField === 'part' ? 'สแกน Part No.' : 'สแกน Serial No.'}
-          onDetected={handleScanned}
-          onClose={() => setScanningField(null)}
-        />
-      )}
     </>
   )
 }
 
 function UploadCloudIcon() {
   return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path
         d="M7 18a4.5 4.5 0 01-.4-8.98A5.5 5.5 0 0117 8.5a4 4 0 01-.5 7.98"
         stroke="currentColor"
@@ -480,20 +445,6 @@ function UploadCloudIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-    </svg>
-  )
-}
-
-function CameraIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M4 8a2 2 0 012-2h1.2l.8-1.4A1 1 0 018.86 4h6.28a1 1 0 01.86.6L16.8 6H18a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="13" r="3.2" stroke="currentColor" strokeWidth="1.6" />
     </svg>
   )
 }

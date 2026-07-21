@@ -125,9 +125,6 @@ export default function UploadViewPage() {
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">Upload Master Data</h2>
-          <p className="wh-subtitle">
-            อัปโหลดไฟล์ Excel รายการ P/N &amp; S/N ของแต่ละชิ้นส่วน — แถวแรกของไฟล์ต้องเป็นหัวคอลัมน์
-          </p>
         </div>
       </div>
 
@@ -184,7 +181,6 @@ export default function UploadViewPage() {
           <h2 className="wh-title" style={{ fontSize: 19 }}>
             รายการที่อัปโหลดแล้ว
           </h2>
-          <p className="wh-subtitle">คลิกแถวเพื่อดูรายละเอียดเต็มของสเปกเครื่องจักร</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <select

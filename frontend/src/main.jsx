@@ -8,9 +8,8 @@ import DashboardPage from './pages/DashboardPage.jsx'
 import TSFOperatorPage from './pages/TSFOperatorPage.jsx'
 import TSFReceivePage from './pages/TSFReceivePage.jsx'
 import UploadViewPage from './pages/UploadViewPage.jsx'
-import QALayout from './pages/qa/QALayout.jsx'
-import QADashboard from './pages/qa/QADashboard.jsx'
-import QAValidationResults from './pages/qa/QAValidationResults.jsx'
+import QAMachineList from './pages/qa/QAMachineList.jsx'
+import QAMachineDetail from './pages/qa/QAMachineDetail.jsx'
 import './styles.css'
 import './Warehouse.css'
 import './AppShell.css'
@@ -27,11 +26,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/upload" element={<UploadViewPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
 
-        <Route path="/qa" element={<QALayout />}>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<QADashboard />} />
-          <Route path="validation-results" element={<QAValidationResults />} />
-        </Route>
+        <Route path="/qa" element={<QAMachineList />} />
+        <Route path="/qa/machine/:machineNo" element={<QAMachineDetail />} />
 
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
