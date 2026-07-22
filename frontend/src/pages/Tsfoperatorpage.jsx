@@ -11,6 +11,7 @@ import {
 import { getMachineSpecByMachineNo } from '../api/machineSpecLookup.js'
 import { scanLoading, scanClose, scanSuccessToast, scanErrorAlert } from '../lib/scanPopup.js'
 import AppShell from '../components/AppShell.jsx'
+import bcMachine from '../assets/barcodes/Machine_Barcode.gif'
 
 const navItems = [
   { to: '/tsf', label: 'Scan & Validate', icon: '⇄' },
@@ -27,6 +28,14 @@ const CATEGORIES = [
 
 // TODO: ย้ายไปดึงจาก backend เป็น dropdown ที่แก้ไขได้ ถ้าแผนกมีการเปลี่ยนบ่อย
 const DEPARTMENTS = ['สายประกอบ 1', 'สายประกอบ 2', 'QC', 'คลังสินค้า']
+
+// วันที่ยังไม่เคยบันทึก (zero-value ของ Go เช่น "0001-01-01T00:00:00Z") หรือ parse ไม่ได้ -> แสดง "—" แทนวันที่แปลกๆ
+function formatThaiDateTime(dateStr) {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime()) || d.getFullYear() < 1900) return '—'
+  return d.toLocaleString('th-TH')
+}
 
 export default function TSFOperatorPage() {
   // ===== ประวัติทั้งหมด =====
@@ -405,8 +414,7 @@ export default function TSFOperatorPage() {
     <AppShell navItems={navItems} roleLabel="TSF Operator">
         <div className="wh-heading-row">
           <div>
-            <h2 className="wh-title">TSF Operator — สแกนและบันทึกข้อมูลชิ้นส่วน</h2>
-            <p className="wh-subtitle">ยิงบาร์โค้ด Machine No. เพื่อเริ่ม — ระบบขับเคลื่อนด้วยเครื่องสแกนเนอร์เป็นหลัก</p>
+            <h2 className="wh-title">MFG</h2>
           </div>
         </div>
 
@@ -423,15 +431,10 @@ export default function TSFOperatorPage() {
               <div className="pc-barcode-card">
                 <div className="pc-barcode-title">Machine Part Confirmation</div>
                 <div className="pc-barcode-box">
-                  <BigBarcode />
-                  <div className="pc-barcode-caption">Scan Machine Barcode</div>
+                  <img className="pc-barcode-img" src={bcMachine} alt="Scan Machine Barcode" />
                 </div>
-                <div className="pc-barcode-strip" />
               </div>
             </div>
-            <p className="scan-hero-hint" style={{ textAlign: 'center' }}>
-              ใช้เครื่องสแกนเนอร์ยิงบาร์โค้ด Machine No. บนตัวเครื่อง — ระบบจะเปิดหน้าตรวจสอบให้อัตโนมัติ
-            </p>
           </>
         )}
 
@@ -675,12 +678,12 @@ export default function TSFOperatorPage() {
                 pagedHistory.map((s) => (
                   <tr key={s.ID}>
                     <td className="wh-cell-head" data-label="Machine No">{s.MachineNo || '—'}</td>
-                    <td data-label="Part">{CATEGORIES.find((c) => c.type === s.ComponentType)?.label || s.ComponentType}</td>
+                    <td data-label="Part">{CATEGORIES.find((c) => c.type === s.ComponentType)?.label || s.ComponentType || '—'}</td>
                     <td data-label="แผนก">{s.Department || '—'}</td>
-                    <td data-label="S/N">{s.SerialNumber}</td>
+                    <td data-label="S/N">{s.SerialNumber || '—'}</td>
                     <td data-label="P/N">{s.ActualPartNo || '—'}</td>
-                    <td data-label="ผู้ตรวจสอบ">{s.InspectedBy}</td>
-                    <td data-label="วันที่">{s.UploadDate ? new Date(s.UploadDate).toLocaleString('th-TH') : '—'}</td>
+                    <td data-label="ผู้ตรวจสอบ">{s.InspectedBy || '—'}</td>
+                    <td data-label="วันที่">{formatThaiDateTime(s.UploadDate)}</td>
                     <td data-label="รูปภาพ">
                       {s.PhotoURL ? (
                         <button className="tsf-thumb-btn" onClick={() => setLightboxUrl(photoUrl(s.PhotoURL))}>
@@ -806,7 +809,7 @@ export default function TSFOperatorPage() {
 
               <label className="wh-modal-label">วันที่ตรวจสอบ</label>
               <div className="tsf-detail-readbox">
-                {editRow.UploadDate ? new Date(editRow.UploadDate).toLocaleString('th-TH') : '-'}
+                {formatThaiDateTime(editRow.UploadDate)}
               </div>
 
               <label className="wh-modal-label">ผลตรวจสอบ</label>
@@ -877,20 +880,6 @@ export default function TSFOperatorPage() {
       </div>
     )}
     </>
-  )
-}
-
-function BigBarcode() {
-  const bars = [3, 1, 2, 1, 3, 2, 1, 1, 2, 3, 1, 2, 1, 3, 1, 1, 2, 1, 3, 2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2]
-  let x = 0
-  return (
-    <svg viewBox="0 0 320 90" className="scan-hero-barcode">
-      {bars.map((w, i) => {
-        const bx = x
-        x += w * 4 + 3
-        return <rect key={i} x={bx} y={0} width={w * 3} height={70} fill="currentColor" />
-      })}
-    </svg>
   )
 }
 

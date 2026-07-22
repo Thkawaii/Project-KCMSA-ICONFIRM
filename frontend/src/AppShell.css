@@ -22,7 +22,7 @@
 
 .shell-topbar .brand-badge {
   background: #ffffff;
-  color: #0f766e;
+  color: #00a39d;
   font-weight: 700;
   font-size: 13px;
   letter-spacing: 0.03em;
@@ -124,12 +124,12 @@
 }
 
 .shell-subnav-item:hover {
-  color: #0f766e;
+  color: #00a39d;
 }
 
 .shell-subnav-item-active {
-  color: #0f766e;
-  border-bottom-color: #17c3b2;
+  color: #00a39d;
+  border-bottom-color: #00cec8;
 }
 
 .shell-subnav-icon {
@@ -287,7 +287,7 @@
 
 .upload-panel-select:hover,
 .upload-panel-select:focus {
-  border-color: #17c3b2;
+  border-color: #00cec8;
   outline: none;
 }
 
@@ -404,16 +404,16 @@
 }
 
 .upload-dropzone:hover {
-  border-color: #17c3b2;
-  background: rgba(23, 195, 178, 0.06);
-  color: #0f766e;
+  border-color: #00cec8;
+  background: rgba(0, 206, 200, 0.06);
+  color: #00a39d;
 }
 
 .upload-dropzone-filled {
   border-style: solid;
-  border-color: #17c3b2;
-  background: rgba(23, 195, 178, 0.08);
-  color: #0f766e;
+  border-color: #00cec8;
+  background: rgba(0, 206, 200, 0.08);
+  color: #00a39d;
 }
 
 .upload-dropzone-text {
@@ -425,11 +425,11 @@
 }
 
 .upload-dropzone-filled .upload-dropzone-text {
-  color: #0f766e;
+  color: #00a39d;
 }
 
 .upload-dropzone:focus-within {
-  outline: 2px solid #17c3b2;
+  outline: 2px solid #00cec8;
   outline-offset: 2px;
 }
 
@@ -463,9 +463,9 @@
 .scan-icon-btn {
   flex-shrink: 0;
   width: 44px;
-  border: 1px solid #17c3b2;
+  border: 1px solid #00cec8;
   background: #ffffff;
-  color: #17c3b2;
+  color: #00cec8;
   border-radius: 8px;
   cursor: pointer;
   display: flex;
@@ -475,7 +475,7 @@
 }
 
 .scan-icon-btn:hover {
-  background: #17c3b2;
+  background: #00cec8;
   color: #ffffff;
 }
 
@@ -760,8 +760,8 @@
 }
 
 @keyframes scanGlow {
-  0%, 100% { box-shadow: 0 20px 50px -15px rgba(23, 195, 178, 0.25); }
-  50% { box-shadow: 0 20px 60px -10px rgba(23, 195, 178, 0.55); }
+  0%, 100% { box-shadow: 0 20px 50px -15px rgba(0, 206, 200, 0.25); }
+  50% { box-shadow: 0 20px 60px -10px rgba(0, 206, 200, 0.55); }
 }
 
 .scan-hero-barcode {
@@ -796,14 +796,14 @@
   font-size: 18px;
   font-weight: 600;
   padding: 16px 18px;
-  border: 2px solid #17c3b2;
+  border: 2px solid #00cec8;
   border-radius: 12px;
   outline: none;
   color: #0f172a;
 }
 
 .scan-hero-input:focus {
-  box-shadow: 0 0 0 4px rgba(23, 195, 178, 0.2);
+  box-shadow: 0 0 0 4px rgba(0, 206, 200, 0.2);
 }
 
 /* ===== Part Confirmation: part-type select + two-step scan popup ===== */
@@ -838,8 +838,8 @@
 
 .pc-scan-step-active,
 .pc-scan-step-done {
-  background: rgba(23, 195, 178, 0.12);
-  color: #0f766e;
+  background: rgba(0, 206, 200, 0.12);
+  color: #00a39d;
 }
 
 @media (max-width: 560px) {
@@ -864,7 +864,7 @@
   font-size: 16px;
   font-weight: 600;
   padding: 12px 14px;
-  border: 2px solid #17c3b2;
+  border: 2px solid #00cec8;
   border-radius: 10px;
   outline: none;
   color: #0f172a;
