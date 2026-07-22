@@ -411,7 +411,7 @@ export default function TSFOperatorPage() {
 
   return (
     <>
-    <AppShell navItems={navItems} roleLabel="TSF Operator">
+    <AppShell navItems={navItems} roleLabel="MFG">
         <div className="wh-heading-row">
           <div>
             <h2 className="wh-title">MFG</h2>
