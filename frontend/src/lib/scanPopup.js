@@ -100,6 +100,11 @@ export function scanLoading(title = 'กำลังบันทึก...') {
   })
 }
 
+/** ปิด popup ที่เปิดอยู่ (เช่น หลังโหลดเสร็จ) */
+export function scanClose() {
+  Swal.close()
+}
+
 /** toast แจ้งเตือนสำเร็จ มุมขวาบน */
 export function scanSuccessToast(title) {
   return Swal.fire({

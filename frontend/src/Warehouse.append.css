@@ -1,5 +1,6 @@
 /* ============================================================
-   วางต่อท้ายไฟล์ src/Warehouse.css (แปะครั้งเดียว)
+   บล็อกทั้งหมดที่เพิ่มต่อท้าย src/Warehouse.css
+   (ถ้าเคยเพิ่มบล็อกก่อนหน้าแล้ว ให้เพิ่มเฉพาะส่วน "Operator" ด้านล่างสุด)
    ============================================================ */
 
 /* ===== SweetAlert scan popup ===== */
@@ -12,10 +13,15 @@
 }
 .scan-popup .scan-popup-input:focus { border-style: solid; background: #fff; box-shadow: 0 0 0 4px rgba(15,148,136,.15); }
 
-/* ===== Part Confirmation — การ์ดบาร์โค้ด (teal label cards) ===== */
+/* ===== การ์ดบาร์โค้ด (teal label cards) — ใช้ทั้ง WH และ Operator ===== */
 .pc-barcode-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 22px; margin: 8px 0 22px; }
 .pc-barcode-card { background: #14c6cc; border-radius: 22px; padding: 22px 24px 18px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 10px 26px rgba(15,148,136,.18); }
 .pc-barcode-title { font-size: 24px; font-weight: 600; color: #1f2d3d; letter-spacing: .2px; }
-.pc-barcode-box { background: #fff; border-radius: 8px; padding: 12px 14px; display: flex; justify-content: center; align-items: center; }
+.pc-barcode-box { background: #fff; border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
 .pc-barcode-img { max-width: 100%; height: auto; display: block; }
 .pc-barcode-strip { height: 16px; background: #fff; border-radius: 6px; margin-top: 2px; }
+
+/* ===== Operator — การ์ดเดียว "Machine Part Confirmation" ===== */
+.pc-barcode-grid--single { grid-template-columns: minmax(0, 560px); justify-content: center; }
+.pc-barcode-box .scan-hero-barcode { width: 100%; height: 90px; color: #101828; }
+.pc-barcode-caption { text-align: center; font-size: 17px; font-weight: 600; color: #1f2d3d; margin-top: 2px; }
