@@ -9,6 +9,7 @@ import {
   getUsers,
 } from '../api/tsf.js'
 import { getMachineSpecByMachineNo } from '../api/machineSpecLookup.js'
+import { scanLoading, scanClose, scanSuccessToast, scanErrorAlert } from '../lib/scanPopup.js'
 import AppShell from '../components/AppShell.jsx'
 
 const navItems = [
@@ -42,9 +43,6 @@ export default function TSFOperatorPage() {
 
   // ===== Scan-first flow: idle -> select -> capture -> result -> select (loop) =====
   const [scanStep, setScanStep] = useState('idle')
-  const [idleValue, setIdleValue] = useState('')
-  const [idleError, setIdleError] = useState('')
-  const [idleLoading, setIdleLoading] = useState(false)
 
   const [machineSpec, setMachineSpec] = useState(null)
   const [machineChecks, setMachineChecks] = useState([])
@@ -63,10 +61,15 @@ export default function TSFOperatorPage() {
 
   const [result, setResult] = useState(null)
 
-  const idleInputRef = useRef(null)
   const pnInputRef = useRef(null)
   const snInputRef = useRef(null)
   const photoInputRef = useRef(null)
+
+  // ===== ตัวดักสัญญาณเครื่องสแกนเนอร์ (ทำงานเฉพาะตอน idle) =====
+  const busyRef = useRef(false) // true ระหว่างค้นหาเครื่อง/มี popup เปิด
+  const stepRef = useRef('idle') // step ปัจจุบัน (ให้ listener อ่านค่าล่าสุด)
+  const fireRef = useRef(() => {})
+  stepRef.current = scanStep
 
   // ===== ประวัติ: ดูรูป / แก้ไข =====
   const [lightboxUrl, setLightboxUrl] = useState('')
@@ -106,25 +109,22 @@ export default function TSFOperatorPage() {
     setPage(1)
   }, [dateTab, historySearch, pageSize])
 
-  // โฟกัสช่อง input ที่ถูกต้องอัตโนมัติทุกครั้งที่เปลี่ยน step — นี่คือหัวใจ
-  // ของ scan-first: เครื่องสแกนเนอร์ยิงไปที่ input ที่ focus อยู่เสมอ
+  // โฟกัสช่อง input ที่ถูกต้องอัตโนมัติเมื่อเข้าสู่ step capture — หัวใจของ scan-first:
+  // เครื่องสแกนเนอร์ยิงไปที่ input ที่ focus อยู่เสมอ
   useEffect(() => {
-    if (scanStep === 'idle') {
-      idleInputRef.current?.focus()
-    } else if (scanStep === 'capture') {
+    if (scanStep === 'capture') {
       if (selPart?.needsPN) pnInputRef.current?.focus()
       else snInputRef.current?.focus()
     }
   }, [scanStep, selPart])
 
-  // ===== STEP 1: ยิง Machine No. ที่หน้า SCAN HERE =====
-  async function handleIdleSubmit(e) {
-    e.preventDefault()
-    const machineNo = idleValue.trim()
-    if (!machineNo) return
+  // ===== STEP 1: สแกนเนอร์ยิง Machine Barcode ครั้งเดียว -> ค้นหาเครื่อง -> ไป select =====
+  async function processMachineScan(rawCode) {
+    const machineNo = (rawCode || '').trim()
+    if (!machineNo || busyRef.current) return
 
-    setIdleLoading(true)
-    setIdleError('')
+    busyRef.current = true
+    scanLoading('กำลังค้นหาเครื่อง...')
     try {
       const [spec, checks] = await Promise.all([
         getMachineSpecByMachineNo(machineNo),
@@ -132,16 +132,45 @@ export default function TSFOperatorPage() {
       ])
       setMachineSpec(spec)
       setMachineChecks(checks || [])
-      setIdleValue('')
       setSelPart(null)
       setScanStep('select')
+      scanClose()
+      scanSuccessToast(`พบเครื่อง: ${machineNo}`)
     } catch (err) {
-      setIdleError(err.message || 'ไม่พบข้อมูลเครื่องนี้')
-      setIdleValue('')
+      await scanErrorAlert(err.message || 'ไม่พบข้อมูลเครื่องนี้')
     } finally {
-      setIdleLoading(false)
+      busyRef.current = false
     }
   }
+
+  // handler ล่าสุดไว้ใน ref ให้ listener เรียกใช้ค่าปัจจุบันเสมอ
+  fireRef.current = processMachineScan
+
+  // ตัวดักสัญญาณเครื่องสแกนเนอร์ระดับหน้าเว็บ (คีย์พิมพ์เร็ว + Enter)
+  // ทำงานเฉพาะตอน idle เท่านั้น จะได้ไม่ชนกับการยิงเข้า input ใน step capture
+  useEffect(() => {
+    let buffer = ''
+    let lastTime = 0
+    function onKeydown(e) {
+      const tag = (e.target?.tagName || '').toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      if (stepRef.current !== 'idle' || busyRef.current) return
+
+      const now = Date.now()
+      if (now - lastTime > 80) buffer = ''
+      lastTime = now
+
+      if (e.key === 'Enter') {
+        const code = buffer.trim()
+        buffer = ''
+        if (code.length >= 2) fireRef.current(code)
+        return
+      }
+      if (e.key && e.key.length === 1) buffer += e.key
+    }
+    window.addEventListener('keydown', onKeydown)
+    return () => window.removeEventListener('keydown', onKeydown)
+  }, [])
 
   function checksFor(type) {
     return machineChecks.filter((c) => c.ComponentType === type)
@@ -387,32 +416,23 @@ export default function TSFOperatorPage() {
           </p>
         )}
 
-        {/* ===== STEP 1: SCAN HERE (idle) ===== */}
+        {/* ===== STEP 1: Machine Part Confirmation (idle) — สแกนเนอร์ยิงเครื่องเดียวจบ ===== */}
         {scanStep === 'idle' && (
-          <div className="scan-hero">
-            <div className="scan-hero-graphic">
-              <BigBarcode />
-              <div className="scan-hero-label">SCAN HERE</div>
+          <>
+            <div className="pc-barcode-grid pc-barcode-grid--single">
+              <div className="pc-barcode-card">
+                <div className="pc-barcode-title">Machine Part Confirmation</div>
+                <div className="pc-barcode-box">
+                  <BigBarcode />
+                  <div className="pc-barcode-caption">Scan Machine Barcode</div>
+                </div>
+                <div className="pc-barcode-strip" />
+              </div>
             </div>
-            <p className="scan-hero-hint">ยิงบาร์โค้ด Machine No. บนตัวเครื่องเพื่อเริ่มตรวจสอบ</p>
-            <form onSubmit={handleIdleSubmit} className="scan-hero-form">
-              <input
-                ref={idleInputRef}
-                className="scan-hero-input"
-                type="text"
-                placeholder="รอรับสัญญาณจากเครื่องสแกน..."
-                value={idleValue}
-                onChange={(e) => setIdleValue(e.target.value)}
-                autoFocus
-              />
-            </form>
-            {idleLoading && <p className="wh-subtitle">กำลังโหลดข้อมูลเครื่อง...</p>}
-            {idleError && (
-              <p className="form-error" role="alert">
-                {idleError}
-              </p>
-            )}
-          </div>
+            <p className="scan-hero-hint" style={{ textAlign: 'center' }}>
+              ใช้เครื่องสแกนเนอร์ยิงบาร์โค้ด Machine No. บนตัวเครื่อง — ระบบจะเปิดหน้าตรวจสอบให้อัตโนมัติ
+            </p>
+          </>
         )}
 
         {/* ===== STEP 2: popup เลือก Part / Machine / แผนก / พนักงาน ===== */}

@@ -69,10 +69,12 @@ a {
   font-weight: 700;
   font-size: 13px;
   letter-spacing: 0.04em;
-  color: #062824;
-  background: linear-gradient(135deg, #22e2d4, #14b8ac);
+  color: #0f172a;
+  background: linear-gradient(135deg, #32ddd7, #00cec8);
+  border: 1px solid rgba(255, 255, 255, 0.35);
   padding: 8px 14px;
-  border-radius: 8px;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(0, 206, 200, 0.12);
 }
 
 .shield-icon {
@@ -215,14 +217,15 @@ a {
   justify-content: center;
   gap: 8px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 13px 16px;
   font-size: 15px;
   font-weight: 700;
-  color: #062824;
-  background: linear-gradient(135deg, #22e2d4, #14b8ac);
+  color: #ffffff;
+  background: linear-gradient(135deg, #00d9d2, #00bdb7);
   cursor: pointer;
-  transition: filter 0.15s ease, transform 0.1s ease;
+  box-shadow: 0 4px 12px rgba(0, 206, 200, 0.15);
+  transition: all 0.2s ease;
 }
 
 .submit-btn:hover:not(:disabled) {

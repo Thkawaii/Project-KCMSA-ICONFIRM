@@ -1768,18 +1768,18 @@
   margin: 8px 0 22px;
 }
 .pc-barcode-card {
-  background: #14c6cc;
+  background: #00cec8;
   border-radius: 22px;
   padding: 22px 24px 18px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: 0 10px 26px rgba(15, 148, 136, 0.18);
+  box-shadow: 0 4px 12px rgba(0, 206, 200, 0.12);
 }
 .pc-barcode-title {
   font-size: 24px;
   font-weight: 600;
-  color: #1f2d3d;
+  color: #fff;
   letter-spacing: 0.2px;
 }
 .pc-barcode-box {
