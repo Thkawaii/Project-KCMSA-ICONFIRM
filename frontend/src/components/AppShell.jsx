@@ -4,8 +4,8 @@ import { logout } from '../api/auth.js'
 export default function AppShell({ navItems, roleLabel, children }) {
   const navigate = useNavigate()
 
-  const name = localStorage.getItem('iconfirm_name') || 'User'
-  const initial = name.trim().charAt(0).toUpperCase() || 'U'
+  const displayName = `${roleLabel} User`
+  const initial = (roleLabel || 'U').trim().charAt(0).toUpperCase() || 'U'
 
   function handleLogout() {
     logout()
@@ -24,7 +24,7 @@ export default function AppShell({ navItems, roleLabel, children }) {
           <div className="shell-user" title={roleLabel}>
             <span className="shell-avatar">{initial}</span>
             <span className="shell-user-info">
-              <span className="shell-user-name">{name}</span>
+              <span className="shell-user-name">{displayName}</span>
               <span className="shell-user-role">{roleLabel}</span>
             </span>
           </div>
