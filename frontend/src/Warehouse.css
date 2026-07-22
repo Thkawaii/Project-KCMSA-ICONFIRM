@@ -1722,3 +1722,106 @@
     font-size: 21px;
   }
 }
+/* ===== SweetAlert scan popup (Part Confirmation) ===== */
+.scan-popup {
+  border-radius: 18px;
+}
+.scan-popup .scan-popup-hint {
+  color: #475467;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-top: 4px;
+}
+.scan-popup .scan-popup-input {
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 22px;
+  letter-spacing: 1px;
+  text-align: center;
+  padding: 16px 14px;
+  border: 2px dashed #0f9488;
+  border-radius: 12px;
+  background: rgba(15, 148, 136, 0.06);
+  color: #101828;
+}
+.scan-popup .scan-popup-input:focus {
+  border-style: solid;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(15, 148, 136, 0.15);
+}
+
+/* ปุ่ม Scan บนหน้า Part Confirmation */
+.pc-scan-btn {
+  font-size: 17px;
+  padding: 14px 40px;
+  border-radius: 12px;
+}
+.pc-scan-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== Part Confirmation — การ์ดบาร์โค้ด (teal label cards) ===== */
+.pc-barcode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 22px;
+  margin: 8px 0 22px;
+}
+.pc-barcode-card {
+  background: #14c6cc;
+  border-radius: 22px;
+  padding: 22px 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 10px 26px rgba(15, 148, 136, 0.18);
+}
+.pc-barcode-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #1f2d3d;
+  letter-spacing: 0.2px;
+}
+.pc-barcode-box {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.pc-barcode-img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+.pc-barcode-scan-btn {
+  align-self: flex-start;
+  border: 0;
+  cursor: pointer;
+  background: #fff;
+  color: #0c7d73;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+  transition: transform 0.05s ease, background 0.15s ease;
+}
+.pc-barcode-scan-btn:hover:not(:disabled) {
+  background: #f0fdfc;
+}
+.pc-barcode-scan-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.pc-barcode-scan-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+/* แถบขาวด้านล่างการ์ด (เลียนแบบ label จริง) */
+.pc-barcode-strip {
+  height: 16px;
+  background: #fff;
+  border-radius: 6px;
+  margin-top: 2px;
+}
