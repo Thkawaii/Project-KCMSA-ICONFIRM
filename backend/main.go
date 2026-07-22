@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"iconfirm/config"
 	"iconfirm/middleware"
 	"iconfirm/routes"
@@ -21,5 +23,11 @@ func main() {
 
 	routes.SetupRoutes(r)
 
-	r.Run(":8080")
+	// พอร์ตปรับผ่าน env PORT ได้ (default 8080 — ตรงกับ default ของ frontend client.js)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	r.Run(":" + port)
 }

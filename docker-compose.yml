@@ -1,0 +1,54 @@
+# ยกทั้งระบบด้วยคำสั่งเดียว: docker compose up --build
+# - db:       PostgreSQL (สร้าง database iconfirm อัตโนมัติ)
+# - backend:  Go API (:8080) — auto-migrate + seed ตอนสตาร์ท
+# - frontend: React build เสิร์ฟผ่าน nginx (:9004 -> 80)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Kobelco.com
+      POSTGRES_DB: iconfirm
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d iconfirm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DB_HOST: db
+      DB_USER: postgres
+      DB_PASSWORD: Kobelco.com
+      DB_NAME: iconfirm
+      DB_PORT: "5432"
+      DB_SSLMODE: disable
+      PORT: "8080"
+      JWT_SECRET: change-me-in-production
+    ports:
+      - "8080:8080"
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # ชี้ไป backend ที่ผู้ใช้เข้าถึงได้จาก browser (ไม่ใช่ชื่อ service ภายใน)
+        VITE_API_BASE_URL: http://localhost:8080
+    ports:
+      - "9004:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  uploads:
