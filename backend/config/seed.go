@@ -32,7 +32,7 @@ func SeedData() {
 			Username: "mfg@kobelco.com",
 			Password: "mfg.kobelco",
 			Status:   "Active",
-			Name:     "TSF Operator",
+			Name:     "MFG",
 		},
 		{
 			RoleName: "UPLOAD",
