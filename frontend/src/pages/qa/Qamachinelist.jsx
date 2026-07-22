@@ -168,7 +168,10 @@ export default function QAMachineList() {
 
       <div className="qa-scan-row">
         <button className="qa-scan-btn" onClick={() => setShowScanner(true)}>
-          📷 เริ่มสแกน
+          <span className="qa-btn-icon">
+            <ScanIcon />
+          </span>
+          เริ่มสแกน
         </button>
       </div>
 
@@ -192,12 +195,13 @@ export default function QAMachineList() {
             <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </div>
           <button
-            className="qa-scan-btn qa-filter-btn"
+            className="qa-filter-btn"
             onClick={() => {
               setPage(1)
             }}
           >
-            🔽 กรอง
+            <FilterIcon />
+            กรอง
           </button>
         </div>
       </div>
@@ -291,5 +295,34 @@ export default function QAMachineList() {
         )}
       </div>
     </AppShell>
+  )
+}
+
+function ScanIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M4 8V6a2 2 0 012-2h2M4 16v2a2 2 0 002 2h2M20 8V6a2 2 0 00-2-2h-2M20 16v2a2 2 0 01-2 2h-2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M6 12h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function FilterIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M4 5h16l-6.5 7.5V18l-3 2v-7.5L4 5z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }

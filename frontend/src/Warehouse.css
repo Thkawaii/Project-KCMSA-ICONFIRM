@@ -699,24 +699,42 @@
 }
 
 .qa-scan-btn {
-  background: linear-gradient(135deg, #32ddd7, #00cec8);
-  color: #ffffff;
-  border: none;
-  border-radius: 10px;
-  padding: 12px 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 26px 10px 10px;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 8px 20px -8px rgba(0, 206, 200, 0.6);
-  transition: filter 0.15s ease, transform 0.1s ease;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
 
 .qa-scan-btn:hover {
-  filter: brightness(1.05);
+  border-color: #00cec8;
+  box-shadow: 0 8px 20px -10px rgba(0, 206, 200, 0.45);
+  transform: translateY(-1px);
 }
 
 .qa-scan-btn:active {
-  transform: translateY(1px);
+  transform: translateY(0);
+  box-shadow: 0 2px 8px -4px rgba(0, 206, 200, 0.4);
+}
+
+.qa-btn-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #e0f2f1;
+  color: #00a39d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .qa-filter-card {
@@ -762,8 +780,28 @@
 }
 
 .qa-filter-btn {
-  padding: 10px 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 39px;
+  background: #00cec8;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 0 20px;
   font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.qa-filter-btn:hover {
+  background: #00a39d;
+}
+
+.qa-filter-btn:active {
+  background: #00918c;
 }
 
 .qa-table-toolbar {

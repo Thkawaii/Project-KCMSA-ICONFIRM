@@ -46,9 +46,8 @@ export default function TSFReceivePage() {
     <AppShell navItems={navItems} roleLabel="TSF Operator">
       <div className="wh-heading-row">
         <div>
-          <h2 className="wh-title">รับอะไหล่จาก Warehouse</h2>
+          <h2 className="wh-title">Receive</h2>
           <p className="wh-subtitle">
-            กดรับอะไหล่ที่ Warehouse จ่ายมาก่อนเริ่มสแกนติดตั้ง
             {pendingTransfers.length > 0 && <> · รอรับ {pendingTransfers.length} รายการ</>}
           </p>
         </div>
