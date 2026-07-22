@@ -9,7 +9,7 @@
 .scan-popup .scan-popup-input {
   font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
   font-size: 22px; letter-spacing: 1px; text-align: center; padding: 16px 14px;
-  border: 2px dashed #0f9488; border-radius: 12px; background: rgba(15,148,136,.06); color: #101828;
+  border: 2px dashed #00cec8; border-radius: 12px; background: rgba(0,206,200,.06); color: #101828;
 }
 .scan-popup .scan-popup-input:focus { border-style: solid; background: #fff; box-shadow: 0 0 0 4px rgba(15,148,136,.15); }
 

@@ -8,9 +8,9 @@
   --text-primary: #101828;
   --text-secondary: #5b6b82;
   --text-muted: #8f9aad;
-  --teal: #0f9488;
-  --teal-strong: #0c7d73;
-  --teal-soft: rgba(15, 148, 136, 0.12);
+  --teal: #00cec8;
+  --teal-strong: #00a39d;
+  --teal-soft: rgba(0, 206, 200, 0.12);
   --danger: #dc2626;
   --font-display: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;

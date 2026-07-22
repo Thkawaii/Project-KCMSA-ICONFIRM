@@ -10,7 +10,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #17c3b2;
+  background: #00cec8;
   padding: 14px 28px;
 }
 
@@ -22,7 +22,7 @@
 
 .wh-topbar .brand-badge {
   background: #ffffff;
-  color: #0f766e;
+  color: #00a39d;
   font-weight: 700;
   font-size: 13px;
   letter-spacing: 0.03em;
@@ -91,7 +91,7 @@
 }
 
 .wh-search:focus {
-  border-color: #17c3b2;
+  border-color: #00cec8;
 }
 
 .wh-toast {
@@ -145,7 +145,7 @@
   padding: 3px 8px;
   border-radius: 999px;
   background: #e0f2f1;
-  color: #0f766e;
+  color: #00a39d;
   font-weight: 600;
 }
 
@@ -155,7 +155,7 @@
 }
 
 .wh-issue-btn {
-  background: #17c3b2;
+  background: #00cec8;
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -167,7 +167,7 @@
 }
 
 .wh-issue-btn:hover:not(:disabled) {
-  background: #0f766e;
+  background: #00a39d;
 }
 
 .wh-issue-btn:disabled {
@@ -233,7 +233,7 @@
 }
 
 .wh-modal-input:focus {
-  border-color: #17c3b2;
+  border-color: #00cec8;
 }
 
 .wh-modal-actions {
@@ -254,7 +254,7 @@
 }
 
 .wh-modal-confirm {
-  background: #17c3b2;
+  background: #00cec8;
   border: none;
   border-radius: 8px;
   padding: 9px 16px;
@@ -265,7 +265,7 @@
 }
 
 .wh-modal-confirm:hover {
-  background: #0f766e;
+  background: #00a39d;
 }
 
 /* ===== Warehouse issue page — redesign ===== */
@@ -316,7 +316,7 @@
   height: 44px;
   border-radius: 10px;
   background: #e0f2f1;
-  color: #0f766e;
+  color: #00a39d;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -356,8 +356,8 @@
 
 .wh-upload-pick-filled {
   border-style: solid;
-  border-color: #17c3b2;
-  color: #0f766e;
+  border-color: #00cec8;
+  color: #00a39d;
 }
 
 .wh-upload-msg {
@@ -391,13 +391,89 @@
   text-align: left;
 }
 
+.wh-so-select-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.wh-so-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #ffffff;
+  cursor: pointer;
+  font-family: inherit;
+  color: #0f172a;
+  text-align: left;
+}
+
+.wh-so-select-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wh-so-select-caret {
+  flex-shrink: 0;
+  color: #64748b;
+  font-size: 12px;
+  transition: transform 0.15s ease;
+}
+
+.wh-so-select-caret-open {
+  transform: rotate(180deg);
+}
+
+.wh-so-select-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #d9dee3;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  z-index: 20;
+}
+
+.wh-so-select-option {
+  padding: 10px 12px;
+  font-size: 14px;
+  text-align: left;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.wh-so-select-option:hover {
+  background: rgba(0, 206, 200, 0.1);
+}
+
+.wh-so-select-option-active {
+  background: rgba(0, 206, 200, 0.16);
+  color: #00a39d;
+  font-weight: 600;
+}
+
 .wh-so-active-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 18px;
-  background: linear-gradient(135deg, #0f766e, #17c3b2);
+  background: linear-gradient(135deg, #00a39d, #00cec8);
   border-radius: 14px;
   padding: 18px 22px;
   margin-bottom: 18px;
@@ -623,7 +699,7 @@
 }
 
 .qa-scan-btn {
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  background: linear-gradient(135deg, #32ddd7, #00cec8);
   color: #ffffff;
   border: none;
   border-radius: 10px;
@@ -631,7 +707,7 @@
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 8px 20px -8px rgba(79, 70, 229, 0.6);
+  box-shadow: 0 8px 20px -8px rgba(0, 206, 200, 0.6);
   transition: filter 0.15s ease, transform 0.1s ease;
 }
 
@@ -1040,7 +1116,7 @@
 }
 
 .qa-sidebar-brand .brand-badge {
-  background: #17c3b2;
+  background: #00cec8;
   color: #ffffff;
   font-weight: 700;
   font-size: 12px;
@@ -1086,7 +1162,7 @@
 }
 
 .qa-nav-item-active {
-  background: #17c3b2;
+  background: #00cec8;
   color: #ffffff;
   font-weight: 600;
 }
@@ -1469,7 +1545,7 @@
   }
 
   .wh-table tbody td.wh-cell-head[data-label]::before {
-    color: #0f766e;
+    color: #00a39d;
     font-size: 15px;
     font-weight: 700;
   }
@@ -1581,7 +1657,7 @@
 }
 
 .pc-parttype-card:hover {
-  border-color: #17c3b2;
+  border-color: #00cec8;
   box-shadow: 0 6px 16px -8px rgba(15, 118, 110, 0.4);
 }
 
@@ -1590,13 +1666,13 @@
 }
 
 .pc-parttype-card:focus-visible {
-  outline: 2px solid #17c3b2;
+  outline: 2px solid #00cec8;
   outline-offset: 2px;
 }
 
 .pc-parttype-card-selected {
-  border-color: #17c3b2;
-  background: rgba(23, 195, 178, 0.06);
+  border-color: #00cec8;
+  background: rgba(0, 206, 200, 0.06);
   box-shadow: 0 8px 20px -8px rgba(15, 118, 110, 0.45);
 }
 
@@ -1648,7 +1724,7 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #17c3b2;
+  background: #00cec8;
   color: #ffffff;
   font-size: 12px;
   font-weight: 800;
@@ -1663,7 +1739,7 @@
   align-items: center;
   gap: 10px;
   background: #e0f2f1;
-  color: #0f766e;
+  color: #00a39d;
   font-weight: 700;
   font-size: 13px;
   padding: 8px 8px 8px 16px;
@@ -1674,7 +1750,7 @@
 .pc-selected-chip button {
   background: #ffffff;
   border: 1px solid #99e2db;
-  color: #0f766e;
+  color: #00a39d;
   cursor: pointer;
   font-size: 12px;
   font-weight: 700;
@@ -1684,9 +1760,9 @@
 }
 
 .pc-selected-chip button:hover {
-  background: #0f766e;
+  background: #00a39d;
   color: #ffffff;
-  border-color: #0f766e;
+  border-color: #00a39d;
 }
 
 /* popup summary card */
@@ -1738,15 +1814,15 @@
   letter-spacing: 1px;
   text-align: center;
   padding: 16px 14px;
-  border: 2px dashed #0f9488;
+  border: 2px dashed #00cec8;
   border-radius: 12px;
-  background: rgba(15, 148, 136, 0.06);
+  background: rgba(0, 206, 200, 0.06);
   color: #101828;
 }
 .scan-popup .scan-popup-input:focus {
   border-style: solid;
   background: #fff;
-  box-shadow: 0 0 0 4px rgba(15, 148, 136, 0.15);
+  box-shadow: 0 0 0 4px rgba(0, 206, 200, 0.15);
 }
 
 /* ปุ่ม Scan บนหน้า Part Confirmation */
@@ -1800,7 +1876,7 @@
   border: 0;
   cursor: pointer;
   background: #fff;
-  color: #0c7d73;
+  color: #00a39d;
   font-weight: 700;
   font-size: 15px;
   padding: 10px 22px;

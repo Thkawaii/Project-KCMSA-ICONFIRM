@@ -29,8 +29,8 @@ func SeedData() {
 		},
 		{
 			RoleName: "TSF",
-			Username: "operator@kobelco.com",
-			Password: "operator.kobelco",
+			Username: "mfg@kobelco.com",
+			Password: "mfg.kobelco",
 			Status:   "Active",
 			Name:     "TSF Operator",
 		},

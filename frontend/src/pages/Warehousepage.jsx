@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { getWarehouseStock, issueWarehouseStock, uploadWarehouseStock } from '../api/warehouse.js'
 import AppShell from '../components/AppShell.jsx'
 
@@ -19,6 +19,8 @@ export default function WarehousePage() {
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [selectedSO, setSelectedSO] = useState('')
+  const [soDropdownOpen, setSoDropdownOpen] = useState(false)
+  const soDropdownRef = useRef(null)
   const [stockTab, setStockTab] = useState('all')
 
   const [issuingRow, setIssuingRow] = useState(null)
@@ -49,6 +51,22 @@ export default function WarehousePage() {
   useEffect(() => {
     loadAll()
   }, [])
+
+  // ปิด dropdown เลือก Sales Order เมื่อคลิก/แตะนอกกล่อง (กันปัญหา option ยืดเต็มจอบนมือถือจาก native select)
+  useEffect(() => {
+    if (!soDropdownOpen) return
+    function onOutside(e) {
+      if (soDropdownRef.current && !soDropdownRef.current.contains(e.target)) {
+        setSoDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onOutside)
+    document.addEventListener('touchstart', onOutside)
+    return () => {
+      document.removeEventListener('mousedown', onOutside)
+      document.removeEventListener('touchstart', onOutside)
+    }
+  }, [soDropdownOpen])
 
   async function handleSoFile(e) {
     const file = e.target.files?.[0]
@@ -239,18 +257,48 @@ export default function WarehousePage() {
             <div className="wh-so-picker-icon">📋</div>
             <h3 className="tsf-form-title" style={{ marginBottom: 4 }}>
             </h3>
-            <select
-              className="wh-modal-input wh-so-select"
-              value={selectedSO}
-              onChange={(e) => setSelectedSO(e.target.value)}
-            >
-              <option value="">-- เลือก Sales Order --</option>
-              {salesOrders.map((so) => (
-                <option key={so.orderNo} value={so.orderNo}>
-                  {so.orderNo} ({so.issued}/{so.total} จ่ายแล้ว)
-                </option>
-              ))}
-            </select>
+            <div className="wh-so-select-wrap" ref={soDropdownRef}>
+              <button
+                type="button"
+                className="wh-modal-input wh-so-select wh-so-select-trigger"
+                onClick={() => setSoDropdownOpen((v) => !v)}
+              >
+                <span className="wh-so-select-value">
+                  {selectedSO
+                    ? (() => {
+                        const so = salesOrders.find((s) => s.orderNo === selectedSO)
+                        return so ? `${so.orderNo} (${so.issued}/${so.total} จ่ายแล้ว)` : selectedSO
+                      })()
+                    : '-- เลือก Sales Order --'}
+                </span>
+                <span className={'wh-so-select-caret' + (soDropdownOpen ? ' wh-so-select-caret-open' : '')}>▾</span>
+              </button>
+              {soDropdownOpen && (
+                <ul className="wh-so-select-menu" role="listbox">
+                  <li
+                    className={'wh-so-select-option' + (selectedSO === '' ? ' wh-so-select-option-active' : '')}
+                    onClick={() => {
+                      setSelectedSO('')
+                      setSoDropdownOpen(false)
+                    }}
+                  >
+                    -- เลือก Sales Order --
+                  </li>
+                  {salesOrders.map((so) => (
+                    <li
+                      key={so.orderNo}
+                      className={'wh-so-select-option' + (selectedSO === so.orderNo ? ' wh-so-select-option-active' : '')}
+                      onClick={() => {
+                        setSelectedSO(so.orderNo)
+                        setSoDropdownOpen(false)
+                      }}
+                    >
+                      {so.orderNo} ({so.issued}/{so.total} จ่ายแล้ว)
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             {salesOrders.length === 0 && (
               <p className="wh-subtitle" style={{ marginTop: 10 }}>
                 ยังไม่มี Sales Order ในระบบ — อัปโหลดไฟล์ Excel ด้านบนก่อน
