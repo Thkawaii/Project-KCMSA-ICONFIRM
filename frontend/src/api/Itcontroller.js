@@ -52,12 +52,11 @@ export function saveImportLicense(payload) {
 
 // ── Serial List → ทะเบียนเครื่อง ─────────────────────────────────────────────
 
-export function uploadSerialList({ file, invoiceNo, poNo, importLicenseNo }) {
+// อัปโหลด Serial List (Excel) — ระบบอ่านเลขใบอนุญาต/อินวอยซ์/พีโอ จากคอลัมน์ในไฟล์เอง
+// และสร้างหัวใบอนุญาตนำเข้าให้อัตโนมัติถ้ายังไม่มีในระบบ ไม่ต้องกรอกฟอร์มแยกอีกต่อไป
+export function uploadSerialList(file) {
   const form = new FormData()
   form.append('file', file)
-  form.append('invoice_no', invoiceNo)
-  form.append('po_no', poNo)
-  form.append('import_license_no', importLicenseNo)
   return postForm('/it-controller/units/upload', form)
 }
 
