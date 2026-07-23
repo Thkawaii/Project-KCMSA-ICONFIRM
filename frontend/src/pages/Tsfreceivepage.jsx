@@ -48,7 +48,6 @@ export default function TSFReceivePage() {
         <div>
           <h2 className="wh-title">รับอะไหล่จาก Warehouse</h2>
           <p className="wh-subtitle">
-            กดรับอะไหล่ที่ Warehouse จ่ายมาก่อนเริ่มสแกนติดตั้ง
             {pendingTransfers.length > 0 && <> · รอรับ {pendingTransfers.length} รายการ</>}
           </p>
         </div>

@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './pages/LoginPage.jsx'
 import WarehousePage from './pages/Warehousepage.jsx'
 import WHPartConfirmationPage from './pages/Whpartconfirmationpage.jsx'
+import ITControllerPage from './pages/Itcontrollerpage.jsx'
 import DashboardPage from './pages/Dashboardpage.jsx'
 import TSFOperatorPage from './pages/Tsfoperatorpage.jsx'
 import TSFReceivePage from './pages/Tsfreceivepage.jsx'
@@ -14,6 +15,9 @@ import QAMachineDetail from './pages/qa/Qamachinedetail.jsx'
 import './styles.css'
 import './Warehouse.css'
 import './AppShell.css'
+import './Itcontroller.css'
+import './Filedropzone.css'
+import './Selectfield.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -22,6 +26,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/login" element={<LoginPage />} />
         <Route path="/warehouse" element={<WarehousePage />} />
         <Route path="/warehouse/confirm" element={<WHPartConfirmationPage />} />
+        <Route path="/warehouse/it-controller" element={<ITControllerPage />} />
         <Route path="/tsf" element={<TSFOperatorPage />} />
         <Route path="/tsf/receive" element={<TSFReceivePage />} />
         <Route path="/upload" element={<UploadViewPage />} />

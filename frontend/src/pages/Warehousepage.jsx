@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getWarehouseStock, issueWarehouseStock, uploadWarehouseStock } from '../api/warehouse.js'
 import AppShell from '../components/AppShell.jsx'
+import FileDropZone from '../components/Filedropzone.jsx'
 
 const navItems = [
   { to: '/warehouse', label: 'จ่ายของ (FIFO & S/O)', icon: '📦' },
   { to: '/warehouse/confirm', label: 'Part Confirmation', icon: '✅' },
+  { to: '/warehouse/it-controller', label: 'IT Controller (กสทช.)', icon: '📡' },
 ]
 
 const STOCK_TABS = [
@@ -68,10 +70,9 @@ export default function WarehousePage() {
     }
   }, [soDropdownOpen])
 
-  async function handleSoFile(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  function handleSoFile(file) {
     setSoFile(file)
+    setSoMsg(null)
   }
 
   async function handleSoUpload() {
@@ -234,20 +235,19 @@ export default function WarehousePage() {
         </div>
 
         <div className="wh-upload-card">
-          <div className="wh-upload-card-icon">
-            <UploadCloudIcon />
+          <div className="fdz-row">
+            <FileDropZone
+              file={soFile}
+              onSelect={handleSoFile}
+              accept=".xlsx,.xls"
+              label="อัปโหลด SO / สต็อกเข้าคลัง"
+              hint="ลากไฟล์ Excel (.xlsx, .xls) มาวาง หรือกดเพื่อเลือก"
+              disabled={soUploading}
+            />
+            <button className="wh-issue-btn" onClick={handleSoUpload} disabled={soUploading || !soFile}>
+              {soUploading ? 'กำลังอัปโหลด...' : 'อัปโหลด'}
+            </button>
           </div>
-          <div className="wh-upload-card-body">
-            <p className="wh-upload-card-title">อัปโหลด SO / สต็อกเข้าคลัง</p>
-            <p className="wh-upload-card-hint">ไฟล์ Excel (.xlsx, .xls)</p>
-          </div>
-          <label className={'wh-upload-pick' + (soFile ? ' wh-upload-pick-filled' : '')} htmlFor="soFile">
-            {soFile ? soFile.name : 'เลือกไฟล์'}
-            <input id="soFile" type="file" accept=".xlsx,.xls" onChange={handleSoFile} className="upload-card-input-hidden" />
-          </label>
-          <button className="wh-issue-btn" onClick={handleSoUpload} disabled={soUploading}>
-            {soUploading ? 'กำลังอัปโหลด...' : 'อัปโหลด'}
-          </button>
           {soMsg?.success && <p className="upload-card-msg upload-card-msg-ok wh-upload-msg">{soMsg.success}</p>}
           {soMsg?.error && <p className="upload-card-msg upload-card-msg-err wh-upload-msg">{soMsg.error}</p>}
         </div>
@@ -473,26 +473,5 @@ export default function WarehousePage() {
         </div>
       )}
     </>
-  )
-}
-
-function UploadCloudIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M7 18a4.5 4.5 0 01-.4-8.98A5.5 5.5 0 0117 8.5a4 4 0 01-.5 7.98"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 12v7m0-7l-2.5 2.5M12 12l2.5 2.5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   )
 }
