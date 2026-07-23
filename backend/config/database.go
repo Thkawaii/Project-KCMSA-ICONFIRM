@@ -71,5 +71,9 @@ func ConnectDB() {
 
 	SeedData()
 
+	// เรียกแยกจาก SeedData() เพราะอันนั้นจะข้ามทั้งหมดถ้ามี user อยู่แล้ว
+	// ส่วนอันนี้ต้องรันทุกครั้งเพื่อเติมทะเบียน IT Controller ที่เพิ่มเข้ามาใหม่
+	SeedMasterITController()
+
 	log.Println("Database Connected")
 }

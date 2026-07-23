@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import AppShell from '../../components/AppShell.jsx'
-import { getMachineSpecByMachineNo } from '../../api/machineSpecLookup.js'
+import { getMachineSpecByMachineNo } from '../../api/Machinespeclookup.js'
 import {
   computeStatus,
   getApprovals,

@@ -8,7 +8,7 @@ import {
   photoUrl,
   getUsers,
 } from '../api/tsf.js'
-import { getMachineSpecByMachineNo } from '../api/machineSpecLookup.js'
+import { getMachineSpecByMachineNo } from '../api/Machinespeclookup.js'
 import { scanLoading, scanClose, scanSuccessToast, scanErrorAlert } from '../lib/scanPopup.js'
 import AppShell from '../components/AppShell.jsx'
 import bcMachine from '../assets/barcodes/Machine_Barcode.gif'
