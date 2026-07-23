@@ -22,6 +22,14 @@ func SetupRoutes(r *gin.Engine) {
 	{
 		masterData.GET("", controllers.GetMasterData)
 		masterData.POST("", controllers.CreateMasterData)
+
+		// แก้ไขทะเบียนได้เฉพาะ role UPLOAD เหมือนกับฝั่ง machine-spec
+		manage := masterData.Group("")
+		manage.Use(middleware.RoleMiddleware("UPLOAD"))
+		{
+			manage.POST("/upload", controllers.UploadMasterData)
+			manage.DELETE("/:id", controllers.DeleteMasterData)
+		}
 	}
 
 	// Machine Spec — full machine spec sheets uploaded via Excel by the

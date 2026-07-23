@@ -1,8 +1,8 @@
 import { apiFetch, API_BASE_URL, getToken } from './client.js'
 
-export function getMasterData() {
-  return apiFetch('/master-data')
-}
+// ทะเบียน Master Data ย้ายไปอยู่ใน masterData.js แล้ว (มี upload/delete ด้วย)
+// re-export ไว้ตรงนี้เพื่อไม่ให้โค้ดเดิมที่ import จาก tsf.js พัง
+export { getMasterData } from './masterData.js'
 
 export function getTsfScans() {
   return apiFetch('/tsf')

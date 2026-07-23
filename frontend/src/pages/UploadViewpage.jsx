@@ -15,7 +15,9 @@ const CATEGORIES = [
   { type: 'pump_assy_hyd', label: 'Pump Assy HYD', icon: '💧' },
 ]
 
-const navItems = [{ to: '/upload', label: 'Upload Master Data', icon: '⬆️' }]
+// หน้านี้เหลือไว้สำหรับอัปโหลด Machine Spec (คนละตารางกับ Master Data)
+// ไม่ได้อยู่ในเมนูหลักแล้ว เข้าถึงได้ทาง URL /upload โดยตรง
+const navItems = [{ to: '/master-data', label: 'ทะเบียน Master Data', icon: '🗂️' }]
 
 export default function UploadViewPage() {
   const [rows, setRows] = useState([])
