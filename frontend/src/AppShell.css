@@ -260,6 +260,18 @@
   margin-bottom: 20px;
 }
 
+.upload-panel-hint {
+  text-align: left;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0 0 18px;
+}
+
 .upload-panel-label {
   display: block;
   font-size: 12.5px;

@@ -20,7 +20,9 @@ export default function MasterDataPage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
-  const [componentType, setComponentType] = useState('it_controller')
+  // ชนิดอะไหล่ที่ใช้ "กรอง/เรียงดู" ในตารางทะเบียน — ไม่เกี่ยวกับตอนอัปโหลดแล้ว
+  // (ตอนอัปโหลด backend จะอ่านชนิดจากคอลัมน์ในไฟล์เอง ไม่ต้องเลือกก่อน)
+  const [filterType, setFilterType] = useState('')
   const [keyword, setKeyword] = useState('')
 
   const [pendingFile, setPendingFile] = useState(null)
@@ -39,7 +41,7 @@ export default function MasterDataPage() {
       setLoading(true)
       setLoadError('')
       try {
-        const data = await getMasterData({ componentType: componentType || undefined })
+        const data = await getMasterData({ componentType: filterType || undefined })
         if (!cancelled) setRows(data || [])
       } catch (err) {
         if (!cancelled) setLoadError(err.message || 'โหลดทะเบียนไม่สำเร็จ')
@@ -52,7 +54,7 @@ export default function MasterDataPage() {
     return () => {
       cancelled = true
     }
-  }, [componentType, reloadKey])
+  }, [filterType, reloadKey])
 
   // ค้นหาแบบ client-side เพราะข้อมูลชุดนี้มีไม่กี่ร้อยแถว โหลดมาทีเดียวแล้ว
   // กรองในเครื่องจะไวกว่ายิง API ทุกตัวอักษร — ค้นได้ทั้ง S/N, IT Controller
@@ -90,9 +92,6 @@ export default function MasterDataPage() {
     return { total: rows.length, withImei, models: models.size, partNos: partNos.size }
   }, [rows])
 
-  const uploadTargetLabel =
-    CATEGORIES.find((cat) => cat.type === (componentType || 'it_controller'))?.label || 'IT Controller'
-
   function handleFileChange(e) {
     setPendingFile(e.target.files?.[0] || null)
     setUploadMsg(null)
@@ -108,9 +107,9 @@ export default function MasterDataPage() {
     setUploadMsg(null)
 
     try {
-      // ไม่ส่ง componentType ว่างไปให้ backend เดา — ถ้าเลือก "ทุกชนิด" ไว้
-      // ให้ลงเป็น it_controller ตาม default ฝั่ง backend
-      const result = await uploadMasterData(pendingFile, componentType || 'it_controller')
+      // ไม่ต้องส่งชนิดอะไหล่ไปแล้ว — backend จะอ่านชนิดจากคอลัมน์ในไฟล์เอง
+      // (รองรับไฟล์ที่มีอะไหล่หลายชนิดปนกันในไฟล์เดียว)
+      const result = await uploadMasterData(pendingFile)
 
       setUploadMsg({
         success: `นำเข้าสำเร็จ — เพิ่มใหม่ ${result.imported} รายการ, อัปเดตของเดิม ${result.updated} รายการ`,
@@ -164,7 +163,7 @@ export default function MasterDataPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `master-data-${componentType || 'all'}-${Date.now()}.csv`
+    a.download = `master-data-${filterType || 'all'}-${Date.now()}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -185,25 +184,6 @@ export default function MasterDataPage() {
 
       {/* ===== อัปโหลดจาก Excel ===== */}
       <div className="upload-panel">
-        <div className="upload-panel-field">
-          <label className="upload-panel-label" htmlFor="md-category-select">
-            ชนิดอะไหล่ที่จะนำเข้า
-          </label>
-          <select
-            id="md-category-select"
-            className="upload-panel-select"
-            value={componentType}
-            onChange={(e) => setComponentType(e.target.value)}
-          >
-            <option value="">ทุกชนิด (นำเข้าเป็น IT Controller)</option>
-            {CATEGORIES.map((cat) => (
-              <option key={cat.type} value={cat.type}>
-                {cat.icon} {cat.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
         <label
           className={'upload-dropzone upload-panel-dropzone' + (pendingFile ? ' upload-dropzone-filled' : '')}
           htmlFor="md-file"
@@ -226,7 +206,7 @@ export default function MasterDataPage() {
         </label>
 
         <button className="wh-issue-btn upload-panel-btn" disabled={uploading} onClick={handleUpload}>
-          {uploading ? 'กำลังอัปโหลด...' : `อัปโหลดเข้า ${uploadTargetLabel}`}
+          {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลด Master Data'}
         </button>
 
         {uploadMsg?.success && <p className="upload-card-msg upload-card-msg-ok">{uploadMsg.success}</p>}
@@ -280,14 +260,28 @@ export default function MasterDataPage() {
             รายการ {keyword.trim() && `(พบ ${filtered.length} จาก ${rows.length})`}
           </h2>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div className="uv-list-tools md-list-tools" style={{ display: 'flex', gap: 10 }}>
+          <select
+            className="wh-search md-type-select"
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            aria-label="กรองดูตามชนิดอะไหล่"
+            style={{ minWidth: 150 }}
+          >
+            <option value="">ทุกชนิด</option>
+            {CATEGORIES.map((cat) => (
+              <option key={cat.type} value={cat.type}>
+                {cat.icon} {cat.label}
+              </option>
+            ))}
+          </select>
           <input
             className="wh-search"
             type="search"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="สแกนหรือพิมพ์ S/N, IT Controller no., IMEI, P/N"
-            style={{ minWidth: 280 }}
+            style={{ minWidth: 200, flex: '1 1 200px' }}
           />
           <button className="wh-issue-btn" onClick={handleExportCsv} disabled={filtered.length === 0}>
             ⬇ Export CSV
