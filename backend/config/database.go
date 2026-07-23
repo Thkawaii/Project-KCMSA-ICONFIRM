@@ -67,6 +67,15 @@ func ConnectDB() {
 		&models.AuditLog{},
 
 		&models.PartCheck{},
+
+		// ── IT Controller (กสทช.) ────────────────────────────────────
+		&models.DocumentFile{},
+
+		&models.ImportLicense{},
+
+		&models.ExportLicense{},
+
+		&models.ITControllerUnit{},
 	)
 
 	SeedData()

@@ -68,6 +68,46 @@ func SetupRoutes(r *gin.Engine) {
 		warehouse.POST("/:id/issue", controllers.IssueWarehouse)
 	}
 
+	// ─────────────────────────────────────────────────────────────────────
+	// IT Controller (กสทช.) — งานใหม่ของ WH
+	//
+	// ทุก endpoint ในกลุ่มนี้ทำงานบน KEY เดียวคือ IT Controller No. 12 หลัก
+	// เอกสาร Invoice / PO / Import License เข้ามาเป็น PDF จึงเก็บเป็นไฟล์แนบ
+	// + เลขที่ที่ WH คีย์ ส่วนที่ระบบอ่านอัตโนมัติมีเฉพาะ Serial List (Excel)
+	// ─────────────────────────────────────────────────────────────────────
+	itc := auth.Group("/it-controller")
+	itc.Use(middleware.RoleMiddleware("WH"))
+	{
+		// เอกสาร PDF
+		itc.GET("/documents", controllers.GetITCDocuments)
+		itc.POST("/documents", controllers.UploadITCDocument)
+
+		// ใบอนุญาตนำเข้า (อายุ 6 เดือน)
+		itc.GET("/import-licenses", controllers.GetImportLicenses)
+		itc.POST("/import-licenses", controllers.UpsertImportLicense)
+
+		// Serial List (Excel) → สร้าง unit
+		itc.POST("/units/upload", controllers.UploadSerialList)
+
+		// ทะเบียนเครื่อง + งานหน้าคลัง
+		itc.GET("/units", controllers.GetITCUnits)
+		itc.POST("/units/receive", controllers.ReceiveITCUnit)
+		itc.POST("/units/allocate", controllers.AllocateITCUnits)
+		itc.POST("/units/allocate-split", controllers.AllocateITCSplit)
+		itc.POST("/units/issue", controllers.IssueITCUnit)
+		itc.POST("/units/export", controllers.ExportITCUnit)
+
+		// ใบอนุญาตนำออก (อายุ 1 เดือน) + บัญชีแนบสำหรับยื่น กสทช.
+		itc.GET("/export-licenses", controllers.GetExportLicenses)
+		itc.POST("/export-licenses", controllers.CreateExportLicense)
+		itc.GET("/export-licenses/:licenseNo/attachment", controllers.DownloadExportAttachment)
+
+		// ตรวจสอบย้อนกลับ + เตือน + รายงาน
+		itc.GET("/trace/:itControllerNo", controllers.TraceITCUnit)
+		itc.GET("/alerts", controllers.GetITCAlerts)
+		itc.GET("/report/weekly", controllers.GetITCWeeklyReport)
+	}
+
 	whConfirm := auth.Group("/wh-confirm")
 	{
 		whConfirm.GET("", controllers.GetWHConfirm)

@@ -14,6 +14,7 @@ import bcValveSn from '../assets/barcodes/Control_Valve__SN_.gif'
 const navItems = [
   { to: '/warehouse', label: 'จ่ายของ (FIFO & S/O)', icon: '📦' },
   { to: '/warehouse/confirm', label: 'Part Confirmation', icon: '✅' },
+  { to: '/warehouse/it-controller', label: 'IT Controller (กสทช.)', icon: '📡' },
 ]
 
 const TAG_TYPES = [
