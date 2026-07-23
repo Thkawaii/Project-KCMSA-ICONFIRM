@@ -6,7 +6,6 @@ import {
   getDocuments,
   uploadDocument,
   getImportLicenses,
-  saveImportLicense,
   uploadSerialList,
   getUnits,
   receiveUnit,
@@ -95,8 +94,7 @@ export default function ITControllerPage() {
     <AppShell navItems={navItems} roleLabel="Warehouse">
       <div className="wh-heading-row">
         <div>
-          <h2 className="wh-title">IT Controller — ทะเบียน กสทช.</h2>
-          <p className="wh-subtitle">ทุกอย่างอ้างอิงด้วย IT Controller No. 12 หลัก</p>
+          <h2 className="wh-title">IT Controller</h2>
         </div>
       </div>
 
@@ -216,22 +214,9 @@ function AlertBanner({ alerts }) {
 
 function DocumentsTab({ documents, importLicenses, onDone, onError }) {
   const [doc, setDoc] = useState({ docType: 'INVOICE', docNo: '', invoiceNo: '', poNo: '', file: null })
-  const [lic, setLic] = useState({
-    license_no: '',
-    invoice_no: '',
-    po_no: '',
-    declaration_no: '',
-    brand: 'JRC MOBILITY',
-    model: 'JRN-260K',
-    part_no: '',
-    qty: '',
-    issue_date: today(),
-  })
-  const [serial, setSerial] = useState({ file: null, importLicenseNo: '' })
+  const [serialFile, setSerialFile] = useState(null)
   const [result, setResult] = useState(null)
   const [busy, setBusy] = useState('')
-
-  const selectedLicense = importLicenses.find((l) => l.LicenseNo === serial.importLicenseNo)
 
   async function submitDoc() {
     if (!doc.file || !doc.docNo) return onError('กรุณาเลือกไฟล์ PDF และกรอกเลขที่เอกสาร')
@@ -247,31 +232,20 @@ function DocumentsTab({ documents, importLicenses, onDone, onError }) {
     }
   }
 
-  async function submitLicense() {
-    setBusy('lic')
-    try {
-      await saveImportLicense({ ...lic, qty: Number(lic.qty) })
-      onDone(`บันทึกใบอนุญาตนำเข้า ${lic.license_no} แล้ว`)
-    } catch (e) {
-      onError(e.message)
-    } finally {
-      setBusy('')
-    }
-  }
-
+  // นำเข้า Serial List: อ่านเลขใบอนุญาต/อินวอยซ์/พีโอ จากคอลัมน์ในไฟล์เอง
+  // ไม่ต้องกรอกฟอร์มหัวใบอนุญาตแยก — อัปโหลดแล้วขึ้นตารางอัตโนมัติ
   async function submitSerial() {
-    if (!serial.file || !selectedLicense) return onError('กรุณาเลือกใบอนุญาตนำเข้าและไฟล์ Serial List')
+    if (!serialFile) return onError('กรุณาเลือกไฟล์ Serial List')
     setBusy('serial')
     setResult(null)
     try {
-      const res = await uploadSerialList({
-        file: serial.file,
-        invoiceNo: selectedLicense.InvoiceNo,
-        poNo: selectedLicense.PONo,
-        importLicenseNo: selectedLicense.LicenseNo,
-      })
+      const res = await uploadSerialList(serialFile)
       setResult(res)
-      onDone(`นำเข้าทะเบียนแล้ว ${res.created} เครื่องใหม่ / อัปเดต ${res.updated}`)
+      setSerialFile(null)
+      const licMsg = res.licenses_created?.length
+        ? ` · สร้างใบอนุญาตนำเข้าใหม่อัตโนมัติ ${res.licenses_created.length} ใบ`
+        : ''
+      onDone(`นำเข้าทะเบียนแล้ว ${res.created} เครื่องใหม่ / อัปเดต ${res.updated}${licMsg}`)
     } catch (e) {
       onError(e.message)
     } finally {
@@ -336,71 +310,22 @@ function DocumentsTab({ documents, importLicenses, onDone, onError }) {
       </section>
 
       <section className="itc-card">
-        <h3 className="tsf-form-title">บันทึกหัวใบอนุญาตนำเข้า</h3>
-        <p className="wh-subtitle">วันหมดอายุคำนวณให้อัตโนมัติ = วันที่ออก + 6 เดือน</p>
-
-        <div className="itc-form-grid">
-          {[
-            ['license_no', 'เลขใบอนุญาตนำเข้า', 'E05036901604'],
-            ['invoice_no', 'Invoice No.', 'TQ60610'],
-            ['po_no', 'P.O. No.', '6910187190'],
-            ['declaration_no', 'เลขใบขนสินค้าขาเข้า', 'A0220690606031'],
-            ['part_no', 'Part No.', 'YN22E00849FA'],
-            ['qty', 'จำนวนบนใบอนุญาต', '35'],
-          ].map(([key, label, ph]) => (
-            <label className="itc-field" key={key}>
-              <span>{label}</span>
-              <input value={lic[key]} placeholder={ph} onChange={(e) => setLic({ ...lic, [key]: e.target.value })} />
-            </label>
-          ))}
-
-          <label className="itc-field">
-            <span>วันที่ออกใบอนุญาต</span>
-            <input type="date" value={lic.issue_date} onChange={(e) => setLic({ ...lic, issue_date: e.target.value })} />
-          </label>
-        </div>
-
-        <button className="wh-issue-btn" onClick={submitLicense} disabled={busy === 'lic'}>
-          {busy === 'lic' ? 'กำลังบันทึก...' : 'บันทึกใบอนุญาต'}
-        </button>
-      </section>
-
-      <section className="itc-card">
         <h3 className="tsf-form-title">นำเข้า Serial List (Excel) → สร้างทะเบียนเครื่อง</h3>
         <p className="wh-subtitle">
-          รองรับทั้งไฟล์ SERIAL NO. (หัวอังกฤษ) และบัญชีแสดงหมายเลขเครื่อง (หัวไทย) ระบบจะเทียบจำนวนกับใบอนุญาตให้
+          รองรับทั้งไฟล์ SERIAL NO. (หัวอังกฤษ) และบัญชีแสดงหมายเลขเครื่อง (หัวไทย) — ระบบอ่านเลขใบอนุญาตนำเข้า /
+          Invoice / P.O. จากคอลัมน์ในไฟล์เอง แล้วสร้างหัวใบอนุญาตให้อัตโนมัติถ้ายังไม่มี ไม่ต้องกรอกฟอร์มแยก
         </p>
-
-        <div className="itc-form-grid">
-          <label className="itc-field">
-            <span>ใบอนุญาตนำเข้าที่จะผูก</span>
-            <SelectField
-              value={serial.importLicenseNo}
-              onChange={(importLicenseNo) => setSerial({ ...serial, importLicenseNo })}
-              placeholder="— เลือกใบอนุญาต —"
-              options={importLicenses.map((l) => ({
-                value: l.LicenseNo,
-                label: `${l.LicenseNo} · ${l.InvoiceNo} · PO ${l.PONo} · ${l.Qty} เครื่อง`,
-              }))}
-            />
-          </label>
-
-        </div>
 
         <div className="fdz-row">
           <FileDropZone
-            file={serial.file}
-            onSelect={(file) => setSerial({ ...serial, file })}
+            file={serialFile}
+            onSelect={setSerialFile}
             accept=".xlsx,.xls"
             label="ไฟล์ Serial List"
             hint="ลากไฟล์ Excel มาวาง หรือกดเพื่อเลือก (.xlsx, .xls)"
             disabled={busy === 'serial'}
           />
-          <button
-            className="wh-issue-btn"
-            onClick={submitSerial}
-            disabled={busy === 'serial' || !serial.file || !serial.importLicenseNo}
-          >
+          <button className="wh-issue-btn" onClick={submitSerial} disabled={busy === 'serial' || !serialFile}>
             {busy === 'serial' ? 'กำลังนำเข้า...' : 'นำเข้าทะเบียน'}
           </button>
         </div>

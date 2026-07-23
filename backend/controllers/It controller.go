@@ -342,17 +342,44 @@ var serialListHeaderAliases = map[string]string{
 	"partno":   "part_no",
 	"serailno": "serial_no", // สะกดผิดในไฟล์ต้นฉบับ — รับไว้ด้วย
 	"serialno": "serial_no",
-	"เลขใบอนุญาตนำเข้า":   "import_license_no",
-	"เลขอินวอยซ์นำเข้า":   "invoice_no",
+	"เลขใบอนุญาตนำเข้า": "import_license_no",
+	"licenseno":       "import_license_no",
+	"importlicenseno": "import_license_no",
+	"เลขอินวอยซ์นำเข้า": "invoice_no",
+	"invoiceno": "invoice_no",
 	"เลขใบขนสินค้าขาเข้า": "declaration_no",
+	"declarationno": "declaration_no",
+	// หัวใบอนุญาตนำเข้า — ให้ระบบอ่านจากไฟล์เอง ไม่ต้องกรอกฟอร์มแยกอีกต่อไป
+	"pono":       "po_no",
+	"เลขพีโอ":    "po_no",
+	"ใบสั่งซื้อ": "po_no",
+	"brand":      "brand",
+	"qty":        "qty",
+	"จำนวนบนใบอนุญาต": "qty",
+	"จำนวน":     "qty",
+	"issuedate": "issue_date",
+	"วันที่ออกใบอนุญาต": "issue_date",
 }
 
 type serialImportResult struct {
-	Created  int      `json:"created"`
-	Updated  int      `json:"updated"`
-	Skipped  int      `json:"skipped"`
-	Total    int      `json:"total"`
-	Warnings []string `json:"warnings"`
+	Created         int      `json:"created"`
+	Updated         int      `json:"updated"`
+	Skipped         int      `json:"skipped"`
+	Total           int      `json:"total"`
+	LicensesCreated []string `json:"licenses_created"` // ใบอนุญาตนำเข้าที่ระบบสร้างให้อัตโนมัติจากไฟล์
+	Warnings        []string `json:"warnings"`
+}
+
+// parseQty แปลงข้อความจำนวนในไฟล์เป็น int แบบผ่อนปรน (เจอ , หรือ .0 ท้ายก็ยังอ่านได้)
+func parseQty(s string) int {
+	s = strings.ReplaceAll(strings.TrimSpace(s), ",", "")
+	if s == "" {
+		return 0
+	}
+	if f, err := strconv.ParseFloat(s, 64); err == nil {
+		return int(f)
+	}
+	return 0
 }
 
 func UploadSerialList(c *gin.Context) {
@@ -376,21 +403,11 @@ func UploadSerialList(c *gin.Context) {
 		return
 	}
 
-	// ค่าที่ WH กรอกกำกับตอนอัปโหลด — ใช้เติมให้แถวที่ในไฟล์ไม่มีคอลัมน์นั้น
+	// ค่ากำกับที่อาจแนบมาด้วย (ทางเลือก) — ใช้เติมเฉพาะแถวที่ในไฟล์ไม่มีคอลัมน์นั้นจริงๆ
+	// ปกติไม่ต้องส่งมาแล้ว เพราะไฟล์ Serial List มีเลขใบอนุญาต/อินวอยซ์/พีโอ ในตัวอยู่แล้ว
 	formInvoiceNo := strings.TrimSpace(c.PostForm("invoice_no"))
 	formPONo := strings.TrimSpace(c.PostForm("po_no"))
 	formLicenseNo := strings.TrimSpace(c.PostForm("import_license_no"))
-
-	if formInvoiceNo == "" || formPONo == "" || formLicenseNo == "" {
-		c.JSON(400, gin.H{"message": "ต้องระบุ invoice_no, po_no และ import_license_no ให้ครบก่อนนำเข้า Serial List"})
-		return
-	}
-
-	var lic models.ImportLicense
-	if err := config.DB.Where("license_no = ?", formLicenseNo).First(&lic).Error; err != nil {
-		c.JSON(400, gin.H{"message": "ยังไม่มีใบอนุญาตนำเข้าเลขนี้ในระบบ กรุณาบันทึกหัวใบอนุญาตก่อน"})
-		return
-	}
 
 	rows, err := xl.GetRows(xl.GetSheetName(0))
 	if err != nil || len(rows) < 2 {
@@ -438,8 +455,53 @@ func UploadSerialList(c *gin.Context) {
 	}
 
 	userID, userName := lookupUserName(c)
-	result := serialImportResult{Warnings: []string{}}
+	result := serialImportResult{Warnings: []string{}, LicensesCreated: []string{}}
 	seen := map[string]bool{}
+	licenseCache := map[string]*models.ImportLicense{} // กันไม่ให้ query/สร้างซ้ำภายในไฟล์เดียวกัน
+	touchedLicenses := map[string]bool{}
+
+	// getOrCreateLicense: หาใบอนุญาตนำเข้าจาก DB ก่อน ถ้ายังไม่มี ให้สร้างให้อัตโนมัติ
+	// จากคอลัมน์ในไฟล์แถวนี้เอง (ไม่ต้องกรอกฟอร์มแยกอีกต่อไป)
+	getOrCreateLicense := func(licenseNo string, row []string) *models.ImportLicense {
+		if cached, ok := licenseCache[licenseNo]; ok {
+			return cached
+		}
+
+		var lic models.ImportLicense
+		if err := config.DB.Where("license_no = ?", licenseNo).First(&lic).Error; err == nil {
+			licenseCache[licenseNo] = &lic
+			return &lic
+		}
+
+		issueDate := time.Now()
+		if v := getText(row, "issue_date"); v != "" {
+			if parsed, perr := parseDate(v); perr == nil {
+				issueDate = parsed
+			}
+		}
+
+		lic = models.ImportLicense{
+			LicenseNo:     licenseNo,
+			InvoiceNo:     firstNonEmpty(getText(row, "invoice_no"), formInvoiceNo),
+			PONo:          firstNonEmpty(getText(row, "po_no"), formPONo),
+			DeclarationNo: getText(row, "declaration_no"),
+			Brand:         firstNonEmpty(getText(row, "brand"), "JRC MOBILITY"),
+			Model:         getText(row, "model"),
+			PartNo:        getText(row, "part_no"),
+			Qty:           parseQty(getText(row, "qty")),
+			IssueDate:     issueDate,
+			ExpireDate:    addMonths(issueDate, models.ImportLicenseValidMonths),
+			UserID:        userID,
+			Name:          userName,
+		}
+
+		if err := config.DB.Create(&lic).Error; err == nil {
+			result.LicensesCreated = append(result.LicensesCreated, licenseNo)
+		}
+
+		licenseCache[licenseNo] = &lic
+		return &lic
+	}
 
 	for _, row := range rows[headerRow+1:] {
 
@@ -457,13 +519,17 @@ func UploadSerialList(c *gin.Context) {
 		}
 		seen[itcNo] = true
 
-		// license/invoice ในไฟล์ (ถ้ามี) ต้องไม่ขัดกับที่ WH เลือกไว้
-		if v := getText(row, "import_license_no"); v != "" && v != formLicenseNo {
+		// เลขใบอนุญาตนำเข้าอ่านจากไฟล์เป็นหลัก — ค่าที่แนบมาต่างหาก (ถ้ามี) ใช้เป็นสำรองเท่านั้น
+		licenseNo := firstNonEmpty(getText(row, "import_license_no"), formLicenseNo)
+		if licenseNo == "" {
 			result.Skipped++
 			result.Warnings = append(result.Warnings,
-				fmt.Sprintf("%s ในไฟล์ระบุใบอนุญาต %s ไม่ตรงกับที่เลือก (%s) — ไม่นำเข้า", itcNo, v, formLicenseNo))
+				fmt.Sprintf("%s ไม่พบเลขใบอนุญาตนำเข้าในไฟล์ — ข้าม (ต้องมีคอลัมน์ 'เลขใบอนุญาตนำเข้า')", itcNo))
 			continue
 		}
+
+		lic := getOrCreateLicense(licenseNo, row)
+		touchedLicenses[licenseNo] = true
 
 		var unit models.ITControllerUnit
 		isNew := config.DB.Where("it_controller_no = ?", itcNo).First(&unit).Error != nil
@@ -494,16 +560,12 @@ func UploadSerialList(c *gin.Context) {
 			unit.SerialNo = v
 		}
 
-		unit.InvoiceNo = formInvoiceNo
-		unit.PONo = formPONo
-		unit.ImportLicenseNo = formLicenseNo
+		unit.InvoiceNo = firstNonEmpty(getText(row, "invoice_no"), formInvoiceNo, lic.InvoiceNo)
+		unit.PONo = firstNonEmpty(getText(row, "po_no"), formPONo, lic.PONo)
+		unit.ImportLicenseNo = licenseNo
 
 		if unit.DeclarationNo == "" {
-			if v := getText(row, "declaration_no"); v != "" {
-				unit.DeclarationNo = v
-			} else {
-				unit.DeclarationNo = lic.DeclarationNo
-			}
+			unit.DeclarationNo = firstNonEmpty(getText(row, "declaration_no"), lic.DeclarationNo)
 		}
 		if unit.PartNo == "" {
 			unit.PartNo = lic.PartNo
@@ -532,19 +594,27 @@ func UploadSerialList(c *gin.Context) {
 		}
 	}
 
-	// ── reconcile 3 ทาง: จำนวนบนใบอนุญาต vs จำนวน unit จริงในระบบ ──────────
-	var unitCount int64
-	config.DB.Model(&models.ITControllerUnit{}).
-		Where("import_license_no = ?", formLicenseNo).Count(&unitCount)
+	// ── อัปเดตจำนวนบนใบอนุญาตแต่ละใบให้ตรงกับจำนวน unit จริงในระบบเสมอ ──────
+	// (ใบที่ระบบสร้างให้อัตโนมัติยังไม่รู้จำนวนที่แท้จริงจนกว่าจะนำเข้าเสร็จ
+	// ส่วนใบที่มีอยู่ก่อนแล้วและระบุจำนวนไว้ตรงกันดี ก็จะไม่ขยับ)
+	for licenseNo := range touchedLicenses {
+		var unitCount int64
+		config.DB.Model(&models.ITControllerUnit{}).
+			Where("import_license_no = ?", licenseNo).Count(&unitCount)
 
-	if int(unitCount) != lic.Qty {
-		result.Warnings = append(result.Warnings, fmt.Sprintf(
-			"จำนวนไม่ตรง: ใบอนุญาต %s ระบุ %d เครื่อง แต่ในระบบมี %d เครื่อง — ตรวจสอบก่อนยื่นขอนำออก",
-			lic.LicenseNo, lic.Qty, unitCount))
+		lic := licenseCache[licenseNo]
+		if lic.Qty == 0 {
+			lic.Qty = int(unitCount)
+			config.DB.Model(&models.ImportLicense{}).Where("license_no = ?", licenseNo).Update("qty", lic.Qty)
+		} else if int(unitCount) != lic.Qty {
+			result.Warnings = append(result.Warnings, fmt.Sprintf(
+				"จำนวนไม่ตรง: ใบอนุญาต %s ระบุ %d เครื่อง แต่ในระบบมี %d เครื่อง — ตรวจสอบก่อนยื่นขอนำออก",
+				lic.LicenseNo, lic.Qty, unitCount))
+		}
 	}
 
 	CreateAuditLog("ITC_UNIT", 0, "upload_serial_list",
-		fmt.Sprintf("%s created=%d updated=%d", formLicenseNo, result.Created, result.Updated),
+		fmt.Sprintf("created=%d updated=%d licenses_created=%d", result.Created, result.Updated, len(result.LicensesCreated)),
 		userID, userName)
 
 	c.JSON(201, result)
