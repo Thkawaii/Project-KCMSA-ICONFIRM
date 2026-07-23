@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"iconfirm/config"
 	"iconfirm/models"
@@ -130,20 +131,78 @@ var masterDataColumns = map[string]func(*models.MasterData, string){
 	"spec":     func(m *models.MasterData, v string) { m.SpecCode = v },
 }
 
+// componentTypeHeaderKeys คือหัวคอลัมน์ที่ถือว่าเป็น "คอลัมน์ชนิดอะไหล่" ในไฟล์
+// (normalize แล้ว — ดู normalizeHeader) รองรับทั้งหัวคอลัมน์ภาษาอังกฤษและไทย
+var componentTypeHeaderKeys = map[string]bool{
+	"type":            true,
+	"parttype":        true,
+	"componenttype":   true,
+	"category":        true,
+	"producttype":     true,
+	"ประเภท":          true,
+	"ประเภทอะไหล่":     true,
+	"ชนิด":            true,
+	"ชนิดอะไหล่":       true,
+}
+
+// componentTypeValues จับคู่ "ค่าที่เขียนในคอลัมน์ชนิดอะไหล่" (normalize แล้ว)
+// กับรหัส component_type ที่ระบบใช้เก็บจริง — ใส่ทั้งชื่อเต็มภาษาอังกฤษ (ตรงกับ
+// label ที่ใช้ในหน้าเว็บ) และรหัสตรงๆ (it_controller ฯลฯ) เผื่อไฟล์เขียนมาแบบไหน
+// ก็ตามให้จับได้ ถ้าเจอค่าที่ไม่รู้จัก จะ fallback ไปเป็น it_controller และแจ้งเตือน
+// ไว้ในรายการ "problems" ให้ผู้ใช้เห็นว่าแถวไหนต้องเช็ค
+var componentTypeValues = map[string]string{
+	"itcontroller": "it_controller",
+	"controlvalve": "control_valve",
+	"swingmotor":   "swing_motor",
+	"motorpropel":  "motor_propel",
+	"pumpassyhyd":  "pump_assy_hyd",
+	"pumpassy":     "pump_assy_hyd",
+	"pump":         "pump_assy_hyd",
+}
+
+// resolveComponentType แปลงค่าดิบจากคอลัมน์ชนิดอะไหล่ในไฟล์ ให้เป็นรหัส component_type
+// คืนค่าที่สอง = false ถ้าค่านั้นว่างเปล่า หรือไม่ตรงกับที่รู้จักเลย
+func resolveComponentType(raw string) (string, bool) {
+	key := normalizeHeader(raw)
+	if key == "" {
+		return "", false
+	}
+	if code, ok := componentTypeValues[key]; ok {
+		return code, true
+	}
+	return "", false
+}
+
+// findComponentTypeColumn หา index ของคอลัมน์ชนิดอะไหล่ในหัวตาราง ถ้าไม่มีคืน -1
+// (ไฟล์เก่าที่มีอะไหล่ชนิดเดียวทั้งไฟล์ ไม่จำเป็นต้องมีคอลัมน์นี้เลย)
+func findComponentTypeColumn(headers []string) int {
+	for i, h := range headers {
+		if componentTypeHeaderKeys[h] {
+			return i
+		}
+	}
+	return -1
+}
+
+
 // UploadMasterData นำเข้าทะเบียนจากไฟล์ Excel
 //
 // รับ multipart form:
 //
 //	file            = ไฟล์ .xlsx
-//	component_type  = ชนิดอะไหล่ (ไม่ส่งมา = it_controller)
+//	component_type  = ชนิดอะไหล่ "สำรอง" ใช้เฉพาะแถวที่หาชนิดจากในไฟล์ไม่ได้
+//	                  (ไม่ส่งมา = it_controller) — ปกติไม่ต้องส่งแล้ว เพราะระบบ
+//	                  จะพยายามอ่านชนิดจากคอลัมน์ในไฟล์เอง (ดู componentTypeHeaderKeys)
+//	                  ทำแบบนี้เพื่อรองรับทั้งไฟล์เก่าที่มีอะไหล่ชนิดเดียวทั้งไฟล์
+//	                  (ไม่มีคอลัมน์ชนิด) และไฟล์ใหม่ที่มีหลายชนิดปนกันในไฟล์เดียว
 //
 // ยึด Serial No. เป็นตัวชี้ว่าแถวไหนซ้ำ: ถ้ามีอยู่แล้วจะอัปเดตทับ ถ้ายังไม่มีจะเพิ่มใหม่
 // อัปโหลดไฟล์เดิมซ้ำจึงไม่ทำให้ข้อมูลบาน
 func UploadMasterData(c *gin.Context) {
 
-	componentType := strings.TrimSpace(c.PostForm("component_type"))
-	if componentType == "" {
-		componentType = "it_controller"
+	fallbackComponentType := strings.TrimSpace(c.PostForm("component_type"))
+	if fallbackComponentType == "" {
+		fallbackComponentType = "it_controller"
 	}
 
 	fileHeader, err := c.FormFile("file")
@@ -181,6 +240,10 @@ func UploadMasterData(c *gin.Context) {
 		return
 	}
 
+	// หาคอลัมน์ชนิดอะไหล่ในไฟล์ (ถ้ามี) — ไฟล์เก่าที่มีอะไหล่ชนิดเดียวทั้งไฟล์จะไม่มี
+	// คอลัมน์นี้ ก็ไม่เป็นไร ทุกแถวจะใช้ fallbackComponentType แทน
+	typeColIdx := findComponentTypeColumn(headers)
+
 	userID, userName := lookupUserName(c)
 	now := time.Now()
 
@@ -194,7 +257,7 @@ func UploadMasterData(c *gin.Context) {
 	for i := headerIdx + 1; i < len(rows); i++ {
 
 		row := models.MasterData{
-			ComponentType: componentType,
+			ComponentType: fallbackComponentType,
 			UploadDate:    now,
 			UserID:        userID,
 		}
@@ -208,6 +271,18 @@ func UploadMasterData(c *gin.Context) {
 			}
 		}
 
+		// แถวนี้อ่านชนิดจากคอลัมน์ในไฟล์ได้ไหม — ถ้าได้ ใช้แทนค่า fallback
+		// ถ้ามีคอลัมน์แต่ค่าที่เขียนมาอ่านไม่รู้เรื่อง ให้ยังคง fallback ไว้
+		// แต่แจ้งเตือนกลับไปด้วย ผู้ใช้จะได้ไปเช็คว่าพิมพ์ชนิดผิดหรือเปล่า
+		if typeColIdx >= 0 && typeColIdx < len(rows[i]) {
+			raw := strings.TrimSpace(rows[i][typeColIdx])
+			if code, ok := resolveComponentType(raw); ok {
+				row.ComponentType = code
+			} else if raw != "" {
+				problems = append(problems, "แถว "+strconv.Itoa(i+1)+": ไม่รู้จักชนิดอะไหล่ '"+raw+"' — ใช้ "+fallbackComponentType+" แทน")
+			}
+		}
+
 		normalizeMasterData(&row)
 
 		// ไม่มี Serial No. = ไม่ใช่แถวข้อมูล (แถวหัวเรื่อง/แถวว่าง/แถวหมายเหตุ)
@@ -217,11 +292,12 @@ func UploadMasterData(c *gin.Context) {
 		}
 
 		// กันไฟล์ที่มี Serial ซ้ำกันเองในไฟล์เดียว — เอาแถวแรกที่เจอ
-		if seen[row.SerialNo] {
+		dupKey := row.ComponentType + "|" + row.SerialNo
+		if seen[dupKey] {
 			problems = append(problems, "แถว "+strconv.Itoa(i+1)+": Serial "+row.SerialNo+" ซ้ำกันเองในไฟล์")
 			continue
 		}
-		seen[row.SerialNo] = true
+		seen[dupKey] = true
 
 		parsed = append(parsed, row)
 	}
@@ -232,17 +308,19 @@ func UploadMasterData(c *gin.Context) {
 	}
 
 	// ดึงของเดิมมาทีเดียว แล้วค่อยตัดสินว่าแถวไหน insert แถวไหน update
+	// คีย์ด้วย component_type+serial คู่กัน เพราะไฟล์เดียวตอนนี้อาจมีอะไหล่
+	// หลายชนิดปนกัน serial เลขเดียวกันข้ามชนิดไม่ได้แปลว่าเป็นแถวเดียวกัน
 	serials := make([]string, 0, len(parsed))
 	for _, row := range parsed {
 		serials = append(serials, row.SerialNo)
 	}
 
 	var existingRows []models.MasterData
-	config.DB.Where("component_type = ? AND serial_no IN ?", componentType, serials).Find(&existingRows)
+	config.DB.Where("serial_no IN ?", serials).Find(&existingRows)
 
 	existing := make(map[string]models.MasterData, len(existingRows))
 	for _, row := range existingRows {
-		existing[row.SerialNo] = row
+		existing[row.ComponentType+"|"+row.SerialNo] = row
 	}
 
 	var imported, updated int
@@ -251,12 +329,13 @@ func UploadMasterData(c *gin.Context) {
 	// ซ้ำ จะได้รายงานกลับไปว่าเป็นแถวไหน แทนที่จะล้มทั้งไฟล์แล้วผู้ใช้ไม่รู้ว่าตรงไหนผิด
 	for _, row := range parsed {
 
-		if old, ok := existing[row.SerialNo]; ok {
+		if old, ok := existing[row.ComponentType+"|"+row.SerialNo]; ok {
 			err := config.DB.Model(&models.MasterData{}).
 				Where("id = ?", old.ID).
 				Updates(map[string]interface{}{
 					"item_no":          row.ItemNo,
 					"name":             row.Name,
+					"component_type":   row.ComponentType,
 					"model":            row.Model,
 					"part_no":          row.PartNo,
 					"it_controller_no": row.ITControllerNo,
@@ -282,7 +361,7 @@ func UploadMasterData(c *gin.Context) {
 		imported++
 	}
 
-	CreateAuditLog("MASTER_DATA", 0, "upload_excel", componentType, userID, userName)
+	CreateAuditLog("MASTER_DATA", 0, "upload_excel", fallbackComponentType, userID, userName)
 
 	c.JSON(201, gin.H{
 		"imported": imported,
@@ -357,10 +436,14 @@ func findMasterDataHeader(rows [][]string) (int, []string) {
 }
 
 // normalizeHeader ทำให้ "IT Controller no." กับ "ITCONTROLLER NO" กลายเป็นค่าเดียวกัน
+// รองรับอักษรไทยด้วย (ใช้ unicode.IsLetter/IsDigit/IsMark แทนช่วง a-z ตรงๆ) เพราะ
+// คอลัมน์ชนิดอะไหล่บางไฟล์ตั้งหัวเป็นภาษาไทย เช่น "ประเภทอะไหล่" — ต้องรวม
+// unicode.IsMark ด้วย ไม่งั้นวรรณยุกต์ไทย เช่น ่ ในคำว่า "อะไหล่" จะโดนตัดทิ้ง
+// (วรรณยุกต์ไทยถือเป็นอักขระ combining mark ของตัวเอง ไม่ใช่ตัวอักษร)
 func normalizeHeader(s string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(s) {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r) {
 			b.WriteRune(r)
 		}
 	}
