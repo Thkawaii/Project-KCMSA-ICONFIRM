@@ -183,7 +183,10 @@ export default function MasterDataPage() {
       )}
 
       {/* ===== อัปโหลดจาก Excel ===== */}
-      <div className="upload-panel">
+      {/* จัดเป็น 2 คอลัมน์เต็มความกว้าง: ซ้าย = ช่องวางไฟล์, ขวา = คำอธิบาย
+          คอลัมน์ที่ระบบอ่าน + ปุ่มอัปโหลด — เดิมการ์ดกว้างแค่ 420px เลยเหลือ
+          ที่ว่างด้านขวาเป็นครึ่งจอ ไม่สมดุลกับแถวการ์ดสรุปด้านล่าง */}
+      <div className="upload-panel upload-panel-wide">
         <label
           className={'upload-dropzone upload-panel-dropzone' + (pendingFile ? ' upload-dropzone-filled' : '')}
           htmlFor="md-file"
@@ -205,9 +208,20 @@ export default function MasterDataPage() {
           </span>
         </label>
 
-        <button className="wh-issue-btn upload-panel-btn" disabled={uploading} onClick={handleUpload}>
-          {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลด Master Data'}
-        </button>
+        <div className="upload-panel-side">
+          <div className="upload-panel-hint">
+            <strong className="upload-panel-hint-title">คอลัมน์ที่ระบบอ่าน</strong>
+            Item No. · Part Name · Model · Part No. · Serial No. · IT Controller no. · IMEI
+            <br />
+            รองรับไฟล์ที่มีอะไหล่หลายชนิดปนกัน — ระบบอ่านชนิดจากคอลัมน์ในไฟล์เอง
+            <br />
+            ยึด Serial No. เป็นคีย์ อัปโหลดไฟล์เดิมซ้ำจะอัปเดตทับ ไม่เพิ่มซ้ำ
+          </div>
+
+          <button className="wh-issue-btn upload-panel-btn" disabled={uploading} onClick={handleUpload}>
+            {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลด Master Data'}
+          </button>
+        </div>
 
         {uploadMsg?.success && <p className="upload-card-msg upload-card-msg-ok">{uploadMsg.success}</p>}
         {uploadMsg?.error && <p className="upload-card-msg upload-card-msg-err">{uploadMsg.error}</p>}

@@ -15,6 +15,7 @@ const TEAL = '#0f9488'
  * @param {string}  [opts.html]        คำอธิบาย/บริบท (HTML)
  * @param {string}  [opts.placeholder] ข้อความ placeholder ในช่อง input
  * @param {string}  [opts.confirmText] ข้อความปุ่มยืนยัน (เช่น 'ต่อไป' หรือ 'บันทึก')
+ * @param {string}  [opts.cancelText]  ข้อความปุ่มยกเลิก (ใช้ 'ข้ามขั้นนี้' สำหรับขั้นที่ไม่บังคับ)
  * @param {(v:string)=>string|null} [opts.validate] ตรวจรูปแบบ คืน error string ถ้าไม่ผ่าน
  */
 export async function scanStep({
@@ -22,6 +23,7 @@ export async function scanStep({
   html = '',
   placeholder = 'รอรับสัญญาณจากเครื่องสแกน...',
   confirmText = 'ต่อไป',
+  cancelText = 'ยกเลิก',
   validate,
 }) {
   const res = await Swal.fire({
@@ -40,7 +42,7 @@ export async function scanStep({
     confirmButtonText: confirmText,
     confirmButtonColor: TEAL,
     showCancelButton: true,
-    cancelButtonText: 'ยกเลิก',
+    cancelButtonText: cancelText,
     allowEnterKey: false, // จัดการ Enter เองด้านล่าง กันยิงซ้ำ
     inputValidator: (v) => {
       const val = (v || '').trim()

@@ -58,7 +58,11 @@ func SetupRoutes(r *gin.Engine) {
 		partCheck.POST("", controllers.ScanPartCheck)
 	}
 
-	// Warehouse
+	// Warehouse (จ่ายของ FIFO & S/O)
+	//
+	// หน้าจอ "จ่ายของ (FIFO & S/O)" ถูกถอดออกจากเมนู WH แล้ว แต่ยังคง
+	// endpoint ชุดนี้ไว้เพราะฝั่ง TSF อ่าน /wh-confirm ที่ถูกสร้างจาก
+	// /warehouse/:id/issue อยู่ — ถ้าเลิกใช้ flow นี้ทั้งสายค่อยลบทีเดียว
 	warehouse := auth.Group("/warehouse")
 	warehouse.Use(middleware.RoleMiddleware("WH"))
 	{
@@ -69,43 +73,25 @@ func SetupRoutes(r *gin.Engine) {
 	}
 
 	// ─────────────────────────────────────────────────────────────────────
-	// IT Controller (กสทช.) — งานใหม่ของ WH
+	// Import License — บัญชีแสดงหมายเลขเครื่องแนบท้ายใบอนุญาตนำเข้า
 	//
-	// ทุก endpoint ในกลุ่มนี้ทำงานบน KEY เดียวคือ IT Controller No. 12 หลัก
-	// เอกสาร Invoice / PO / Import License เข้ามาเป็น PDF จึงเก็บเป็นไฟล์แนบ
-	// + เลขที่ที่ WH คีย์ ส่วนที่ระบบอ่านอัตโนมัติมีเฉพาะ Serial List (Excel)
+	// WH อัปโหลดไฟล์ Excel ที่ได้มาพร้อมใบอนุญาต (เช่น E05036901604 /
+	// TQ60610) เก็บไว้เป็น "ตารางอ้างอิง" แล้วหน้า Part Confirmation เอา
+	// ค่าที่สแกนได้มาเทียบว่าตรงกันไหม — หลักการเดียวกับ Master Data
+	//
+	// หมายเหตุ: กลุ่ม /it-controller (กสทช.) เดิมถูกถอดออกตามที่ตกลงกัน
+	// ไฟล์ controllers/models ของฟีเจอร์นั้นยังอยู่ครบ ถ้าจะเปิดใช้อีก
+	// ให้เอา route group เดิมกลับมาได้เลย
 	// ─────────────────────────────────────────────────────────────────────
-	itc := auth.Group("/it-controller")
-	itc.Use(middleware.RoleMiddleware("WH"))
+	importLicense := auth.Group("/import-license")
+	importLicense.Use(middleware.RoleMiddleware("WH"))
 	{
-		// เอกสาร PDF
-		itc.GET("/documents", controllers.GetITCDocuments)
-		itc.POST("/documents", controllers.UploadITCDocument)
-
-		// ใบอนุญาตนำเข้า (อายุ 6 เดือน)
-		itc.GET("/import-licenses", controllers.GetImportLicenses)
-		itc.POST("/import-licenses", controllers.UpsertImportLicense)
-
-		// Serial List (Excel) → สร้าง unit
-		itc.POST("/units/upload", controllers.UploadSerialList)
-
-		// ทะเบียนเครื่อง + งานหน้าคลัง
-		itc.GET("/units", controllers.GetITCUnits)
-		itc.POST("/units/receive", controllers.ReceiveITCUnit)
-		itc.POST("/units/allocate", controllers.AllocateITCUnits)
-		itc.POST("/units/allocate-split", controllers.AllocateITCSplit)
-		itc.POST("/units/issue", controllers.IssueITCUnit)
-		itc.POST("/units/export", controllers.ExportITCUnit)
-
-		// ใบอนุญาตนำออก (อายุ 1 เดือน) + บัญชีแนบสำหรับยื่น กสทช.
-		itc.GET("/export-licenses", controllers.GetExportLicenses)
-		itc.POST("/export-licenses", controllers.CreateExportLicense)
-		itc.GET("/export-licenses/:licenseNo/attachment", controllers.DownloadExportAttachment)
-
-		// ตรวจสอบย้อนกลับ + เตือน + รายงาน
-		itc.GET("/trace/:itControllerNo", controllers.TraceITCUnit)
-		itc.GET("/alerts", controllers.GetITCAlerts)
-		itc.GET("/report/weekly", controllers.GetITCWeeklyReport)
+		importLicense.GET("", controllers.GetImportLicenseItems)
+		importLicense.GET("/summary", controllers.GetImportLicenseSummary)
+		importLicense.POST("/upload", controllers.UploadImportLicenseItems)
+		importLicense.POST("/verify", controllers.VerifyImportLicenseCode)
+		importLicense.DELETE("/:id", controllers.DeleteImportLicenseItem)
+		importLicense.DELETE("", controllers.ClearImportLicenseItems)
 	}
 
 	whConfirm := auth.Group("/wh-confirm")
