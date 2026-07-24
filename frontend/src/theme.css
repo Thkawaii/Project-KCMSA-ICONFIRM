@@ -40,6 +40,8 @@
   --color-brand-700: #0f8580;
   --color-brand-800: #146a66;
   --color-brand-900: #14504e;
+  /* หมึกบนพื้นแบรนด์ — ดู comment ใน styles.css (ต้องมีค่าตรงกับ --brand-ink) */
+  --color-brand-ink: #06312f;
 
   /* สีสถานะ — ใช้ชุดเดียวทั้งระบบ ทั้ง badge / alert / แถบผลสแกน */
   --color-ok-50: #ecfdf3;
@@ -137,11 +139,14 @@
   }
 
   .ui-btn-primary {
-    @apply bg-brand-600 text-white shadow-sm;
+    @apply bg-brand-500 text-brand-ink shadow-sm;
     box-shadow: var(--shadow-press), 0 1px 2px rgb(16 24 40 / 0.1);
   }
   .ui-btn-primary:not(:disabled):hover {
-    @apply bg-brand-700;
+    @apply bg-brand-400;
+  }
+  .ui-btn-primary:not(:disabled):active {
+    @apply bg-brand-600;
   }
 
   .ui-btn-soft {
@@ -380,8 +385,8 @@
   font-size: 14.5px;
   font-weight: 600;
   line-height: 1.2;
-  color: #fff;
-  background: var(--color-brand-600);
+  color: var(--color-brand-ink);
+  background: var(--color-brand-500);
   background-image: none;
   cursor: pointer;
   filter: none;
@@ -402,9 +407,9 @@
 .wh-modal-confirm:hover:not(:disabled),
 .upload-panel-btn:hover:not(:disabled),
 .tsf-action-btn:hover:not(:disabled) {
-  background: var(--color-brand-700);
+  background: var(--color-brand-400);
   filter: none;
-  box-shadow: var(--shadow-press), 0 6px 16px -8px rgb(0 163 157 / 0.8);
+  box-shadow: var(--shadow-press), 0 6px 16px -8px rgb(0 206 200 / 0.8);
 }
 
 .submit-btn:active:not(:disabled),
@@ -412,6 +417,7 @@
 .wh-modal-confirm:active:not(:disabled),
 .upload-panel-btn:active:not(:disabled),
 .tsf-action-btn:active:not(:disabled) {
+  background: var(--color-brand-600);
   transform: translateY(1px);
   box-shadow: var(--shadow-press);
 }
@@ -958,14 +964,23 @@
 }
 
 .swal2-popup .swal2-styled.swal2-confirm {
-  background-color: var(--color-brand-600) !important;
-  color: #fff !important;
+  background-color: var(--color-brand-500) !important;
+  color: var(--color-brand-ink) !important;
 }
 .swal2-popup .swal2-styled.swal2-confirm:hover {
-  background-color: var(--color-brand-700) !important;
+  background-color: var(--color-brand-400) !important;
 }
 .swal2-popup .swal2-styled.swal2-confirm:focus-visible {
   box-shadow: 0 0 0 4px rgb(0 206 200 / 0.35) !important;
+}
+
+/* ปุ่มยืนยันของกล่อง "ลบ" — ใช้สีอันตราย ไม่ใช่สีแบรนด์ เพราะเป็นงานที่กู้คืนไม่ได้ */
+.swal2-popup .swal2-styled.swal2-confirm.swal2-confirm-danger {
+  background-color: var(--color-bad-500) !important;
+  color: #fff !important;
+}
+.swal2-popup .swal2-styled.swal2-confirm.swal2-confirm-danger:hover {
+  background-color: var(--color-bad-700) !important;
 }
 
 .swal2-popup .swal2-styled.swal2-cancel {
@@ -986,15 +1001,28 @@
   font-weight: 500 !important;
 }
 
-.swal2-container.swal2-backdrop-show {
+/* ฉากหลังมืด+เบลอ ใช้กับ popup กลางจอเท่านั้น
+   สำคัญ: SweetAlert ใส่คลาส swal2-toast-shown ไว้ที่ <html>/<body> ไม่ใช่ที่
+   ตัว container (ดู addClasses$1 ใน sweetalert2.js) ตัวไลบรารีมีกฎ
+   body.swal2-toast-shown .swal2-container { background: transparent }
+   ของมันเองอยู่แล้ว แต่เดิมเราเขียน !important ทับไป toast เลยลากฉากหลัง
+   มืดทั้งจอมาด้วย — จึงต้องกันที่ body ไม่ใช่ที่ container */
+body:not(.swal2-toast-shown) .swal2-container.swal2-backdrop-show {
   background: rgb(15 23 42 / 0.45) !important;
   backdrop-filter: blur(3px);
 }
 
-/* toast มุมขวาบน */
+/* toast มุมขวาบน
+   แถบนับเวลาของ SweetAlert default เป็น rgba(0,0,0,.3) จึงโผล่มาเป็นแถบเทา
+   ทึบใต้ข้อความ เปลี่ยนผ่านตัวแปรที่ไลบรารีเปิดให้ (เผื่อกรณีที่ selector
+   ของเราสู้ specificity ไม่ได้ ใส่กฎตรงๆ ซ้ำอีกชั้น) */
 .swal2-popup.swal2-toast {
+  --swal2-timer-progress-bar-background: var(--color-brand-500);
   padding: 12px 16px !important;
   border-radius: 12px !important;
+}
+.swal2-popup.swal2-toast .swal2-timer-progress-bar {
+  background: var(--color-brand-500) !important;
 }
 .swal2-popup.swal2-toast .swal2-title {
   font-size: 14px !important;

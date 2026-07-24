@@ -52,10 +52,6 @@ func ConnectDB() {
 
 		&models.MachineSpec{},
 
-		&models.Warehouse{},
-
-		&models.WHConfirm{},
-
 		&models.TSFOperator{},
 
 		&models.TSFConfirm{},
@@ -70,16 +66,6 @@ func ConnectDB() {
 
 		// ── บัญชีแนบใบอนุญาตนำเข้า (ตารางอ้างอิงของหน้า Part Confirmation) ──
 		&models.ImportLicenseItem{},
-
-		// ── IT Controller (กสทช.) — ถอดออกจากเมนูแล้ว แต่ยัง migrate ไว้
-		//    เพื่อไม่ให้ข้อมูลเดิมที่เคยบันทึกไว้หาย ──────────────────────
-		&models.DocumentFile{},
-
-		&models.ImportLicense{},
-
-		&models.ExportLicense{},
-
-		&models.ITControllerUnit{},
 	)
 
 	SeedData()

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { ArrowUpTrayIcon, XMarkIcon } from './icons.jsx'
 
 // ปุ่มเลือกไฟล์แบบลากมาวางได้ ใช้ร่วมกันทั้งหน้า Warehouse และ IT Controller
 //
@@ -77,7 +78,7 @@ export default function FileDropZone({
       aria-label={label}
     >
       <span className={file ? 'fdz-badge ' + badgeTone(file.name) : 'fdz-icon'}>
-        {file ? extOf(file.name) : <UploadIcon />}
+        {file ? extOf(file.name) : <ArrowUpTrayIcon className="size-[22px]" />}
       </span>
 
       <span className="fdz-body">
@@ -109,7 +110,7 @@ export default function FileDropZone({
             if (inputRef.current) inputRef.current.value = ''
           }}
         >
-          ✕
+          <XMarkIcon className="size-3.5" />
         </button>
       )}
 
@@ -140,25 +141,4 @@ function extOf(name) {
 
 function badgeTone(name) {
   return extOf(name) === 'PDF' ? 'fdz-badge-pdf' : 'fdz-badge-xls'
-}
-
-function UploadIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M7 18a4.5 4.5 0 01-.4-8.98A5.5 5.5 0 0117 8.5a4 4 0 01-.5 7.98"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 19v-7m0 0l-2.5 2.5M12 12l2.5 2.5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
 }

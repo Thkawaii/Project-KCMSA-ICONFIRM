@@ -2,10 +2,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../../components/AppShell.jsx'
 import BarcodeScannerModal from '../../components/Barcodescannermodal.jsx'
+import {
+  CheckCircleIcon,
+  CheckIcon,
+  ClockIcon,
+  FunnelIcon,
+  QrCodeIcon,
+  Squares2X2Icon,
+} from '../../components/icons.jsx'
 import { getMachineSpecs } from '../../api/machineSpec.js'
 import { computeStatus, getApprovals, STATUS_LABEL } from '../../api/qaMachineStatus.js'
 
-const navItems = [{ to: '/qa', label: 'ตรวจสอบ QA', icon: '✓' }]
+const navItems = [{ to: '/qa', label: 'ตรวจสอบ QA', icon: <CheckCircleIcon className="size-4" /> }]
 
 // รวมรายการที่อัปโหลดมาแล้ว (อาจมีหลายแถวต่อ 1 เครื่อง เพราะอัปโหลดทีละหมวด)
 // ให้เหลือ 1 แถวต่อเครื่อง โดยใช้แถวที่อัปโหลดล่าสุด
@@ -135,7 +143,9 @@ export default function QAMachineList() {
         <div className="dash-stat-card">
           <div className="dash-stat-label">
             <span>แมชชีนทั้งหมด</span>
-            <span className="dash-stat-icon dash-icon-blue">▦</span>
+            <span className="dash-stat-icon dash-icon-blue">
+              <Squares2X2Icon className="size-4" />
+            </span>
           </div>
           <div className="dash-stat-value">{stats.total}</div>
           <div className="qa-stat-sub">ทั้งหมด</div>
@@ -143,7 +153,9 @@ export default function QAMachineList() {
         <div className="dash-stat-card">
           <div className="dash-stat-label">
             <span>รอตรวจสอบ</span>
-            <span className="dash-stat-icon dash-icon-yellow">⏳</span>
+            <span className="dash-stat-icon dash-icon-yellow">
+              <ClockIcon className="size-4" />
+            </span>
           </div>
           <div className="dash-stat-value">{stats.pending}</div>
           <div className="qa-stat-sub">ทั้งหมด</div>
@@ -151,7 +163,9 @@ export default function QAMachineList() {
         <div className="dash-stat-card">
           <div className="dash-stat-label">
             <span>สำเร็จ</span>
-            <span className="dash-stat-icon dash-icon-green">✓</span>
+            <span className="dash-stat-icon dash-icon-green">
+              <CheckIcon className="size-4" />
+            </span>
           </div>
           <div className="dash-stat-value">{stats.ok}</div>
           <div className="qa-stat-sub">ทั้งหมด</div>
@@ -169,7 +183,7 @@ export default function QAMachineList() {
       <div className="qa-scan-row">
         <button className="qa-scan-btn" onClick={() => setShowScanner(true)}>
           <span className="qa-btn-icon">
-            <ScanIcon />
+            <QrCodeIcon className="size-[18px]" />
           </span>
           เริ่มสแกน
         </button>
@@ -200,7 +214,7 @@ export default function QAMachineList() {
               setPage(1)
             }}
           >
-            <FilterIcon />
+            <FunnelIcon className="size-4" />
             กรอง
           </button>
         </div>
@@ -295,34 +309,5 @@ export default function QAMachineList() {
         )}
       </div>
     </AppShell>
-  )
-}
-
-function ScanIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M4 8V6a2 2 0 012-2h2M4 16v2a2 2 0 002 2h2M20 8V6a2 2 0 00-2-2h-2M20 16v2a2 2 0 01-2 2h-2"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M6 12h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function FilterIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M4 5h16l-6.5 7.5V18l-3 2v-7.5L4 5z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   )
 }

@@ -3,6 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom'
 import AppShell from '../../components/AppShell.jsx'
 import { getMachineSpecByMachineNo } from '../../api/Machinespeclookup.js'
 import {
+  ArrowDownTrayIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  ChevronLeftIcon,
+  XMarkIcon,
+} from '../../components/icons.jsx'
+import {
   computeStatus,
   getApprovals,
   getRelevantSections,
@@ -10,7 +17,7 @@ import {
   STATUS_LABEL,
 } from '../../api/qaMachineStatus.js'
 
-const navItems = [{ to: '/qa', label: 'ตรวจสอบ QA', icon: '✓' }]
+const navItems = [{ to: '/qa', label: 'ตรวจสอบ QA', icon: <CheckCircleIcon className="size-4" /> }]
 
 export default function QAMachineDetail() {
   const { machineNo } = useParams()
@@ -64,10 +71,10 @@ export default function QAMachineDetail() {
     <AppShell navItems={navItems} roleLabel="QA">
       <div className="qa-detail-topbar">
         <button className="qa-back-btn" onClick={() => navigate(-1)}>
-          ‹ กลับ
+          <ChevronLeftIcon className="size-4" /> กลับ
         </button>
         <button className="qa-download-btn" onClick={handleDownload}>
-          ⬇ โหลดเอกสาร
+          <ArrowDownTrayIcon className="size-4" /> โหลดเอกสาร
         </button>
       </div>
 
@@ -110,7 +117,7 @@ export default function QAMachineDetail() {
                     onClick={() => handleDecide(section.key, 'rejected')}
                     aria-label={`ตีกลับ ${section.title}`}
                   >
-                    ✕
+                    <XMarkIcon className="size-4" />
                   </button>
                   <button
                     className={
@@ -119,7 +126,7 @@ export default function QAMachineDetail() {
                     onClick={() => handleDecide(section.key, 'approved')}
                     aria-label={`ผ่าน ${section.title}`}
                   >
-                    ✓
+                    <CheckIcon className="size-4" />
                   </button>
                 </div>
               </div>

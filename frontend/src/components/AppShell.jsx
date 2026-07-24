@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { logout } from '../api/auth.js'
+import { ArrowRightStartOnRectangleIcon } from './icons.jsx'
 
 export default function AppShell({ navItems, roleLabel, children }) {
   const navigate = useNavigate()
@@ -29,7 +30,7 @@ export default function AppShell({ navItems, roleLabel, children }) {
             </span>
           </div>
           <button className="shell-logout-btn" onClick={handleLogout}>
-            <SignOutIcon />
+            <ArrowRightStartOnRectangleIcon className="size-4" />
             <span>Log out</span>
           </button>
         </div>
@@ -55,19 +56,5 @@ export default function AppShell({ navItems, roleLabel, children }) {
 
       <main className="shell-main">{children}</main>
     </div>
-  )
-}
-
-function SignOutIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   )
 }

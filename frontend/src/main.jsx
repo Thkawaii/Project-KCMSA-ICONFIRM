@@ -6,7 +6,6 @@ import ImportLicensePage from './pages/Importlicensepage.jsx'
 import WHPartConfirmationPage from './pages/Whpartconfirmationpage.jsx'
 import DashboardPage from './pages/Dashboardpage.jsx'
 import TSFOperatorPage from './pages/Tsfoperatorpage.jsx'
-import TSFReceivePage from './pages/Tsfreceivepage.jsx'
 import UploadViewPage from './pages/UploadViewpage.jsx'
 import MasterDataPage from './pages/MasterDataPage.jsx'
 import QAMachineList from './pages/qa/Qamachinelist.jsx'
@@ -15,10 +14,8 @@ import UiKitPage from './pages/UiKitPage.jsx'
 import './styles.css'
 import './Warehouse.css'
 import './AppShell.css'
-import './Itcontroller.css'
 import './ImportLicense.css'
 import './Filedropzone.css'
-import './Selectfield.css'
 // theme.css = ชั้น Tailwind + ธีมใหม่ ต้องอยู่ท้ายสุดเสมอ (ทับสไตล์เก่า)
 import './theme.css'
 
@@ -28,13 +25,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Routes>
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Warehouse: อัปโหลดบัญชีใบอนุญาตนำเข้า -> สแกนยืนยันเทียบกับบัญชี
-            (หน้า "จ่ายของ FIFO & S/O" และ "IT Controller (กสทช.)" ถูกถอดออกแล้ว) */}
+        {/* Warehouse: อัปโหลดบัญชีใบอนุญาตนำเข้า -> สแกนยืนยันเทียบกับบัญชี */}
         <Route path="/warehouse" element={<ImportLicensePage />} />
         <Route path="/warehouse/confirm" element={<WHPartConfirmationPage />} />
 
         <Route path="/tsf" element={<TSFOperatorPage />} />
-        <Route path="/tsf/receive" element={<TSFReceivePage />} />
         <Route path="/upload" element={<UploadViewPage />} />
         <Route path="/master-data" element={<MasterDataPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />

@@ -8,11 +8,27 @@ import {
 } from '../api/importLicense.js'
 import AppShell from '../components/AppShell.jsx'
 import FileDropZone from '../components/Filedropzone.jsx'
+import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js'
+import {
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ClipboardDocumentCheckIcon,
+  CubeIcon,
+  DocumentTextIcon,
+  ReceiptPercentIcon,
+  Squares2X2Icon,
+} from '../components/icons.jsx'
 
 // เมนูของ role WH — เหลือ 2 หน้า: อัปโหลดบัญชีใบอนุญาต แล้วไปสแกนยืนยัน
 export const WH_NAV_ITEMS = [
-  { to: '/warehouse', label: 'Import License', icon: '📄' },
-  { to: '/warehouse/confirm', label: 'Part Confirmation', icon: '✅' },
+  { to: '/warehouse', label: 'Import License', icon: <DocumentTextIcon className="size-4" /> },
+  {
+    to: '/warehouse/confirm',
+    label: 'Part Confirmation',
+    icon: <ClipboardDocumentCheckIcon className="size-4" />,
+  },
 ]
 
 // หมายเหตุการออกแบบ:
@@ -81,23 +97,36 @@ export default function ImportLicensePage() {
   }
 
   async function handleDeleteRow(row) {
-    if (!window.confirm(`ลบหมายเลขเครื่อง ${row.MachineNo} ออกจากบัญชี?`)) return
+    const ok = await confirmDelete({
+      text: `ลบหมายเลขเครื่อง ${row.MachineNo} ออกจากบัญชี?`,
+    })
+    if (!ok) return
     try {
       await deleteImportLicenseItem(row.ID)
       await loadAll()
+      toastSuccess(`ลบ ${row.MachineNo} แล้ว`)
     } catch (err) {
-      setLoadError(err.message || 'ลบไม่สำเร็จ')
+      const msg = err.message || 'ลบไม่สำเร็จ'
+      setLoadError(msg)
+      toastError(msg)
     }
   }
 
   async function handleClearLicense(licenseNo) {
-    if (!window.confirm(`ลบทั้งใบอนุญาต ${licenseNo} ออกจากระบบ?`)) return
+    const ok = await confirmDelete({
+      text: `ลบทั้งใบอนุญาต ${licenseNo} ออกจากระบบ? กู้คืนไม่ได้`,
+      confirmText: 'ลบทั้งใบ',
+    })
+    if (!ok) return
     try {
       await clearImportLicense(licenseNo)
       setSelectedLot('')
       await loadAll()
+      toastSuccess(`ลบใบอนุญาต ${licenseNo} แล้ว`)
     } catch (err) {
-      setLoadError(err.message || 'ลบไม่สำเร็จ')
+      const msg = err.message || 'ลบไม่สำเร็จ'
+      setLoadError(msg)
+      toastError(msg)
     }
   }
 
@@ -201,28 +230,36 @@ export default function ImportLicensePage() {
         <div className="dash-stat-card">
           <div className="dash-stat-label">
             <span>เครื่องในบัญชีทั้งหมด</span>
-            <span className="dash-stat-icon dash-icon-blue">▦</span>
+            <span className="dash-stat-icon dash-icon-blue">
+              <Squares2X2Icon className="size-4" />
+            </span>
           </div>
           <div className="dash-stat-value">{counts.total}</div>
         </div>
         <div className="dash-stat-card">
           <div className="dash-stat-label">
             <span>ใบอนุญาตนำเข้า</span>
-            <span className="dash-stat-icon dash-icon-red">📄</span>
+            <span className="dash-stat-icon dash-icon-red">
+              <DocumentTextIcon className="size-4" />
+            </span>
           </div>
           <div className="dash-stat-value">{counts.licenses}</div>
         </div>
         <div className="dash-stat-card">
           <div className="dash-stat-label">
             <span>อินวอยซ์นำเข้า</span>
-            <span className="dash-stat-icon dash-icon-yellow">🧾</span>
+            <span className="dash-stat-icon dash-icon-yellow">
+              <ReceiptPercentIcon className="size-4" />
+            </span>
           </div>
           <div className="dash-stat-value">{counts.invoices}</div>
         </div>
         <div className="dash-stat-card">
           <div className="dash-stat-label">
             <span>แบบ/รุ่น</span>
-            <span className="dash-stat-icon dash-icon-green">⚙</span>
+            <span className="dash-stat-icon dash-icon-green">
+              <CubeIcon className="size-4" />
+            </span>
           </div>
           <div className="dash-stat-value">{counts.models}</div>
         </div>
@@ -363,10 +400,10 @@ export default function ImportLicensePage() {
           </span>
           <div className="tsf-pagination-buttons">
             <button className="wh-modal-cancel" onClick={() => goToPage(1)} disabled={page === 1}>
-              «
+              <ChevronDoubleLeftIcon className="size-4" />
             </button>
             <button className="wh-modal-cancel" onClick={() => goToPage(page - 1)} disabled={page === 1}>
-              ‹
+              <ChevronLeftIcon className="size-4" />
             </button>
             <span className="tsf-pagination-current">
               {page} / {totalPages}
@@ -376,14 +413,14 @@ export default function ImportLicensePage() {
               onClick={() => goToPage(page + 1)}
               disabled={page === totalPages}
             >
-              ›
+              <ChevronRightIcon className="size-4" />
             </button>
             <button
               className="wh-modal-cancel"
               onClick={() => goToPage(totalPages)}
               disabled={page === totalPages}
             >
-              »
+              <ChevronDoubleRightIcon className="size-4" />
             </button>
           </div>
         </div>
