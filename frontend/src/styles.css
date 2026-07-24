@@ -1,4 +1,26 @@
 :root {
+  /* ── สีแบรนด์: blue-green #00CEC8 ────────────────────────────────────────
+     ทุกไฟล์ CSS เดิม (AppShell / Warehouse / ImportLicense / Filedropzone)
+     อ้างสีผ่านตัวแปรชุดนี้เท่านั้น ห้ามเขียนค่า hex ของสีแบรนด์ลงไปตรงๆ อีก
+     — ถ้าจะเปลี่ยนโทนทั้งระบบ แก้ที่นี่ที่เดียว
+
+     หมายเหตุ: ค่าชุดเดียวกันนี้ประกาศซ้ำเป็น --color-brand-* ใน theme.css
+     (บล็อก @theme) เพราะ Tailwind ต้องการค่าจริงไม่ใช่ var() — แก้ที่ไหน
+     ต้องแก้ให้ตรงกันทั้งสองที่ */
+  --brand-50: #eafcfb;
+  --brand-100: #cdf6f4;
+  --brand-200: #9deeea;
+  --brand-300: #5fdfda;
+  --brand-400: #23d3cd;
+  --brand-500: #00cec8;
+  --brand-600: #00a39d;
+  --brand-700: #0f8580;
+  --brand-800: #146a66;
+  --brand-900: #14504e;
+  /* หมึกสำหรับตัวอักษร/ไอคอนบนพื้น --brand-500 (contrast 7.2:1 ผ่าน WCAG AA)
+     ตัวอักษรสีขาวบน #00CEC8 ได้แค่ 1.97:1 ซึ่งอ่านไม่ออก จึงห้ามใช้ */
+  --brand-ink: #06312f;
+
   --bg: #eef2f7;
   --bg-radial: radial-gradient(120% 120% at 50% 0%, #ffffff 0%, #eef2f7 55%);
   --card-bg: #ffffff;
@@ -8,8 +30,8 @@
   --text-primary: #101828;
   --text-secondary: #5b6b82;
   --text-muted: #8f9aad;
-  --teal: #00cec8;
-  --teal-strong: #00a39d;
+  --teal: var(--brand-500);
+  --teal-strong: var(--brand-600);
   --teal-soft: rgba(0, 206, 200, 0.12);
   --danger: #dc2626;
   --font-display: 'Inter', system-ui, sans-serif;
@@ -70,7 +92,7 @@ a {
   font-size: 13px;
   letter-spacing: 0.04em;
   color: #0f172a;
-  background: linear-gradient(135deg, #32ddd7, #00cec8);
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-500));
   border: 1px solid rgba(255, 255, 255, 0.35);
   padding: 8px 14px;
   border-radius: 999px;
@@ -140,16 +162,6 @@ a {
 
 .field-row label {
   margin-bottom: 0;
-}
-
-.link-muted {
-  font-size: 13px;
-  color: var(--text-muted);
-  text-decoration: none;
-}
-
-.link-muted:hover {
-  color: var(--teal);
 }
 
 .field input {
@@ -256,18 +268,6 @@ a {
   }
 }
 
-
-
-.link-strong {
-  color: var(--teal);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.link-strong:hover {
-  text-decoration: underline;
-}
-
 @media (min-width: 600px) and (max-width: 1024px) {
   .auth-card {
     max-width: 440px;
@@ -277,6 +277,7 @@ a {
   .brand-title {
     font-size: 32px;
   }
+
 }
 
 @media (max-width: 420px) {
@@ -306,6 +307,7 @@ a {
     padding: 24px 18px 22px;
     border-radius: 16px;
   }
+
 }
 
 @media (max-width: 340px) {
@@ -317,6 +319,7 @@ a {
   .brand-title {
     font-size: 20px;
   }
+
 }
 
 @media (max-height: 480px) and (orientation: landscape) {
@@ -330,4 +333,5 @@ a {
   .auth-card {
     padding: 22px 26px;
   }
+
 }

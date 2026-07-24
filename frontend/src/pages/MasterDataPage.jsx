@@ -1,16 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import AppShell from '../components/AppShell.jsx'
 import { getMasterData, uploadMasterData, deleteMasterData } from '../api/masterData.js'
+import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js'
+import { CloudArrowUpIcon } from '../components/icons.jsx'
+import {
+  ArrowDownTrayIcon,
+  CpuChipIcon,
+  CubeIcon,
+  RectangleStackIcon,
+  Squares2X2Icon,
+  TagIcon,
+} from '../components/icons.jsx'
 
 const CATEGORIES = [
-  { type: 'it_controller', label: 'IT Controller', icon: '🛰️' },
-  { type: 'control_valve', label: 'Control Valve', icon: '🔧' },
-  { type: 'swing_motor', label: 'Swing Motor', icon: '⚙️' },
-  { type: 'motor_propel', label: 'Motor Propel', icon: '🚜' },
-  { type: 'pump_assy_hyd', label: 'Pump Assy HYD', icon: '💧' },
+  { type: 'it_controller', label: 'IT Controller' },
+  { type: 'control_valve', label: 'Control Valve' },
+  { type: 'swing_motor', label: 'Swing Motor' },
+  { type: 'motor_propel', label: 'Motor Propel' },
+  { type: 'pump_assy_hyd', label: 'Pump Assy HYD' },
 ]
 
-const navItems = [{ to: '/master-data', label: 'ทะเบียน Master Data', icon: '🗂️' }]
+const navItems = [
+  { to: '/master-data', label: 'ทะเบียน Master Data', icon: <RectangleStackIcon className="size-4" /> },
+]
 
 // ค่าที่แสดงแทนช่องว่าง — อะไหล่ชนิดอื่นไม่มี IT Controller no./IMEI
 const DASH = '—'
@@ -128,7 +140,8 @@ export default function MasterDataPage() {
 
   async function handleDelete(row) {
     const label = row.SerialNo || row.Name || `รายการ #${row.ID}`
-    if (!window.confirm(`ลบ ${label} ออกจากทะเบียนใช่ไหม? กู้คืนไม่ได้`)) return
+    const ok = await confirmDelete({ text: `ลบ ${label} ออกจากทะเบียน? กู้คืนไม่ได้` })
+    if (!ok) return
 
     setDeletingId(row.ID)
     setLoadError('')
@@ -136,8 +149,11 @@ export default function MasterDataPage() {
     try {
       await deleteMasterData(row.ID)
       setReloadKey((n) => n + 1)
+      toastSuccess(`ลบ ${label} แล้ว`)
     } catch (err) {
-      setLoadError(err.message || 'ลบไม่สำเร็จ')
+      const msg = err.message || 'ลบไม่สำเร็จ'
+      setLoadError(msg)
+      toastError(msg)
     } finally {
       setDeletingId(0)
     }
@@ -199,7 +215,7 @@ export default function MasterDataPage() {
             onChange={handleFileChange}
             className="upload-card-input-hidden"
           />
-          <UploadCloudIcon />
+          <CloudArrowUpIcon className="size-[26px]" />
           <span className="upload-dropzone-text">
             {pendingFile ? pendingFile.name : 'คลิกเพื่อเลือกไฟล์ Excel'}
           </span>
@@ -240,28 +256,36 @@ export default function MasterDataPage() {
         <div className="dash-stat-card">
           <div className="dash-stat-label">
             <span>รายการทั้งหมด</span>
-            <span className="dash-stat-icon dash-icon-blue">▦</span>
+            <span className="dash-stat-icon dash-icon-blue">
+              <Squares2X2Icon className="size-4" />
+            </span>
           </div>
           <div className="dash-stat-value">{stats.total}</div>
         </div>
         <div className="dash-stat-card">
           <div className="dash-stat-label">
             <span>มี IMEI</span>
-            <span className="dash-stat-icon dash-icon-green">🛰️</span>
+            <span className="dash-stat-icon dash-icon-green">
+              <CpuChipIcon className="size-4" />
+            </span>
           </div>
           <div className="dash-stat-value">{stats.withImei}</div>
         </div>
         <div className="dash-stat-card">
           <div className="dash-stat-label">
             <span>จำนวน Model</span>
-            <span className="dash-stat-icon dash-icon-yellow">🏷️</span>
+            <span className="dash-stat-icon dash-icon-yellow">
+              <TagIcon className="size-4" />
+            </span>
           </div>
           <div className="dash-stat-value">{stats.models}</div>
         </div>
         <div className="dash-stat-card">
           <div className="dash-stat-label">
             <span>จำนวน Part No.</span>
-            <span className="dash-stat-icon dash-icon-red">🔩</span>
+            <span className="dash-stat-icon dash-icon-red">
+              <CubeIcon className="size-4" />
+            </span>
           </div>
           <div className="dash-stat-value">{stats.partNos}</div>
         </div>
@@ -285,7 +309,7 @@ export default function MasterDataPage() {
             <option value="">ทุกชนิด</option>
             {CATEGORIES.map((cat) => (
               <option key={cat.type} value={cat.type}>
-                {cat.icon} {cat.label}
+                {cat.label}
               </option>
             ))}
           </select>
@@ -298,7 +322,7 @@ export default function MasterDataPage() {
             style={{ minWidth: 200, flex: '1 1 200px' }}
           />
           <button className="wh-issue-btn" onClick={handleExportCsv} disabled={filtered.length === 0}>
-            ⬇ Export CSV
+            <ArrowDownTrayIcon className="size-4" /> Export CSV
           </button>
         </div>
       </div>
@@ -386,25 +410,4 @@ function excelText(value) {
 function csvCell(value) {
   const s = value == null ? '' : String(value)
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
-
-function UploadCloudIcon() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M7 18a4.5 4.5 0 01-.4-8.98A5.5 5.5 0 0117 8.5a4 4 0 01-.5 7.98"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 12v7m0-7l-2.5 2.5M12 12l2.5 2.5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
 }

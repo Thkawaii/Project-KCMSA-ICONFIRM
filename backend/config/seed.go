@@ -61,7 +61,7 @@ func SeedData() {
 	whUserID := users[1].ID
 	tsfUserID := users[2].ID
 
-	// 2 แถวนี้เป็นข้อมูลตัวอย่างของเดิม ที่ warehouse/tsf/qa ด้านล่างอ้างถึงอยู่
+	// 2 แถวนี้เป็นข้อมูลตัวอย่างของเดิม ที่ tsf/qa ด้านล่างอ้างถึงอยู่
 	// ถ้าลบออก flow ตัวอย่างจะเสีย — ทะเบียน IT Controller ตัวจริง 36 เครื่อง
 	// อยู่ใน SeedMasterITController() ต่างหาก
 	master := []models.MasterData{
@@ -84,28 +84,6 @@ func SeedData() {
 	}
 
 	DB.Create(&master)
-
-	warehouse := []models.Warehouse{
-		{
-			Warehouse:        "WH01",
-			OrderNo:          "SO2026001",
-			WorkOrder:        "WO001",
-			StockOutNo:       "ST001",
-			PartNo:           "YN02P00133F2G1",
-			PartName:         "IT Controller",
-			AssemblyPartNo:   "ASM001",
-			AssemblyPartName: "Controller Assembly",
-			RemainQty:        5,
-			StandardCost:     25000,
-			Shelf1:           "A01",
-			Shelf2:           "B01",
-			MachineModel:     "SK200",
-			FinalColor:       "Orange",
-			UserID:           whUserID,
-		},
-	}
-
-	DB.Create(&warehouse)
 
 	tsf := []models.TSFOperator{
 		{

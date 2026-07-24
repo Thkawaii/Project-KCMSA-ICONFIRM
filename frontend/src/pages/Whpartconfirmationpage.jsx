@@ -2,6 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { getPartChecks, scanPartCheck } from '../api/partcheck.js'
 import { getImportLicenseItems, getImportLicenseSummary } from '../api/importLicense.js'
 import { scanStep, scanSelect, scanLoading, scanSuccessToast, scanErrorAlert } from '../lib/scanPopup.js'
+import {
+  CheckIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  ExclamationTriangleIcon,
+  MinusIcon,
+  XMarkIcon,
+} from '../components/icons.jsx'
 import AppShell from '../components/AppShell.jsx'
 import { WH_NAV_ITEMS } from './Importlicensepage.jsx'
 
@@ -14,12 +25,12 @@ import bcMotorSn from '../assets/barcodes/Motor_Propel__SN_.gif'
 import bcValveSn from '../assets/barcodes/Control_Valve__SN_.gif'
 
 const TAG_TYPES = [
-  { code: 'MC', label: 'Machine', icon: '🚜', needsPN: false },
-  { code: 'ITC', label: 'IT Controller', icon: '🛰️', needsPN: true },
-  { code: 'CV', label: 'Control Valve', icon: '🔧', needsPN: false },
-  { code: 'SM', label: 'Swing Motor', icon: '⚙️', needsPN: false },
-  { code: 'MP', label: 'Motor Propel', icon: '🚜', needsPN: false },
-  { code: 'PH', label: 'Pump Assy HYD', icon: '💧', needsPN: false },
+  { code: 'MC', label: 'Machine', needsPN: false },
+  { code: 'ITC', label: 'IT Controller', needsPN: true },
+  { code: 'CV', label: 'Control Valve', needsPN: false },
+  { code: 'SM', label: 'Swing Motor', needsPN: false },
+  { code: 'MP', label: 'Motor Propel', needsPN: false },
+  { code: 'PH', label: 'Pump Assy HYD', needsPN: false },
 ]
 
 // ชนิดพาร์ทที่เลือกได้ในฟอร์ม (ไม่รวม Machine เพราะ Machine คือ tag ที่ใช้ระบุตัวเครื่อง)
@@ -32,17 +43,21 @@ function tagLabel(code) {
 
 // ป้ายผลการเทียบกับบัญชีใบอนุญาตนำเข้า (ค่าตรงกับค่าคงที่ฝั่ง backend)
 const MATCH_LABELS = {
-  MATCH: { text: '✓ ตรงกับใบอนุญาต', cls: 'il-badge-ok' },
-  NOT_FOUND: { text: '✕ ไม่พบในใบอนุญาต', cls: 'il-badge-bad' },
-  WRONG_INVOICE: { text: '⚠ คนละอินวอยซ์', cls: 'il-badge-warn' },
-  WRONG_PRODNO: { text: '⚠ หมายเลขการผลิตไม่ตรง', cls: 'il-badge-warn' },
-  DUPLICATE: { text: '⚠ ยืนยันซ้ำ', cls: 'il-badge-warn' },
-  NOT_REQUIRED: { text: '— ไม่ต้องเทียบ', cls: 'il-badge-muted' },
+  MATCH: { Icon: CheckIcon, text: 'ตรงกับใบอนุญาต', cls: 'il-badge-ok' },
+  NOT_FOUND: { Icon: XMarkIcon, text: 'ไม่พบในใบอนุญาต', cls: 'il-badge-bad' },
+  WRONG_INVOICE: { Icon: ExclamationTriangleIcon, text: 'คนละอินวอยซ์', cls: 'il-badge-warn' },
+  WRONG_PRODNO: { Icon: ExclamationTriangleIcon, text: 'หมายเลขการผลิตไม่ตรง', cls: 'il-badge-warn' },
+  DUPLICATE: { Icon: ExclamationTriangleIcon, text: 'ยืนยันซ้ำ', cls: 'il-badge-warn' },
+  NOT_REQUIRED: { Icon: MinusIcon, text: 'ไม่ต้องเทียบ', cls: 'il-badge-muted' },
 }
 
 function matchBadge(status) {
   const m = MATCH_LABELS[status] || MATCH_LABELS.NOT_REQUIRED
-  return <span className={'il-badge ' + m.cls}>{m.text}</span>
+  return (
+    <span className={'il-badge ' + m.cls}>
+      <m.Icon className="inline size-3.5 align-text-bottom" /> {m.text}
+    </span>
+  )
 }
 
 // การ์ดบาร์โค้ดที่โชว์บนหน้า Part Confirmation (ตามรูป label จริง)
@@ -132,7 +147,7 @@ export default function WHPartConfirmationPage() {
       // 1) สแกน TAG เครื่อง (ต้องขึ้นต้นด้วย MC-)
       const machineTag = await scanStep({
         title: `สแกน TAG เครื่อง — ${partLabel}`,
-        html: `<div class="scan-popup-hint">${part.icon} <b>${partLabel}</b> · ยิงบาร์โค้ด TAG เครื่อง (ขึ้นต้นด้วย <b>MC-</b>)${
+        html: `<div class="scan-popup-hint"><b>${partLabel}</b> · ยิงบาร์โค้ด TAG เครื่อง (ขึ้นต้นด้วย <b>MC-</b>)${
           lotInvoice ? `<br/>ล็อตที่กำลังยืนยัน: <b>${lotInvoice}</b>` : ''
         }</div>`,
         placeholder: 'MC-...',
@@ -243,7 +258,7 @@ export default function WHPartConfirmationPage() {
         partType = await scanSelect({
           title: 'เลือกชนิดพาร์ทที่จะยืนยัน',
           html: `<div class="scan-popup-hint">บาร์โค้ดที่ยิง: <b>${code}</b><br/>ระบบระบุชนิดพาร์ทไม่ได้ กรุณาเลือกเอง</div>`,
-          options: PART_TYPES.map((t) => ({ value: t.code, label: `${t.icon} ${t.label}` })),
+          options: PART_TYPES.map((t) => ({ value: t.code, label: t.label })),
         })
       } finally {
         busyRef.current = false
@@ -504,9 +519,13 @@ export default function WHPartConfirmationPage() {
                   <td data-label="ส่งออกไปประเทศ">{r.ExportCountry || '—'}</td>
                   <td data-label="สถานะ">
                     {r.ConfirmStatus === 'CONFIRMED' ? (
-                      <span className="il-badge il-badge-ok">✓ ตรงกัน</span>
+                      <span className="il-badge il-badge-ok">
+                        <CheckIcon className="inline size-3.5 align-text-bottom" /> ตรงกัน
+                      </span>
                     ) : (
-                      <span className="il-badge il-badge-pending">⏳ รอสแกน</span>
+                      <span className="il-badge il-badge-pending">
+                        <ClockIcon className="inline size-3.5 align-text-bottom" /> รอสแกน
+                      </span>
                     )}
                   </td>
                   <td data-label="TAG ที่สแกนคู่">{r.ConfirmedTag || '—'}</td>
@@ -637,10 +656,10 @@ export default function WHPartConfirmationPage() {
           </span>
           <div className="tsf-pagination-buttons">
             <button className="wh-modal-cancel" onClick={() => goToPage(1)} disabled={page === 1}>
-              «
+              <ChevronDoubleLeftIcon className="size-4" />
             </button>
             <button className="wh-modal-cancel" onClick={() => goToPage(page - 1)} disabled={page === 1}>
-              ‹
+              <ChevronLeftIcon className="size-4" />
             </button>
             <span className="tsf-pagination-current">
               {page} / {totalPages}
@@ -650,14 +669,14 @@ export default function WHPartConfirmationPage() {
               onClick={() => goToPage(page + 1)}
               disabled={page === totalPages}
             >
-              ›
+              <ChevronRightIcon className="size-4" />
             </button>
             <button
               className="wh-modal-cancel"
               onClick={() => goToPage(totalPages)}
               disabled={page === totalPages}
             >
-              »
+              <ChevronDoubleRightIcon className="size-4" />
             </button>
           </div>
         </div>

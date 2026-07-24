@@ -12,18 +12,31 @@ import { getMachineSpecByMachineNo } from '../api/Machinespeclookup.js'
 import { scanLoading, scanClose, scanSuccessToast, scanErrorAlert } from '../lib/scanPopup.js'
 import AppShell from '../components/AppShell.jsx'
 import bcMachine from '../assets/barcodes/Machine_Barcode.gif'
+import { CameraIcon } from '../components/icons.jsx'
+import {
+  ArrowsRightLeftIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  PART_ICONS,
+  PencilSquareIcon,
+  XCircleIcon,
+} from '../components/icons.jsx'
 
+// MFG มีหน้าเดียว — AppShell จะซ่อนแถบเมนูย่อยให้เองเมื่อมีรายการเดียว
 const navItems = [
-  { to: '/tsf', label: 'Scan & Validate', icon: '⇄' },
-  { to: '/tsf/receive', label: 'Receive Material', icon: '📥' },
+  { to: '/tsf', label: 'Scan & Validate', icon: <ArrowsRightLeftIcon className="size-4" /> },
 ]
 
 const CATEGORIES = [
-  { type: 'it_controller', label: 'IT Controller', icon: '🛰️', needsPN: true, specKey: (s) => `${s.ITController || '-'} / ${s.ITControllerSN || '-'}` },
-  { type: 'control_valve', label: 'Control Valve', icon: '🔧', needsPN: false, specKey: (s) => s.ControlValve || '-' },
-  { type: 'swing_motor', label: 'Swing Motor', icon: '⚙️', needsPN: false, specKey: (s) => s.SwingMotor || '-' },
-  { type: 'motor_propel', label: 'Motor Propel', icon: '🚜', needsPN: false, specKey: (s) => s.MotorPropel || '-' },
-  { type: 'pump_assy_hyd', label: 'Pump Assy HYD', icon: '💧', needsPN: false, specKey: (s) => s.PumpAssyHyd || '-' },
+  { type: 'it_controller', label: 'IT Controller', Icon: PART_ICONS.it_controller, needsPN: true, specKey: (s) => `${s.ITController || '-'} / ${s.ITControllerSN || '-'}` },
+  { type: 'control_valve', label: 'Control Valve', Icon: PART_ICONS.control_valve, needsPN: false, specKey: (s) => s.ControlValve || '-' },
+  { type: 'swing_motor', label: 'Swing Motor', Icon: PART_ICONS.swing_motor, needsPN: false, specKey: (s) => s.SwingMotor || '-' },
+  { type: 'motor_propel', label: 'Motor Propel', Icon: PART_ICONS.motor_propel, needsPN: false, specKey: (s) => s.MotorPropel || '-' },
+  { type: 'pump_assy_hyd', label: 'Pump Assy HYD', Icon: PART_ICONS.pump_assy_hyd, needsPN: false, specKey: (s) => s.PumpAssyHyd || '-' },
 ]
 
 // TODO: ย้ายไปดึงจาก backend เป็น dropdown ที่แก้ไขได้ ถ้าแผนกมีการเปลี่ยนบ่อย
@@ -460,7 +473,7 @@ export default function TSFOperatorPage() {
                   const checks = checksFor(cat.type)
                   return (
                     <option key={cat.type} value={cat.type} disabled={notEquipped}>
-                      {cat.icon} {cat.label} {notEquipped ? '(ไม่มีติดตั้ง)' : checks[0] ? `(ตรวจแล้ว: ${checks[0].ValidationStatus})` : ''}
+                      {cat.label} {notEquipped ? '(ไม่มีติดตั้ง)' : checks[0] ? `(ตรวจแล้ว: ${checks[0].ValidationStatus})` : ''}
                     </option>
                   )
                 })}
@@ -512,7 +525,8 @@ export default function TSFOperatorPage() {
           <div className="scan-hero">
             <div className="scan-capture-card">
               <h3 className="tsf-form-title">
-                {selPart.icon} {selPart.label} — Machine {machineSpec.MachineNo}
+                <selPart.Icon className="inline size-5 align-text-bottom" /> {selPart.label} — Machine{' '}
+                {machineSpec.MachineNo}
               </h3>
 
               {selPart.needsPN && (
@@ -527,7 +541,9 @@ export default function TSFOperatorPage() {
                     onChange={(e) => setScanPN(e.target.value)}
                     onKeyDown={handlePnKeyDown}
                   />
-                  {scanPN && <span className="scan-capture-check">✓ {scanPN}</span>}
+                  {scanPN && <span className="scan-capture-check">
+                      <CheckIcon className="inline size-4" /> {scanPN}
+                    </span>}
                 </>
               )}
 
@@ -541,7 +557,9 @@ export default function TSFOperatorPage() {
                 onChange={(e) => setScanSN(e.target.value)}
                 onKeyDown={handleSnKeyDown}
               />
-              {scanSN && <span className="scan-capture-check">✓ {scanSN}</span>}
+              {scanSN && <span className="scan-capture-check">
+                      <CheckIcon className="inline size-4" /> {scanSN}
+                    </span>}
 
               <label className="wh-modal-label">{selPart.needsPN ? '3.' : '2.'} ถ่ายรูป (เปิดกล้องอัตโนมัติหลังยิง S/N)</label>
               <input
@@ -554,7 +572,7 @@ export default function TSFOperatorPage() {
                 id="capturePhoto"
               />
               <label htmlFor="capturePhoto" className={'upload-dropzone' + (photo ? ' upload-dropzone-filled' : '')}>
-                <CameraPlusIcon />
+                <CameraIcon className="size-[26px]" />
                 <span className="upload-dropzone-text">{photo ? photo.name : 'แตะเพื่อถ่ายรูป (หรือรอเปิดอัตโนมัติ)'}</span>
               </label>
               {photoPreview && <img className="tsf-photo-preview" src={photoPreview} alt="preview" />}
@@ -584,7 +602,9 @@ export default function TSFOperatorPage() {
             <div className={'scan-result-card' + (result.pass ? ' scan-result-pass' : ' scan-result-fail')}>
               {result.pass ? (
                 <>
-                  <div className="scan-result-icon">✅</div>
+                  <div className="scan-result-icon">
+                    <CheckCircleIcon className="size-full" />
+                  </div>
                   <h3 className="scan-result-title">PASS</h3>
                   <p className="wh-subtitle">ข้อมูลตรงกับ Master Data — ส่งข้อมูลตรวจสอบไปยัง QA แล้ว</p>
                   <p className="wh-subtitle">กำลังไปหน้าสแกนเครื่องถัดไปอัตโนมัติ...</p>
@@ -594,7 +614,9 @@ export default function TSFOperatorPage() {
                 </>
               ) : (
                 <>
-                  <div className="scan-result-icon">❌</div>
+                  <div className="scan-result-icon">
+                    <XCircleIcon className="size-full" />
+                  </div>
                   <h3 className="scan-result-title">FAIL</h3>
                   <p className="form-error">{result.mismatch_detail}</p>
                   <button className="wh-modal-confirm" onClick={backToSelectNext}>
@@ -728,19 +750,19 @@ export default function TSFOperatorPage() {
             </span>
             <div className="tsf-pagination-buttons">
               <button className="wh-modal-cancel" onClick={() => goToPage(1)} disabled={page === 1}>
-                «
+                <ChevronDoubleLeftIcon className="size-4" />
               </button>
               <button className="wh-modal-cancel" onClick={() => goToPage(page - 1)} disabled={page === 1}>
-                ‹
+                <ChevronLeftIcon className="size-4" />
               </button>
               <span className="tsf-pagination-current">
                 {page} / {totalPages}
               </span>
               <button className="wh-modal-cancel" onClick={() => goToPage(page + 1)} disabled={page === totalPages}>
-                ›
+                <ChevronRightIcon className="size-4" />
               </button>
               <button className="wh-modal-cancel" onClick={() => goToPage(totalPages)} disabled={page === totalPages}>
-                »
+                <ChevronDoubleRightIcon className="size-4" />
               </button>
             </div>
           </div>
@@ -837,7 +859,7 @@ export default function TSFOperatorPage() {
                       onChange={handleEditPhotoChange}
                       className="upload-card-input-hidden"
                     />
-                    <CameraPlusIcon />
+                    <CameraIcon className="size-[26px]" />
                     <span className="upload-dropzone-text">
                       {editPhoto ? editPhoto.name : 'คลิกเพื่อเลือกรูปใหม่ (ไม่บังคับ)'}
                     </span>
@@ -872,7 +894,7 @@ export default function TSFOperatorPage() {
               </button>
             ) : (
               <button className="wh-modal-confirm" onClick={() => setEditMode(true)}>
-                ✎ แก้ไข
+                <PencilSquareIcon className="size-4" /> แก้ไข
               </button>
             )}
           </div>
@@ -880,20 +902,5 @@ export default function TSFOperatorPage() {
       </div>
     )}
     </>
-  )
-}
-
-function CameraPlusIcon() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M4 8a2 2 0 012-2h1.2l.8-1.4A1 1 0 018.86 4h6.28a1 1 0 01.86.6L16.8 6H18a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="13" r="3" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M12 20v0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
   )
 }

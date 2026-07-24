@@ -6,18 +6,23 @@ import {
   deleteMachineSpec,
   exportMachineSpecs,
 } from '../api/machineSpec.js'
+import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js'
+import { CloudArrowUpIcon } from '../components/icons.jsx'
+import { ArrowDownTrayIcon, RectangleStackIcon } from '../components/icons.jsx'
 
 const CATEGORIES = [
-  { type: 'it_controller', label: 'IT Controller P/N & S/N', icon: '🛰️' },
-  { type: 'control_valve', label: 'Control Valve S/N', icon: '🔧' },
-  { type: 'swing_motor', label: 'Swing Motor S/N', icon: '⚙️' },
-  { type: 'motor_propel', label: 'Motor Propel S/N', icon: '🚜' },
-  { type: 'pump_assy_hyd', label: 'Pump Assy HYD', icon: '💧' },
+  { type: 'it_controller', label: 'IT Controller P/N & S/N' },
+  { type: 'control_valve', label: 'Control Valve S/N' },
+  { type: 'swing_motor', label: 'Swing Motor S/N' },
+  { type: 'motor_propel', label: 'Motor Propel S/N' },
+  { type: 'pump_assy_hyd', label: 'Pump Assy HYD' },
 ]
 
 // หน้านี้เหลือไว้สำหรับอัปโหลด Machine Spec (คนละตารางกับ Master Data)
 // ไม่ได้อยู่ในเมนูหลักแล้ว เข้าถึงได้ทาง URL /upload โดยตรง
-const navItems = [{ to: '/master-data', label: 'ทะเบียน Master Data', icon: '🗂️' }]
+const navItems = [
+  { to: '/master-data', label: 'ทะเบียน Master Data', icon: <RectangleStackIcon className="size-4" /> },
+]
 
 export default function UploadViewPage() {
   const [rows, setRows] = useState([])
@@ -82,12 +87,16 @@ export default function UploadViewPage() {
 
   async function handleDelete(id, e) {
     e.stopPropagation()
-    if (!window.confirm('ลบรายการนี้ใช่ไหม? กู้คืนไม่ได้')) return
+    const ok = await confirmDelete({ text: 'ลบรายการนี้? กู้คืนไม่ได้' })
+    if (!ok) return
     try {
       await deleteMachineSpec(id)
       await loadRows()
+      toastSuccess('ลบรายการแล้ว')
     } catch (err) {
-      setLoadError(err.message || 'ลบไม่สำเร็จ')
+      const msg = err.message || 'ลบไม่สำเร็จ'
+      setLoadError(msg)
+      toastError(msg)
     }
   }
 
@@ -154,7 +163,7 @@ export default function UploadViewPage() {
               >
                 {CATEGORIES.map((c) => (
                   <option key={c.type} value={c.type}>
-                    {c.icon} {c.label}
+                    {c.label}
                   </option>
                 ))}
               </select>
@@ -174,7 +183,7 @@ export default function UploadViewPage() {
                 onChange={(e) => handleFileChange(cat.type, e)}
                 className="upload-card-input-hidden"
               />
-              <UploadCloudIcon />
+              <CloudArrowUpIcon className="size-[26px]" />
               <span className="upload-dropzone-text">
                 {pendingFiles[cat.type] ? pendingFiles[cat.type].name : 'คลิกเพื่อเลือกไฟล์ Excel'}
               </span>
@@ -220,7 +229,11 @@ export default function UploadViewPage() {
             ))}
           </select>
           <button className="wh-issue-btn" onClick={handleExport} disabled={exporting}>
-            {exporting ? 'กำลัง Export...' : '⬇ Export Excel'}
+            {exporting ? 'กำลัง Export...' : (
+              <>
+                <ArrowDownTrayIcon className="size-4" /> Export Excel
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -275,26 +288,5 @@ export default function UploadViewPage() {
       </div>
 
     </AppShell>
-  )
-}
-
-function UploadCloudIcon() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M7 18a4.5 4.5 0 01-.4-8.98A5.5 5.5 0 0117 8.5a4 4 0 01-.5 7.98"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 12v7m0-7l-2.5 2.5M12 12l2.5 2.5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   )
 }

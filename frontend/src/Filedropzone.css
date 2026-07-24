@@ -1,4 +1,4 @@
-/* ปุ่มเลือกไฟล์แบบลากวาง — โทนเดียวกับ Warehouse.css (teal #00cec8) */
+/* ปุ่มเลือกไฟล์แบบลากวาง — โทนเดียวกับ Warehouse.css (teal var(--brand-500)) */
 
 .fdz {
   position: relative;
@@ -16,26 +16,26 @@
 }
 
 .fdz:hover:not(.fdz-disabled) {
-  border-color: #00cec8;
-  background: #f4fdfd;
+  border-color: var(--brand-500);
+  background: var(--brand-50);
 }
 
 .fdz:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(0, 206, 200, 0.25);
-  border-color: #00cec8;
+  border-color: var(--brand-500);
 }
 
 .fdz-dragging {
-  border-color: #00cec8;
+  border-color: var(--brand-500);
   border-style: solid;
-  background: #e6fbfa;
+  background: var(--brand-50);
   box-shadow: 0 0 0 3px rgba(0, 206, 200, 0.18);
 }
 
 .fdz-filled {
   border-style: solid;
-  border-color: #b2ebe9;
+  border-color: var(--brand-200);
   background: #ffffff;
 }
 
@@ -52,8 +52,8 @@
   width: 42px;
   height: 42px;
   border-radius: 10px;
-  background: #e0f2f1;
-  color: #00a39d;
+  background: var(--brand-50);
+  color: var(--brand-600);
 }
 
 .fdz-body {

@@ -39,21 +39,27 @@ export default function UiKitPage() {
         <Section title="กรอบแจ้งเตือน" note="แถบสีด้านซ้ายบอกสถานะ อ่านได้เร็วกว่าไอคอน">
           <div className="grid gap-3">
             <div className="ui-alert ui-alert-ok">
-              <span className="ui-alert-icon">✓</span>
+              <span className="ui-alert-icon">
+                <CheckCircleIcon className="size-5" />
+              </span>
               <div>
                 <p className="ui-alert-title">อัปโหลดสำเร็จ</p>
                 <p>เพิ่มรายการเข้าระบบ 128 รายการ ตรงกับบัญชีใบอนุญาตทั้งหมด</p>
               </div>
             </div>
             <div className="ui-alert ui-alert-warn">
-              <span className="ui-alert-icon">!</span>
+              <span className="ui-alert-icon">
+                <ExclamationTriangleIcon className="size-5" />
+              </span>
               <div>
                 <p className="ui-alert-title">มี 3 รายการรอตรวจซ้ำ</p>
                 <p>Serial ซ้ำกับล็อตก่อนหน้า ตรวจสอบก่อนยืนยันจ่ายของ</p>
               </div>
             </div>
             <div className="ui-alert ui-alert-bad">
-              <span className="ui-alert-icon">✕</span>
+              <span className="ui-alert-icon">
+                <XCircleIcon className="size-5" />
+              </span>
               <div>
                 <p className="ui-alert-title">อ่านไฟล์ไม่ได้</p>
                 <p>คอลัมน์ Part No. หายไปจากแถวที่ 1 — ใช้เทมเพลตล่าสุดแล้วอัปโหลดใหม่</p>

@@ -1,5 +1,6 @@
 import Swal from 'sweetalert2'
 import 'sweetalert2/dist/sweetalert2.min.css'
+import { toastSuccess } from './toast.js'
 
 // สีธีมหลักของแอป (teal) — ใช้กับปุ่มใน SweetAlert ให้เข้ากับหน้าเว็บ
 // สีปุ่ม/ฟอนต์ของ popup ถูกกำหนดไว้ที่ src/theme.css (.swal2-*) แล้ว
@@ -107,17 +108,9 @@ export function scanClose() {
   Swal.close()
 }
 
-/** toast แจ้งเตือนสำเร็จ มุมขวาบน */
+/** toast แจ้งเตือนสำเร็จ มุมขวาบน — ใช้ตัวเดียวกับที่อื่นทั้งระบบ */
 export function scanSuccessToast(title) {
-  return Swal.fire({
-    toast: true,
-    position: 'top-end',
-    icon: 'success',
-    title,
-    timer: 2500,
-    showConfirmButton: false,
-    timerProgressBar: true,
-  })
+  return toastSuccess(title)
 }
 
 /** popup แจ้ง error พร้อมปุ่มลองใหม่ */

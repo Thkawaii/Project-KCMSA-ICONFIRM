@@ -10,7 +10,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #00cec8;
+  background: var(--brand-500);
   padding: 14px 24px;
 }
 
@@ -22,7 +22,7 @@
 
 .shell-topbar .brand-badge {
   background: #ffffff;
-  color: #00a39d;
+  color: var(--brand-600);
   font-weight: 700;
   font-size: 13px;
   letter-spacing: 0.03em;
@@ -124,15 +124,17 @@
 }
 
 .shell-subnav-item:hover {
-  color: #00a39d;
+  color: var(--brand-600);
 }
 
 .shell-subnav-item-active {
-  color: #00a39d;
-  border-bottom-color: #00cec8;
+  color: var(--brand-600);
+  border-bottom-color: var(--brand-500);
 }
 
 .shell-subnav-icon {
+  display: inline-flex;
+  align-items: center;
   font-size: 15px;
 }
 
@@ -160,6 +162,7 @@
   .shell-subnav {
     padding: 0 12px;
   }
+
 }
 
 /* ===== Validation Results: filter tabs + expandable table ===== */
@@ -188,60 +191,6 @@
   background: #ffffff;
   color: #0f172a;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
-}
-
-.vr-row {
-  cursor: pointer;
-}
-
-.vr-row:hover {
-  background: #fafbfc;
-}
-
-.vr-chevron {
-  display: inline-block;
-  transition: transform 0.15s ease;
-  color: #94a3b8;
-  margin-right: 4px;
-}
-
-.vr-chevron-open {
-  transform: rotate(90deg);
-}
-
-.vr-detail-row td {
-  background: #f8fafc;
-  padding: 18px 20px !important;
-}
-
-.vr-detail-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 12px;
-}
-
-.vr-detail-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 14px;
-  margin-bottom: 14px;
-}
-
-.vr-detail-label {
-  font-size: 11.5px;
-  color: #94a3b8;
-  margin-bottom: 3px;
-}
-
-.vr-detail-value {
-  font-size: 13.5px;
-  color: #1e293b;
-  font-weight: 600;
-}
-
-.vr-detail-value-fail {
-  color: #b91c1c;
 }
 
 /* ===== Upload View: single upload panel (category chosen via dropdown) ===== */
@@ -299,7 +248,7 @@
 
 .upload-panel-select:hover,
 .upload-panel-select:focus {
-  border-color: #00cec8;
+  border-color: var(--brand-500);
   outline: none;
 }
 
@@ -362,6 +311,7 @@
   .upload-panel-wide .upload-panel-dropzone {
     height: auto;
   }
+
 }
 
 @media (max-width: 560px) {
@@ -373,34 +323,7 @@
   .upload-panel-dropzone {
     padding: 20px 12px;
   }
-}
 
-/* ===== Upload View: category upload cards (legacy grid, kept in case reverted) ===== */
-
-.upload-card-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
-}
-
-@media (max-width: 1100px) {
-  .upload-card-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (max-width: 860px) {
-  .upload-card-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-  }
-}
-
-@media (max-width: 560px) {
-  .upload-card-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
 }
 
 .upload-card {
@@ -416,32 +339,14 @@
   .upload-card {
     padding: 16px;
   }
+
 }
 
 @media (max-width: 560px) {
   .upload-card {
     padding: 14px;
   }
-}
 
-.upload-card-icon {
-  font-size: 28px;
-  margin-bottom: 8px;
-}
-
-.upload-card-title {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 14px;
-  min-height: 36px;
-}
-
-@media (max-width: 560px) {
-  .upload-card-title {
-    font-size: 13px;
-    min-height: 0;
-  }
 }
 
 .upload-card-input-hidden {
@@ -469,16 +374,16 @@
 }
 
 .upload-dropzone:hover {
-  border-color: #00cec8;
+  border-color: var(--brand-500);
   background: rgba(0, 206, 200, 0.06);
-  color: #00a39d;
+  color: var(--brand-600);
 }
 
 .upload-dropzone-filled {
   border-style: solid;
-  border-color: #00cec8;
+  border-color: var(--brand-500);
   background: rgba(0, 206, 200, 0.08);
-  color: #00a39d;
+  color: var(--brand-600);
 }
 
 .upload-dropzone-text {
@@ -490,11 +395,11 @@
 }
 
 .upload-dropzone-filled .upload-dropzone-text {
-  color: #00a39d;
+  color: var(--brand-600);
 }
 
 .upload-dropzone:focus-within {
-  outline: 2px solid #00cec8;
+  outline: 2px solid var(--brand-500);
   outline-offset: 2px;
 }
 
@@ -511,37 +416,11 @@
   .upload-dropzone-text {
     font-size: 12px;
   }
-}
 
-/* ===== Barcode scanner ===== */
-
-.scan-input-row {
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
 }
 
 .scan-input-row .wh-modal-input {
   flex: 1;
-}
-
-.scan-icon-btn {
-  flex-shrink: 0;
-  width: 44px;
-  border: 1px solid #00cec8;
-  background: #ffffff;
-  color: #00cec8;
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.scan-icon-btn:hover {
-  background: #00cec8;
-  color: #ffffff;
 }
 
 .scanner-modal {
@@ -603,10 +482,6 @@
   object-fit: contain;
 }
 
-.upload-card-btn {
-  width: 100%;
-}
-
 .upload-card-msg {
   font-size: 12px;
   margin: 10px 0 0;
@@ -618,78 +493,6 @@
 
 .upload-card-msg-err {
   color: #b91c1c;
-}
-
-/* ===== TSF Operator: banner + stat cards ===== */
-
-.tsf-banner {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  background: linear-gradient(120deg, #0f172a, #134e4a);
-  border-radius: 14px;
-  padding: 22px 28px;
-  margin-bottom: 20px;
-  color: #ffffff;
-  overflow: hidden;
-}
-
-.tsf-banner-icon {
-  color: #5eead4;
-  flex-shrink: 0;
-}
-
-.tsf-banner-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.tsf-banner-eyebrow {
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  color: #5eead4;
-  text-transform: uppercase;
-}
-
-.tsf-banner-title {
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-}
-
-.tsf-stats-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 14px;
-  margin-bottom: 24px;
-}
-
-.tsf-stat-card {
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
-  padding: 16px 18px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.tsf-stat-icon {
-  font-size: 24px;
-}
-
-.tsf-stat-value {
-  font-size: 22px;
-  font-weight: 700;
-  color: #0f172a;
-  line-height: 1.1;
-}
-
-.tsf-stat-label {
-  font-size: 12px;
-  color: #64748b;
-  margin-top: 2px;
 }
 
 /* ===== TSF history: toolbar + pagination ===== */
@@ -779,6 +582,7 @@
   .tsf-detail-grid {
     grid-template-columns: 1fr;
   }
+
 }
 
 .tsf-detail-col label:first-child {
@@ -815,102 +619,9 @@
   padding: 20px 16px 36px;
 }
 
-.scan-hero-graphic {
-  background: linear-gradient(135deg, #0f172a, #134e4a);
-  border-radius: 18px;
-  padding: 36px 48px;
-  box-shadow: 0 20px 50px -15px rgba(15, 23, 42, 0.5);
-  margin-bottom: 18px;
-  animation: scanGlow 2.4s ease-in-out infinite;
-}
-
 @keyframes scanGlow {
   0%, 100% { box-shadow: 0 20px 50px -15px rgba(0, 206, 200, 0.25); }
   50% { box-shadow: 0 20px 60px -10px rgba(0, 206, 200, 0.55); }
-}
-
-.scan-hero-barcode {
-  width: 260px;
-  height: 70px;
-  color: #ffffff;
-}
-
-.scan-hero-label {
-  color: #5eead4;
-  font-weight: 800;
-  font-size: 18px;
-  letter-spacing: 0.15em;
-  margin-top: 10px;
-}
-
-.scan-hero-hint {
-  color: #64748b;
-  font-size: 14px;
-  margin: 4px 0 18px;
-}
-
-.scan-hero-form {
-  width: 100%;
-  max-width: 420px;
-}
-
-.scan-hero-input {
-  width: 100%;
-  box-sizing: border-box;
-  text-align: center;
-  font-size: 18px;
-  font-weight: 600;
-  padding: 16px 18px;
-  border: 2px solid #00cec8;
-  border-radius: 12px;
-  outline: none;
-  color: #0f172a;
-}
-
-.scan-hero-input:focus {
-  box-shadow: 0 0 0 4px rgba(0, 206, 200, 0.2);
-}
-
-/* ===== Part Confirmation: part-type select + two-step scan popup ===== */
-
-.pc-part-select-field {
-  width: 100%;
-  max-width: 320px;
-  text-align: left;
-  margin-bottom: 20px;
-}
-
-.pc-scan-popup {
-  max-width: 420px;
-}
-
-.pc-scan-steps {
-  display: flex;
-  gap: 10px;
-  margin: 14px 0 18px;
-}
-
-.pc-scan-step {
-  flex: 1;
-  text-align: center;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #f1f5f9;
-  color: #94a3b8;
-  font-size: 12.5px;
-  font-weight: 700;
-}
-
-.pc-scan-step-active,
-.pc-scan-step-done {
-  background: rgba(0, 206, 200, 0.12);
-  color: #00a39d;
-}
-
-@media (max-width: 560px) {
-  .pc-part-select-field {
-    max-width: 100%;
-  }
 }
 
 .scan-capture-card {
@@ -929,7 +640,7 @@
   font-size: 16px;
   font-weight: 600;
   padding: 12px 14px;
-  border: 2px solid #00cec8;
+  border: 2px solid var(--brand-500);
   border-radius: 10px;
   outline: none;
   color: #0f172a;
@@ -961,8 +672,18 @@
 }
 
 .scan-result-icon {
-  font-size: 48px;
-  margin-bottom: 8px;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 8px;
+  color: var(--brand-600);
+}
+
+/* การ์ดผลลัพธ์: PASS ใช้สีเขียว FAIL ใช้สีแดง (สื่อสถานะ ไม่ใช่สีแบรนด์) */
+.scan-result-pass .scan-result-icon {
+  color: #16a34a;
+}
+.scan-result-fail .scan-result-icon {
+  color: #dc2626;
 }
 
 .scan-result-title {
