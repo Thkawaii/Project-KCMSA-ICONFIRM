@@ -2,7 +2,8 @@ import Swal from 'sweetalert2'
 import 'sweetalert2/dist/sweetalert2.min.css'
 
 // สีธีมหลักของแอป (teal) — ใช้กับปุ่มใน SweetAlert ให้เข้ากับหน้าเว็บ
-const TEAL = '#0f9488'
+// สีปุ่ม/ฟอนต์ของ popup ถูกกำหนดไว้ที่ src/theme.css (.swal2-*) แล้ว
+// จึงไม่ต้องส่ง confirmButtonColor แบบ inline เข้ามาอีก
 
 /**
  * เปิด SweetAlert popup สำหรับสแกน 1 ช่อง
@@ -40,7 +41,6 @@ export async function scanStep({
     },
     customClass: { popup: 'scan-popup', input: 'scan-popup-input' },
     confirmButtonText: confirmText,
-    confirmButtonColor: TEAL,
     showCancelButton: true,
     cancelButtonText: cancelText,
     allowEnterKey: false, // จัดการ Enter เองด้านล่าง กันยิงซ้ำ
@@ -83,9 +83,9 @@ export async function scanSelect({ title, html = '', options }) {
     html,
     input: 'select',
     inputOptions,
+    customClass: { popup: 'scan-popup' },
     inputPlaceholder: 'เลือกชนิดพาร์ท',
     confirmButtonText: 'ต่อไป',
-    confirmButtonColor: TEAL,
     showCancelButton: true,
     cancelButtonText: 'ยกเลิก',
   })
@@ -127,6 +127,5 @@ export function scanErrorAlert(text) {
     title: 'เกิดข้อผิดพลาด',
     text,
     confirmButtonText: 'ตกลง',
-    confirmButtonColor: TEAL,
   })
 }

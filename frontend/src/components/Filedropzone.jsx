@@ -76,7 +76,9 @@ export default function FileDropZone({
       tabIndex={disabled ? -1 : 0}
       aria-label={label}
     >
-      <span className="fdz-icon">{file ? <FileBadge name={file.name} /> : <UploadIcon />}</span>
+      <span className={file ? 'fdz-badge ' + badgeTone(file.name) : 'fdz-icon'}>
+        {file ? extOf(file.name) : <UploadIcon />}
+      </span>
 
       <span className="fdz-body">
         {file ? (
@@ -87,10 +89,14 @@ export default function FileDropZone({
         ) : (
           <>
             <span className="fdz-label">{label}</span>
-            <span className="fdz-meta">{hint || `ลากไฟล์มาวาง หรือกดเพื่อเลือก`}</span>
+            <span className="fdz-meta">
+              {hint || (extensions.length ? `ลากไฟล์มาวาง หรือกดเพื่อเลือก · ${extensions.join(' / ')}` : 'ลากไฟล์มาวาง หรือกดเพื่อเลือก')}
+            </span>
           </>
         )}
       </span>
+
+      {!file && !disabled && <span className="fdz-cta">เลือกไฟล์</span>}
 
       {file && !disabled && (
         <button
@@ -128,10 +134,12 @@ function formatSize(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-function FileBadge({ name }) {
-  const ext = (name.split('.').pop() || '').toUpperCase()
-  const tone = ext === 'PDF' ? 'fdz-badge-pdf' : 'fdz-badge-xls'
-  return <span className={`fdz-badge ${tone}`}>{ext.slice(0, 4)}</span>
+function extOf(name) {
+  return (name.split('.').pop() || '').toUpperCase().slice(0, 4)
+}
+
+function badgeTone(name) {
+  return extOf(name) === 'PDF' ? 'fdz-badge-pdf' : 'fdz-badge-xls'
 }
 
 function UploadIcon() {
