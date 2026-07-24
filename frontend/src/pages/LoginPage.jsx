@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useAppNavigate } from '../lib/nav.jsx'
 import { login } from '../api/auth.js'
 import { toastSuccess } from '../lib/toast.js'
 import {
@@ -22,7 +22,7 @@ function resolveRoute(role) {
 }
 
 export default function LoginPage() {
-  const navigate = useNavigate()
+  const navigate = useAppNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)

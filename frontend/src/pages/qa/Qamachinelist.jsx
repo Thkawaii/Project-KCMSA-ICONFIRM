@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useAppNavigate } from '../../lib/nav.jsx'
 import AppShell from '../../components/AppShell.jsx'
 import BarcodeScannerModal from '../../components/Barcodescannermodal.jsx'
 import {
@@ -35,7 +35,7 @@ function dedupeByMachine(rows) {
 }
 
 export default function QAMachineList() {
-  const navigate = useNavigate()
+  const navigate = useAppNavigate()
 
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -128,7 +128,7 @@ export default function QAMachineList() {
   function handleScanDetected(decodedText) {
     setShowScanner(false)
     const machineNo = decodedText.trim()
-    if (machineNo) navigate(`/qa/machine/${encodeURIComponent(machineNo)}`)
+    if (machineNo) navigate('/qa/machine', { machineNo })
   }
 
   return (
@@ -270,7 +270,7 @@ export default function QAMachineList() {
                 <tr
                   key={row.MachineNo}
                   className="qa-clickable-row"
-                  onClick={() => navigate(`/qa/machine/${encodeURIComponent(row.MachineNo)}`)}
+                  onClick={() => navigate('/qa/machine', { machineNo: row.MachineNo })}
                 >
                   <td className="wh-cell-head" data-label="Machine">
                     <strong>{row.MachineNo}</strong>
