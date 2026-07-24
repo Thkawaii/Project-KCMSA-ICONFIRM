@@ -13,6 +13,7 @@ import (
 func main() {
 
 	config.ConnectDB()
+	config.MigratePlaintextPasswords()
 
 	r := gin.Default()
 
