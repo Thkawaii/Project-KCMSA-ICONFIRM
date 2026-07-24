@@ -1,0 +1,142 @@
+/* ============================================================
+   Import License — บัญชีแนบใบอนุญาตนำเข้า + ผลการเทียบตอนสแกน
+   ใช้ร่วมกัน 2 หน้า: Importlicensepage.jsx และ Whpartconfirmationpage.jsx
+   ============================================================ */
+
+/* ── เลขยาว 12/15 หลัก อ่านง่ายขึ้นด้วยฟอนต์ mono ─────────────────────── */
+.il-mono {
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  letter-spacing: 0.4px;
+}
+
+/* ── ป้ายสถานะ ───────────────────────────────────────────────────────── */
+.il-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.il-badge-ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.il-badge-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.il-badge-bad {
+  background: #fee2e2;
+  color: #b42318;
+}
+
+.il-badge-warn {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.il-badge-muted {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+/* ── ชิปเลือกล็อต (ใบอนุญาต + อินวอยซ์) ──────────────────────────────── */
+.il-lot-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 6px 0 18px;
+}
+
+.il-lot-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 16px;
+  border: 1px solid #d9dee3;
+  border-radius: 12px;
+  background: #fff;
+  color: #1f2d3d;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.il-lot-chip:hover {
+  border-color: #00cec8;
+}
+
+.il-lot-chip-active {
+  border-color: #0f9488;
+  box-shadow: 0 0 0 3px rgba(15, 148, 136, 0.15);
+}
+
+.il-lot-chip-done {
+  background: #f0fdf4;
+}
+
+.il-lot-chip-sub {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* ── แถบผลสแกนล่าสุด ─────────────────────────────────────────────────── */
+.il-result-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border-left: 5px solid #94a3b8;
+  background: #f8fafc;
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: #1f2d3d;
+}
+
+.il-result-ok {
+  border-left-color: #15803d;
+  background: #f0fdf4;
+}
+
+.il-result-bad {
+  border-left-color: #b42318;
+  background: #fef2f2;
+}
+
+.il-result-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+/* ── ไฮไลต์แถวที่เพิ่งสแกนโดน ────────────────────────────────────────── */
+.il-row-hit {
+  animation: il-hit-flash 6s ease-out;
+}
+
+@keyframes il-hit-flash {
+  0% {
+    background: #bbf7d0;
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* ── รายการปัญหาที่เจอตอนอัปโหลด ─────────────────────────────────────── */
+.il-problem-list {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #c2410c;
+  line-height: 1.7;
+}

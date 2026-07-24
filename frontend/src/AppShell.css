@@ -311,6 +311,59 @@
   width: 100%;
 }
 
+/* ── การ์ดอัปโหลดแบบเต็มความกว้าง (หน้า Upload Master Data) ─────────────────
+   ตัวเดิม max-width 420px ทำให้เหลือที่ว่างด้านขวาเกือบครึ่งจอ ไม่สมดุลกับ
+   แถวการ์ดสรุปด้านล่างที่กว้างเต็ม — ตัวนี้แบ่งเป็น ช่องวางไฟล์ | คำอธิบาย+ปุ่ม */
+.upload-panel-wide {
+  max-width: none;
+  text-align: left;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+  gap: 22px;
+  align-items: stretch;
+}
+
+.upload-panel-wide .upload-panel-dropzone {
+  margin-bottom: 0;
+  height: 100%;
+}
+
+.upload-panel-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.upload-panel-side .upload-panel-hint {
+  margin: 0;
+  flex: 1;
+}
+
+.upload-panel-hint-title {
+  display: block;
+  color: #0f172a;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+/* ข้อความผลลัพธ์ให้กินเต็มสองคอลัมน์ ไม่ไปเบียดอยู่ในช่องเดียว */
+.upload-panel-wide > .upload-card-msg {
+  grid-column: 1 / -1;
+  text-align: left;
+  margin: 0;
+}
+
+@media (max-width: 860px) {
+  .upload-panel-wide {
+    grid-template-columns: 1fr;
+  }
+
+  .upload-panel-wide .upload-panel-dropzone {
+    height: auto;
+  }
+}
+
 @media (max-width: 560px) {
   .upload-panel {
     padding: 20px;

@@ -2,9 +2,8 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './pages/LoginPage.jsx'
-import WarehousePage from './pages/Warehousepage.jsx'
+import ImportLicensePage from './pages/Importlicensepage.jsx'
 import WHPartConfirmationPage from './pages/Whpartconfirmationpage.jsx'
-import ITControllerPage from './pages/Itcontrollerpage.jsx'
 import DashboardPage from './pages/Dashboardpage.jsx'
 import TSFOperatorPage from './pages/Tsfoperatorpage.jsx'
 import TSFReceivePage from './pages/Tsfreceivepage.jsx'
@@ -16,6 +15,7 @@ import './styles.css'
 import './Warehouse.css'
 import './AppShell.css'
 import './Itcontroller.css'
+import './ImportLicense.css'
 import './Filedropzone.css'
 import './Selectfield.css'
 
@@ -24,9 +24,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/warehouse" element={<WarehousePage />} />
+
+        {/* Warehouse: อัปโหลดบัญชีใบอนุญาตนำเข้า -> สแกนยืนยันเทียบกับบัญชี
+            (หน้า "จ่ายของ FIFO & S/O" และ "IT Controller (กสทช.)" ถูกถอดออกแล้ว) */}
+        <Route path="/warehouse" element={<ImportLicensePage />} />
         <Route path="/warehouse/confirm" element={<WHPartConfirmationPage />} />
-        <Route path="/warehouse/it-controller" element={<ITControllerPage />} />
+
         <Route path="/tsf" element={<TSFOperatorPage />} />
         <Route path="/tsf/receive" element={<TSFReceivePage />} />
         <Route path="/upload" element={<UploadViewPage />} />
