@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -17,6 +18,11 @@ func jwtKeyFromEnv() []byte {
 	if v := os.Getenv("JWT_SECRET"); v != "" {
 		return []byte(v)
 	}
+
+	// ค่า default นี้ใช้ได้แค่ตอน dev เท่านั้น — ใครก็เดา key นี้ได้จาก source
+	// code นี้เอง ถ้าเอาไป deploy จริงโดยไม่ตั้ง JWT_SECRET แปลว่าใครก็ปลอม
+	// JWT token เป็น role ไหนก็ได้ (รวมถึง role UPLOAD ที่ลบข้อมูลได้)
+	log.Println("[WARNING] ไม่ได้ตั้ง env JWT_SECRET — ใช้ default key (ใช้ได้แค่ dev เท่านั้น ห้ามใช้ production)")
 	return []byte("iconfirm-secret-key")
 }
 

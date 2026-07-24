@@ -6,8 +6,54 @@ import (
 
 	"iconfirm/models"
 
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm/clause"
 )
+
+// hashPassword ใช้ bcrypt แปลง plaintext -> hash ก่อนเก็บลง DB เสมอ
+// (ห้ามเก็บ password เป็น plaintext แม้แต่ในข้อมูล seed สำหรับ dev)
+func hashPassword(plain string) string {
+	hash, err := bcrypt.GenerateFromPassword([]byte(plain), bcrypt.DefaultCost)
+	if err != nil {
+		// ไม่ควรเกิดขึ้นจริง (bcrypt.GenerateFromPassword พังแทบไม่มีทาง) แต่ถ้าพัง
+		// ให้ fail ดังๆ ตอน seed แทนที่จะแอบเก็บ plaintext ลง DB เงียบๆ
+		log.Fatalf("[seed] hash password ไม่สำเร็จ: %v", err)
+	}
+	return string(hash)
+}
+
+// MigratePlaintextPasswords แปลง password เก่าที่ยังเป็น plaintext อยู่ (จากก่อน
+// ที่ auth.go จะเปลี่ยนมาใช้ bcrypt) ให้เป็น bcrypt hash ทั้งหมด
+//
+// เช็คง่าย ๆ ว่า hash bcrypt ทุกตัวขึ้นต้นด้วย "$2a$"/"$2b$"/"$2y$" เสมอ
+// (plaintext ทั่วไปแบบ "wh.kobelco" ไม่มีทางขึ้นต้นแบบนี้) ถ้าเจอแถวไหนที่ยัง
+// ไม่ใช่ bcrypt hash ก็ hash แล้ว update กลับเข้าไปแทนที่ — รันซ้ำได้เรื่อย ๆ
+// ไม่มีผลข้างเคียง เพราะรอบถัดไปทุกแถวจะเป็น bcrypt hash แล้วเลยข้ามหมด
+func MigratePlaintextPasswords() {
+	var users []models.User
+	if err := DB.Find(&users).Error; err != nil {
+		log.Println("[migrate] อ่านรายชื่อ user ไม่สำเร็จ:", err)
+		return
+	}
+
+	migrated := 0
+	for _, u := range users {
+		if len(u.Password) >= 4 && (u.Password[:4] == "$2a$" || u.Password[:4] == "$2b$" || u.Password[:4] == "$2y$") {
+			continue
+		}
+
+		hashed := hashPassword(u.Password)
+		if err := DB.Model(&models.User{}).Where("id = ?", u.ID).Update("password", hashed).Error; err != nil {
+			log.Printf("[migrate] hash password ของ user id=%d ไม่สำเร็จ: %v\n", u.ID, err)
+			continue
+		}
+		migrated++
+	}
+
+	if migrated > 0 {
+		log.Printf("[migrate] แปลง plaintext password เป็น bcrypt hash แล้ว %d user\n", migrated)
+	}
+}
 
 func SeedData() {
 
@@ -23,28 +69,28 @@ func SeedData() {
 		{
 			RoleName: "QA",
 			Username: "qa@kobelco.com",
-			Password: "qa.kobelco",
+			Password: hashPassword("qa.kobelco"),
 			Status:   "Active",
 			Name:     "QA User",
 		},
 		{
 			RoleName: "WH",
 			Username: "wh@kobelco.com",
-			Password: "wh.kobelco",
+			Password: hashPassword("wh.kobelco"),
 			Status:   "Active",
 			Name:     "Warehouse User",
 		},
 		{
 			RoleName: "TSF",
 			Username: "mfg@kobelco.com",
-			Password: "mfg.kobelco",
+			Password: hashPassword("mfg.kobelco"),
 			Status:   "Active",
 			Name:     "MFG",
 		},
 		{
 			RoleName: "UPLOAD",
 			Username: "uploadview@kobelco.com",
-			Password: "uploadview.kobelco",
+			Password: hashPassword("uploadview.kobelco"),
 			Status:   "Active",
 			Name:     "Upload View",
 		},

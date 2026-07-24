@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type LoginRequest struct {
@@ -29,14 +30,29 @@ func Login(c *gin.Context) {
 
 	var user models.User
 
+	// ดึง user จาก username อย่างเดียวก่อน — ห้ามใส่ password ลง WHERE ตรงๆ
+	// เพราะเดิม DB เก็บ password เป็น plaintext เทียบแบบ string ตรงๆ ในนี้
+	// (ใครมีสิทธิ์อ่าน DB ก็เห็นรหัสผ่านจริงหมดทุกคน) ตอนนี้เปลี่ยนมาเก็บเป็น
+	// bcrypt hash แล้วเทียบด้วย bcrypt.CompareHashAndPassword แทน
 	err := config.DB.
-		Where("username = ? AND password = ?", req.Username, req.Password).
+		Where("username = ?", req.Username).
 		First(&user).Error
 
-	if err != nil {
+	// ข้อความ error ต้องเหมือนกันทั้งกรณี "ไม่มี username นี้" กับ "password ผิด"
+	// เพื่อไม่ให้เดา username ที่มีอยู่จริงในระบบได้จากข้อความตอบกลับ
+	invalidCreds := func() {
 		c.JSON(401, gin.H{
 			"message": "Username or Password incorrect",
 		})
+	}
+
+	if err != nil {
+		invalidCreds()
+		return
+	}
+
+	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)) != nil {
+		invalidCreds()
 		return
 	}
 
