@@ -1,7 +1,7 @@
-import { useNavigate } from 'react-router-dom'
+import { useAppNavigate } from '../lib/nav.jsx'
 
 export default function DashboardPage() {
-  const navigate = useNavigate()
+  const navigate = useAppNavigate()
 
   function handleLogout() {
     localStorage.removeItem('iconfirm_token')

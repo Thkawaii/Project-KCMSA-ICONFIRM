@@ -1,9 +1,10 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { useAppNavigate, useAppView } from '../lib/nav.jsx'
 import { logout } from '../api/auth.js'
 import { ArrowRightStartOnRectangleIcon } from './icons.jsx'
 
 export default function AppShell({ navItems, roleLabel, children }) {
-  const navigate = useNavigate()
+  const navigate = useAppNavigate()
+  const currentView = useAppView()
 
   const displayName = `${roleLabel} User`
   const initial = (roleLabel || 'U').trim().charAt(0).toUpperCase() || 'U'
@@ -39,17 +40,17 @@ export default function AppShell({ navItems, roleLabel, children }) {
       {navItems && navItems.length > 1 && (
         <nav className="shell-subnav" aria-label="เมนูภายในระบบ">
           {navItems.map((item) => (
-            <NavLink
+            <button
               key={item.to}
-              to={item.to}
-              end
-              className={({ isActive }) =>
-                'shell-subnav-item' + (isActive ? ' shell-subnav-item-active' : '')
+              type="button"
+              onClick={() => navigate(item.to)}
+              className={
+                'shell-subnav-item' + (currentView === item.to ? ' shell-subnav-item-active' : '')
               }
             >
               <span className="shell-subnav-icon">{item.icon}</span>
               {item.label}
-            </NavLink>
+            </button>
           ))}
         </nav>
       )}

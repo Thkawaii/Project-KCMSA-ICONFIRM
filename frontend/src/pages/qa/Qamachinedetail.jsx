@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useAppNavigate, useAppParams } from '../../lib/nav.jsx'
 import AppShell from '../../components/AppShell.jsx'
 import { getMachineSpecByMachineNo } from '../../api/Machinespeclookup.js'
 import {
@@ -20,8 +20,8 @@ import {
 const navItems = [{ to: '/qa', label: 'ตรวจสอบ QA', icon: <CheckCircleIcon className="size-4" /> }]
 
 export default function QAMachineDetail() {
-  const { machineNo } = useParams()
-  const navigate = useNavigate()
+  const { machineNo } = useAppParams()
+  const navigate = useAppNavigate()
 
   const [spec, setSpec] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -70,7 +70,7 @@ export default function QAMachineDetail() {
   return (
     <AppShell navItems={navItems} roleLabel="QA">
       <div className="qa-detail-topbar">
-        <button className="qa-back-btn" onClick={() => navigate(-1)}>
+        <button className="qa-back-btn" onClick={() => navigate('/qa')}>
           <ChevronLeftIcon className="size-4" /> กลับ
         </button>
         <button className="qa-download-btn" onClick={handleDownload}>
