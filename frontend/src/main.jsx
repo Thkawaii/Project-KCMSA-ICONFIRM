@@ -11,6 +11,7 @@ import UploadViewPage from './pages/UploadViewpage.jsx'
 import MasterDataPage from './pages/MasterDataPage.jsx'
 import QAMachineList from './pages/qa/Qamachinelist.jsx'
 import QAMachineDetail from './pages/qa/Qamachinedetail.jsx'
+import UiKitPage from './pages/UiKitPage.jsx'
 import './styles.css'
 import './Warehouse.css'
 import './AppShell.css'
@@ -18,6 +19,8 @@ import './Itcontroller.css'
 import './ImportLicense.css'
 import './Filedropzone.css'
 import './Selectfield.css'
+// theme.css = ชั้น Tailwind + ธีมใหม่ ต้องอยู่ท้ายสุดเสมอ (ทับสไตล์เก่า)
+import './theme.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -38,6 +41,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
         <Route path="/qa" element={<QAMachineList />} />
         <Route path="/qa/machine/:machineNo" element={<QAMachineDetail />} />
+
+        {/* หน้ารวมส่วนประกอบ UI ไว้ดู/คัดลอกคลาสตอนทำหน้าใหม่ */}
+        <Route path="/ui-kit" element={<UiKitPage />} />
 
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

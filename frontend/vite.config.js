@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 // https://vitejs.dev/config/
 //
@@ -9,7 +10,7 @@ import react from '@vitejs/plugin-react'
 // - proxy /api ด้านล่างเป็น "ทางเลือก" เผื่ออยากเรียกแบบ same-origin (/api/...)
 //   ปรับ target ให้ชี้ backend จริงของคุณได้ (default localhost:8080)
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   server: {
     host: '0.0.0.0',
     port: 9004,
