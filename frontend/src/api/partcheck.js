@@ -23,3 +23,8 @@ export function scanPartCheck({ machineTag, partType, pn, sn, productionNo = '',
     body: JSON.stringify({ machineTag, partType, pn, sn, productionNo, invoiceNo }),
   })
 }
+
+// ลบรายการประวัติการสแกน — backend อนุญาตเฉพาะรายการที่ "ไม่พบในใบอนุญาต" (NOT_FOUND)
+export function deletePartCheck(id) {
+  return apiFetch(`/part-check/${id}`, { method: 'DELETE' })
+}

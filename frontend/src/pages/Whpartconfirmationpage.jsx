@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getPartChecks, scanPartCheck } from '../api/partcheck.js'
-import { getImportLicenseItems, getImportLicenseSummary } from '../api/importLicense.js'
-import { scanStep, scanSelect, scanLoading, scanSuccessToast, scanErrorAlert } from '../lib/scanPopup.js'
+import { getPartChecks, scanPartCheck, deletePartCheck } from '../api/partcheck.js'
+import { getImportLicenseItems } from '../api/importLicense.js'
+import { scanStep, scanLoading, scanSuccessToast, scanErrorAlert } from '../lib/scanPopup.js'
+import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js'
 import {
   CheckIcon,
   ChevronDoubleLeftIcon,
@@ -76,8 +77,6 @@ export default function WHPartConfirmationPage() {
 
   // ── ตารางอ้างอิง: บัญชีใบอนุญาตนำเข้า ────────────────────────────────────
   const [licenseItems, setLicenseItems] = useState([])
-  const [lots, setLots] = useState([])
-  const [selectedLot, setSelectedLot] = useState('') // 'licenseNo|invoiceNo'
   const [licenseTab, setLicenseTab] = useState('all')
   const [highlightId, setHighlightId] = useState(null)
 
@@ -95,21 +94,14 @@ export default function WHPartConfirmationPage() {
   const busyRef = useRef(false)
   // เก็บฟังก์ชันจัดการเมื่อสแกนเนอร์ยิง (อัปเดตทุก render กัน closure ค้าง)
   const fireRef = useRef(() => {})
-  // อินวอยซ์ที่เลือกอยู่ ณ ตอนสแกน — flow เป็น async เลยต้องอ่านผ่าน ref
-  const invoiceRef = useRef('')
 
   async function loadRows() {
     setLoading(true)
     setLoadError('')
     try {
-      const [checks, items, summary] = await Promise.all([
-        getPartChecks(),
-        getImportLicenseItems(),
-        getImportLicenseSummary(),
-      ])
+      const [checks, items] = await Promise.all([getPartChecks(), getImportLicenseItems()])
       setRows(checks || [])
       setLicenseItems(items || [])
-      setLots(summary || [])
     } catch (err) {
       setLoadError(err.message || 'โหลดข้อมูลไม่สำเร็จ')
     } finally {
@@ -125,14 +117,30 @@ export default function WHPartConfirmationPage() {
     setPage(1)
   }, [dateTab, search, pageSize])
 
-  const [licenseNo, invoiceNo] = selectedLot ? selectedLot.split('|') : ['', '']
-  invoiceRef.current = invoiceNo
+  // ลบรายการประวัติการสแกน — กดได้เฉพาะแถวที่ผลเทียบเป็น "ไม่พบในใบอนุญาต" (NOT_FOUND)
+  async function handleDeleteCheck(row) {
+    const label = `${tagLabel(row.PartType)} — ${row.SN || row.PN || '#' + row.ID}`
+    const ok = await confirmDelete({ text: `ลบรายการสแกน ${label} ออกจากประวัติ? กู้คืนไม่ได้` })
+    if (!ok) return
+
+    try {
+      await deletePartCheck(row.ID)
+      toastSuccess(`ลบรายการ ${label} แล้ว`)
+      await loadRows()
+    } catch (err) {
+      toastError(err.message || 'ลบไม่สำเร็จ')
+    }
+  }
 
   // ── SCAN FLOW (SweetAlert) ───────────────────────────────────────────────
   // WH ไม่มี TAG เครื่อง — สแกน "หรือกรอก" แค่ P/N / S/N ของพาร์ทเท่านั้น
   // ITC: P/N + S/N -> ระบบเทียบกับ master data เพื่อดึงหมายเลขเครื่อง
   //      (IT Controller No.) -> ลิงก์อินวอยซ์ + เทียบบัญชีใบอนุญาตนำเข้า -> บันทึก
   // พาร์ทอื่น: S/N -> บันทึก (ไม่ต้องเทียบบัญชี)
+  //
+  // ไม่ต้องเลือก Invoice/ล็อตก่อนสแกนแล้ว — ระบบเทียบกับ "ทุกใบอนุญาต" ในบัญชี
+  // เสมอ โดยหาเครื่องจากหมายเลขเครื่องที่ดึงมาได้โดยตรง (ดู matchImportLicense
+  // ฝั่ง backend) จึงไม่มีแนวคิดล็อตที่ต้องเลือกไว้ล่วงหน้าอีกต่อไป
   async function runScanFlow(partTypeCode) {
     if (!partTypeCode || busyRef.current) return
     const part = PART_TYPES.find((t) => t.code === partTypeCode)
@@ -141,7 +149,6 @@ export default function WHPartConfirmationPage() {
     const partLabel = part.label
     const isITC = part.code === 'ITC'
     const needsPN = Boolean(part.needsPN)
-    const lotInvoice = invoiceRef.current
 
     busyRef.current = true
     try {
@@ -151,9 +158,7 @@ export default function WHPartConfirmationPage() {
         pn = await scanStep({
           title: `สแกน / กรอก P/N — ${partLabel}`,
           placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ P/N แล้วกดปุ่ม',
-          html: `<div class="scan-popup-hint">${
-            lotInvoice ? `ล็อตที่กำลังยืนยัน: <b>${lotInvoice}</b><br/>` : ''
-          }ยิงบาร์โค้ด หรือกรอก <b>P/N</b> ของ ${partLabel}</div>`,
+          html: `<div class="scan-popup-hint">ยิงบาร์โค้ด หรือกรอก <b>P/N</b> ของ ${partLabel}</div>`,
         })
         if (!pn) return
       }
@@ -184,7 +189,7 @@ export default function WHPartConfirmationPage() {
           pn: needsPN ? pn : '',
           sn,
           productionNo: '',
-          invoiceNo: lotInvoice,
+          invoiceNo: '', // ไม่มีล็อตให้เลือกแล้ว — เทียบกับทุกใบอนุญาตในบัญชีเสมอ
         })
 
         const check = res.check || res
@@ -224,35 +229,25 @@ export default function WHPartConfirmationPage() {
     }
   }
 
-  // ระบุชนิดพาร์ทจากข้อความบาร์โค้ดที่ยิงมา (คืน code หรือ '' ถ้าไม่รู้จัก)
+  // ระบุชนิดพาร์ทจากข้อความบาร์โค้ดที่ยิงมา
+  // ป้าย IT Controller เป็นแค่ตัวเลข P/N หรือ S/N ล้วนๆ ไม่มีคำอธิบายกำกับ (ต่างจาก
+  // พาร์ทอื่นที่มีคำเช่น SWING/PROPEL/PUMP/VALVE ปนอยู่ในเนื้อบาร์โค้ด) เลยตรวจไม่เจอ
+  // ด้วยคีย์เวิร์ดแบบพาร์ทอื่น — ให้ถือว่าเป็น ITC (พาร์ทหลักที่สแกนบ่อยที่สุด) เป็นค่า
+  // เริ่มต้นไปเลย ไม่ต้องเด้ง popup ให้เลือกชนิดพาร์ทอีก
   function detectPartType(raw) {
     const s = (raw || '').toUpperCase()
-    if (s.includes('IT CONTROLLER') || s.includes('ITC')) return 'ITC'
     if (s.includes('SWING')) return 'SM'
     if (s.includes('PROPEL')) return 'MP'
     if (s.includes('PUMP') || s.includes('HYD')) return 'PH'
     if (s.includes('CONTROL VALVE') || s.includes('VALVE')) return 'CV'
-    return ''
+    return 'ITC'
   }
 
-  // เมื่อสแกนเนอร์ยิง 1 ครั้ง: รู้พาร์ท -> เปิด flow, ไม่รู้ -> ให้เลือกพาร์ทเอง
+  // เมื่อสแกนเนอร์ยิง 1 ครั้ง: ระบุชนิดพาร์ทได้แล้วเสมอ (ดีฟอลต์เป็น ITC) -> เข้า flow ทันที
+  // ไม่ต้องเด้ง popup ให้เลือกชนิดพาร์ทอีกต่อไป
   async function handleScannerFire(code) {
     if (busyRef.current) return
-    let partType = detectPartType(code)
-    if (!partType) {
-      busyRef.current = true
-      try {
-        partType = await scanSelect({
-          title: 'เลือกชนิดพาร์ทที่จะยืนยัน',
-          html: `<div class="scan-popup-hint">บาร์โค้ดที่ยิง: <b>${code}</b><br/>ระบบระบุชนิดพาร์ทไม่ได้ กรุณาเลือกเอง</div>`,
-          options: PART_TYPES.map((t) => ({ value: t.code, label: t.label })),
-        })
-      } finally {
-        busyRef.current = false
-      }
-      if (!partType) return
-    }
-    runScanFlow(partType)
+    runScanFlow(detectPartType(code))
   }
 
   fireRef.current = handleScannerFire
@@ -307,34 +302,57 @@ export default function WHPartConfirmationPage() {
       }
     }
 
+    // ⭐ Fallback สำหรับสแกนเนอร์บางรุ่น (เช่น WinMax P307) ที่ "ไม่ได้พิมพ์ทีละตัวอักษร"
+    // แบบคีย์บอร์ดจริง แต่แทรกข้อความที่อ่านได้ทั้งก้อนเข้าไปในช่องที่โฟกัสอยู่ในทีเดียว
+    // (เช่นเครื่องสแกนที่เป็น Android/PDA ยิงผ่าน IME/"paste" แทนการจำลองปุ่มกด)
+    // — กรณีนี้ onKeydown ด้านบนจะไม่เห็นอะไรเลย เพราะไม่มี keydown ทีละตัวเกิดขึ้น
+    // จึงต้องดัก event 'input' เพิ่ม: ถ้ามีการแทรกข้อความยาว > 1 ตัวอักษรในจังหวะเดียว
+    // (คนพิมพ์เองจะได้ทีละตัวอักษรต่อ event เสมอ) ให้ถือว่าเป็นการยิงบาร์โค้ด
+    function onGlobalInput(e) {
+      if (busyRef.current) return
+      const inserted = typeof e.data === 'string' ? e.data : ''
+      const code = inserted.trim()
+      if (code.length < 2) return // ตัวอักษรเดียว/ไม่มีค่า -> น่าจะเป็นคนพิมพ์เอง ปล่อยผ่าน
+
+      // เอาข้อความที่เพิ่งแทรกออกจากช่องเดิม กันไม่ให้ไปปนกับค่าที่มีอยู่ก่อน
+      // (เช่น ช่องค้นหาประวัติการสแกน) เพราะช่องนั้นไม่ได้ตั้งใจรับบาร์โค้ดนี้
+      const target = e.target
+      if (target && typeof target.value === 'string') {
+        try {
+          target.value = target.value.slice(0, Math.max(0, target.value.length - inserted.length))
+        } catch {
+          /* ignore */
+        }
+      }
+
+      buffer = ''
+      fireRef.current(code)
+    }
+
     window.addEventListener('keydown', onKeydown)
+    window.addEventListener('input', onGlobalInput, true)
     return () => {
       window.removeEventListener('keydown', onKeydown)
+      window.removeEventListener('input', onGlobalInput, true)
       if (flushTimer) clearTimeout(flushTimer)
     }
   }, [])
 
-  // ── ตารางเทียบ: บัญชีใบอนุญาตของล็อตที่เลือก ─────────────────────────────
+  // ── ตารางเทียบ: บัญชีใบอนุญาตนำเข้าทั้งหมด ────────────────────────────────
   const licenseRows = useMemo(() => {
     let list = licenseItems
-    if (selectedLot) {
-      list = list.filter((r) => r.LicenseNo === licenseNo && r.InvoiceNo === invoiceNo)
-    }
     if (licenseTab === 'pending') list = list.filter((r) => r.ConfirmStatus !== 'CONFIRMED')
     if (licenseTab === 'confirmed') list = list.filter((r) => r.ConfirmStatus === 'CONFIRMED')
     return list
-  }, [licenseItems, selectedLot, licenseNo, invoiceNo, licenseTab])
+  }, [licenseItems, licenseTab])
 
   const licenseCounts = useMemo(() => {
-    const scope = selectedLot
-      ? licenseItems.filter((r) => r.LicenseNo === licenseNo && r.InvoiceNo === invoiceNo)
-      : licenseItems
     return {
-      total: scope.length,
-      confirmed: scope.filter((r) => r.ConfirmStatus === 'CONFIRMED').length,
-      pending: scope.filter((r) => r.ConfirmStatus !== 'CONFIRMED').length,
+      total: licenseItems.length,
+      confirmed: licenseItems.filter((r) => r.ConfirmStatus === 'CONFIRMED').length,
+      pending: licenseItems.filter((r) => r.ConfirmStatus !== 'CONFIRMED').length,
     }
-  }, [licenseItems, selectedLot, licenseNo, invoiceNo])
+  }, [licenseItems])
 
   // ── ประวัติการสแกน ───────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -452,44 +470,13 @@ export default function WHPartConfirmationPage() {
         </div>
       )}
 
-      {/* ── เลือกล็อตที่จะยืนยัน ────────────────────────────────────────── */}
-      {lots.length > 0 ? (
-        <div className="il-lot-row">
-          <button
-            className={'il-lot-chip' + (selectedLot === '' ? ' il-lot-chip-active' : '')}
-            onClick={() => setSelectedLot('')}
-          >
-            ทุกใบอนุญาต
-          </button>
-          {lots.map((s) => {
-            const key = `${s.LicenseNo}|${s.InvoiceNo}`
-            const done = s.Confirmed >= s.Total
-            return (
-              <button
-                key={key}
-                className={
-                  'il-lot-chip' +
-                  (selectedLot === key ? ' il-lot-chip-active' : '') +
-                  (done ? ' il-lot-chip-done' : '')
-                }
-                onClick={() => setSelectedLot(key)}
-              >
-                <strong>Invoice {s.InvoiceNo}</strong>
-                <span className="il-lot-chip-sub">
-                  {s.LicenseNo} · {s.Confirmed}/{s.Total} ยืนยันแล้ว
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      ) : (
+      {/* ── ตารางเทียบกับบัญชีใบอนุญาต ─────────────────────────────────── */}
+      {!loading && licenseItems.length === 0 && (
         <p className="wh-subtitle">
           ยังไม่มีบัญชีใบอนุญาตนำเข้าในระบบ — ไปที่เมนู <strong>Import License</strong>{' '}
           เพื่ออัปโหลดไฟล์ Excel ก่อน แล้วค่อยกลับมาสแกน
         </p>
       )}
-
-      {/* ── ตารางเทียบกับบัญชีใบอนุญาต ─────────────────────────────────── */}
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title" style={{ fontSize: 19 }}>
@@ -674,6 +661,14 @@ export default function WHPartConfirmationPage() {
                     <button className="tsf-action-btn" onClick={() => setDetailRow(r)}>
                       รายละเอียด
                     </button>
+                    {r.MatchStatus === 'NOT_FOUND' && (
+                      <button
+                        className="tsf-action-btn tsf-action-btn-danger"
+                        onClick={() => handleDeleteCheck(r)}
+                      >
+                        ลบ
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

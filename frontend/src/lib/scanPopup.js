@@ -62,6 +62,13 @@ export async function scanStep({
           if (input.value.trim()) Swal.clickConfirm()
         }
       })
+      // ⭐ สแกนเนอร์บางรุ่น (เช่น WinMax P307) แทรกข้อความที่อ่านได้ทั้งก้อนเข้าช่อง
+      // ในทีเดียวโดยไม่มี Enter ตามมา (ยิงผ่าน IME/paste ไม่ใช่จำลองปุ่มกดทีละตัว)
+      // ถ้าเจอการแทรกแบบนี้ (ยาวกว่า 1 ตัวอักษรในจังหวะเดียว) ให้ยืนยันให้อัตโนมัติ
+      input.addEventListener('input', (e) => {
+        const inserted = typeof e.data === 'string' ? e.data : ''
+        if (inserted.trim().length > 1 && input.value.trim()) Swal.clickConfirm()
+      })
     },
   })
 
