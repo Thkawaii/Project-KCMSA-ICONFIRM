@@ -42,7 +42,7 @@ func GetPartChecks(c *gin.Context) {
 }
 
 type ScanPartCheckRequest struct {
-	MachineTag string `json:"machineTag" binding:"required"`
+	MachineTag string `json:"machineTag"` // WH ไม่มี TAG เครื่อง — ปล่อยว่างได้
 	PartType   string `json:"partType" binding:"required"`
 	PN         string `json:"pn"`
 	SN         string `json:"sn" binding:"required"`
@@ -70,29 +70,21 @@ func ScanPartCheck(c *gin.Context) {
 		return
 	}
 
+	// WH ไม่มี TAG เครื่อง — ยิงแค่ P/N / S/N ของพาร์ท ดังนั้น machineTag ว่างได้
+	// ถ้ามี TAG ส่งมาและขึ้นต้นด้วย prefix ที่รู้จัก (เช่น MC-) ก็แยกเก็บ type/refNo ไว้ให้
 	rawTag := strings.TrimSpace(req.MachineTag)
-	if rawTag == "" {
-		c.JSON(400, gin.H{"message": "ไม่พบข้อมูล tag เครื่องที่สแกน"})
-		return
-	}
-
-	parts := strings.SplitN(rawTag, "-", 2)
 	tagType := ""
 	refNo := rawTag
 
-	if len(parts) == 2 {
-		prefix := strings.ToUpper(strings.TrimSpace(parts[0]))
-		if _, ok := tagTypeLabels[prefix]; ok {
-			tagType = prefix
-			refNo = strings.TrimSpace(parts[1])
+	if rawTag != "" {
+		parts := strings.SplitN(rawTag, "-", 2)
+		if len(parts) == 2 {
+			prefix := strings.ToUpper(strings.TrimSpace(parts[0]))
+			if _, ok := tagTypeLabels[prefix]; ok {
+				tagType = prefix
+				refNo = strings.TrimSpace(parts[1])
+			}
 		}
-	}
-
-	if tagType != "MC" {
-		c.JSON(400, gin.H{
-			"message": "รูปแบบ tag เครื่องไม่ถูกต้อง ต้องขึ้นต้นด้วย MC-",
-		})
-		return
 	}
 
 	partType := strings.ToUpper(strings.TrimSpace(req.PartType))
