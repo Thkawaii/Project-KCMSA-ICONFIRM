@@ -17,8 +17,8 @@ import AppShell from '../components/AppShell.jsx'
 import { WH_NAV_ITEMS } from './Importlicensepage.jsx'
 
 // รูปบาร์โค้ดอ้างอิงของแต่ละพาร์ท (Vite จะ bundle ให้อัตโนมัติ)
-import bcItcPn from '../assets/barcodes/IT_Controller_PN_.gif'
-import bcItcSn from '../assets/barcodes/IT_Controller_SN_.gif'
+// IT Controller ยุบรวมป้าย P/N + S/N เหลือใบเดียว ใช้รูปบาร์โค้ดตามที่ส่งมา
+import bcItc from '../assets/barcodes/IT_Controller.gif'
 import bcSwingSn from '../assets/barcodes/Swing_Motor__SN_.gif'
 import bcPumpSn from '../assets/barcodes/Pump_Assy_HYD__SN_.gif'
 import bcMotorSn from '../assets/barcodes/Motor_Propel__SN_.gif'
@@ -62,8 +62,7 @@ function matchBadge(status) {
 
 // การ์ดบาร์โค้ดที่โชว์บนหน้า Part Confirmation (ตามรูป label จริง)
 const BARCODE_CARDS = [
-  { partType: 'ITC', title: 'IT Controller P/N', img: bcItcPn, kind: 'P/N' },
-  { partType: 'ITC', title: 'IT Controller S/N', img: bcItcSn, kind: 'S/N' },
+  { partType: 'ITC', title: 'IT Controller', img: bcItc, kind: 'P/N + S/N' },
   { partType: 'SM', title: 'Swing Motor S/N', img: bcSwingSn, kind: 'S/N' },
   { partType: 'PH', title: 'Pump Assy HYD S/N', img: bcPumpSn, kind: 'S/N' },
   { partType: 'MP', title: 'Motor Propel S/N', img: bcMotorSn, kind: 'S/N' },
@@ -130,8 +129,9 @@ export default function WHPartConfirmationPage() {
   invoiceRef.current = invoiceNo
 
   // ── SCAN FLOW (SweetAlert) ───────────────────────────────────────────────
-  // WH ไม่มี TAG เครื่อง — สแกนแค่ P/N / S/N ของพาร์ทเท่านั้น
-  // ITC: P/N -> หมายเลขเครื่อง (S/N 12 หลัก) -> เทียบกับบัญชี + บันทึก
+  // WH ไม่มี TAG เครื่อง — สแกน "หรือกรอก" แค่ P/N / S/N ของพาร์ทเท่านั้น
+  // ITC: P/N + S/N -> ระบบเทียบกับ master data เพื่อดึงหมายเลขเครื่อง
+  //      (IT Controller No.) -> ลิงก์อินวอยซ์ + เทียบบัญชีใบอนุญาตนำเข้า -> บันทึก
   // พาร์ทอื่น: S/N -> บันทึก (ไม่ต้องเทียบบัญชี)
   async function runScanFlow(partTypeCode) {
     if (!partTypeCode || busyRef.current) return
@@ -145,25 +145,31 @@ export default function WHPartConfirmationPage() {
 
     busyRef.current = true
     try {
-      // 1) สแกน P/N (เฉพาะพาร์ทที่ต้องมี P/N เช่น IT Controller)
+      // 1) สแกน "หรือกรอก" P/N (เฉพาะพาร์ทที่ต้องมี P/N เช่น IT Controller)
       let pn = ''
       if (needsPN) {
         pn = await scanStep({
-          title: `สแกน P/N — ${partLabel}`,
+          title: `สแกน / กรอก P/N — ${partLabel}`,
+          placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ P/N แล้วกดปุ่ม',
           html: `<div class="scan-popup-hint">${
             lotInvoice ? `ล็อตที่กำลังยืนยัน: <b>${lotInvoice}</b><br/>` : ''
-          }ยิงบาร์โค้ด <b>P/N</b> ของ ${partLabel}</div>`,
+          }ยิงบาร์โค้ด หรือกรอก <b>P/N</b> ของ ${partLabel}</div>`,
         })
         if (!pn) return
       }
 
-      // 2) สแกนหมายเลขเครื่อง (ITC) หรือ S/N (พาร์ทอื่น) -> ขั้นสุดท้าย บันทึกเลย
+      // 2) สแกน "หรือกรอก" S/N -> ขั้นสุดท้าย บันทึกเลย
+      //    ITC: ระบบจะเอา P/N + S/N ไปเทียบ master data เพื่อดึงหมายเลขเครื่อง
+      //         (IT Controller) แล้วลิงก์อินวอยซ์ + เทียบบัญชีใบอนุญาตนำเข้าให้เอง
       const sn = await scanStep({
-        title: isITC ? 'สแกนหมายเลขเครื่อง (12 หลัก)' : `สแกน S/N — ${partLabel}`,
+        title: `สแกน / กรอก S/N — ${partLabel}`,
+        placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ S/N แล้วกดปุ่ม',
         html: `<div class="scan-popup-hint">${
           needsPN ? `P/N: <b>${pn}</b><br/>` : ''
-        }ยิงบาร์โค้ด <b>${isITC ? 'หมายเลขเครื่อง' : 'S/N'}</b> ของ ${partLabel}${
-          isITC ? '<br/>ระบบจะเทียบกับบัญชีใบอนุญาตนำเข้าให้ทันที' : ''
+        }ยิงบาร์โค้ด หรือกรอก <b>S/N</b> ของ ${partLabel}${
+          isITC
+            ? '<br/>ระบบจะเทียบกับ <b>master data</b> เพื่อดึงหมายเลขเครื่อง (IT Controller) แล้วเทียบใบอนุญาตนำเข้าให้ทันที'
+            : ''
         }</div>`,
         confirmText: 'บันทึก',
       })
@@ -188,7 +194,8 @@ export default function WHPartConfirmationPage() {
           partType: check.PartType || partTypeCode,
           pn: needsPN ? pn : '',
           sn,
-          productionNo: '',
+          machineNo: check.MachineNo || '',
+          productionNo: check.ProductionNo || '',
           matchStatus: check.MatchStatus,
           message: check.MatchMessage || res.message,
           at: check.CheckedDatetime || new Date().toISOString(),
@@ -351,6 +358,7 @@ export default function WHPartConfirmationPage() {
           (r.Tag || '').toLowerCase().includes(term) ||
           (r.PN || '').toLowerCase().includes(term) ||
           (r.SN || '').toLowerCase().includes(term) ||
+          (r.MachineNo || '').toLowerCase().includes(term) ||
           (r.CheckedBy || '').toLowerCase().includes(term)
       )
     }
@@ -423,8 +431,14 @@ export default function WHPartConfirmationPage() {
                 · P/N <span className="il-mono">{lastScan.pn}</span>
               </>
             ) : null}{' '}
-            · {lastScan.partType === 'ITC' ? 'หมายเลขเครื่อง' : 'S/N'}{' '}
-            <span className="il-mono">{lastScan.sn}</span>
+            · S/N <span className="il-mono">{lastScan.sn}</span>
+            {lastScan.machineNo ? (
+              <>
+                {' '}
+                · หมายเลขเครื่อง (IT Controller){' '}
+                <span className="il-mono">{lastScan.machineNo}</span>
+              </>
+            ) : null}
             {lastScan.productionNo ? (
               <>
                 {' '}
@@ -625,6 +639,7 @@ export default function WHPartConfirmationPage() {
               <th>Part</th>
               <th>P/N</th>
               <th>S/N</th>
+              <th>หมายเลขเครื่อง (IT Controller)</th>
               <th>ผลเทียบใบอนุญาต</th>
               <th>Checked By</th>
               <th>วันที่</th>
@@ -634,7 +649,7 @@ export default function WHPartConfirmationPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={7} className="wh-empty-cell">
+                <td colSpan={8} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -646,8 +661,11 @@ export default function WHPartConfirmationPage() {
                     <strong>{tagLabel(r.PartType)}</strong>
                   </td>
                   <td data-label="P/N">{r.PN || '—'}</td>
-                  <td className="il-mono" data-label="หมายเลขเครื่อง / S/N">
+                  <td className="il-mono" data-label="S/N">
                     {r.SN || '—'}
+                  </td>
+                  <td className="il-mono" data-label="หมายเลขเครื่อง (IT Controller)">
+                    {r.MachineNo || '—'}
                   </td>
                   <td data-label="ผลเทียบใบอนุญาต">{matchBadge(r.MatchStatus)}</td>
                   <td data-label="Checked By">{r.CheckedBy}</td>
@@ -661,7 +679,7 @@ export default function WHPartConfirmationPage() {
               ))}
             {!loading && paged.length === 0 && (
               <tr>
-                <td colSpan={7} className="wh-empty-cell">
+                <td colSpan={8} className="wh-empty-cell">
                   ยังไม่มีรายการตรวจสอบ
                 </td>
               </tr>
@@ -715,8 +733,11 @@ export default function WHPartConfirmationPage() {
               <p className="wh-modal-line">Machine TAG: {detailRow.Tag}</p>
             ) : null}
             <p className="wh-modal-line">P/N: {detailRow.PN || '—'}</p>
-            <p className="wh-modal-line">หมายเลขเครื่อง / S/N: {detailRow.SN || '—'}</p>
-            <p className="wh-modal-line">หมายเลขการผลิต: {detailRow.ProductionNo || '—'}</p>
+            <p className="wh-modal-line">S/N: {detailRow.SN || '—'}</p>
+            <p className="wh-modal-line">
+              หมายเลขเครื่อง (IT Controller): {detailRow.MachineNo || '—'}
+            </p>
+            <p className="wh-modal-line">หมายเลขการผลิต (IMEI): {detailRow.ProductionNo || '—'}</p>
             <p className="wh-modal-line">ใบอนุญาตนำเข้า: {detailRow.LicenseNo || '—'}</p>
             <p className="wh-modal-line">อินวอยซ์: {detailRow.InvoiceNo || '—'}</p>
             <p className="wh-modal-line">

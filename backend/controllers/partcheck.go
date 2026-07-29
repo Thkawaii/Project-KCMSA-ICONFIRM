@@ -41,6 +41,55 @@ func GetPartChecks(c *gin.Context) {
 	c.JSON(200, rows)
 }
 
+// resolveITControllerMaster ค้นทะเบียนกลาง (MasterData) ด้วย P/N + S/N ที่ WH
+// สแกน/กรอกเข้ามา แล้วคืนแถวที่ตรง เพื่อดึง "หมายเลขเครื่อง" (IT Controller No.)
+// และ IMEI ออกมาใช้ต่อ
+//
+// ลำดับการค้น (กันสแกนผิดช่อง / เผื่อ flow เก่าที่ยิงหมายเลขเครื่องตรง ๆ):
+//  1. ตรงทั้ง P/N และ S/N  — แม่นที่สุด
+//  2. ตรง S/N อย่างเดียว     — P/N ของ IT Controller ล็อตเดียวกันมักซ้ำกัน
+//  3. ตรง IT Controller No. หรือ IMEI — เผื่อยิงหมายเลขเครื่อง/IMEI มาที่ช่อง S/N
+func resolveITControllerMaster(pn, sn string) *models.MasterData {
+	sn = strings.TrimSpace(sn)
+	if sn == "" {
+		return nil
+	}
+	pn = strings.TrimSpace(pn)
+
+	var m models.MasterData
+
+	// 1) P/N + S/N ตรงกันทั้งคู่
+	if pn != "" {
+		if err := config.DB.
+			Where("part_no = ? AND serial_no = ?", pn, sn).
+			First(&m).Error; err == nil {
+			return &m
+		}
+	}
+
+	// 2) S/N อย่างเดียว
+	if err := config.DB.Where("serial_no = ?", sn).First(&m).Error; err == nil {
+		return &m
+	}
+
+	// 3) เผื่อยิงหมายเลขเครื่อง / IMEI มาที่ช่อง S/N
+	if err := config.DB.
+		Where("it_controller_no = ? OR imei = ?", sn, sn).
+		First(&m).Error; err == nil {
+		return &m
+	}
+
+	return nil
+}
+
+// derefStr คืนค่า string จาก *string (nil -> "")
+func derefStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return strings.TrimSpace(*p)
+}
+
 type ScanPartCheckRequest struct {
 	MachineTag string `json:"machineTag"` // WH ไม่มี TAG เครื่อง — ปล่อยว่างได้
 	PartType   string `json:"partType" binding:"required"`
@@ -125,22 +174,49 @@ func ScanPartCheck(c *gin.Context) {
 		UserID:          userID,
 	}
 
-	// ── ใจกลางของฟีเจอร์: ITC ต้องตรงกับบัญชีใบอนุญาตนำเข้า ──────────────
+	// ── ใจกลางของฟีเจอร์: ITC ยิง/กรอกแค่ P/N + S/N ────────────────────────
+	// 1) เอา P/N + S/N ไปเทียบกับ master data เพื่อ "ดึงหมายเลขเครื่อง"
+	//    (IT Controller No.) และ IMEI ออกมา
+	// 2) เอาหมายเลขเครื่องที่ได้ไปลิงก์กับอินวอยซ์ + เทียบบัญชีใบอนุญาตนำเข้า
+	//    ผลเทียบจะขึ้นในตาราง WH ให้อัตโนมัติ
 	var matchedItem *models.ImportLicenseItem
 
 	if partType == "ITC" {
-		status, message, item := matchImportLicense(sn, invoiceNo, productionNo)
+		master := resolveITControllerMaster(check.PN, sn)
 
-		check.MatchStatus = status
-		check.MatchMessage = message
-
-		if item != nil {
-			check.ImportLicenseItemID = &item.ID
-			check.LicenseNo = item.LicenseNo
-			if check.InvoiceNo == "" {
-				check.InvoiceNo = item.InvoiceNo
+		if master == nil {
+			// หา P/N + S/N นี้ในทะเบียนกลางไม่เจอ — บันทึกไว้เป็นหลักฐานว่าไม่ตรง
+			check.MatchStatus = models.MatchStatusNotFound
+			check.MatchMessage = "ไม่พบ S/N " + sn + " ใน master data (ทะเบียนกลาง)"
+		} else {
+			// ดึงหมายเลขเครื่อง (IT Controller No.) + IMEI จากทะเบียนกลาง
+			machineNo := derefStr(master.ITControllerNo)
+			imei := derefStr(master.IMEI)
+			check.MachineNo = machineNo
+			if productionNo == "" {
+				check.ProductionNo = imei
 			}
-			matchedItem = item
+
+			if machineNo == "" {
+				check.MatchStatus = models.MatchStatusNotFound
+				check.MatchMessage = "S/N " + sn + " ไม่มีหมายเลขเครื่อง (IT Controller) ในทะเบียนกลาง"
+			} else {
+				// เทียบบัญชีใบอนุญาตนำเข้าด้วย "หมายเลขเครื่อง" ที่ดึงมาได้
+				status, message, item := matchImportLicense(machineNo, invoiceNo, "")
+
+				check.MatchStatus = status
+				check.MatchMessage = message
+
+				if item != nil {
+					check.ImportLicenseItemID = &item.ID
+					check.LicenseNo = item.LicenseNo
+					// อินวอยซ์ลิงก์ตามหมายเลขเครื่องที่จับคู่ได้ในบัญชี
+					if check.InvoiceNo == "" {
+						check.InvoiceNo = item.InvoiceNo
+					}
+					matchedItem = item
+				}
+			}
 		}
 	}
 
