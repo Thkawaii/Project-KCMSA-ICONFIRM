@@ -90,6 +90,7 @@ export default function WHPartConfirmationPage() {
   // ── ตารางอ้างอิง: บัญชีใบอนุญาตนำเข้า ────────────────────────────────────
   const [licenseItems, setLicenseItems] = useState([])
   const [licenseTab, setLicenseTab] = useState('all')
+  const [licenseModel, setLicenseModel] = useState('all') // ตัวกรอง แบบ/รุ่น
   const [highlightId, setHighlightId] = useState(null)
 
   // ผลสแกนล่าสุด (ไว้โชว์แถบสรุปบนหน้า)
@@ -97,6 +98,7 @@ export default function WHPartConfirmationPage() {
 
   const [dateTab, setDateTab] = useState('all')
   const [search, setSearch] = useState('')
+  const [matchFilter, setMatchFilter] = useState('all') // ตัวกรอง ผลเทียบใบอนุญาต
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
 
@@ -127,7 +129,7 @@ export default function WHPartConfirmationPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [dateTab, search, pageSize])
+  }, [dateTab, search, matchFilter, pageSize])
 
   // ลบรายการประวัติการสแกน — กดได้เฉพาะแถวที่ผลเทียบเป็น "ไม่พบในใบอนุญาต" (NOT_FOUND)
   async function handleDeleteCheck(row) {
@@ -359,8 +361,18 @@ export default function WHPartConfirmationPage() {
     let list = licenseItems
     if (licenseTab === 'pending') list = list.filter((r) => r.ConfirmStatus !== 'CONFIRMED')
     if (licenseTab === 'confirmed') list = list.filter((r) => r.ConfirmStatus === 'CONFIRMED')
+    if (licenseModel !== 'all') list = list.filter((r) => (r.Model || '') === licenseModel)
     return list
-  }, [licenseItems, licenseTab])
+  }, [licenseItems, licenseTab, licenseModel])
+
+  // รายชื่อ แบบ/รุ่น ที่มีอยู่จริงในบัญชี (ไว้ทำตัวเลือกใน dropdown กรอง)
+  const licenseModelOptions = useMemo(() => {
+    const set = new Set()
+    licenseItems.forEach((r) => {
+      if (r.Model) set.add(r.Model)
+    })
+    return Array.from(set).sort()
+  }, [licenseItems])
 
   const licenseCounts = useMemo(() => {
     return {
@@ -385,6 +397,10 @@ export default function WHPartConfirmationPage() {
       })
     }
 
+    if (matchFilter !== 'all') {
+      list = list.filter((r) => r.MatchStatus === matchFilter)
+    }
+
     const term = search.trim().toLowerCase()
     if (term) {
       list = list.filter(
@@ -398,7 +414,7 @@ export default function WHPartConfirmationPage() {
     }
 
     return list
-  }, [rows, dateTab, search])
+  }, [rows, dateTab, search, matchFilter])
 
   const mismatchCount = useMemo(
     () => rows.filter((r) => r.PartType === 'ITC' && r.MatchStatus && r.MatchStatus !== 'MATCH').length,
@@ -516,6 +532,20 @@ export default function WHPartConfirmationPage() {
         </div>
       </div>
 
+      <div className="tsf-history-toolbar">
+        <label className="tsf-history-pagesize">
+          แบบ/รุ่น
+          <select value={licenseModel} onChange={(e) => setLicenseModel(e.target.value)}>
+            <option value="all">ทั้งหมด</option>
+            {licenseModelOptions.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       <div className="wh-table-card">
         <table className="wh-table">
           <thead>
@@ -542,10 +572,10 @@ export default function WHPartConfirmationPage() {
               </tr>
             )}
             {!loading &&
-              licenseRows.map((r) => (
+              licenseRows.map((r, idx) => (
                 <tr key={r.ID} className={highlightId === r.ID ? 'il-row-hit' : ''}>
                   <td className="wh-cell-head" data-label="ลำดับ">
-                    {r.ItemNo || '—'}
+                    {idx + 1}
                   </td>
                   <td data-label="แบบ/รุ่น">{r.Model || '—'}</td>
                   <td data-label="ใบอนุญาตนำเข้า">{r.LicenseNo || '—'}</td>
@@ -617,15 +647,25 @@ export default function WHPartConfirmationPage() {
       </div>
 
       <div className="tsf-history-toolbar">
-        <label className="tsf-history-pagesize">
-          <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
-            <option value={10}>10</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
-          entries per page
-        </label>
+        <div className="wh-history-filters">
+          <label className="tsf-history-pagesize">
+            <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            entries per page
+          </label>
+          <label className="tsf-history-pagesize">
+            ผลเทียบใบอนุญาต
+            <select value={matchFilter} onChange={(e) => setMatchFilter(e.target.value)}>
+              <option value="all">ทั้งหมด</option>
+              <option value="MATCH">ตรงกับใบอนุญาต</option>
+              <option value="NOT_FOUND">ไม่พบในใบอนุญาต</option>
+            </select>
+          </label>
+        </div>
         <input
           className="wh-search"
           type="text"

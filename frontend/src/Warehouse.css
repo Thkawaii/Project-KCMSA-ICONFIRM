@@ -1214,3 +1214,11 @@
   grid-template-columns: minmax(0, 560px);
   justify-content: center;
 }
+
+/* ===== ตัวกรองในแถบเครื่องมือประวัติการสแกน (จัดกลุ่มชิดซ้าย) ===== */
+.wh-history-filters {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
