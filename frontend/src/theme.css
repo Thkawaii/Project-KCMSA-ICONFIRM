@@ -474,6 +474,17 @@
   transform: translateY(1px);
 }
 
+/* ปุ่มอันตราย: ลบรายการประวัติการสแกนที่ไม่พบในใบอนุญาต */
+.tsf-action-btn-danger,
+.tsf-action-btn-danger:hover:not(:disabled),
+.tsf-action-btn-danger:active:not(:disabled) {
+  background: var(--color-bad-500);
+  color: #fff;
+}
+.tsf-action-btn-danger:hover:not(:disabled) {
+  background: var(--color-bad-700);
+}
+
 /* ปุ่มอันตราย: แจ้งไม่ผ่าน */
 .qa-fail-btn {
   border-radius: 12px;

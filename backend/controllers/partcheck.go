@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +40,42 @@ func GetPartChecks(c *gin.Context) {
 	query.Find(&rows)
 
 	c.JSON(200, rows)
+}
+
+// DeletePartCheck ลบรายการประวัติการสแกน 1 รายการ
+//
+// จำกัดไว้เฉพาะรายการที่ผลเทียบเป็น NOT_FOUND (ไม่พบในใบอนุญาต/ทะเบียนกลาง)
+// เพราะรายการที่ตรงกับบัญชีแล้ว (MATCH) ลบไม่ได้ — ต้องคงหลักฐานการยืนยันไว้
+// ส่วน NOT_FOUND มักเกิดจากสแกนผิด/ยิงเบอร์ผิด จึงให้ลบทิ้งเพื่อความสะอาดของ
+// ประวัติได้ โดยยังคงบันทึกลง Audit Log ไว้เผื่อตรวจสอบย้อนหลัง
+func DeletePartCheck(c *gin.Context) {
+
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(400, gin.H{"message": "id ไม่ถูกต้อง"})
+		return
+	}
+
+	var row models.PartCheck
+	if err := config.DB.First(&row, id).Error; err != nil {
+		c.JSON(404, gin.H{"message": "ไม่พบรายการนี้"})
+		return
+	}
+
+	if row.MatchStatus != models.MatchStatusNotFound {
+		c.JSON(400, gin.H{"message": "ลบได้เฉพาะรายการที่ไม่พบในใบอนุญาตเท่านั้น"})
+		return
+	}
+
+	if err := config.DB.Delete(&models.PartCheck{}, id).Error; err != nil {
+		c.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	userID, name := lookupUserName(c)
+	CreateAuditLog("PART_CHECK", row.ID, "delete", row.PartType+"/"+row.SN, userID, name)
+
+	c.JSON(200, gin.H{"deleted": true})
 }
 
 // resolveITControllerMaster ค้นทะเบียนกลาง (MasterData) ด้วย P/N + S/N ที่ WH

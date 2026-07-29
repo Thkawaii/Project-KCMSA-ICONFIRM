@@ -56,6 +56,7 @@ func SetupRoutes(r *gin.Engine) {
 	{
 		partCheck.GET("", controllers.GetPartChecks)
 		partCheck.POST("", controllers.ScanPartCheck)
+		partCheck.DELETE("/:id", controllers.DeletePartCheck)
 	}
 
 	// ─────────────────────────────────────────────────────────────────────
