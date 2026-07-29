@@ -111,7 +111,7 @@ export default function MasterDataPage() {
 
   async function handleUpload() {
     if (!pendingFile) {
-      setUploadMsg({ error: 'กรุณาเลือกไฟล์ Excel ก่อน' })
+      setUploadMsg({ error: 'กรุณาเลือกไฟล์ Excel หรือ CSV ก่อน' })
       return
     }
 
@@ -211,16 +211,16 @@ export default function MasterDataPage() {
             id="md-file"
             ref={fileInputRef}
             type="file"
-            accept=".xlsx,.xls"
+            accept=".xlsx,.xls,.csv"
             onChange={handleFileChange}
             className="upload-card-input-hidden"
           />
           <CloudArrowUpIcon className="size-[26px]" />
           <span className="upload-dropzone-text">
-            {pendingFile ? pendingFile.name : 'คลิกเพื่อเลือกไฟล์ Excel'}
+            {pendingFile ? pendingFile.name : 'คลิกเพื่อเลือกไฟล์ Excel หรือ CSV'}
           </span>
           <span className="upload-dropzone-hint">
-            .xlsx, .xls
+            .xlsx, .xls, .csv
           </span>
         </label>
 
