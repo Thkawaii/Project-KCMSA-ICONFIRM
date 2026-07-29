@@ -624,7 +624,7 @@ export default function WHPartConfirmationPage() {
             <tr>
               <th>Part</th>
               <th>P/N</th>
-              <th>หมายเลขเครื่อง / S/N</th>
+              <th>S/N</th>
               <th>ผลเทียบใบอนุญาต</th>
               <th>Checked By</th>
               <th>วันที่</th>
