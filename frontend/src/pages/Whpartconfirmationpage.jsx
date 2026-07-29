@@ -130,8 +130,9 @@ export default function WHPartConfirmationPage() {
   invoiceRef.current = invoiceNo
 
   // ── SCAN FLOW (SweetAlert) ───────────────────────────────────────────────
-  // ITC: TAG เครื่อง -> P/N -> หมายเลขเครื่อง -> (หมายเลขการผลิต) -> เทียบ + บันทึก
-  // พาร์ทอื่น: TAG เครื่อง -> S/N -> บันทึก (ไม่ต้องเทียบบัญชี)
+  // WH ไม่มี TAG เครื่อง — สแกนแค่ P/N / S/N ของพาร์ทเท่านั้น
+  // ITC: P/N -> หมายเลขเครื่อง (S/N 12 หลัก) -> เทียบกับบัญชี + บันทึก
+  // พาร์ทอื่น: S/N -> บันทึก (ไม่ต้องเทียบบัญชี)
   async function runScanFlow(partTypeCode) {
     if (!partTypeCode || busyRef.current) return
     const part = PART_TYPES.find((t) => t.code === partTypeCode)
@@ -144,71 +145,50 @@ export default function WHPartConfirmationPage() {
 
     busyRef.current = true
     try {
-      // 1) สแกน TAG เครื่อง (ต้องขึ้นต้นด้วย MC-)
-      const machineTag = await scanStep({
-        title: `สแกน TAG เครื่อง — ${partLabel}`,
-        html: `<div class="scan-popup-hint"><b>${partLabel}</b> · ยิงบาร์โค้ด TAG เครื่อง (ขึ้นต้นด้วย <b>MC-</b>)${
-          lotInvoice ? `<br/>ล็อตที่กำลังยืนยัน: <b>${lotInvoice}</b>` : ''
-        }</div>`,
-        placeholder: 'MC-...',
-        validate: (v) => (/^MC-/i.test(v) ? null : 'รูปแบบ TAG เครื่องไม่ถูกต้อง ต้องขึ้นต้นด้วย MC-'),
-      })
-      if (!machineTag) return // ยกเลิก
-
-      // 2) สแกน P/N (เฉพาะพาร์ทที่ต้องมี P/N เช่น IT Controller)
+      // 1) สแกน P/N (เฉพาะพาร์ทที่ต้องมี P/N เช่น IT Controller)
       let pn = ''
       if (needsPN) {
         pn = await scanStep({
           title: `สแกน P/N — ${partLabel}`,
-          html: `<div class="scan-popup-hint">TAG เครื่อง: <b>${machineTag}</b><br/>ยิงบาร์โค้ด <b>P/N</b> ของ ${partLabel}</div>`,
+          html: `<div class="scan-popup-hint">${
+            lotInvoice ? `ล็อตที่กำลังยืนยัน: <b>${lotInvoice}</b><br/>` : ''
+          }ยิงบาร์โค้ด <b>P/N</b> ของ ${partLabel}</div>`,
         })
         if (!pn) return
       }
 
-      // 3) สแกนหมายเลขเครื่อง (ITC) หรือ S/N (พาร์ทอื่น)
+      // 2) สแกนหมายเลขเครื่อง (ITC) หรือ S/N (พาร์ทอื่น) -> ขั้นสุดท้าย บันทึกเลย
       const sn = await scanStep({
         title: isITC ? 'สแกนหมายเลขเครื่อง (12 หลัก)' : `สแกน S/N — ${partLabel}`,
-        html: `<div class="scan-popup-hint">TAG เครื่อง: <b>${machineTag}</b>${
-          needsPN ? `<br/>P/N: <b>${pn}</b>` : ''
-        }<br/>ยิงบาร์โค้ด <b>${isITC ? 'หมายเลขเครื่อง' : 'S/N'}</b> ของ ${partLabel}${
+        html: `<div class="scan-popup-hint">${
+          needsPN ? `P/N: <b>${pn}</b><br/>` : ''
+        }ยิงบาร์โค้ด <b>${isITC ? 'หมายเลขเครื่อง' : 'S/N'}</b> ของ ${partLabel}${
           isITC ? '<br/>ระบบจะเทียบกับบัญชีใบอนุญาตนำเข้าให้ทันที' : ''
         }</div>`,
-        confirmText: isITC ? 'ต่อไป' : 'บันทึก',
+        confirmText: 'บันทึก',
       })
       if (!sn) return
 
-      // 4) หมายเลขการผลิต (IMEI) — ไม่บังคับ กด "ข้ามขั้นนี้" ได้
-      let productionNo = ''
-      if (isITC) {
-        productionNo =
-          (await scanStep({
-            title: 'สแกนหมายเลขการผลิต (15 หลัก)',
-            html: `<div class="scan-popup-hint">หมายเลขเครื่อง: <b>${sn}</b><br/>ยิงบาร์โค้ด <b>หมายเลขการผลิต</b> เพื่อตรวจซ้ำอีกชั้น<br/>ถ้าไม่มีให้กด "ข้ามขั้นนี้"</div>`,
-            confirmText: 'บันทึก',
-            cancelText: 'ข้ามขั้นนี้',
-          })) || ''
-      }
-
-      // 5) ส่งขึ้น API — backend เทียบกับบัญชีแล้วตอบผลกลับมาในทีเดียว
+      // 3) ส่งขึ้น API — backend เทียบกับบัญชีแล้วตอบผลกลับมาในทีเดียว
       scanLoading('กำลังตรวจสอบกับบัญชีใบอนุญาต...')
       try {
         const res = await scanPartCheck({
-          machineTag,
+          machineTag: '', // WH ไม่มี TAG เครื่อง
           partType: partTypeCode,
           pn: needsPN ? pn : '',
           sn,
-          productionNo,
+          productionNo: '',
           invoiceNo: lotInvoice,
         })
 
         const check = res.check || res
 
         setLastScan({
-          machineTag: check.Tag || machineTag,
+          machineTag: check.Tag || '',
           partType: check.PartType || partTypeCode,
           pn: needsPN ? pn : '',
           sn,
-          productionNo,
+          productionNo: '',
           matchStatus: check.MatchStatus,
           message: check.MatchMessage || res.message,
           at: check.CheckedDatetime || new Date().toISOString(),
@@ -225,7 +205,7 @@ export default function WHPartConfirmationPage() {
         } else if (isITC) {
           await scanErrorAlert(check.MatchMessage || res.message || 'ไม่ตรงกับบัญชีใบอนุญาตนำเข้า')
         } else {
-          await scanSuccessToast(`บันทึกแล้ว: ${tagLabel(check.PartType)} — ${check.Tag}`)
+          await scanSuccessToast(`บันทึกแล้ว: ${tagLabel(check.PartType)} — ${sn}`)
         }
 
         await loadRows()
@@ -271,29 +251,60 @@ export default function WHPartConfirmationPage() {
   fireRef.current = handleScannerFire
 
   // ตัวดักสัญญาณเครื่องสแกนเนอร์ระดับหน้าเว็บ:
-  // สแกนเนอร์ = คีย์บอร์ดที่พิมพ์เร็วมากแล้วปิดท้ายด้วย Enter -> เด้ง popup ให้เอง
+  // สแกนเนอร์ = คีย์บอร์ดที่พิมพ์เร็วมาก (เว้นแต่ละตัว < ~50ms)
+  // เดิมจะ return ทิ้งถ้าโฟกัสอยู่ในช่อง input ทำให้ถ้าเคอร์เซอร์ค้างในช่องค้นหา
+  // บาร์โค้ดจะไหลลงช่องนั้นแทนที่จะเด้ง popup — เวอร์ชันนี้จับจาก "ความเร็วการยิง" แทน
+  // จึงเด้ง popup ได้ไม่ว่าโฟกัสอยู่ตรงไหน + flush ด้วย timeout เผื่อเครื่องไม่ได้ตั้ง Enter suffix
   useEffect(() => {
     let buffer = ''
     let lastTime = 0
+    let flushTimer = null
+
+    function fireBuffered() {
+      if (flushTimer) {
+        clearTimeout(flushTimer)
+        flushTimer = null
+      }
+      const code = buffer.trim()
+      buffer = ''
+      if (busyRef.current) return // มี popup/flow เปิดอยู่ -> ให้ช่องใน popup รับเอง
+      if (code.length >= 2) fireRef.current(code)
+    }
+
     function onKeydown(e) {
-      const tag = (e.target?.tagName || '').toLowerCase()
-      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      // ระหว่าง flow กำลังทำงาน (popup เปิด) ปล่อยให้ช่อง input ใน popup จัดการเอง
       if (busyRef.current) return
 
       const now = Date.now()
-      if (now - lastTime > 80) buffer = '' // เว้นเกิน 80ms = คนพิมพ์ ไม่ใช่สแกนเนอร์
+      const gap = now - lastTime
       lastTime = now
+      if (gap > 50) buffer = '' // เว้นเกิน 50ms = คนพิมพ์ ไม่ใช่สแกนเนอร์ -> เริ่มนับใหม่
 
       if (e.key === 'Enter') {
-        const code = buffer.trim()
-        buffer = ''
-        if (code.length >= 2) fireRef.current(code)
+        if (buffer.trim().length >= 2) {
+          e.preventDefault()
+          fireBuffered()
+        } else {
+          buffer = ''
+        }
         return
       }
-      if (e.key && e.key.length === 1) buffer += e.key
+
+      if (e.key && e.key.length === 1) {
+        buffer += e.key
+        // ยิงเป็นชุดเร็ว ๆ (บาร์โค้ด) -> ดักไว้ ไม่ให้ตัวอักษรตกลงช่องค้นหา/ช่องอื่น
+        if (buffer.length >= 2) e.preventDefault()
+        // เผื่อเครื่องสแกนไม่มี Enter suffix: ยิงเองหลังเงียบ ~120ms
+        if (flushTimer) clearTimeout(flushTimer)
+        flushTimer = setTimeout(fireBuffered, 120)
+      }
     }
+
     window.addEventListener('keydown', onKeydown)
-    return () => window.removeEventListener('keydown', onKeydown)
+    return () => {
+      window.removeEventListener('keydown', onKeydown)
+      if (flushTimer) clearTimeout(flushTimer)
+    }
   }, [])
 
   // ── ตารางเทียบ: บัญชีใบอนุญาตของล็อตที่เลือก ─────────────────────────────
@@ -364,7 +375,7 @@ export default function WHPartConfirmationPage() {
         <div>
           <h2 className="wh-title">Part Confirmation</h2>
           <p className="wh-subtitle">
-            สแกนแล้วระบบเทียบกับบัญชีใบอนุญาตนำเข้าให้ทันที — ตรง/ไม่ตรง ขึ้นในตารางด้านล่างเลย
+            แตะการ์ดพาร์ท (หรือยิงบาร์โค้ด) เพื่อเริ่ม แล้วสแกน P/N → S/N — ระบบเทียบกับบัญชีใบอนุญาตนำเข้าให้ทันที ตรง/ไม่ตรง ขึ้นในตารางด้านล่างเลย
           </p>
         </div>
       </div>
@@ -377,7 +388,13 @@ export default function WHPartConfirmationPage() {
 
       <div className="pc-barcode-grid">
         {BARCODE_CARDS.map((card) => (
-          <div className="pc-barcode-card" key={card.title}>
+          <div
+            className="pc-barcode-card"
+            key={card.title}
+            style={{ cursor: 'pointer' }}
+            title={`เริ่มสแกน ${card.title}`}
+            onClick={() => runScanFlow(card.partType)}
+          >
             <div className="pc-barcode-title">{card.title}</div>
             <div className="pc-barcode-box">
               <img className="pc-barcode-img" src={card.img} alt={card.title} />
@@ -399,7 +416,14 @@ export default function WHPartConfirmationPage() {
           }
         >
           <div>
-            <strong>{tagLabel(lastScan.partType)}</strong> · TAG {lastScan.machineTag} · หมายเลขเครื่อง{' '}
+            <strong>{tagLabel(lastScan.partType)}</strong>
+            {lastScan.pn ? (
+              <>
+                {' '}
+                · P/N <span className="il-mono">{lastScan.pn}</span>
+              </>
+            ) : null}{' '}
+            · {lastScan.partType === 'ITC' ? 'หมายเลขเครื่อง' : 'S/N'}{' '}
             <span className="il-mono">{lastScan.sn}</span>
             {lastScan.productionNo ? (
               <>
@@ -598,7 +622,6 @@ export default function WHPartConfirmationPage() {
         <table className="wh-table">
           <thead>
             <tr>
-              <th>Machine TAG</th>
               <th>Part</th>
               <th>P/N</th>
               <th>หมายเลขเครื่อง / S/N</th>
@@ -611,7 +634,7 @@ export default function WHPartConfirmationPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={8} className="wh-empty-cell">
+                <td colSpan={7} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -619,10 +642,9 @@ export default function WHPartConfirmationPage() {
             {!loading &&
               paged.map((r) => (
                 <tr key={r.ID}>
-                  <td className="wh-cell-head" data-label="Machine TAG">
-                    <strong>{r.Tag}</strong>
+                  <td className="wh-cell-head" data-label="Part">
+                    <strong>{tagLabel(r.PartType)}</strong>
                   </td>
-                  <td data-label="Part">{tagLabel(r.PartType)}</td>
                   <td data-label="P/N">{r.PN || '—'}</td>
                   <td className="il-mono" data-label="หมายเลขเครื่อง / S/N">
                     {r.SN || '—'}
@@ -639,7 +661,7 @@ export default function WHPartConfirmationPage() {
               ))}
             {!loading && paged.length === 0 && (
               <tr>
-                <td colSpan={8} className="wh-empty-cell">
+                <td colSpan={7} className="wh-empty-cell">
                   ยังไม่มีรายการตรวจสอบ
                 </td>
               </tr>
@@ -687,9 +709,11 @@ export default function WHPartConfirmationPage() {
           <div className="wh-modal" onClick={(e) => e.stopPropagation()}>
             <h3 className="wh-modal-title">รายละเอียดการตรวจสอบ</h3>
             <p className="wh-modal-line">
-              Machine TAG: <strong>{detailRow.Tag}</strong>
+              ชนิดพาร์ท: <strong>{tagLabel(detailRow.PartType)}</strong>
             </p>
-            <p className="wh-modal-line">ชนิดพาร์ท: {tagLabel(detailRow.PartType)}</p>
+            {detailRow.Tag ? (
+              <p className="wh-modal-line">Machine TAG: {detailRow.Tag}</p>
+            ) : null}
             <p className="wh-modal-line">P/N: {detailRow.PN || '—'}</p>
             <p className="wh-modal-line">หมายเลขเครื่อง / S/N: {detailRow.SN || '—'}</p>
             <p className="wh-modal-line">หมายเลขการผลิต: {detailRow.ProductionNo || '—'}</p>
