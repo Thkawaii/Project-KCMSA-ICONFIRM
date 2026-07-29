@@ -9,7 +9,6 @@ import (
 	"iconfirm/models"
 
 	"github.com/gin-gonic/gin"
-	"github.com/xuri/excelize/v2"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -221,27 +220,18 @@ func UploadImportLicenseItems(c *gin.Context) {
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(400, gin.H{"message": "กรุณาแนบไฟล์ Excel (field name: file)"})
+		c.JSON(400, gin.H{"message": "กรุณาแนบไฟล์ Excel หรือ CSV (field name: file)"})
 		return
 	}
 
-	file, err := fileHeader.Open()
+	// อ่านแถวจากไฟล์ — รองรับทั้ง Excel (.xlsx/.xls) และ CSV (.csv)
+	// (ใช้ตัวอ่านตัวเดียวกับหน้า Master Data ดู readUploadedRows ใน master_data.go)
+	rows, err := readUploadedRows(fileHeader)
 	if err != nil {
-		c.JSON(500, gin.H{"message": "เปิดไฟล์ไม่สำเร็จ"})
+		c.JSON(400, gin.H{"message": err.Error()})
 		return
 	}
-	defer file.Close()
-
-	xl, err := excelize.OpenReader(file)
-	if err != nil {
-		c.JSON(400, gin.H{"message": "ไฟล์ไม่ใช่ Excel ที่ถูกต้อง"})
-		return
-	}
-	defer xl.Close()
-
-	sheet := xl.GetSheetName(0)
-	rows, err := xl.GetRows(sheet)
-	if err != nil || len(rows) < 2 {
+	if len(rows) < 2 {
 		c.JSON(400, gin.H{"message": "ไฟล์ไม่มีข้อมูล หรืออ่านไม่ได้"})
 		return
 	}

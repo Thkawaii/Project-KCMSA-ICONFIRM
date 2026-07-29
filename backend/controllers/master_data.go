@@ -1,6 +1,12 @@
 package controllers
 
 import (
+	"bytes"
+	"encoding/csv"
+	"errors"
+	"io"
+	"mime/multipart"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -184,12 +190,72 @@ func findComponentTypeColumn(headers []string) int {
 	return -1
 }
 
+// readUploadedRows อ่านไฟล์ที่แนบมา แล้วคืนเป็นตาราง [][]string
+// เลือกตัวอ่านจากนามสกุลไฟล์: .csv ใช้ตัวอ่าน CSV, ที่เหลือใช้ตัวอ่าน Excel
+// (ไม่มีนามสกุลหรือชนิดแปลกๆ ให้ลองอ่านเป็น Excel เป็นค่าเริ่มต้นเหมือนของเดิม)
+// ใช้ร่วมกันได้ทั้งการนำเข้า Master Data และ Import License
+func readUploadedRows(fileHeader *multipart.FileHeader) ([][]string, error) {
+	file, err := fileHeader.Open()
+	if err != nil {
+		return nil, errors.New("เปิดไฟล์ไม่สำเร็จ")
+	}
+	defer file.Close()
 
-// UploadMasterData นำเข้าทะเบียนจากไฟล์ Excel
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	if ext == ".csv" {
+		return readCSVRows(file)
+	}
+	return readExcelRows(file)
+}
+
+// readExcelRows อ่านไฟล์ Excel เป็น [][]string (พฤติกรรมเดิมของระบบ)
+func readExcelRows(r io.Reader) ([][]string, error) {
+	xl, err := excelize.OpenReader(r)
+	if err != nil {
+		return nil, errors.New("ไฟล์ไม่ใช่ Excel ที่ถูกต้อง")
+	}
+	defer xl.Close()
+
+	sheet := xl.GetSheetName(0)
+	rows, err := xl.GetRows(sheet)
+	if err != nil {
+		return nil, errors.New("อ่านไฟล์ Excel ไม่สำเร็จ")
+	}
+	return rows, nil
+}
+
+// readCSVRows อ่านไฟล์ CSV เป็น [][]string
+//
+// จุดที่ต้องระวังของไฟล์ CSV ที่มาจาก Excel / ปุ่ม Export CSV ของหน้านี้เอง:
+//   - มี BOM (\uFEFF) นำหน้าไฟล์ (เติมไว้ให้ Excel อ่านภาษาไทยไม่เพี้ยน) ถ้าไม่ตัดทิ้ง
+//     หัวคอลัมน์แรกจะมี BOM ติดหน้า ทำให้ normalizeHeader เทียบไม่ตรงและหาหัวตารางไม่เจอ
+//   - แต่ละแถวมีจำนวนคอลัมน์ไม่เท่ากัน (แถวหัวเรื่อง/แถวว่าง/แถวหมายเหตุ) จึงตั้ง
+//     FieldsPerRecord = -1 ไม่งั้น csv.Reader จะ error ทั้งไฟล์
+//   - ไฟล์ต้นทางบางไฟล์ใส่ quote ไม่มาตรฐาน จึงเปิด LazyQuotes ให้ทนทานขึ้น
+func readCSVRows(r io.Reader) ([][]string, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, errors.New("อ่านไฟล์ CSV ไม่สำเร็จ")
+	}
+	data = bytes.TrimPrefix(data, []byte("\uFEFF"))
+
+	reader := csv.NewReader(bytes.NewReader(data))
+	reader.FieldsPerRecord = -1
+	reader.LazyQuotes = true
+	reader.TrimLeadingSpace = true
+
+	rows, err := reader.ReadAll()
+	if err != nil {
+		return nil, errors.New("ไฟล์ CSV ไม่ถูกต้อง อ่านไม่ได้")
+	}
+	return rows, nil
+}
+
+// UploadMasterData นำเข้าทะเบียนจากไฟล์ Excel หรือ CSV
 //
 // รับ multipart form:
 //
-//	file            = ไฟล์ .xlsx
+//	file            = ไฟล์ .xlsx / .xls / .csv
 //	component_type  = ชนิดอะไหล่ "สำรอง" ใช้เฉพาะแถวที่หาชนิดจากในไฟล์ไม่ได้
 //	                  (ไม่ส่งมา = it_controller) — ปกติไม่ต้องส่งแล้ว เพราะระบบ
 //	                  จะพยายามอ่านชนิดจากคอลัมน์ในไฟล์เอง (ดู componentTypeHeaderKeys)
@@ -207,27 +273,19 @@ func UploadMasterData(c *gin.Context) {
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(400, gin.H{"message": "กรุณาแนบไฟล์ Excel (field name: file)"})
+		c.JSON(400, gin.H{"message": "กรุณาแนบไฟล์ Excel หรือ CSV (field name: file)"})
 		return
 	}
 
-	file, err := fileHeader.Open()
+	// อ่านแถวจากไฟล์ — รองรับทั้ง Excel (.xlsx/.xls) และ CSV (.csv)
+	// โดยเลือกตัวอ่านจากนามสกุลไฟล์ แล้วคืนออกมาเป็น [][]string เหมือนกัน
+	// ตรรกะ map คอลัมน์ / หาหัวตาราง / insert-update ด้านล่างจึงใช้ร่วมกันได้ทั้งสองแบบ
+	rows, err := readUploadedRows(fileHeader)
 	if err != nil {
-		c.JSON(500, gin.H{"message": "เปิดไฟล์ไม่สำเร็จ"})
+		c.JSON(400, gin.H{"message": err.Error()})
 		return
 	}
-	defer file.Close()
-
-	xl, err := excelize.OpenReader(file)
-	if err != nil {
-		c.JSON(400, gin.H{"message": "ไฟล์ไม่ใช่ Excel ที่ถูกต้อง"})
-		return
-	}
-	defer xl.Close()
-
-	sheet := xl.GetSheetName(0)
-	rows, err := xl.GetRows(sheet)
-	if err != nil || len(rows) < 2 {
+	if len(rows) < 2 {
 		c.JSON(400, gin.H{"message": "ไฟล์ไม่มีข้อมูล หรืออ่านไม่ได้"})
 		return
 	}
@@ -267,7 +325,7 @@ func UploadMasterData(c *gin.Context) {
 				break
 			}
 			if setter, ok := masterDataColumns[header]; ok {
-				setter(&row, strings.TrimSpace(rows[i][col]))
+				setter(&row, unwrapExcelText(rows[i][col]))
 			}
 		}
 
@@ -448,6 +506,18 @@ func normalizeHeader(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// unwrapExcelText ถอดปลอก ="..." ที่ปุ่ม Export CSV ของหน้านี้ครอบค่าไว้
+// (ครอบเพื่อบังคับให้ Excel อ่าน IMEI/Serial เป็นข้อความ เลข 0 นำหน้าจะได้ไม่หาย)
+// เมื่ออ่านไฟล์ CSV ที่ export ออกไปแล้วกลับเข้ามา ต้องถอดปลอกนี้ก่อน ไม่งั้น
+// ค่าที่ได้จะกลายเป็น ="KQ3000045093" ทั้งดุ้น เทียบกับของเดิมไม่ตรงเลย
+func unwrapExcelText(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) >= 3 && strings.HasPrefix(s, `="`) && strings.HasSuffix(s, `"`) {
+		return s[2 : len(s)-1]
+	}
+	return s
 }
 
 // atoiSafe แปลงเลขลำดับจาก Excel ที่บางทีมาเป็น "12" บางทีมาเป็น "12.0"

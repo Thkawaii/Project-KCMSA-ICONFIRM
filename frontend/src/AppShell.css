@@ -286,6 +286,12 @@
   height: 100%;
 }
 
+/* ไอคอนเมฆอัปโหลดในหน้า Upload Master Data ใช้สีแบรนด์ #00CEC8 เป็นสีเน้น
+   (เดิมเป็นสีเทากลืนกับพื้น) — ตัวอักษร/กรอบ hover/ปุ่ม ใช้แบรนด์อยู่แล้ว */
+.upload-panel-wide .upload-dropzone svg {
+  color: var(--brand-500);
+}
+
 .upload-panel-side {
   display: flex;
   flex-direction: column;

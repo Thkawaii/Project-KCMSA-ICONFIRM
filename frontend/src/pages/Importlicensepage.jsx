@@ -76,7 +76,7 @@ export default function ImportLicensePage() {
 
   async function handleUpload() {
     if (!file) {
-      setUploadMsg({ error: 'กรุณาเลือกไฟล์ Excel ก่อน' })
+      setUploadMsg({ error: 'กรุณาเลือกไฟล์ Excel หรือ CSV ก่อน' })
       return
     }
     setUploading(true)
@@ -200,9 +200,9 @@ export default function ImportLicensePage() {
               setFile(f)
               setUploadMsg(null)
             }}
-            accept=".xlsx,.xls"
+            accept=".xlsx,.xls,.csv"
             label="อัปโหลดบัญชีใบอนุญาตนำเข้า"
-            hint="ไฟล์ Excel ที่มีคอลัมน์ หมายเลขเครื่อง / หมายเลขการผลิต / เลขใบอนุญาตนำเข้า / เลขอินวอยซ์นำเข้า"
+            hint="ไฟล์ Excel หรือ CSV ที่มีคอลัมน์ หมายเลขเครื่อง / หมายเลขการผลิต / เลขใบอนุญาตนำเข้า / เลขอินวอยซ์นำเข้า"
             disabled={uploading}
           />
           <button className="wh-issue-btn" onClick={handleUpload} disabled={uploading || !file}>
@@ -384,7 +384,7 @@ export default function ImportLicensePage() {
             {!loading && paged.length === 0 && (
               <tr>
                 <td colSpan={12} className="wh-empty-cell">
-                  ยังไม่มีข้อมูลในบัญชี — อัปโหลดไฟล์ Excel ด้านบนก่อน
+                  ยังไม่มีข้อมูลในบัญชี — อัปโหลดไฟล์ Excel หรือ CSV ด้านบนก่อน
                 </td>
               </tr>
             )}

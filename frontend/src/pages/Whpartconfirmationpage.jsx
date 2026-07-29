@@ -42,6 +42,18 @@ function tagLabel(code) {
   return TAG_TYPES.find((t) => t.code === code)?.label || code || '—'
 }
 
+// firstToken เอาเฉพาะ "ส่วนแรก" ของค่าที่สแกนมา ก่อนช่องว่างชุดแรก
+//
+// บาร์โค้ด P/N และ S/N บางป้ายพ่วงรหัสชุดที่สองต่อท้าย คั่นด้วยช่องว่าง เช่น
+//   ยิง P/N ได้  "YN22E00849FA      878250023501"  -> ต้องการ  "YN22E00849FA"
+//   ยิง S/N ได้  "KQ3000045363      300234031527950" -> ต้องการ  "KQ3000045363"
+// P/N / S/N จริงไม่มีช่องว่างในตัวเอง จึงตัดตั้งแต่ช่องว่างแรกได้อย่างปลอดภัย
+// (กรอกมือแบบไม่มีช่องว่างก็คืนค่าเดิมไม่เปลี่ยน)
+function firstToken(v) {
+  if (!v) return ''
+  return String(v).trim().split(/\s+/)[0] || ''
+}
+
 // ป้ายผลการเทียบกับบัญชีใบอนุญาตนำเข้า (ค่าตรงกับค่าคงที่ฝั่ง backend)
 const MATCH_LABELS = {
   MATCH: { Icon: CheckIcon, text: 'ตรงกับใบอนุญาต', cls: 'il-badge-ok' },
@@ -155,29 +167,33 @@ export default function WHPartConfirmationPage() {
       // 1) สแกน "หรือกรอก" P/N (เฉพาะพาร์ทที่ต้องมี P/N เช่น IT Controller)
       let pn = ''
       if (needsPN) {
-        pn = await scanStep({
-          title: `สแกน / กรอก P/N — ${partLabel}`,
-          placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ P/N แล้วกดปุ่ม',
-          html: `<div class="scan-popup-hint">ยิงบาร์โค้ด หรือกรอก <b>P/N</b> ของ ${partLabel}</div>`,
-        })
+        pn = firstToken(
+          await scanStep({
+            title: `สแกน / กรอก P/N — ${partLabel}`,
+            placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ P/N แล้วกดปุ่ม',
+            html: `<div class="scan-popup-hint">ยิงบาร์โค้ด หรือกรอก <b>P/N</b> ของ ${partLabel}</div>`,
+          }),
+        )
         if (!pn) return
       }
 
       // 2) สแกน "หรือกรอก" S/N -> ขั้นสุดท้าย บันทึกเลย
       //    ITC: ระบบจะเอา P/N + S/N ไปเทียบ master data เพื่อดึงหมายเลขเครื่อง
       //         (IT Controller) แล้วลิงก์อินวอยซ์ + เทียบบัญชีใบอนุญาตนำเข้าให้เอง
-      const sn = await scanStep({
-        title: `สแกน / กรอก S/N — ${partLabel}`,
-        placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ S/N แล้วกดปุ่ม',
-        html: `<div class="scan-popup-hint">${
-          needsPN ? `P/N: <b>${pn}</b><br/>` : ''
-        }ยิงบาร์โค้ด หรือกรอก <b>S/N</b> ของ ${partLabel}${
-          isITC
-            ? '<br/>ระบบจะเทียบกับ <b>master data</b> เพื่อดึงหมายเลขเครื่อง (IT Controller) แล้วเทียบใบอนุญาตนำเข้าให้ทันที'
-            : ''
-        }</div>`,
-        confirmText: 'บันทึก',
-      })
+      const sn = firstToken(
+        await scanStep({
+          title: `สแกน / กรอก S/N — ${partLabel}`,
+          placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ S/N แล้วกดปุ่ม',
+          html: `<div class="scan-popup-hint">${
+            needsPN ? `P/N: <b>${pn}</b><br/>` : ''
+          }ยิงบาร์โค้ด หรือกรอก <b>S/N</b> ของ ${partLabel}${
+            isITC
+              ? '<br/>ระบบจะเทียบกับ <b>master data</b> เพื่อดึงหมายเลขเครื่อง (IT Controller) แล้วเทียบใบอนุญาตนำเข้าให้ทันที'
+              : ''
+          }</div>`,
+          confirmText: 'บันทึก',
+        }),
+      )
       if (!sn) return
 
       // 3) ส่งขึ้น API — backend เทียบกับบัญชีแล้วตอบผลกลับมาในทีเดียว
