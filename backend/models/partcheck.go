@@ -26,10 +26,16 @@ type PartCheck struct {
 	PN string `gorm:"size:100"` // Part Number ที่สแกนได้ในรอบสอง
 
 	SN string `gorm:"size:100"` // Serial Number ที่สแกนได้ในรอบสอง
-	//   สำหรับ ITC ค่านี้คือ "หมายเลขเครื่อง" 12 หลักที่ใช้เทียบกับใบอนุญาต
+	//   สำหรับ ITC ค่านี้คือ "S/N" ของตัวเครื่องที่ยิง/กรอกมา (เช่น KQ3000045093)
+	//   ระบบจะเอา P/N + S/N ไปเทียบกับ master data เพื่อดึงหมายเลขเครื่องออกมา
+
+	// หมายเลขเครื่อง (IT Controller No. 12 หลัก) ที่ระบบ "ดึงมาจาก master data"
+	// โดยใช้ P/N + S/N ที่สแกน/กรอกเข้ามา — คีย์ตัวนี้คือตัวที่เอาไปลิงก์กับ
+	// อินวอยซ์และเทียบกับบัญชีใบอนุญาตนำเข้า (ImportLicenseItem.MachineNo)
+	MachineNo string `gorm:"size:30;index"`
 
 	// ── ผลการเทียบกับบัญชีใบอนุญาตนำเข้า (เฉพาะ ITC) ────────────────────────
-	ProductionNo string `gorm:"size:30"` // หมายเลขการผลิต (IMEI) ที่สแกนเพิ่ม ถ้ามี
+	ProductionNo string `gorm:"size:30"` // หมายเลขการผลิต (IMEI) — ดึงจาก master data
 
 	LicenseNo string `gorm:"size:50;index"` // เลขใบอนุญาตของแถวที่จับคู่ได้
 	InvoiceNo string `gorm:"size:50;index"` // อินวอยซ์ของล็อตที่กำลังยืนยัน
