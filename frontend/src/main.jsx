@@ -17,6 +17,7 @@ import './Warehouse.css'
 import './AppShell.css'
 import './ImportLicense.css'
 import './Filedropzone.css'
+import './Selectfield.css'
 // theme.css = ชั้น Tailwind + ธีมใหม่ ต้องอยู่ท้ายสุดเสมอ (ทับสไตล์เก่า)
 import './theme.css'
 

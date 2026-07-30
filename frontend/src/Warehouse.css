@@ -887,7 +887,7 @@
     flex-wrap: wrap;
   }
 
-  .md-list-tools .md-type-select {
+  .md-list-tools .md-type-field {
     flex: 1 1 110px;
     min-width: 0 !important;
   }
@@ -1215,10 +1215,55 @@
   justify-content: center;
 }
 
-/* ===== ตัวกรองในแถบเครื่องมือประวัติการสแกน (จัดกลุ่มชิดซ้าย) ===== */
+/* ===== ตัวกรอง (dropdown แบบ SelectField) ในแถบเครื่องมือ ===== */
 .wh-history-filters {
   display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.wh-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 220px;
+  max-width: 100%;
+}
+
+.wh-filter-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+@media (max-width: 640px) {
+  .wh-history-filters {
+    width: 100%;
+  }
+
+  .wh-filter-field {
+    width: 100%;
+  }
+}
+
+/* ===== ขนาด dropdown (SelectField) ในแถบเครื่องมือของตาราง ===== */
+/* กล่องเลือกจำนวนแถวต่อหน้า — เล็ก พอดีตัวเลข ให้ข้อความ "entries per page" อยู่ข้างๆ */
+.wh-pagesize-select {
+  width: 84px;
+  flex: 0 0 auto;
+}
+
+/* ตัวกรองชนิดอะไหล่หน้า Master Data — กว้างคงที่ ไม่ยืดจนดันช่องค้นหา */
+.md-type-field {
+  width: 170px;
+  flex: 0 0 auto;
+}
+
+/* ===== QA toolbar: จัด "แสดง [dropdown] รายการต่อหน้า" ให้อยู่บรรทัดเดียว ===== */
+.qa-table-toolbar-left {
+  display: inline-flex;
   align-items: center;
-  gap: 18px;
+  gap: 6px;
   flex-wrap: wrap;
 }

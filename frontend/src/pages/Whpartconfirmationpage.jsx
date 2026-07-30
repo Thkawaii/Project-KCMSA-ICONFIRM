@@ -15,6 +15,7 @@ import {
   XMarkIcon,
 } from '../components/icons.jsx'
 import AppShell from '../components/AppShell.jsx'
+import SelectField from '../components/Selectfield.jsx'
 import { WH_NAV_ITEMS } from './Importlicensepage.jsx'
 
 // รูปบาร์โค้ดอ้างอิงของแต่ละพาร์ท (Vite จะ bundle ให้อัตโนมัติ)
@@ -533,17 +534,17 @@ export default function WHPartConfirmationPage() {
       </div>
 
       <div className="tsf-history-toolbar">
-        <label className="tsf-history-pagesize">
-          แบบ/รุ่น
-          <select value={licenseModel} onChange={(e) => setLicenseModel(e.target.value)}>
-            <option value="all">ทั้งหมด</option>
-            {licenseModelOptions.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="wh-filter-field">
+          <span className="wh-filter-label">แบบ/รุ่น</span>
+          <SelectField
+            value={licenseModel}
+            onChange={setLicenseModel}
+            options={[
+              { value: 'all', label: 'ทั้งหมด' },
+              ...licenseModelOptions.map((m) => ({ value: m, label: m })),
+            ]}
+          />
+        </div>
       </div>
 
       <div className="wh-table-card">
@@ -648,23 +649,33 @@ export default function WHPartConfirmationPage() {
 
       <div className="tsf-history-toolbar">
         <div className="wh-history-filters">
-          <label className="tsf-history-pagesize">
-            <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
+          <div className="tsf-history-pagesize">
+            <div className="wh-pagesize-select">
+              <SelectField
+                value={pageSize}
+                onChange={setPageSize}
+                options={[
+                  { value: 10, label: '10' },
+                  { value: 25, label: '25' },
+                  { value: 50, label: '50' },
+                  { value: 100, label: '100' },
+                ]}
+              />
+            </div>
             entries per page
-          </label>
-          <label className="tsf-history-pagesize">
-            ผลเทียบใบอนุญาต
-            <select value={matchFilter} onChange={(e) => setMatchFilter(e.target.value)}>
-              <option value="all">ทั้งหมด</option>
-              <option value="MATCH">ตรงกับใบอนุญาต</option>
-              <option value="NOT_FOUND">ไม่พบในใบอนุญาต</option>
-            </select>
-          </label>
+          </div>
+          <div className="wh-filter-field">
+            <span className="wh-filter-label">ผลเทียบใบอนุญาต</span>
+            <SelectField
+              value={matchFilter}
+              onChange={setMatchFilter}
+              options={[
+                { value: 'all', label: 'ทั้งหมด' },
+                { value: 'MATCH', label: 'ตรงกับใบอนุญาต' },
+                { value: 'NOT_FOUND', label: 'ไม่พบในใบอนุญาต' },
+              ]}
+            />
+          </div>
         </div>
         <input
           className="wh-search"

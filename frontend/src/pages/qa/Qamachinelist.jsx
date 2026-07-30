@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAppNavigate } from '../../lib/nav.jsx'
 import AppShell from '../../components/AppShell.jsx'
+import SelectField from '../../components/Selectfield.jsx'
 import BarcodeScannerModal from '../../components/Barcodescannermodal.jsx'
 import {
   CheckCircleIcon,
@@ -230,11 +231,17 @@ export default function QAMachineList() {
         <div className="qa-table-toolbar">
           <div className="qa-table-toolbar-left">
             แสดง{' '}
-            <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-            </select>{' '}
+            <div className="wh-pagesize-select">
+              <SelectField
+                value={pageSize}
+                onChange={setPageSize}
+                options={[
+                  { value: 10, label: '10' },
+                  { value: 25, label: '25' },
+                  { value: 50, label: '50' },
+                ]}
+              />
+            </div>{' '}
             รายการต่อหน้า
           </div>
           <div className="qa-table-toolbar-right">
