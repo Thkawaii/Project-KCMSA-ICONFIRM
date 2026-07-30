@@ -17,13 +17,10 @@ import {
   downloadExportAttachment,
   getAlerts,
   traceUnit,
-} from '../api/itController.js'
-
-const navItems = [
-  { to: '/warehouse', label: 'จ่ายของ (FIFO & S/O)', icon: '📦' },
-  { to: '/warehouse/confirm', label: 'Part Confirmation', icon: '✅' },
-  { to: '/warehouse/it-controller', label: 'IT Controller (กสทช.)', icon: '📡' },
-]
+} from '../api/Itcontroller.js'
+// ใช้เมนู WH ชุดเดียวกับหน้า Import License / Part Confirmation เพื่อให้เมนู
+// ตรงกันทุกหน้า (WH_NAV_ITEMS มีลิงก์ IT Controller อยู่แล้ว)
+import { WH_NAV_ITEMS } from './Importlicensepage.jsx'
 
 const TABS = [
   { key: 'docs', label: '1. เอกสาร & ใบอนุญาตนำเข้า' },
@@ -91,7 +88,7 @@ export default function ITControllerPage() {
   }, [units])
 
   return (
-    <AppShell navItems={navItems} roleLabel="Warehouse">
+    <AppShell navItems={WH_NAV_ITEMS} roleLabel="Warehouse">
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">IT Controller</h2>

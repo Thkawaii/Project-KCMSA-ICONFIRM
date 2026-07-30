@@ -6,7 +6,6 @@ import FileDropZone from '../components/Filedropzone.jsx'
 const navItems = [
   { to: '/warehouse', label: 'จ่ายของ (FIFO & S/O)', icon: '📦' },
   { to: '/warehouse/confirm', label: 'Part Confirmation', icon: '✅' },
-  { to: '/warehouse/it-controller', label: 'IT Controller (กสทช.)', icon: '📡' },
 ]
 
 const STOCK_TABS = [
