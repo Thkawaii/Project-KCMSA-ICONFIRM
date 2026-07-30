@@ -342,6 +342,11 @@
   color: #ffffff;
 }
 
+.wh-so-active-bar .wh-subtitle {
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 500;
+}
+
 .wh-modal-summary .wh-modal-line {
   margin: 0 0 4px;
 }
