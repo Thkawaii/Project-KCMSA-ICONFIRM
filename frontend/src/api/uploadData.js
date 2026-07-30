@@ -8,9 +8,13 @@ export const DATASETS = [
   { key: 'engine', label: 'Engine' },
 ]
 
-// คืน { dataset, columns: [...ชื่อคอลัมน์ตามลำดับ], rows: [...UploadDataRow] }
-export function getUploadData(dataset, keyword) {
-  const params = new URLSearchParams({ dataset })
+// คืน { dataset, columns, rows, total, page, limit, totalPages } — แบ่งหน้าแล้ว
+export function getUploadData(dataset, keyword, page = 1, limit = 100) {
+  const params = new URLSearchParams({
+    dataset,
+    page: String(page),
+    limit: String(limit),
+  })
   if (keyword) params.set('keyword', keyword)
   return apiFetch(`/upload-data?${params.toString()}`)
 }
