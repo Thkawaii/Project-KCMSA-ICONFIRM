@@ -14,7 +14,7 @@ export default function DashboardPage() {
       <header className="wh-topbar">
         <div className="brand-row">
           <span className="brand-badge">KOBELCO</span>
-          <h1 className="brand-title-sm">I-CONFIRM</h1>
+          <h1 className="brand-title-sm">I-CONFIRMATION</h1>
         </div>
         <button className="wh-logout-btn" onClick={handleLogout}>
           Logout
