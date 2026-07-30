@@ -66,6 +66,9 @@ func ConnectDB() {
 
 		// ── บัญชีแนบใบอนุญาตนำเข้า (ตารางอ้างอิงของหน้า Part Confirmation) ──
 		&models.ImportLicenseItem{},
+
+		// ── ไฟล์อัปโหลด Planning / WH1 / WH2 / Engine (หน้า Upload Data) ──
+		&models.UploadDataRow{},
 	)
 
 	SeedData()
