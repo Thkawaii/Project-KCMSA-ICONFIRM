@@ -67,7 +67,7 @@ export default function LoginPage() {
         <div className="brand-row">
           <span className="brand-badge">KOBELCO</span>
           <ShieldCheckIcon className="shield-icon size-[26px]" />
-          <h1 className="brand-title">I-CONFIRM</h1>
+          <h1 className="brand-title">I-CONFIRMATION</h1>
         </div>
         <p className="brand-subtitle">Traceability &amp; Validation System</p>
       </div>

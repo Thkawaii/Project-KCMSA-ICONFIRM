@@ -19,7 +19,7 @@ export default function AppShell({ navItems, roleLabel, children }) {
       <header className="shell-topbar">
         <div className="brand-row">
           <span className="brand-badge">KOBELCO</span>
-          <h1 className="brand-title-sm">I-CONFIRM</h1>
+          <h1 className="brand-title-sm">I-CONFIRMATION</h1>
         </div>
 
         <div className="shell-topbar-right">

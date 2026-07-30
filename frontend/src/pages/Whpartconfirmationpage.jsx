@@ -172,9 +172,9 @@ export default function WHPartConfirmationPage() {
       if (needsPN) {
         pn = firstToken(
           await scanStep({
-            title: `สแกน / กรอก P/N — ${partLabel}`,
+            title: `${partLabel}( P/N)`,
             placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ P/N แล้วกดปุ่ม',
-            html: `<div class="scan-popup-hint">ยิงบาร์โค้ด หรือกรอก <b>P/N</b> ของ ${partLabel}</div>`,
+            html: '',
           }),
         )
         if (!pn) return
@@ -185,15 +185,11 @@ export default function WHPartConfirmationPage() {
       //         (IT Controller) แล้วลิงก์อินวอยซ์ + เทียบบัญชีใบอนุญาตนำเข้าให้เอง
       const sn = firstToken(
         await scanStep({
-          title: `สแกน / กรอก S/N — ${partLabel}`,
+          title: `${partLabel}( S/N)`,
           placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ S/N แล้วกดปุ่ม',
-          html: `<div class="scan-popup-hint">${
-            needsPN ? `P/N: <b>${pn}</b><br/>` : ''
-          }ยิงบาร์โค้ด หรือกรอก <b>S/N</b> ของ ${partLabel}${
-            isITC
-              ? '<br/>ระบบจะเทียบกับ <b>master data</b> เพื่อดึงหมายเลขเครื่อง (IT Controller) แล้วเทียบใบอนุญาตนำเข้าให้ทันที'
-              : ''
-          }</div>`,
+          html: needsPN
+            ? `<div class="scan-popup-hint">P/N: <b>${pn}</b></div>`
+            : '',
           confirmText: 'บันทึก',
         }),
       )

@@ -333,13 +333,23 @@
 
 .shell-logout-btn {
   border-radius: 10px;
-  border-color: rgb(255 255 255 / 0.35);
-  background: rgb(255 255 255 / 0.12);
-  backdrop-filter: blur(4px);
-  transition: background 0.15s ease, transform 0.1s ease;
+  border: 1px solid rgb(255 255 255 / 0.9);
+  background: #ffffff;
+  color: #d92d20;
+  box-shadow: 0 2px 8px rgb(16 24 40 / 0.25);
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+.shell-logout-btn svg {
+  color: #d92d20;
 }
 .shell-logout-btn:hover {
-  background: rgb(255 255 255 / 0.24);
+  background: #d92d20;
+  color: #ffffff;
+  border-color: #d92d20;
+  box-shadow: 0 4px 12px rgb(217 45 32 / 0.35);
+}
+.shell-logout-btn:hover svg {
+  color: #ffffff;
 }
 .shell-logout-btn:active {
   transform: translateY(1px);
