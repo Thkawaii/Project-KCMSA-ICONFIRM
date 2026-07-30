@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import AppShell from '../components/AppShell.jsx'
+import SelectField from '../components/Selectfield.jsx'
 import { getMasterData, uploadMasterData, deleteMasterData } from '../api/masterData.js'
 import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js'
 import { CloudArrowUpIcon } from '../components/icons.jsx'
@@ -299,20 +300,16 @@ export default function MasterDataPage() {
           </h2>
         </div>
         <div className="uv-list-tools md-list-tools" style={{ display: 'flex', gap: 10 }}>
-          <select
-            className="wh-search md-type-select"
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            aria-label="กรองดูตามชนิดอะไหล่"
-            style={{ minWidth: 150 }}
-          >
-            <option value="">ทุกชนิด</option>
-            {CATEGORIES.map((cat) => (
-              <option key={cat.type} value={cat.type}>
-                {cat.label}
-              </option>
-            ))}
-          </select>
+          <div className="md-type-field">
+            <SelectField
+              value={filterType}
+              onChange={setFilterType}
+              options={[
+                { value: '', label: 'ทุกชนิด' },
+                ...CATEGORIES.map((cat) => ({ value: cat.type, label: cat.label })),
+              ]}
+            />
+          </div>
           <input
             className="wh-search"
             type="search"

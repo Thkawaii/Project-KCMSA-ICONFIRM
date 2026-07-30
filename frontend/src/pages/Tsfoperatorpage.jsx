@@ -11,6 +11,7 @@ import {
 import { getMachineSpecByMachineNo } from '../api/Machinespeclookup.js'
 import { scanLoading, scanClose, scanSuccessToast, scanErrorAlert } from '../lib/scanPopup.js'
 import AppShell from '../components/AppShell.jsx'
+import SelectField from '../components/Selectfield.jsx'
 import bcMachine from '../assets/barcodes/Machine_Barcode.gif'
 import { CameraIcon } from '../components/icons.jsx'
 import {
@@ -654,15 +655,21 @@ export default function TSFOperatorPage() {
         </div>
 
         <div className="tsf-history-toolbar">
-          <label className="tsf-history-pagesize">
-            <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
+          <div className="tsf-history-pagesize">
+            <div className="wh-pagesize-select">
+              <SelectField
+                value={pageSize}
+                onChange={setPageSize}
+                options={[
+                  { value: 10, label: '10' },
+                  { value: 25, label: '25' },
+                  { value: 50, label: '50' },
+                  { value: 100, label: '100' },
+                ]}
+              />
+            </div>
             entries per page
-          </label>
+          </div>
           <input
             className="wh-search"
             type="text"
