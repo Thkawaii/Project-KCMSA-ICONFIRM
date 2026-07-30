@@ -460,7 +460,9 @@ func UploadDataFile(c *gin.Context) {
 		c.JSON(500, gin.H{"message": "ล้างข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
 		return
 	}
-	if err := tx.Create(&parsed).Error; err != nil {
+	// insert ทีละ batch — ตาราง 13 คอลัมน์ × แถวเยอะ จะทะลุลิมิต 65535 bind params
+	// ของ PostgreSQL ถ้ายัด statement เดียว (batch 1000 = ~13,000 params ปลอดภัย)
+	if err := tx.CreateInBatches(&parsed, 1000).Error; err != nil {
 		tx.Rollback()
 		c.JSON(500, gin.H{"message": "บันทึกข้อมูลไม่สำเร็จ: " + err.Error()})
 		return
