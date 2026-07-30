@@ -39,18 +39,23 @@
 }
 
 .wh-logout-btn {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 8px;
-  padding: 8px 16px;
+  background: #ffffff;
+  color: var(--brand-700);
+  border: 1px solid #ffffff;
+  border-radius: 9px;
+  padding: 8px 18px;
   font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s ease;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .wh-logout-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--brand-50);
+  color: var(--brand-800);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.22);
+  transform: translateY(-1px);
 }
 
 .wh-main {
@@ -1188,6 +1193,37 @@
   flex-direction: column;
   gap: 14px;
   box-shadow: 0 4px 12px rgba(0, 206, 200, 0.12);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.pc-barcode-card:hover {
+  transform: translateY(-3px);
+  filter: saturate(1.08);
+}
+.pc-barcode-card:active {
+  transform: translateY(-1px);
+}
+
+/* ─── สีประจำแต่ละชนิดพาร์ท ให้แยกออกจากกันชัด หาเจอง่าย ─── */
+.pc-card-itc {
+  background: linear-gradient(135deg, #4f46e5, #4338ca); /* IT Controller — indigo */
+  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.28);
+}
+.pc-card-sm {
+  background: linear-gradient(135deg, #00a39d, #0f8580); /* Swing Motor — teal (สีแบรนด์) */
+  box-shadow: 0 8px 20px rgba(15, 133, 128, 0.28);
+}
+.pc-card-ph {
+  background: linear-gradient(135deg, #f59e0b, #d97706); /* Pump Assy HYD — amber */
+  box-shadow: 0 8px 20px rgba(217, 119, 6, 0.28);
+}
+.pc-card-mp {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed); /* Motor Propel — violet */
+  box-shadow: 0 8px 20px rgba(124, 58, 237, 0.28);
+}
+.pc-card-cv {
+  background: linear-gradient(135deg, #f43f5e, #e11d48); /* Control Valve — rose */
+  box-shadow: 0 8px 20px rgba(225, 29, 72, 0.28);
 }
 .pc-barcode-title {
   font-size: 24px;

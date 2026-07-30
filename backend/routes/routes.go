@@ -50,6 +50,25 @@ func SetupRoutes(r *gin.Engine) {
 		}
 	}
 
+	// ─────────────────────────────────────────────────────────────────────
+	// Upload Data — อัปโหลดไฟล์ Excel วางแผน/คลัง 4 ชนิด (Planning / WH1 /
+	// WH2 / Engine) เพิ่มเข้ามาต่อจากการอัปโหลด IT Controller / Machine Spec
+	// เดิม จัดการโดย role UPLOAD เหมือนกัน อ่านได้ทุก role ที่ login แล้ว
+	// ─────────────────────────────────────────────────────────────────────
+	uploadData := auth.Group("/upload-data")
+	{
+		uploadData.GET("", controllers.GetUploadData)
+		uploadData.GET("/export", controllers.ExportUploadData)
+
+		manage := uploadData.Group("")
+		manage.Use(middleware.RoleMiddleware("UPLOAD"))
+		{
+			manage.POST("/upload/:dataset", controllers.UploadDataFile)
+			manage.DELETE("/:id", controllers.DeleteUploadDataRow)
+			manage.DELETE("", controllers.ClearUploadData)
+		}
+	}
+
 	// Part Confirmation — สแกน tag แล้วบันทึกทันที (MC/ITC/CV/SM/MP/PH)
 	partCheck := auth.Group("/part-check")
 	partCheck.Use(middleware.RoleMiddleware("WH"))

@@ -448,9 +448,8 @@ export default function WHPartConfirmationPage() {
       <div className="pc-barcode-grid">
         {BARCODE_CARDS.map((card) => (
           <div
-            className="pc-barcode-card"
+            className={'pc-barcode-card pc-card-' + card.partType.toLowerCase()}
             key={card.title}
-            style={{ cursor: 'pointer' }}
             title={`เริ่มสแกน ${card.title}`}
             onClick={() => runScanFlow(card.partType)}
           >
