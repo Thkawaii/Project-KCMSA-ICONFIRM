@@ -32,13 +32,16 @@ const (
 )
 
 type UploadDataRow struct {
-	ID uint `gorm:"primaryKey"`
+	// composite index (dataset, row_no, id) — query หลักคือ WHERE dataset=? ORDER BY
+	// row_no, id (ดู GetUploadData) มี index รวมตัวเดียวให้ Postgres filter+sort ผ่าน
+	// index ได้เลย ไม่ต้อง sort ทั้งตารางในหน่วยความจำ
+	ID uint `gorm:"primaryKey;index:idx_ud_ds_order,priority:3"`
 
 	// planning | wh1 | wh2 | engine
-	Dataset string `gorm:"size:20;index;not null"`
+	Dataset string `gorm:"size:20;index;not null;index:idx_ud_ds_order,priority:1"`
 
 	// ลำดับแถวในไฟล์ (Planning=Line, WH2=Order) — ไว้เรียงให้ตรงกับไฟล์ต้นทาง
-	RowNo int `gorm:"index"`
+	RowNo int `gorm:"index;index:idx_ud_ds_order,priority:2"`
 
 	// ── คอลัมน์สำคัญที่ดึงออกมาไว้ค้น/เรียง (เก็บ full row ไว้ใน DataJSON อยู่แล้ว) ──
 	MachineNo string `gorm:"size:100;index"` // Planning: Machine, Engine: Machine No

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
+	"gorm.io/gorm"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -302,10 +303,16 @@ func readUploadedRowsFromForm(c *gin.Context) ([][]string, string, error) {
 	return rows, fileHeader.Filename, nil
 }
 
-// GetUploadData คืนรายการที่อัปโหลดไว้ กรองด้วย ?dataset= และ ?keyword=
+// GetUploadData คืนรายการที่อัปโหลดไว้ กรองด้วย ?dataset= และ ?keyword= แบบแบ่งหน้า
 //
 //	?dataset=planning|wh1|wh2|engine   (จำเป็น — คนละชุดคอลัมน์กันคนละ dataset)
 //	?keyword=...                       ค้นจาก machine_no / lot_no / order_no / parts_no
+//	?page=1                            หน้าที่ (เริ่ม 1) — default 1
+//	?limit=100                         จำนวนแถวต่อหน้า — default 100, เพดาน 500
+//
+// ก่อนหน้านี้ดึงทั้ง dataset ในครั้งเดียว (เช่น WH1 มี ~16k แถว) ทำให้ query ช้า
+// (SELECT * ลาก DataJSON ทุกแถว) + payload หนักฝั่ง browser จึงเปลี่ยนเป็นแบ่งหน้า
+// พร้อมคืน total ให้ frontend ทำตัวแบ่งหน้าได้
 func GetUploadData(c *gin.Context) {
 
 	dataset := strings.ToLower(strings.TrimSpace(c.Query("dataset")))
@@ -314,25 +321,57 @@ func GetUploadData(c *gin.Context) {
 		return
 	}
 
-	query := config.DB.Preload("User").
-		Where("dataset = ?", dataset).
-		Order("row_no asc").Order("id asc")
-
-	if kw := strings.TrimSpace(c.Query("keyword")); kw != "" {
-		like := "%" + kw + "%"
-		query = query.Where(
-			"machine_no ILIKE ? OR lot_no ILIKE ? OR order_no ILIKE ? OR parts_no ILIKE ?",
-			like, like, like, like,
-		)
+	// ── pagination params (กันค่าเพี้ยน) ──
+	page, _ := strconv.Atoi(strings.TrimSpace(c.Query("page")))
+	if page < 1 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(strings.TrimSpace(c.Query("limit")))
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
 	}
 
+	// filter ร่วม (dataset + keyword) — ใช้ closure สร้าง query ใหม่แยกกันสำหรับนับ
+	// total กับดึงหน้าปัจจุบัน กัน clause (count/order/limit) รั่วข้ามกันเมื่อ reuse
+	// chain เดียว
+	kw := strings.TrimSpace(c.Query("keyword"))
+	applyFilter := func(q *gorm.DB) *gorm.DB {
+		q = q.Where("dataset = ?", dataset)
+		if kw != "" {
+			like := "%" + kw + "%"
+			q = q.Where(
+				"machine_no ILIKE ? OR lot_no ILIKE ? OR order_no ILIKE ? OR parts_no ILIKE ?",
+				like, like, like, like,
+			)
+		}
+		return q
+	}
+
+	var total int64
+	applyFilter(config.DB.Model(&models.UploadDataRow{})).Count(&total)
+
 	var rows []models.UploadDataRow
-	query.Find(&rows)
+	applyFilter(config.DB.Preload("User")).
+		Order("row_no asc").Order("id asc").
+		Limit(limit).Offset((page - 1) * limit).
+		Find(&rows)
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = int((total + int64(limit) - 1) / int64(limit))
+	}
 
 	c.JSON(200, gin.H{
-		"dataset": dataset,
-		"columns": udDatasetColumnLabels(dataset),
-		"rows":    rows,
+		"dataset":    dataset,
+		"columns":    udDatasetColumnLabels(dataset),
+		"rows":       rows,
+		"total":      total,
+		"page":       page,
+		"limit":      limit,
+		"totalPages": totalPages,
 	})
 }
 

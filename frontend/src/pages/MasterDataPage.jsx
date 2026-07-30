@@ -180,7 +180,7 @@ export default function MasterDataPage() {
       {viewType === 'it_controller' ? (
         <ITControllerView reloadKey={reloadKey} bumpReload={() => setReloadKey((n) => n + 1)} />
       ) : (
-        <DatasetView key={viewType} dataset={viewType} reloadKey={reloadKey} />
+        <DatasetView key={`${viewType}-${reloadKey}`} dataset={viewType} />
       )}
     </AppShell>
   )
@@ -420,7 +420,9 @@ function ITControllerView({ reloadKey, bumpReload }) {
 /* ─────────────────────────────────────────────────────────────────────────
    Planning / WH1 / WH2 / Engine — ตารางไดนามิกตามคอลัมน์ที่ backend ส่งมา
    ───────────────────────────────────────────────────────────────────────── */
-function DatasetView({ dataset, reloadKey }) {
+const UD_PAGE_SIZE = 100
+
+function DatasetView({ dataset }) {
   const label = typeLabel(dataset)
 
   const [columns, setColumns] = useState([])
@@ -431,16 +433,44 @@ function DatasetView({ dataset, reloadKey }) {
   const [exporting, setExporting] = useState(false)
   const [localReload, setLocalReload] = useState(0)
 
+  // ── pagination ──
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+
+  // ค้นทันทีที่พิมพ์ (แบบ debounce) — กลับหน้า 1 เสมอ แล้ว trigger โหลด
+  // (setPage+setLocalReload ถูก batch เป็น render เดียวใน React 18 effect จึงยิง
+  // ครั้งเดียวด้วย page=1)
+  function runSearch() {
+    setPage(1)
+    setLocalReload((n) => n + 1)
+  }
+
+  // debounce การค้น: หน่วง 350ms หลังหยุดพิมพ์ค่อยยิง query กัน request ถี่ทุกตัวอักษร
+  // ข้าม run แรก (ตอน mount keyword='' โหลดหลักทำงานอยู่แล้ว) กันโหลดซ้ำ
+  const firstKeywordRun = useRef(true)
+  useEffect(() => {
+    if (firstKeywordRun.current) {
+      firstKeywordRun.current = false
+      return
+    }
+    const t = setTimeout(runSearch, 350)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keyword])
+
   useEffect(() => {
     let cancelled = false
     async function load() {
       setLoading(true)
       setLoadError('')
       try {
-        const data = await getUploadData(dataset, keyword || undefined)
+        const data = await getUploadData(dataset, keyword || undefined, page, UD_PAGE_SIZE)
         if (!cancelled) {
           setColumns(data?.columns || [])
           setRows(data?.rows || [])
+          setTotal(data?.total ?? 0)
+          setTotalPages(data?.totalPages || 1)
         }
       } catch (err) {
         if (!cancelled) setLoadError(err.message || 'โหลดรายการไม่สำเร็จ')
@@ -452,9 +482,9 @@ function DatasetView({ dataset, reloadKey }) {
     return () => {
       cancelled = true
     }
-    // keyword ค้นเมื่อกดปุ่ม/Enter (ผ่าน localReload) ไม่ผูกกับทุกตัวอักษร
+    // keyword ค้นแบบ debounce (ดู effect ด้านบน) ไม่ผูกกับทุกตัวอักษรใน render นี้
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataset, reloadKey, localReload])
+  }, [dataset, localReload, page])
 
   async function handleDelete(id) {
     const ok = await confirmDelete({ text: 'ลบแถวนี้? กู้คืนไม่ได้' })
@@ -473,6 +503,7 @@ function DatasetView({ dataset, reloadKey }) {
     if (!ok) return
     try {
       const res = await clearUploadData(dataset)
+      setPage(1)
       setLocalReload((n) => n + 1)
       toastSuccess(`ล้างแล้ว ${res.deleted ?? 0} แถว`)
     } catch (err) {
@@ -511,7 +542,7 @@ function DatasetView({ dataset, reloadKey }) {
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title" style={{ fontSize: 17 }}>
-            {rows.length} รายการ
+            {total.toLocaleString()} รายการ
           </h2>
         </div>
         <div className="uv-list-tools" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -520,12 +551,8 @@ function DatasetView({ dataset, reloadKey }) {
             placeholder="ค้นหา (เลขเครื่อง / LOT / Order / Parts)"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && setLocalReload((n) => n + 1)}
             style={{ minWidth: 240 }}
           />
-          <button className="wh-issue-btn" onClick={() => setLocalReload((n) => n + 1)}>
-            ค้นหา
-          </button>
           <button className="wh-issue-btn" onClick={handleExport} disabled={exporting}>
             {exporting ? 'กำลัง Export...' : (
               <>
@@ -533,7 +560,7 @@ function DatasetView({ dataset, reloadKey }) {
               </>
             )}
           </button>
-          <button className="qa-fail-btn" onClick={handleClear} disabled={rows.length === 0}>
+          <button className="qa-fail-btn" onClick={handleClear} disabled={total === 0}>
             ล้างทั้งหมด
           </button>
         </div>
@@ -561,7 +588,7 @@ function DatasetView({ dataset, reloadKey }) {
             {!loading &&
               rows.map((row, i) => (
                 <tr key={row.ID}>
-                  <td className="ud-td-sticky">{row.RowNo || i + 1}</td>
+                  <td className="ud-td-sticky">{row.RowNo || (page - 1) * UD_PAGE_SIZE + i + 1}</td>
                   {columns.map((c) => (
                     <td key={c} data-label={c}>
                       {cellValue(row, c) || DASH}
@@ -584,6 +611,37 @@ function DatasetView({ dataset, reloadKey }) {
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div
+          className="ud-pager"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 12,
+            marginTop: 12,
+          }}
+        >
+          <button
+            className="wh-issue-btn"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1 || loading}
+          >
+            ก่อนหน้า
+          </button>
+          <span style={{ fontSize: 14 }}>
+            หน้า {page.toLocaleString()} / {totalPages.toLocaleString()}
+          </span>
+          <button
+            className="wh-issue-btn"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages || loading}
+          >
+            ถัดไป
+          </button>
+        </div>
+      )}
     </>
   )
 }
