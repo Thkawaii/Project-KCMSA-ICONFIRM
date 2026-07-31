@@ -143,3 +143,65 @@
 
 /* WH page tabs (Serial / MC / Inv) */
 .il-wh-tabs { margin: 4px 0 18px; flex-wrap: wrap; }
+
+/* toolbar ของ Serial: ให้กลุ่ม filter แบบ/รุ่น + ช่องค้นหา ไปอยู่ "ชิดขวา" ติดกัน
+   แบบเดียวกับหน้า Master Data (pagesize อยู่ซ้าย, filter+ค้นหาอยู่ขวา)
+   ปล่อยให้ .tsf-history-toolbar ใช้ justify-content: space-between เดิม */
+
+/* กลุ่ม filter แบบ/รุ่น + ช่องค้นหา ให้อยู่ข้างกัน */
+.il-filter-search-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.il-filter-search-group .il-model-filter {
+  flex: 0 0 auto;
+  min-width: 160px;
+}
+.il-filter-search-group .wh-search {
+  flex: 0 1 auto;
+  width: 360px;
+  max-width: 100%;
+}
+@media (max-width: 640px) {
+  .il-filter-search-group {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  .il-filter-search-group .il-model-filter,
+  .il-filter-search-group .wh-search {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* ตัวกรองใบอนุญาต (ล็อต) — เปลี่ยนจากแถวชิปเป็น dropdown */
+.il-lot-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 18px;
+  flex-wrap: wrap;
+}
+.il-lot-filter-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475467;
+}
+.il-lot-filter-select {
+  min-width: 320px;
+  max-width: 100%;
+}
+@media (max-width: 640px) {
+  .il-lot-filter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .il-lot-filter-select {
+    min-width: 0;
+    width: 100%;
+  }
+}

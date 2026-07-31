@@ -36,6 +36,17 @@ function typeLabel(value) {
   return TYPE_OPTIONS.find((t) => t.value === value)?.label || value
 }
 
+// ชนิดอะไหล่ในทะเบียน Master Data — ใช้เป็นตัวกรอง (Filter) ในตาราง IT Controller
+// รหัสตรงกับ MasterData.ComponentType ที่ backend เก็บ
+const COMPONENT_TYPE_FILTER = [
+  { value: 'all', label: 'ทุกชนิด' },
+  { value: 'it_controller', label: 'IT Controller' },
+  { value: 'swing_motor', label: 'Swing Motor' },
+  { value: 'pump_assy_hyd', label: 'Pump Assy HYD' },
+  { value: 'motor_propel', label: 'Motor Propel' },
+  { value: 'control_valve', label: 'Control Valve' },
+]
+
 const navItems = [
   { to: '/master-data', label: 'ทะเบียน Master Data', icon: <RectangleStackIcon className="size-4" /> },
 ]
@@ -195,6 +206,7 @@ function ITControllerView({ reloadKey, bumpReload }) {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [keyword, setKeyword] = useState('')
+  const [compType, setCompType] = useState('all')
   const [deletingId, setDeletingId] = useState(0)
 
   useEffect(() => {
@@ -218,20 +230,24 @@ function ITControllerView({ reloadKey, bumpReload }) {
   }, [reloadKey])
 
   const filtered = useMemo(() => {
-    const kw = keyword.trim().toLowerCase()
-    if (!kw) return rows
-    return rows.filter((row) =>
-      [row.Name, row.Model, row.PartNo, row.SerialNo, row.ITControllerNo, row.IMEI]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(kw)),
-    )
-  }, [rows, keyword])
+    let result = rows
 
-  const seqByID = useMemo(() => {
-    const map = new Map()
-    rows.forEach((row, i) => map.set(row.ID, i + 1))
-    return map
-  }, [rows])
+    // กรองตามชนิดอะไหล่ (Filter)
+    if (compType !== 'all') {
+      result = result.filter((row) => row.ComponentType === compType)
+    }
+
+    const kw = keyword.trim().toLowerCase()
+    if (kw) {
+      result = result.filter((row) =>
+        [row.Name, row.Model, row.PartNo, row.SerialNo, row.ITControllerNo, row.IMEI]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(kw)),
+      )
+    }
+
+    return result
+  }, [rows, keyword, compType])
 
   const stats = useMemo(() => {
     const withImei = rows.filter((row) => row.IMEI).length
@@ -261,8 +277,8 @@ function ITControllerView({ reloadKey, bumpReload }) {
 
   function handleExportCsv() {
     const header = ['Item No', 'Part Name', 'Model', 'Part No', 'Serial No', 'IT Controller no.', 'IMEI']
-    const body = filtered.map((row) => [
-      seqByID.get(row.ID) ?? '',
+    const body = filtered.map((row, i) => [
+      i + 1,
       row.Name || '',
       row.Model || '',
       excelText(row.PartNo),
@@ -330,10 +346,17 @@ function ITControllerView({ reloadKey, bumpReload }) {
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title" style={{ fontSize: 17 }}>
-            {keyword.trim() && `พบ ${filtered.length} จาก ${rows.length}`}
+            {(keyword.trim() || compType !== 'all') && `พบ ${filtered.length} จาก ${rows.length}`}
           </h2>
         </div>
         <div className="uv-list-tools md-list-tools" style={{ display: 'flex', gap: 10 }}>
+          <div className="md-type-field" style={{ minWidth: 170 }}>
+            <SelectField
+              value={compType}
+              onChange={setCompType}
+              options={COMPONENT_TYPE_FILTER.map((t) => ({ value: t.value, label: t.label }))}
+            />
+          </div>
           <input
             className="wh-search"
             type="search"
@@ -372,10 +395,10 @@ function ITControllerView({ reloadKey, bumpReload }) {
             )}
 
             {!loading &&
-              filtered.map((row) => (
+              filtered.map((row, i) => (
                 <tr key={row.ID}>
                   <td className="wh-cell-head" data-label="Item No.">
-                    <strong>{seqByID.get(row.ID) ?? DASH}</strong>
+                    <strong>{i + 1}</strong>
                   </td>
                   <td data-label="Part Name">{row.Name || DASH}</td>
                   <td data-label="Model">{row.Model || DASH}</td>
@@ -406,7 +429,9 @@ function ITControllerView({ reloadKey, bumpReload }) {
             {!loading && filtered.length === 0 && (
               <tr>
                 <td colSpan={8} className="wh-empty-cell">
-                  {keyword.trim() ? 'ไม่พบรายการที่ค้นหา' : 'ยังไม่มีข้อมูลในทะเบียน'}
+                  {keyword.trim() || compType !== 'all'
+                    ? 'ไม่พบรายการตามตัวกรอง'
+                    : 'ยังไม่มีข้อมูลในทะเบียน'}
                 </td>
               </tr>
             )}

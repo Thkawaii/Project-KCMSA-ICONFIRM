@@ -53,9 +53,9 @@ export const WH_NAV_ITEMS = [
 //   mc     = สต๊อกเครื่อง/ออเดอร์ (ชีต MC)   · เอาไว้เช็คของเข้าคลัง
 //   inv    = รายการอินวอยซ์ (ชีต Inv)        · ตำแหน่งจัดเก็บ
 const WH_TABS = [
-  { key: 'serial', label: 'Serial · บัญชีใบอนุญาต' },
-  { key: 'mc', label: 'MC · สต๊อกเครื่อง' },
-  { key: 'inv', label: 'Inv · อินวอยซ์' },
+  { key: 'serial', label: 'Import License' },
+  { key: 'mc', label: 'MC' },
+  { key: 'inv', label: 'Inv' },
 ]
 
 // คอลัมน์ทั้งหมดของชีต MC (เรียงตามไฟล์จริง) — key ตรงกับชื่อฟิลด์ที่ backend ส่งกลับ
@@ -104,6 +104,7 @@ export default function ImportLicensePage() {
 
   const [selectedLot, setSelectedLot] = useState('') // 'licenseNo|invoiceNo'
   const [search, setSearch] = useState('')
+  const [modelFilter, setModelFilter] = useState('all')
   const [pageSize, setPageSize] = useState(25)
   const [page, setPage] = useState(1)
 
@@ -131,7 +132,7 @@ export default function ImportLicensePage() {
 
   useEffect(() => {
     setPage(1)
-  }, [selectedLot, search, pageSize])
+  }, [selectedLot, search, modelFilter, pageSize])
 
   async function handleUpload() {
     if (!file) {
@@ -197,6 +198,11 @@ export default function ImportLicensePage() {
       rows = rows.filter((r) => r.LicenseNo === licenseNo && r.InvoiceNo === invoiceNo)
     }
 
+    // กรองตามแบบ/รุ่น
+    if (modelFilter !== 'all') {
+      rows = rows.filter((r) => (r.Model || '') === modelFilter)
+    }
+
     const term = search.trim().toLowerCase()
     if (term) {
       rows = rows.filter(
@@ -212,7 +218,26 @@ export default function ImportLicensePage() {
     }
 
     return rows
-  }, [items, selectedLot, search])
+  }, [items, selectedLot, modelFilter, search])
+
+  // รายการแบบ/รุ่น (unique) สำหรับ dropdown filter
+  const modelOptions = useMemo(() => {
+    const set = new Set(items.map((r) => r.Model).filter(Boolean))
+    const list = Array.from(set).sort((a, b) => a.localeCompare(b))
+    return [{ value: 'all', label: 'ทุกแบบ/รุ่น' }, ...list.map((m) => ({ value: m, label: m }))]
+  }, [items])
+
+  // รายการใบอนุญาต (ล็อต) สำหรับ dropdown filter — แทนแถวชิปเดิม
+  const lotOptions = useMemo(() => {
+    const opts = [{ value: '', label: 'ทุกใบอนุญาต' }]
+    summary.forEach((s) => {
+      opts.push({
+        value: `${s.LicenseNo}|${s.InvoiceNo}`,
+        label: `${s.LicenseNo} · Invoice ${s.InvoiceNo} · ${s.Total} เครื่อง`,
+      })
+    })
+    return opts
+  }, [summary])
 
   const counts = useMemo(
     () => ({
@@ -236,11 +261,7 @@ export default function ImportLicensePage() {
     <AppShell navItems={WH_NAV_ITEMS} roleLabel="Warehouse">
       <div className="wh-heading-row">
         <div>
-          <h2 className="wh-title">Import License</h2>
-          <p className="wh-subtitle">
-            บัญชีแสดงหมายเลขเครื่องแนบท้ายใบอนุญาตนำเข้า — ใช้เป็นตัวอ้างอิงให้หน้า Part
-            Confirmation เทียบตอนสแกน
-          </p>
+          <h2 className="wh-title">Import Data</h2>
         </div>
       </div>
 
@@ -338,30 +359,13 @@ export default function ImportLicensePage() {
         </div>
       </div>
 
-      {/* ── เลือกล็อต (ใบอนุญาต + อินวอยซ์) ──────────────────────────────── */}
+      {/* ── เลือกล็อต (ใบอนุญาต + อินวอยซ์) เป็น dropdown filter ── */}
       {summary.length > 0 && (
-        <div className="il-lot-row">
-          <button
-            className={'il-lot-chip' + (selectedLot === '' ? ' il-lot-chip-active' : '')}
-            onClick={() => setSelectedLot('')}
-          >
-            ทุกใบอนุญาต
-          </button>
-          {summary.map((s) => {
-            const key = `${s.LicenseNo}|${s.InvoiceNo}`
-            return (
-              <button
-                key={key}
-                className={'il-lot-chip' + (selectedLot === key ? ' il-lot-chip-active' : '')}
-                onClick={() => setSelectedLot(key)}
-              >
-                <strong>{s.LicenseNo}</strong>
-                <span className="il-lot-chip-sub">
-                  Invoice {s.InvoiceNo} · {s.Total} เครื่อง
-                </span>
-              </button>
-            )
-          })}
+        <div className="il-lot-filter">
+          <label className="il-lot-filter-label">ใบอนุญาต</label>
+          <div className="il-lot-filter-select">
+            <SelectField value={selectedLot} onChange={setSelectedLot} options={lotOptions} />
+          </div>
         </div>
       )}
 
@@ -398,13 +402,18 @@ export default function ImportLicensePage() {
           </div>
           entries per page
         </div>
-        <input
-          className="wh-search"
-          type="text"
-          placeholder="ค้นหา หมายเลขเครื่อง / หมายเลขการผลิต / ใบอนุญาต / อินวอยซ์ / ใบขนสินค้า"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div className="il-filter-search-group">
+          <div className="wh-pagesize-select il-model-filter">
+            <SelectField value={modelFilter} onChange={setModelFilter} options={modelOptions} />
+          </div>
+          <input
+            className="wh-search"
+            type="text"
+            placeholder="ค้นหา หมายเลขเครื่อง / หมายเลขการผลิต / ใบอนุญาต / อินวอยซ์ / ใบขนสินค้า"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
       </div>
 
       <div className="wh-table-card">
@@ -658,6 +667,7 @@ function WHMachineStockPanel() {
         <table className="wh-table">
           <thead>
             <tr>
+              <th>ลำดับ</th>
               {MC_COLUMNS.map((col) => (
                 <th key={col.key}>{col.label}</th>
               ))}
@@ -667,14 +677,17 @@ function WHMachineStockPanel() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={MC_COLUMNS.length + 1} className="wh-empty-cell">
+                <td colSpan={MC_COLUMNS.length + 2} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
             )}
             {!loading &&
-              paged.map((row) => (
+              paged.map((row, i) => (
                 <tr key={row.ID}>
+                  <td className="wh-cell-head" data-label="ลำดับ">
+                    {(page - 1) * pageSize + i + 1}
+                  </td>
                   {MC_COLUMNS.map((col) => (
                     <td
                       key={col.key}
@@ -695,7 +708,7 @@ function WHMachineStockPanel() {
               ))}
             {!loading && paged.length === 0 && (
               <tr>
-                <td colSpan={MC_COLUMNS.length + 1} className="wh-empty-cell">
+                <td colSpan={MC_COLUMNS.length + 2} className="wh-empty-cell">
                   ยังไม่มีข้อมูล MC — อัปโหลดไฟล์ Excel (ชีต MC) ด้านบนก่อน
                 </td>
               </tr>
@@ -861,6 +874,7 @@ function WHInvoicePanel() {
         <table className="wh-table">
           <thead>
             <tr>
+              <th>ลำดับ</th>
               <th>P.O.NO</th>
               <th>Line No.</th>
               <th>Container</th>
@@ -877,14 +891,17 @@ function WHInvoicePanel() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={11} className="wh-empty-cell">
+                <td colSpan={12} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
             )}
             {!loading &&
-              filtered.map((row) => (
+              filtered.map((row, i) => (
                 <tr key={row.ID}>
+                  <td className="wh-cell-head" data-label="ลำดับ">
+                    {i + 1}
+                  </td>
                   <td className="il-mono wh-cell-head" data-label="P.O.NO">
                     <strong>{row.PONo || '—'}</strong>
                   </td>
@@ -912,7 +929,7 @@ function WHInvoicePanel() {
               ))}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={11} className="wh-empty-cell">
+                <td colSpan={12} className="wh-empty-cell">
                   ยังไม่มีข้อมูล Inv — อัปโหลดไฟล์ Excel (ชีต Inv) ด้านบนก่อน
                 </td>
               </tr>
