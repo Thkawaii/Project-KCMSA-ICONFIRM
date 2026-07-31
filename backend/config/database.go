@@ -69,6 +69,10 @@ func ConnectDB() {
 
 		// ── ไฟล์อัปโหลด Planning / WH1 / WH2 / Engine (หน้า Upload Data) ──
 		&models.UploadDataRow{},
+
+		// ── ตารางอ้างอิง WH เพิ่มเติม: ชีต MC (สต๊อกเครื่อง) + Inv (อินวอยซ์) ──
+		&models.WHMachineStock{},
+		&models.WHInvoiceItem{},
 	)
 
 	SeedData()

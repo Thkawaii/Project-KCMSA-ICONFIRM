@@ -140,3 +140,6 @@
   color: #c2410c;
   line-height: 1.7;
 }
+
+/* WH page tabs (Serial / MC / Inv) */
+.il-wh-tabs { margin: 4px 0 18px; flex-wrap: wrap; }

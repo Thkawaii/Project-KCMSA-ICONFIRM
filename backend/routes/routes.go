@@ -96,6 +96,26 @@ func SetupRoutes(r *gin.Engine) {
 		importLicense.DELETE("", controllers.ClearImportLicenseItems)
 	}
 
+	// ─────────────────────────────────────────────────────────────────────
+	// WH Stock — ตารางอ้างอิงเพิ่มเติมของ Warehouse ที่อัปโหลดจาก Excel
+	//   /wh-stock/mc   = ชีต MC  (สต๊อกเครื่อง/ออเดอร์ เอาไว้เช็คของเข้าคลัง)
+	//   /wh-stock/inv  = ชีต Inv (รายการอินวอยซ์ + ตำแหน่งจัดเก็บ)
+	// สิทธิ์เดียวกับ import-license (role WH)
+	// ─────────────────────────────────────────────────────────────────────
+	whStock := auth.Group("/wh-stock")
+	whStock.Use(middleware.RoleMiddleware("WH"))
+	{
+		whStock.GET("/mc", controllers.GetWHMachineStock)
+		whStock.POST("/mc/upload", controllers.UploadWHMachineStock)
+		whStock.DELETE("/mc/:id", controllers.DeleteWHMachineStock)
+		whStock.DELETE("/mc", controllers.ClearWHMachineStock)
+
+		whStock.GET("/inv", controllers.GetWHInvoice)
+		whStock.POST("/inv/upload", controllers.UploadWHInvoice)
+		whStock.DELETE("/inv/:id", controllers.DeleteWHInvoice)
+		whStock.DELETE("/inv", controllers.ClearWHInvoice)
+	}
+
 	// Generic photo upload — any authenticated role can upload (WH/TSF/QA
 	// all attach photos at various steps). Returns a URL to store on the
 	// record (e.g. TSFOperator.PhotoURL).

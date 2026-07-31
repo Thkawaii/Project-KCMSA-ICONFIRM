@@ -76,11 +76,11 @@ function matchBadge(status) {
 
 // การ์ดบาร์โค้ดที่โชว์บนหน้า Part Confirmation (ตามรูป label จริง)
 const BARCODE_CARDS = [
-  { partType: 'ITC', title: 'IT Controller', img: bcItc, kind: 'P/N + S/N' },
-  { partType: 'SM', title: 'Swing Motor S/N', img: bcSwingSn, kind: 'S/N' },
-  { partType: 'PH', title: 'Pump Assy HYD S/N', img: bcPumpSn, kind: 'S/N' },
-  { partType: 'MP', title: 'Motor Propel S/N', img: bcMotorSn, kind: 'S/N' },
-  { partType: 'CV', title: 'Control Valve S/N', img: bcValveSn, kind: 'S/N' },
+  { partType: 'ITC', title: 'IT Controller', caption: 'IT Controller', img: bcItc, kind: 'P/N + S/N' },
+  { partType: 'SM', title: 'Swing Motor', caption: 'Swing Motor (S/N)', img: bcSwingSn, kind: 'S/N' },
+  { partType: 'PH', title: 'Pump Assy HYD', caption: 'Pump Assy HYD (S/N)', img: bcPumpSn, kind: 'S/N' },
+  { partType: 'MP', title: 'Motor Propel', caption: 'Motor Propel (S/N)', img: bcMotorSn, kind: 'S/N' },
+  { partType: 'CV', title: 'Control Valve', caption: 'Control Valve (S/N)', img: bcValveSn, kind: 'S/N' },
 ]
 
 export default function WHPartConfirmationPage() {
@@ -445,13 +445,22 @@ export default function WHPartConfirmationPage() {
         {BARCODE_CARDS.map((card) => (
           <div
             className={'pc-barcode-card pc-card-' + card.partType.toLowerCase()}
-            key={card.title}
+            key={card.partType}
+            role="button"
+            tabIndex={0}
             title={`เริ่มสแกน ${card.title}`}
             onClick={() => runScanFlow(card.partType)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                runScanFlow(card.partType)
+              }
+            }}
           >
+            <span className="pc-barcode-kind">{card.kind}</span>
             <div className="pc-barcode-title">{card.title}</div>
             <div className="pc-barcode-box">
-              <img className="pc-barcode-img" src={card.img} alt={card.title} />
+              <img className="pc-barcode-img" src={card.img} alt={`บาร์โค้ด ${card.caption}`} />
             </div>
           </div>
         ))}

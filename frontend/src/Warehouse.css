@@ -1183,70 +1183,95 @@
   box-shadow: 0 0 0 4px rgba(0, 206, 200, 0.15);
 }
 
-/* ===== Part Confirmation — การ์ดบาร์โค้ด (teal label cards) ===== */
+/* ===== Part Confirmation — การ์ดบาร์โค้ด (white label cards) =====
+   สไตล์ป้ายฉลากจริง: การ์ดขาว มุมมน มีขอบบาง แถบสีบนหัวการ์ดบอกชนิดพาร์ท
+   ด้านในเรียงจากบน = ชื่อพาร์ท, บาร์โค้ด, คำอธิบายใต้บาร์โค้ด (human-readable) */
 .pc-barcode-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 22px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
   margin: 8px 0 22px;
 }
 .pc-barcode-card {
-  background: var(--brand-500);
-  border-radius: 22px;
-  padding: 22px 24px 18px;
+  position: relative;
+  background: #fff;
+  border: 1px solid #e6eaf0;
+  border-radius: 18px;
+  padding: 22px 22px 20px;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 14px;
-  box-shadow: 0 4px 12px rgba(0, 206, 200, 0.12);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 10px 26px rgba(16, 24, 40, 0.06);
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  overflow: hidden;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+/* แถบสีบนหัวการ์ด = สีประจำชนิดพาร์ท (ดึงจาก --pc-accent) */
+.pc-barcode-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 5px;
+  background: var(--pc-accent, #00cec8);
 }
 .pc-barcode-card:hover {
-  transform: translateY(-3px);
-  filter: saturate(1.08);
+  transform: translateY(-4px);
+  border-color: var(--pc-accent, #00cec8);
+  box-shadow: 0 2px 4px rgba(16, 24, 40, 0.05), 0 18px 38px rgba(16, 24, 40, 0.13);
 }
 .pc-barcode-card:active {
   transform: translateY(-1px);
 }
+.pc-barcode-card:focus-visible {
+  outline: none;
+  border-color: var(--pc-accent, #00cec8);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--pc-accent, #00cec8) 22%, transparent);
+}
 
-/* ─── สีประจำแต่ละชนิดพาร์ท ให้แยกออกจากกันชัด หาเจอง่าย ─── */
-.pc-card-itc {
-  background: linear-gradient(135deg, #4f46e5, #4338ca); /* IT Controller — indigo */
-  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.28);
-}
-.pc-card-sm {
-  background: linear-gradient(135deg, #00a39d, #0f8580); /* Swing Motor — teal (สีแบรนด์) */
-  box-shadow: 0 8px 20px rgba(15, 133, 128, 0.28);
-}
-.pc-card-ph {
-  background: linear-gradient(135deg, #f59e0b, #d97706); /* Pump Assy HYD — amber */
-  box-shadow: 0 8px 20px rgba(217, 119, 6, 0.28);
-}
-.pc-card-mp {
-  background: linear-gradient(135deg, #8b5cf6, #7c3aed); /* Motor Propel — violet */
-  box-shadow: 0 8px 20px rgba(124, 58, 237, 0.28);
-}
-.pc-card-cv {
-  background: linear-gradient(135deg, #f43f5e, #e11d48); /* Control Valve — rose */
-  box-shadow: 0 8px 20px rgba(225, 29, 72, 0.28);
+/* ─── สีประจำแต่ละชนิดพาร์ท (คุมแถบหัวการ์ด + เส้นตอน hover/focus) หาเจอง่าย ─── */
+.pc-card-itc { --pc-accent: #4f46e5; } /* IT Controller — indigo */
+.pc-card-sm  { --pc-accent: #00a39d; } /* Swing Motor — teal (สีแบรนด์) */
+.pc-card-ph  { --pc-accent: #d97706; } /* Pump Assy HYD — amber */
+.pc-card-mp  { --pc-accent: #7c3aed; } /* Motor Propel — violet */
+.pc-card-cv  { --pc-accent: #e11d48; } /* Control Valve — rose */
+
+/* ป้ายชนิดโค้ดที่ต้องยิง (S/N หรือ P/N + S/N) มุมขวาบน */
+.pc-barcode-kind {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--pc-accent, #00a39d);
+  background: color-mix(in srgb, var(--pc-accent, #00cec8) 12%, #fff);
+  border: 1px solid color-mix(in srgb, var(--pc-accent, #00cec8) 30%, #fff);
+  padding: 3px 9px;
+  border-radius: 999px;
 }
 .pc-barcode-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #fff;
+  font-size: 21px;
+  font-weight: 700;
+  color: #101828;
   letter-spacing: 0.2px;
+  text-align: center;
+  margin-top: 6px;
 }
 .pc-barcode-box {
+  width: 100%;
   background: #fff;
-  border-radius: 8px;
-  padding: 12px 14px;
+  border-radius: 10px;
+  padding: 4px 8px 2px;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
 }
 .pc-barcode-img {
   max-width: 100%;
-  height: auto;
+  height: 78px;
+  object-fit: contain;
   display: block;
 }
 /* การ์ดบาร์โค้ดใบเดียว (หน้า MFG — Machine Part Confirmation) จัดกึ่งกลาง
