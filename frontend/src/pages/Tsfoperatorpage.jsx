@@ -445,7 +445,7 @@ export default function TSFOperatorPage() {
               <div className="pc-barcode-card">
                 <div className="pc-barcode-title">Machine Part Confirmation</div>
                 <div className="pc-barcode-box">
-                  <img className="pc-barcode-img" src={bcMachine} alt="Scan Machine Barcode" />
+                  <img className="pc-barcode-img" src={bcMachine} alt="บาร์โค้ด Machine No." />
                 </div>
               </div>
             </div>

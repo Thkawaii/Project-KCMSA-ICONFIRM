@@ -6,6 +6,16 @@ import {
   deleteImportLicenseItem,
   clearImportLicense,
 } from '../api/importLicense.js'
+import {
+  getWHMachineStock,
+  uploadWHMachineStock,
+  deleteWHMachineStock,
+  clearWHMachineStock,
+  getWHInvoice,
+  uploadWHInvoice,
+  deleteWHInvoice,
+  clearWHInvoice,
+} from '../api/whStock.js'
 import AppShell from '../components/AppShell.jsx'
 import FileDropZone from '../components/Filedropzone.jsx'
 import SelectField from '../components/Selectfield.jsx'
@@ -38,7 +48,55 @@ export const WH_NAV_ITEMS = [
 // คือของที่ถูกต้องโดยนิยาม
 // สถานะการสแกนยืนยันไปอยู่ที่หน้า Part Confirmation ซึ่งเป็นคนสแกนของจริง
 
+// แท็บของหน้า WH — อัปโหลดตารางอ้างอิง 3 ชนิดจากไฟล์ Excel เล่มเดียวกัน
+//   serial = บัญชีแนบใบอนุญาต (ชีต Serail)  · เดิม
+//   mc     = สต๊อกเครื่อง/ออเดอร์ (ชีต MC)   · เอาไว้เช็คของเข้าคลัง
+//   inv    = รายการอินวอยซ์ (ชีต Inv)        · ตำแหน่งจัดเก็บ
+const WH_TABS = [
+  { key: 'serial', label: 'Serial · บัญชีใบอนุญาต' },
+  { key: 'mc', label: 'MC · สต๊อกเครื่อง' },
+  { key: 'inv', label: 'Inv · อินวอยซ์' },
+]
+
+// คอลัมน์ทั้งหมดของชีต MC (เรียงตามไฟล์จริง) — key ตรงกับชื่อฟิลด์ที่ backend ส่งกลับ
+// mono = ใช้ฟอนต์ monospace (เลข/รหัส), head = ตัวหนา (คีย์หลัก Order No)
+const MC_COLUMNS = [
+  { key: 'Warehouse', label: 'Warehouse' },
+  { key: 'ForwardingWarehouse', label: 'Forwarding Warehouse' },
+  { key: 'StockOutInstDate', label: 'Stock out Inst date' },
+  { key: 'STLC', label: 'ST/LC' },
+  { key: 'OrderNo', label: 'Order No', mono: true, head: true },
+  { key: 'ShippingFinish', label: 'Shipping finish' },
+  { key: 'WorkOrder', label: 'Work order', mono: true },
+  { key: 'WDetailNo', label: 'W-Detail No.' },
+  { key: 'WorkOrderFinish', label: 'Work order finish' },
+  { key: 'StockOutNo', label: 'Stock out No.', mono: true },
+  { key: 'StockOutFinish', label: 'Stock out finish' },
+  { key: 'PartsNo', label: 'Parts No', mono: true },
+  { key: 'Name', label: 'Name' },
+  { key: 'Pick', label: 'Pick' },
+  { key: 'Inst', label: 'Inst' },
+  { key: 'Ship', label: 'Ship' },
+  { key: 'Remain', label: 'Remain' },
+  { key: 'Shortage', label: 'Shortage' },
+  { key: 'Mismatch', label: 'Mismatch' },
+  { key: 'Pr', label: 'Pr' },
+  { key: 'Sp', label: 'Sp' },
+  { key: 'AB', label: 'AB' },
+  { key: 'StandardCost', label: 'Standard cost' },
+  { key: 'Shelf1', label: 'Shelf-1' },
+  { key: 'Shelf2', label: 'Shelf-2' },
+  { key: 'Note', label: 'Note' },
+  { key: 'AssemblyPartsNumber', label: 'Assembly Parts Number' },
+  { key: 'AssemblyPartsName', label: 'Assembly Parts Name' },
+  { key: 'DL', label: 'DL' },
+  { key: 'ReservationNo', label: 'Reservation No.', mono: true },
+  { key: 'RDetailNo', label: 'R-Detail No.' },
+  { key: 'FinalColor', label: 'Final Color' },
+]
+
 export default function ImportLicensePage() {
+  const [tab, setTab] = useState('serial')
   const [items, setItems] = useState([])
   const [summary, setSummary] = useState([])
   const [loading, setLoading] = useState(true)
@@ -193,6 +251,20 @@ export default function ImportLicensePage() {
       )}
 
       {/* ── อัปโหลดไฟล์บัญชี ─────────────────────────────────────────────── */}
+      <div className="vr-tabs il-wh-tabs">
+        {WH_TABS.map((t) => (
+          <button
+            key={t.key}
+            className={'vr-tab' + (tab === t.key ? ' vr-tab-active' : '')}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'serial' && (
+        <>
       <div className="wh-upload-card">
         <div className="fdz-row">
           <FileDropZone
@@ -432,6 +504,422 @@ export default function ImportLicensePage() {
           </div>
         </div>
       )}
+        </>
+      )}
+
+      {tab === 'mc' && <WHMachineStockPanel />}
+      {tab === 'inv' && <WHInvoicePanel />}
     </AppShell>
+  )
+}
+// ═══════════════════════════════════════════════════════════════════════════
+// แผง MC — สต๊อกเครื่อง/ออเดอร์ (ชีต MC) เอาไว้เช็คของเข้าคลัง
+// ═══════════════════════════════════════════════════════════════════════════
+function WHMachineStockPanel() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [file, setFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [msg, setMsg] = useState(null)
+  const [pageSize, setPageSize] = useState(25)
+  const [page, setPage] = useState(1)
+
+  async function load() {
+    setLoading(true)
+    try {
+      setRows(await getWHMachineStock())
+    } catch (err) {
+      toastError(err.message || 'โหลดข้อมูล MC ไม่สำเร็จ')
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => {
+    load()
+  }, [])
+
+  async function handleUpload() {
+    if (!file) {
+      setMsg({ error: 'กรุณาเลือกไฟล์ Excel หรือ CSV ก่อน' })
+      return
+    }
+    setUploading(true)
+    setMsg(null)
+    try {
+      const r = await uploadWHMachineStock(file)
+      setMsg({ success: `นำเข้าสำเร็จ — ${r.imported} แถว, ข้าม ${r.skipped} แถว` })
+      setFile(null)
+      await load()
+    } catch (err) {
+      setMsg({ error: err.message || 'อัปโหลดไม่สำเร็จ' })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleDelete(row) {
+    const ok = await confirmDelete({ text: `ลบ Order No ${row.OrderNo}?` })
+    if (!ok) return
+    try {
+      await deleteWHMachineStock(row.ID)
+      await load()
+      toastSuccess(`ลบ ${row.OrderNo} แล้ว`)
+    } catch (err) {
+      toastError(err.message || 'ลบไม่สำเร็จ')
+    }
+  }
+
+  async function handleClearAll() {
+    const ok = await confirmDelete({
+      text: 'ลบสต๊อกเครื่อง (MC) ทั้งหมด? กู้คืนไม่ได้',
+      confirmText: 'ลบทั้งหมด',
+    })
+    if (!ok) return
+    try {
+      await clearWHMachineStock()
+      await load()
+      toastSuccess('ลบสต๊อกเครื่องทั้งหมดแล้ว')
+    } catch (err) {
+      toastError(err.message || 'ลบไม่สำเร็จ')
+    }
+  }
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    if (!term) return rows
+    return rows.filter(
+      (r) =>
+        (r.OrderNo || '').toLowerCase().includes(term) ||
+        (r.PartsNo || '').toLowerCase().includes(term) ||
+        (r.WorkOrder || '').toLowerCase().includes(term) ||
+        (r.Warehouse || '').toLowerCase().includes(term) ||
+        (r.Name || '').toLowerCase().includes(term)
+    )
+  }, [rows, search])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  return (
+    <>
+      <div className="wh-upload-card">
+        <div className="fdz-row">
+          <FileDropZone
+            file={file}
+            onSelect={(f) => {
+              setFile(f)
+              setMsg(null)
+            }}
+            accept=".xlsx,.xls,.csv"
+            label="อัปโหลดสต๊อกเครื่อง (ชีต MC)"
+            hint="ไฟล์ Excel ที่มีชีต 'MC' — คอลัมน์ Warehouse / Order No / Work order / Parts No / Name (อัปโหลดไฟล์เดิมซ้ำได้ ระบบทับให้)"
+            disabled={uploading}
+          />
+          <button className="wh-issue-btn" onClick={handleUpload} disabled={uploading || !file}>
+            {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลด'}
+          </button>
+        </div>
+        {msg?.success && <p className="upload-card-msg upload-card-msg-ok wh-upload-msg">{msg.success}</p>}
+        {msg?.error && <p className="upload-card-msg upload-card-msg-err wh-upload-msg">{msg.error}</p>}
+      </div>
+
+      <div className="tsf-history-toolbar">
+        <div className="tsf-history-pagesize">
+          <div className="wh-pagesize-select">
+            <SelectField
+              value={pageSize}
+              onChange={setPageSize}
+              options={[
+                { value: 10, label: '10' },
+                { value: 25, label: '25' },
+                { value: 50, label: '50' },
+                { value: 100, label: '100' },
+              ]}
+            />
+          </div>
+          entries per page
+        </div>
+        <input
+          className="wh-search"
+          type="text"
+          placeholder="ค้นหา Order No / Parts No / Work order / Warehouse / Name"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {rows.length > 0 && (
+          <button className="wh-modal-cancel" onClick={handleClearAll}>
+            ลบทั้งหมด
+          </button>
+        )}
+      </div>
+
+      <div className="wh-table-card">
+        <table className="wh-table">
+          <thead>
+            <tr>
+              {MC_COLUMNS.map((col) => (
+                <th key={col.key}>{col.label}</th>
+              ))}
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={MC_COLUMNS.length + 1} className="wh-empty-cell">
+                  กำลังโหลดข้อมูล...
+                </td>
+              </tr>
+            )}
+            {!loading &&
+              paged.map((row) => (
+                <tr key={row.ID}>
+                  {MC_COLUMNS.map((col) => (
+                    <td
+                      key={col.key}
+                      data-label={col.label}
+                      className={
+                        (col.mono ? 'il-mono' : '') + (col.head ? ' wh-cell-head' : '')
+                      }
+                    >
+                      {col.head ? <strong>{row[col.key] || '—'}</strong> : row[col.key] || '—'}
+                    </td>
+                  ))}
+                  <td className="wh-cell-action">
+                    <button className="wh-modal-cancel" onClick={() => handleDelete(row)}>
+                      ลบ
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            {!loading && paged.length === 0 && (
+              <tr>
+                <td colSpan={MC_COLUMNS.length + 1} className="wh-empty-cell">
+                  ยังไม่มีข้อมูล MC — อัปโหลดไฟล์ Excel (ชีต MC) ด้านบนก่อน
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {!loading && filtered.length > pageSize && (
+        <div className="tsf-pagination">
+          <span className="wh-subtitle" style={{ fontSize: 13 }}>
+            Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, filtered.length)} of{' '}
+            {filtered.length} entries
+          </span>
+          <div className="tsf-pagination-buttons">
+            <button
+              className="wh-modal-cancel"
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page === 1}
+            >
+              <ChevronLeftIcon className="size-4" />
+            </button>
+            <span className="tsf-pagination-current">
+              {page} / {totalPages}
+            </span>
+            <button
+              className="wh-modal-cancel"
+              onClick={() => setPage(Math.min(totalPages, page + 1))}
+              disabled={page === totalPages}
+            >
+              <ChevronRightIcon className="size-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// แผง Inv — รายการอินวอยซ์ + ตำแหน่งจัดเก็บ (ชีต Inv)
+// ═══════════════════════════════════════════════════════════════════════════
+function WHInvoicePanel() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [file, setFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [msg, setMsg] = useState(null)
+
+  async function load() {
+    setLoading(true)
+    try {
+      setRows(await getWHInvoice())
+    } catch (err) {
+      toastError(err.message || 'โหลดข้อมูล Inv ไม่สำเร็จ')
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => {
+    load()
+  }, [])
+
+  async function handleUpload() {
+    if (!file) {
+      setMsg({ error: 'กรุณาเลือกไฟล์ Excel หรือ CSV ก่อน' })
+      return
+    }
+    setUploading(true)
+    setMsg(null)
+    try {
+      const r = await uploadWHInvoice(file)
+      setMsg({ success: `นำเข้าสำเร็จ — ${r.imported} แถว, ข้าม ${r.skipped} แถว` })
+      setFile(null)
+      await load()
+    } catch (err) {
+      setMsg({ error: err.message || 'อัปโหลดไม่สำเร็จ' })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleDelete(row) {
+    const ok = await confirmDelete({ text: `ลบแถวอินวอยซ์ P.O. ${row.PONo || '—'} (${row.PartsNo || '—'})?` })
+    if (!ok) return
+    try {
+      await deleteWHInvoice(row.ID)
+      await load()
+      toastSuccess('ลบแถวแล้ว')
+    } catch (err) {
+      toastError(err.message || 'ลบไม่สำเร็จ')
+    }
+  }
+
+  async function handleClearAll() {
+    const ok = await confirmDelete({
+      text: 'ลบรายการอินวอยซ์ (Inv) ทั้งหมด? กู้คืนไม่ได้',
+      confirmText: 'ลบทั้งหมด',
+    })
+    if (!ok) return
+    try {
+      await clearWHInvoice()
+      await load()
+      toastSuccess('ลบรายการอินวอยซ์ทั้งหมดแล้ว')
+    } catch (err) {
+      toastError(err.message || 'ลบไม่สำเร็จ')
+    }
+  }
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    if (!term) return rows
+    return rows.filter(
+      (r) =>
+        (r.PONo || '').toLowerCase().includes(term) ||
+        (r.PartsNo || '').toLowerCase().includes(term) ||
+        (r.CNo || '').toLowerCase().includes(term) ||
+        (r.Sloc || '').toLowerCase().includes(term) ||
+        (r.Shelf || '').toLowerCase().includes(term)
+    )
+  }, [rows, search])
+
+  return (
+    <>
+      <div className="wh-upload-card">
+        <div className="fdz-row">
+          <FileDropZone
+            file={file}
+            onSelect={(f) => {
+              setFile(f)
+              setMsg(null)
+            }}
+            accept=".xlsx,.xls,.csv"
+            label="อัปโหลดรายการอินวอยซ์ (ชีต Inv)"
+            hint="ไฟล์ Excel ที่มีชีต 'Inv' — คอลัมน์ P.O.NO / C/NO. / PARTS NO. / Q'TY / Sloc / Shelf (อัปโหลดซ้ำ P.O. เดิม ระบบทับให้)"
+            disabled={uploading}
+          />
+          <button className="wh-issue-btn" onClick={handleUpload} disabled={uploading || !file}>
+            {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลด'}
+          </button>
+        </div>
+        {msg?.success && <p className="upload-card-msg upload-card-msg-ok wh-upload-msg">{msg.success}</p>}
+        {msg?.error && <p className="upload-card-msg upload-card-msg-err wh-upload-msg">{msg.error}</p>}
+      </div>
+
+      <div className="tsf-history-toolbar">
+        <input
+          className="wh-search"
+          type="text"
+          placeholder="ค้นหา P.O.NO / Parts No / C/NO. / Sloc / Shelf"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {rows.length > 0 && (
+          <button className="wh-modal-cancel" onClick={handleClearAll}>
+            ลบทั้งหมด
+          </button>
+        )}
+      </div>
+
+      <div className="wh-table-card">
+        <table className="wh-table">
+          <thead>
+            <tr>
+              <th>P.O.NO</th>
+              <th>Line No.</th>
+              <th>Container</th>
+              <th>Package</th>
+              <th>C/NO.</th>
+              <th>Parts No</th>
+              <th>Description</th>
+              <th>Q'TY</th>
+              <th>Sloc</th>
+              <th>Shelf</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={11} className="wh-empty-cell">
+                  กำลังโหลดข้อมูล...
+                </td>
+              </tr>
+            )}
+            {!loading &&
+              filtered.map((row) => (
+                <tr key={row.ID}>
+                  <td className="il-mono wh-cell-head" data-label="P.O.NO">
+                    <strong>{row.PONo || '—'}</strong>
+                  </td>
+                  <td data-label="Line No.">{row.LineNo || '—'}</td>
+                  <td className="il-mono" data-label="Container">
+                    {row.Container || '—'}
+                  </td>
+                  <td data-label="Package">{row.Package || '—'}</td>
+                  <td className="il-mono" data-label="C/NO.">
+                    {row.CNo || '—'}
+                  </td>
+                  <td className="il-mono" data-label="Parts No">
+                    {row.PartsNo || '—'}
+                  </td>
+                  <td data-label="Description">{row.Description || '—'}</td>
+                  <td data-label="Q'TY">{row.Qty}</td>
+                  <td data-label="Sloc">{row.Sloc || '—'}</td>
+                  <td data-label="Shelf">{row.Shelf || '—'}</td>
+                  <td className="wh-cell-action">
+                    <button className="wh-modal-cancel" onClick={() => handleDelete(row)}>
+                      ลบ
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            {!loading && filtered.length === 0 && (
+              <tr>
+                <td colSpan={11} className="wh-empty-cell">
+                  ยังไม่มีข้อมูล Inv — อัปโหลดไฟล์ Excel (ชีต Inv) ด้านบนก่อน
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
   )
 }
