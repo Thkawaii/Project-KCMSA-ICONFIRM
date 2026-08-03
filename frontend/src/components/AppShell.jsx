@@ -1,6 +1,7 @@
 import { useAppNavigate, useAppView } from '../lib/nav.jsx'
 import { logout } from '../api/auth.js'
 import { ArrowRightStartOnRectangleIcon } from './icons.jsx'
+import LicenseAlertBell from './LicenseAlertBell.jsx'
 
 export default function AppShell({ navItems, roleLabel, children }) {
   const navigate = useAppNavigate()
@@ -8,6 +9,10 @@ export default function AppShell({ navItems, roleLabel, children }) {
 
   const displayName = `${roleLabel} User`
   const initial = (roleLabel || 'U').trim().charAt(0).toUpperCase() || 'U'
+
+  // กระดิ่งเตือนอายุใบอนุญาตแสดงเฉพาะ role WH (คนเดียวที่เข้าถึง /import-license ได้)
+  const role = (localStorage.getItem('iconfirm_role') || '').toUpperCase()
+  const showLicenseBell = role === 'WH'
 
   function handleLogout() {
     logout()
@@ -23,6 +28,7 @@ export default function AppShell({ navItems, roleLabel, children }) {
         </div>
 
         <div className="shell-topbar-right">
+          {showLicenseBell && <LicenseAlertBell />}
           <div className="shell-user" title={roleLabel}>
             <span className="shell-avatar">{initial}</span>
             <span className="shell-user-info">

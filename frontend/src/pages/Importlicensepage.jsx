@@ -21,6 +21,13 @@ import FileDropZone from '../components/Filedropzone.jsx'
 import SelectField from '../components/Selectfield.jsx'
 import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js'
 import {
+  computeLicenseExpiry,
+  formatThaiDate,
+  daysLeftLabel,
+  STATUS_LABEL,
+  EXPIRY_STATUS,
+} from '../lib/licenseExpiry.js'
+import {
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
   ChevronLeftIcon,
@@ -94,6 +101,30 @@ const MC_COLUMNS = [
   { key: 'RDetailNo', label: 'R-Detail No.' },
   { key: 'FinalColor', label: 'Final Color' },
 ]
+
+// จับคู่สถานะอายุใบอนุญาตกับคลาสป้าย (ใช้ชุดสีเดียวกับ .il-badge ที่มีอยู่แล้ว)
+const EXPIRY_BADGE_CLASS = {
+  [EXPIRY_STATUS.EXPIRED]: 'il-badge il-badge-bad',
+  [EXPIRY_STATUS.EXPIRING]: 'il-badge il-badge-warn',
+  [EXPIRY_STATUS.VALID]: 'il-badge il-badge-ok',
+  [EXPIRY_STATUS.NO_DATE]: 'il-badge il-badge-muted',
+}
+
+// เซลล์ "หมดอายุ (6 เดือน)" — ป้ายสถานะ + วันหมดอายุ + วันคงเหลือ
+function ExpiryCell({ issueDate }) {
+  const exp = computeLicenseExpiry(issueDate)
+  return (
+    <div className="il-expiry-cell">
+      <span className={EXPIRY_BADGE_CLASS[exp.status]}>{STATUS_LABEL[exp.status]}</span>
+      {exp.hasDate && (
+        <>
+          <span>{formatThaiDate(exp.expiryDate)}</span>
+          <span className="il-expiry-days">{daysLeftLabel(exp.daysLeft)}</span>
+        </>
+      )}
+    </div>
+  )
+}
 
 export default function ImportLicensePage() {
   const [tab, setTab] = useState('serial')
@@ -424,6 +455,8 @@ export default function ImportLicensePage() {
               <th>ตราอักษร</th>
               <th>แบบ/รุ่น</th>
               <th>เลขใบอนุญาตนำเข้า</th>
+              <th>วันที่ออกใบอนุญาต</th>
+              <th>หมดอายุ (6 เดือน)</th>
               <th>เลขอินวอยซ์นำเข้า</th>
               <th>เลขใบขนสินค้าขาเข้า</th>
               <th>จำนวน (เครื่อง)</th>
@@ -437,7 +470,7 @@ export default function ImportLicensePage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={12} className="wh-empty-cell">
+                <td colSpan={14} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -451,6 +484,10 @@ export default function ImportLicensePage() {
                   <td data-label="ตราอักษร">{row.Brand || '—'}</td>
                   <td data-label="แบบ/รุ่น">{row.Model || '—'}</td>
                   <td data-label="เลขใบอนุญาตนำเข้า">{row.LicenseNo || '—'}</td>
+                  <td data-label="วันที่ออกใบอนุญาต">{formatThaiDate(row.IssueDate)}</td>
+                  <td data-label="หมดอายุ (6 เดือน)">
+                    <ExpiryCell issueDate={row.IssueDate} />
+                  </td>
                   <td data-label="เลขอินวอยซ์นำเข้า">{row.InvoiceNo || '—'}</td>
                   <td data-label="เลขใบขนสินค้าขาเข้า">{row.DeclarationNo || '—'}</td>
                   <td data-label="จำนวน (เครื่อง)">{row.Qty}</td>
@@ -471,7 +508,7 @@ export default function ImportLicensePage() {
               ))}
             {!loading && paged.length === 0 && (
               <tr>
-                <td colSpan={12} className="wh-empty-cell">
+                <td colSpan={14} className="wh-empty-cell">
                   ยังไม่มีข้อมูลในบัญชี — อัปโหลดไฟล์ Excel หรือ CSV ด้านบนก่อน
                 </td>
               </tr>

@@ -205,3 +205,381 @@
     width: 100%;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   กระดิ่งแจ้งเตือนอายุใบอนุญาต (LicenseAlertBell) บน topbar + panel dropdown
+   ═══════════════════════════════════════════════════════════════════════════ */
+.lab-root {
+  position: relative;
+  display: inline-flex;
+}
+
+/* ── ปุ่มกระดิ่ง ─────────────────────────────────────────────────────────── */
+.lab-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.lab-bell:hover {
+  background: rgba(255, 255, 255, 0.26);
+  transform: translateY(-1px);
+}
+.lab-bell:active {
+  transform: translateY(0);
+}
+.lab-bell-active {
+  background: #ffffff;
+  color: #dc2626;
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.45), 0 4px 14px rgba(220, 38, 38, 0.35);
+}
+/* วงแหวนแดงเรือง ๆ รอบปุ่มตลอดเวลาที่มีรายการเตือน (นอกเหนือจาก pulse ของ hasNew) */
+.lab-bell-active::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 14px;
+  border: 2px solid rgba(220, 38, 38, 0.55);
+  animation: labGlow 2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes labGlow {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.9; }
+}
+
+/* ไอคอนกระดิ่งสั่นเป็นจังหวะเมื่อมีรายการเตือน — ดึงสายตาโดยไม่กวนตลอดเวลา */
+.lab-bell-icon {
+  display: inline-flex;
+  transform-origin: top center;
+}
+.lab-bell-active .lab-bell-icon {
+  animation: labRing 4s ease-in-out infinite;
+}
+@keyframes labRing {
+  0%, 88%, 100% { transform: rotate(0); }
+  90% { transform: rotate(-14deg); }
+  92% { transform: rotate(11deg); }
+  94% { transform: rotate(-8deg); }
+  96% { transform: rotate(5deg); }
+  98% { transform: rotate(-2deg); }
+}
+
+/* badge จำนวนที่ต้องจัดการ */
+.lab-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 22px;
+  text-align: center;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.28), 0 2px 6px rgba(0, 0, 0, 0.28);
+  animation: labBadgePop 2.2s ease-in-out infinite;
+}
+@keyframes labBadgePop {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+/* วงกระเพื่อมเมื่อมีของใหม่ตั้งแต่เปิดดูครั้งก่อน */
+.lab-bell-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 14px;
+  border: 2px solid #f87171;
+  animation: labPulse 1.8s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes labPulse {
+  0% { opacity: 0.75; transform: scale(0.9); }
+  70% { opacity: 0; transform: scale(1.35); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+
+/* เคารพผู้ใช้ที่ตั้งค่าลดการเคลื่อนไหว — คงความเด่นด้วยสี/วงแหวนแต่ไม่สั่น/ไม่กระพริบ */
+@media (prefers-reduced-motion: reduce) {
+  .lab-bell-active .lab-bell-icon,
+  .lab-badge,
+  .lab-bell-active::before,
+  .lab-bell-pulse::after {
+    animation: none;
+  }
+  .lab-bell-active::before {
+    opacity: 0.7;
+  }
+}
+
+/* ── panel dropdown ─────────────────────────────────────────────────────── */
+.lab-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  background: #ffffff;
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.22);
+  z-index: 60;
+  overflow: hidden;
+  animation: labDrop 0.16s ease-out;
+}
+@keyframes labDrop {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* ลูกศรชี้ขึ้นไปหากระดิ่ง */
+.lab-panel::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  right: 16px;
+  width: 12px;
+  height: 12px;
+  background: #ffffff;
+  border-left: 1px solid var(--card-border);
+  border-top: 1px solid var(--card-border);
+  transform: rotate(45deg);
+}
+
+.lab-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 12px;
+  background: linear-gradient(135deg, var(--brand-600), var(--brand-500));
+  color: #ffffff;
+}
+.lab-panel-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+}
+.lab-panel-sub {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  opacity: 0.9;
+}
+.lab-panel-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.lab-panel-close:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+/* แถบสรุปตัวเลข */
+.lab-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--card-border);
+}
+.lab-sum-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 8px;
+  border-radius: 12px;
+}
+.lab-sum-num {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+}
+.lab-sum-lbl {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.lab-sum-expired {
+  background: #fef2f2;
+  color: #b42318;
+}
+.lab-sum-expiring {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+/* รายการ */
+.lab-list {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.lab-group-label {
+  padding: 8px 16px 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.lab-group-expired { color: #b42318; }
+.lab-group-expiring { color: #c2410c; }
+
+.lab-item {
+  display: flex;
+  width: 100%;
+  gap: 10px;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.lab-item:hover {
+  background: #f8fafc;
+}
+.lab-item-bar {
+  width: 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.lab-bar-expired { background: #dc2626; }
+.lab-bar-expiring { background: #f59e0b; }
+.lab-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+.lab-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lab-item-license {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.lab-item-days {
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.lab-days-expired { background: #fee2e2; color: #b42318; }
+.lab-days-expiring { background: #ffedd5; color: #c2410c; }
+.lab-item-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lab-item-expiry {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* สถานะว่าง / ทุกอย่างปกติ */
+.lab-empty {
+  padding: 26px 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.lab-empty-ok {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #15803d;
+}
+.lab-empty-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.18);
+}
+
+.lab-foot-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 10px 16px;
+  font-size: 11.5px;
+  color: #92400e;
+  background: #fffbeb;
+  border-top: 1px solid var(--card-border);
+}
+.lab-foot-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-top: 1px solid var(--card-border);
+  background: #ffffff;
+  color: var(--brand-700);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.lab-foot-link:hover {
+  background: var(--brand-50);
+}
+
+/* ── ป้ายสถานะอายุในตาราง Import License ───────────────────────────────── */
+.il-expiry-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+}
+.il-expiry-days {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .lab-panel {
+    position: fixed;
+    top: 64px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+  }
+  .lab-panel::before {
+    right: 18px;
+  }
+}
