@@ -73,6 +73,9 @@ func ConnectDB() {
 		// ── ตารางอ้างอิง WH เพิ่มเติม: ชีต MC (สต๊อกเครื่อง) + Inv (อินวอยซ์) ──
 		&models.WHMachineStock{},
 		&models.WHInvoiceItem{},
+
+		// ── Matching Assembly: ผลจับคู่ประกอบที่สร้างตอนสแกน IT Controller สำเร็จ ──
+		&models.MatchingAssembly{},
 	)
 
 	SeedData()

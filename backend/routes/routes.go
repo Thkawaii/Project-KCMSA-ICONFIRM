@@ -79,6 +79,20 @@ func SetupRoutes(r *gin.Engine) {
 	}
 
 	// ─────────────────────────────────────────────────────────────────────
+	// Matching Assembly — ผลการจับคู่ประกอบ IT Controller เข้ากับเครื่อง
+	// สร้างอัตโนมัติเมื่อสแกน IT Controller สำเร็จบนหน้า Part Confirmation
+	// และแก้ไข/ลบ/เพิ่มเองได้ (สิทธิ์เดียวกับ part-check คือ role WH)
+	// ─────────────────────────────────────────────────────────────────────
+	matchingAssembly := auth.Group("/matching-assembly")
+	matchingAssembly.Use(middleware.RoleMiddleware("WH"))
+	{
+		matchingAssembly.GET("", controllers.GetMatchingAssemblies)
+		matchingAssembly.POST("", controllers.CreateMatchingAssembly)
+		matchingAssembly.PATCH("/:id", controllers.UpdateMatchingAssembly)
+		matchingAssembly.DELETE("/:id", controllers.DeleteMatchingAssembly)
+	}
+
+	// ─────────────────────────────────────────────────────────────────────
 	// Import License — บัญชีแสดงหมายเลขเครื่องแนบท้ายใบอนุญาตนำเข้า
 	//
 	// WH อัปโหลดไฟล์ Excel ที่ได้มาพร้อมใบอนุญาต (เช่น E05036901604 /

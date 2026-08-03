@@ -218,6 +218,10 @@ func ScanPartCheck(c *gin.Context) {
 	//    ผลเทียบจะขึ้นในตาราง WH ให้อัตโนมัติ
 	var matchedItem *models.ImportLicenseItem
 
+	// เก็บไว้ใช้ต่อในการสร้างแถว Matching Assembly หลังบันทึกสำเร็จ
+	// (Assembly Parts Name = Part Name จากทะเบียนกลาง, ITControllerSN = S/N ในทะเบียน)
+	var assyPartsName, assySerial string
+
 	if partType == "ITC" {
 		master := resolveITControllerMaster(check.PN, sn)
 
@@ -230,6 +234,8 @@ func ScanPartCheck(c *gin.Context) {
 			machineNo := derefStr(master.ITControllerNo)
 			imei := derefStr(master.IMEI)
 			check.MachineNo = machineNo
+			assyPartsName = strings.TrimSpace(master.Name)
+			assySerial = strings.TrimSpace(master.SerialNo)
 			if productionNo == "" {
 				check.ProductionNo = imei
 			}
@@ -278,6 +284,26 @@ func ScanPartCheck(c *gin.Context) {
 		if err := config.DB.First(&refreshed, matchedItem.ID).Error; err == nil {
 			matchedItem = &refreshed
 		}
+	}
+
+	// ── Matching Assembly ──────────────────────────────────────────────────
+	// สแกน IT Controller สำเร็จ (ดึงหมายเลขเครื่องจากทะเบียนกลางได้) -> ใช้ P/N
+	// (เช่น YN22E00849FA) เป็นตัวเชื่อม ดึงข้อมูลลงตาราง Matching Assembly ให้เลย
+	//   Machine No.              = check.MachineNo (IT Controller No.)
+	//   IT Controller Serial No. = S/N ในทะเบียนกลาง (fallback เป็นค่าที่สแกน)
+	//   Country                  = ประเทศปลายทางจากบัญชีใบอนุญาต (ถ้าจับคู่ได้)
+	//   Assembly Parts Number    = P/N ที่สแกน (ตัวเชื่อม)
+	//   Assembly Parts Name      = Part Name จากทะเบียนกลาง
+	if partType == "ITC" && check.MachineNo != "" {
+		serial := assySerial
+		if serial == "" {
+			serial = sn
+		}
+		country := ""
+		if matchedItem != nil {
+			country = matchedItem.ExportCountry
+		}
+		upsertMatchingAssemblyFromScan(check.MachineNo, serial, check.PN, assyPartsName, country, now, userID, name)
 	}
 
 	CreateAuditLog("PART_CHECK", check.ID, "scan_check", partType+"/"+check.MatchStatus, userID, name)
