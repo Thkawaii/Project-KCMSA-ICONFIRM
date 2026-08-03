@@ -92,6 +92,8 @@ export default function WHPartConfirmationPage() {
   const [licenseItems, setLicenseItems] = useState([])
   const [licenseTab, setLicenseTab] = useState('all')
   const [licenseModel, setLicenseModel] = useState('all') // ตัวกรอง แบบ/รุ่น
+  const [licensePageSize, setLicensePageSize] = useState(10) // จำนวนต่อหน้าของตารางเทียบ
+  const [licensePage, setLicensePage] = useState(1)
   const [highlightId, setHighlightId] = useState(null)
 
   // ผลสแกนล่าสุด (ไว้โชว์แถบสรุปบนหน้า)
@@ -131,6 +133,10 @@ export default function WHPartConfirmationPage() {
   useEffect(() => {
     setPage(1)
   }, [dateTab, search, matchFilter, pageSize])
+
+  useEffect(() => {
+    setLicensePage(1)
+  }, [licenseTab, licenseModel, licensePageSize])
 
   // ลบรายการประวัติการสแกน — กดได้เฉพาะแถวที่ผลเทียบเป็น "ไม่พบในใบอนุญาต" (NOT_FOUND)
   async function handleDeleteCheck(row) {
@@ -362,6 +368,23 @@ export default function WHPartConfirmationPage() {
     return list
   }, [licenseItems, licenseTab, licenseModel])
 
+  // แบ่งหน้าตารางเทียบ
+  const licenseTotalPages = Math.max(1, Math.ceil(licenseRows.length / licensePageSize))
+  const licensePaged = licenseRows.slice(
+    (licensePage - 1) * licensePageSize,
+    licensePage * licensePageSize
+  )
+  function goToLicensePage(p) {
+    setLicensePage(Math.min(Math.max(1, p), licenseTotalPages))
+  }
+
+  // เมื่อสแกนโดนแถวไหน ให้เด้งไปหน้าที่มีแถวนั้น จะได้เห็นไฮไลต์แม้อยู่คนละหน้า
+  useEffect(() => {
+    if (!highlightId) return
+    const idx = licenseRows.findIndex((r) => r.ID === highlightId)
+    if (idx >= 0) setLicensePage(Math.floor(idx / licensePageSize) + 1)
+  }, [highlightId, licenseRows, licensePageSize])
+
   // รายชื่อ แบบ/รุ่น ที่มีอยู่จริงในบัญชี (ไว้ทำตัวเลือกใน dropdown กรอง)
   const licenseModelOptions = useMemo(() => {
     const set = new Set()
@@ -538,6 +561,21 @@ export default function WHPartConfirmationPage() {
       </div>
 
       <div className="tsf-history-toolbar">
+        <div className="tsf-history-pagesize">
+          <div className="wh-pagesize-select">
+            <SelectField
+              value={licensePageSize}
+              onChange={setLicensePageSize}
+              options={[
+                { value: 10, label: '10' },
+                { value: 25, label: '25' },
+                { value: 50, label: '50' },
+                { value: 100, label: '100' },
+              ]}
+            />
+          </div>
+          entries per page
+        </div>
         <div className="wh-filter-field">
           <span className="wh-filter-label">แบบ/รุ่น</span>
           <SelectField
@@ -577,10 +615,10 @@ export default function WHPartConfirmationPage() {
               </tr>
             )}
             {!loading &&
-              licenseRows.map((r, idx) => (
+              licensePaged.map((r, idx) => (
                 <tr key={r.ID} className={highlightId === r.ID ? 'il-row-hit' : ''}>
                   <td className="wh-cell-head" data-label="ลำดับ">
-                    {idx + 1}
+                    {(licensePage - 1) * licensePageSize + idx + 1}
                   </td>
                   <td data-label="แบบ/รุ่น">{r.Model || '—'}</td>
                   <td data-label="ใบอนุญาตนำเข้า">{r.LicenseNo || '—'}</td>
@@ -620,6 +658,49 @@ export default function WHPartConfirmationPage() {
           </tbody>
         </table>
       </div>
+
+      {!loading && licenseRows.length > 0 && (
+        <div className="tsf-pagination">
+          <span className="wh-subtitle" style={{ fontSize: 13 }}>
+            Showing {(licensePage - 1) * licensePageSize + 1} to{' '}
+            {Math.min(licensePage * licensePageSize, licenseRows.length)} of {licenseRows.length}{' '}
+            entries
+          </span>
+          <div className="tsf-pagination-buttons">
+            <button
+              className="wh-modal-cancel"
+              onClick={() => goToLicensePage(1)}
+              disabled={licensePage === 1}
+            >
+              <ChevronDoubleLeftIcon className="size-4" />
+            </button>
+            <button
+              className="wh-modal-cancel"
+              onClick={() => goToLicensePage(licensePage - 1)}
+              disabled={licensePage === 1}
+            >
+              <ChevronLeftIcon className="size-4" />
+            </button>
+            <span className="tsf-pagination-current">
+              {licensePage} / {licenseTotalPages}
+            </span>
+            <button
+              className="wh-modal-cancel"
+              onClick={() => goToLicensePage(licensePage + 1)}
+              disabled={licensePage === licenseTotalPages}
+            >
+              <ChevronRightIcon className="size-4" />
+            </button>
+            <button
+              className="wh-modal-cancel"
+              onClick={() => goToLicensePage(licenseTotalPages)}
+              disabled={licensePage === licenseTotalPages}
+            >
+              <ChevronDoubleRightIcon className="size-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── ประวัติการสแกน ─────────────────────────────────────────────── */}
       <div className="wh-heading-row">

@@ -27,6 +27,7 @@ import {
   STATUS_LABEL,
   EXPIRY_STATUS,
 } from '../lib/licenseExpiry.js'
+import { useDailyTick } from '../lib/useDailyTick.js'
 import {
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
@@ -127,6 +128,7 @@ function ExpiryCell({ issueDate }) {
 }
 
 export default function ImportLicensePage() {
+  const today = useDailyTick() // เปลี่ยนค่าเมื่อข้ามวัน → บังคับ recompute สถานะอายุ
   const [tab, setTab] = useState('serial')
   const [items, setItems] = useState([])
   const [summary, setSummary] = useState([])
@@ -136,6 +138,7 @@ export default function ImportLicensePage() {
   const [selectedLot, setSelectedLot] = useState('') // 'licenseNo|invoiceNo'
   const [search, setSearch] = useState('')
   const [modelFilter, setModelFilter] = useState('all')
+  const [expiryFilter, setExpiryFilter] = useState('all') // สถานะอายุใบอนุญาต
   const [pageSize, setPageSize] = useState(25)
   const [page, setPage] = useState(1)
 
@@ -163,7 +166,7 @@ export default function ImportLicensePage() {
 
   useEffect(() => {
     setPage(1)
-  }, [selectedLot, search, modelFilter, pageSize])
+  }, [selectedLot, search, modelFilter, expiryFilter, pageSize])
 
   async function handleUpload() {
     if (!file) {
@@ -234,6 +237,11 @@ export default function ImportLicensePage() {
       rows = rows.filter((r) => (r.Model || '') === modelFilter)
     }
 
+    // กรองตามสถานะวันหมดอายุ (ยังไม่ระบุวันที่ / ใกล้หมดอายุ / หมดอายุแล้ว / ปกติ)
+    if (expiryFilter !== 'all') {
+      rows = rows.filter((r) => computeLicenseExpiry(r.IssueDate).status === expiryFilter)
+    }
+
     const term = search.trim().toLowerCase()
     if (term) {
       rows = rows.filter(
@@ -249,7 +257,7 @@ export default function ImportLicensePage() {
     }
 
     return rows
-  }, [items, selectedLot, modelFilter, search])
+  }, [items, selectedLot, modelFilter, expiryFilter, search, today])
 
   // รายการแบบ/รุ่น (unique) สำหรับ dropdown filter
   const modelOptions = useMemo(() => {
@@ -257,6 +265,18 @@ export default function ImportLicensePage() {
     const list = Array.from(set).sort((a, b) => a.localeCompare(b))
     return [{ value: 'all', label: 'ทุกแบบ/รุ่น' }, ...list.map((m) => ({ value: m, label: m }))]
   }, [items])
+
+  // ตัวเลือก filter สถานะวันหมดอายุ — เรียงตามความเร่งด่วน
+  const expiryOptions = useMemo(
+    () => [
+      { value: 'all', label: 'ทุกสถานะวันหมดอายุ' },
+      { value: EXPIRY_STATUS.NO_DATE, label: STATUS_LABEL[EXPIRY_STATUS.NO_DATE] }, // ยังไม่ระบุวันที่
+      { value: EXPIRY_STATUS.EXPIRING, label: STATUS_LABEL[EXPIRY_STATUS.EXPIRING] }, // ใกล้หมดอายุ
+      { value: EXPIRY_STATUS.EXPIRED, label: STATUS_LABEL[EXPIRY_STATUS.EXPIRED] }, // หมดอายุแล้ว
+      { value: EXPIRY_STATUS.VALID, label: STATUS_LABEL[EXPIRY_STATUS.VALID] }, // ปกติ
+    ],
+    []
+  )
 
   // รายการใบอนุญาต (ล็อต) สำหรับ dropdown filter — แทนแถวชิปเดิม
   const lotOptions = useMemo(() => {
@@ -436,6 +456,9 @@ export default function ImportLicensePage() {
         <div className="il-filter-search-group">
           <div className="wh-pagesize-select il-model-filter">
             <SelectField value={modelFilter} onChange={setModelFilter} options={modelOptions} />
+          </div>
+          <div className="wh-pagesize-select il-model-filter">
+            <SelectField value={expiryFilter} onChange={setExpiryFilter} options={expiryOptions} />
           </div>
           <input
             className="wh-search"
