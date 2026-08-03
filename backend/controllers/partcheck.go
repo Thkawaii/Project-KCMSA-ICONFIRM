@@ -219,7 +219,12 @@ func ScanPartCheck(c *gin.Context) {
 	var matchedItem *models.ImportLicenseItem
 
 	// เก็บไว้ใช้ต่อในการสร้างแถว Matching Assembly หลังบันทึกสำเร็จ
-	// (Assembly Parts Name = Part Name จากทะเบียนกลาง, ITControllerSN = S/N ในทะเบียน)
+	// (ITControllerSN = S/N ในทะเบียนกลาง)
+	//
+	// หมายเหตุ: Assembly Parts Name ไม่ auto-fill จากทะเบียนกลางแล้ว เพราะ master.Name
+	// คือชื่อของ IT Controller เอง (เช่น "Q4000 IRIDIUM IT CONTROLLER") ไม่ใช่ชื่อรุ่นเครื่อง
+	// (เช่น SK75-11) ที่ต้องการ — ยังไม่มี master data เชื่อมหมายเลขเครื่อง -> รุ่นเครื่องจริง
+	// ปล่อยว่างไว้ ผู้ใช้เลือกเองจาก dropdown ในหน้า Matching Assembly แทน
 	var assyPartsName, assySerial string
 
 	if partType == "ITC" {
@@ -234,7 +239,6 @@ func ScanPartCheck(c *gin.Context) {
 			machineNo := derefStr(master.ITControllerNo)
 			imei := derefStr(master.IMEI)
 			check.MachineNo = machineNo
-			assyPartsName = strings.TrimSpace(master.Name)
 			assySerial = strings.TrimSpace(master.SerialNo)
 			if productionNo == "" {
 				check.ProductionNo = imei
@@ -293,7 +297,7 @@ func ScanPartCheck(c *gin.Context) {
 	//   IT Controller Serial No. = S/N ในทะเบียนกลาง (fallback เป็นค่าที่สแกน)
 	//   Country                  = ประเทศปลายทางจากบัญชีใบอนุญาต (ถ้าจับคู่ได้)
 	//   Assembly Parts Number    = P/N ที่สแกน (ตัวเชื่อม)
-	//   Assembly Parts Name      = Part Name จากทะเบียนกลาง
+	//   Assembly Parts Name      = ว่างไว้ ผู้ใช้เลือกเองจาก dropdown ในหน้า Matching Assembly
 	if partType == "ITC" && check.MachineNo != "" {
 		serial := assySerial
 		if serial == "" {

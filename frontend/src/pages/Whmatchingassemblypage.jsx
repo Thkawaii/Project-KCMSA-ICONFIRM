@@ -27,6 +27,18 @@ const EMPTY_FORM = {
   assemblyPartsName: '',
 }
 
+// Assembly Parts Number -> Assembly Parts Name (ข้อมูลคร่าวๆ — รอ master data จริง)
+// แก้ไข/เพิ่มรายการได้ที่นี่ทีเดียว ระบบจะใช้ list นี้ทั้ง dropdown เลือกและ auto-fill ชื่อ
+const ASSEMBLY_PARTS_OPTIONS = [
+  { value: 'YN15', name: 'SK200-10/SK200XDL-10/SK220XD-10' },
+  { value: 'YQ15', name: 'SK210(N)LC-10/SK220XD(LC)-10' },
+  { value: 'LP12', name: 'SK130#10E/SK140#10E/SK140LC-10E/SK145XDL' },
+  { value: 'LX10', name: 'SK130XDL-10E' },
+  { value: 'LC14', name: 'SK330-10' },
+  { value: 'LG03', name: 'SK75-11' },
+  { value: 'YC14', name: 'SK350(N)LC-10/SK380XD(LC)-10/SK400LC-10' },
+]
+
 // ISO datetime -> "YYYY-MM-DD" สำหรับ <input type="date">
 function toDateInput(v) {
   if (!v) return ''
@@ -112,6 +124,16 @@ export default function WHMatchingAssemblyPage() {
     setForm((f) => ({ ...f, [key]: value }))
   }
 
+  // เลือก Assembly Parts Number จาก dropdown -> auto-fill Assembly Parts Name ให้ทันที
+  function setAssemblyPartsNo(value) {
+    const match = ASSEMBLY_PARTS_OPTIONS.find((o) => o.value === value)
+    setForm((f) => ({
+      ...f,
+      assemblyPartsNo: value,
+      assemblyPartsName: match ? match.name : f.assemblyPartsName,
+    }))
+  }
+
   async function save() {
     setSaving(true)
     try {
@@ -175,9 +197,6 @@ export default function WHMatchingAssemblyPage() {
             เป็นตัวเชื่อม ดึงข้อมูลลงตารางนี้อัตโนมัติ — แก้ไข/ลบ/เพิ่มเองได้
           </p>
         </div>
-        <button className="wh-issue-btn" onClick={openAdd}>
-          + เพิ่มแถว
-        </button>
       </div>
 
       {loadError && (
@@ -369,11 +388,13 @@ export default function WHMatchingAssemblyPage() {
             />
 
             <label className="wh-modal-label">Assembly Parts Number</label>
-            <input
-              className="wh-modal-input"
+            <SelectField
               value={form.assemblyPartsNo}
-              onChange={(e) => setField('assemblyPartsNo', e.target.value)}
-              placeholder="เช่น YN22E00849FA"
+              onChange={setAssemblyPartsNo}
+              options={[
+                { value: '', label: '— เลือก Assembly Parts Number —' },
+                ...ASSEMBLY_PARTS_OPTIONS.map((o) => ({ value: o.value, label: o.value })),
+              ]}
             />
 
             <label className="wh-modal-label">Assembly Parts Name</label>
@@ -381,6 +402,7 @@ export default function WHMatchingAssemblyPage() {
               className="wh-modal-input"
               value={form.assemblyPartsName}
               onChange={(e) => setField('assemblyPartsName', e.target.value)}
+              placeholder="เลือก Assembly Parts Number ด้านบนเพื่อ auto-fill หรือพิมพ์เองได้"
             />
 
             <div className="wh-modal-actions">
