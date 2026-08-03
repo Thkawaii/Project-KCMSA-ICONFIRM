@@ -215,6 +215,7 @@
 }
 
 /* ── ปุ่มกระดิ่ง ─────────────────────────────────────────────────────────── */
+/* พื้นขาวทึบ + ไอคอนสีแบรนด์ ให้เด่นชัดบน topbar ไล่สีเขียวอมฟ้า (เข้าชุดกับปุ่ม Log out) */
 .lab-bell {
   position: relative;
   display: inline-flex;
@@ -223,38 +224,50 @@
   width: 40px;
   height: 40px;
   border-radius: 11px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.14);
-  color: #ffffff;
+  border: 1px solid #ffffff;
+  background: #ffffff;
+  color: var(--color-brand-700, #0f8580);
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.25);
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 .lab-bell:hover {
-  background: rgba(255, 255, 255, 0.26);
+  background: var(--color-brand-50, #eafcfb);
+  color: var(--color-brand-800, #146a66);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.22);
   transform: translateY(-1px);
 }
 .lab-bell:active {
   transform: translateY(0);
 }
 .lab-bell-active {
-  background: #ffffff;
+  background: radial-gradient(circle at 32% 28%, #ffffff 0%, #fff5f5 60%, #ffe8e8 100%);
   color: #dc2626;
   border-color: #ffffff;
-  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.45), 0 4px 14px rgba(220, 38, 38, 0.35);
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.5), 0 6px 18px rgba(220, 38, 38, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+/* hover ของสถานะแจ้งเตือน ต้องเข้มขึ้น/อลังการขึ้น ไม่ใช่จางลง — ระบุแยกเพราะ specificity ต้องชนะ .lab-bell:hover */
+.lab-bell-active:hover {
+  background: radial-gradient(circle at 32% 28%, #ffffff 0%, #ffecec 55%, #ffd6d6 100%);
+  color: #b91c1c;
+  border-color: #ffffff;
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.65), 0 12px 28px rgba(220, 38, 38, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 /* วงแหวนแดงเรือง ๆ รอบปุ่มตลอดเวลาที่มีรายการเตือน (นอกเหนือจาก pulse ของ hasNew) */
 .lab-bell-active::before {
   content: '';
   position: absolute;
-  inset: -4px;
-  border-radius: 14px;
-  border: 2px solid rgba(220, 38, 38, 0.55);
+  inset: -5px;
+  border-radius: 15px;
+  border: 2px solid rgba(220, 38, 38, 0.6);
+  box-shadow: 0 0 10px rgba(220, 38, 38, 0.35);
   animation: labGlow 2s ease-in-out infinite;
   pointer-events: none;
 }
 @keyframes labGlow {
-  0%, 100% { opacity: 0.35; }
-  50% { opacity: 0.9; }
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.03); }
 }
 
 /* ไอคอนกระดิ่งสั่นเป็นจังหวะเมื่อมีรายการเตือน — ดึงสายตาโดยไม่กวนตลอดเวลา */
@@ -283,14 +296,14 @@
   height: 22px;
   padding: 0 6px;
   border-radius: 999px;
-  background: #dc2626;
+  background: linear-gradient(155deg, #f87171 0%, #dc2626 55%, #b91c1c 100%);
   color: #ffffff;
   font-size: 12px;
   font-weight: 800;
   line-height: 22px;
   text-align: center;
   border: 2px solid #ffffff;
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.28), 0 2px 6px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.3), 0 3px 8px rgba(153, 27, 27, 0.45);
   animation: labBadgePop 2.2s ease-in-out infinite;
 }
 @keyframes labBadgePop {

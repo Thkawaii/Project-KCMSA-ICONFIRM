@@ -499,10 +499,10 @@ export default function ImportLicensePage() {
               </tr>
             )}
             {!loading &&
-              paged.map((row) => (
+              paged.map((row, i) => (
                 <tr key={row.ID}>
                   <td className="wh-cell-head" data-label="ลำดับ">
-                    {row.ItemNo || '—'}
+                    {(page - 1) * pageSize + i + 1}
                   </td>
                   <td data-label="ตราอักษร">{row.Brand || '—'}</td>
                   <td data-label="แบบ/รุ่น">{row.Model || '—'}</td>
