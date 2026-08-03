@@ -90,6 +90,7 @@ func SetupRoutes(r *gin.Engine) {
 	{
 		importLicense.GET("", controllers.GetImportLicenseItems)
 		importLicense.GET("/summary", controllers.GetImportLicenseSummary)
+		importLicense.GET("/alerts", controllers.GetImportLicenseAlerts)
 		importLicense.POST("/upload", controllers.UploadImportLicenseItems)
 		importLicense.POST("/verify", controllers.VerifyImportLicenseCode)
 		importLicense.DELETE("/:id", controllers.DeleteImportLicenseItem)

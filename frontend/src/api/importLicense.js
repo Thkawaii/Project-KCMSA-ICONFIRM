@@ -24,6 +24,19 @@ export function getImportLicenseSummary() {
   return apiFetch('/import-license/summary')
 }
 
+// การแจ้งเตือนอายุใบอนุญาต (อายุ 6 เดือนนับจากวันที่ออก)
+//   getImportLicenseAlerts()                        -> ทั้งหมด (VALID/EXPIRING/EXPIRED/NO_DATE)
+//   getImportLicenseAlerts({ onlyAlert: true })     -> เฉพาะที่หมดอายุ/ใกล้หมดอายุ (ป้อน badge กระดิ่ง)
+//   getImportLicenseAlerts({ withinDays: 14 })      -> เปลี่ยนเกณฑ์ "ใกล้หมดอายุ"
+// คืน { generatedAt, withinDays, counts:{expired,expiring,valid,noDate,alert}, items:[...] }
+export function getImportLicenseAlerts({ withinDays, onlyAlert } = {}) {
+  const params = new URLSearchParams()
+  if (withinDays) params.set('within_days', String(withinDays))
+  if (onlyAlert) params.set('only', 'alert')
+  const qs = params.toString()
+  return apiFetch(`/import-license/alerts${qs ? `?${qs}` : ''}`)
+}
+
 // เทียบค่าที่สแกนได้กับบัญชี "อย่างเดียว" ไม่บันทึกอะไร
 // -> { status, matched, message, item }
 export function verifyImportLicenseCode({ code, invoiceNo = '', productionNo = '' }) {

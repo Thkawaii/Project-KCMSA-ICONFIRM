@@ -19,6 +19,7 @@ import {
   ArrowUpTrayIcon,
   ArrowsRightLeftIcon,
   BeakerIcon,
+  BellAlertIcon,
   CameraIcon,
   CheckCircleIcon,
   CheckIcon,
@@ -54,6 +55,7 @@ import {
 
 export {
   ArrowDownTrayIcon,
+  BellAlertIcon,
   ArrowPathIcon,
   ArrowRightStartOnRectangleIcon,
   ArrowUpTrayIcon,

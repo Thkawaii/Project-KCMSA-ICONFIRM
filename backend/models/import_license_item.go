@@ -60,6 +60,15 @@ type ImportLicenseItem struct {
 	Remark        string `gorm:"size:255"` // หมายเหตุ
 	ExportCountry string `gorm:"size:100"` // ส่งออกไปประเทศ
 
+	// ── อายุใบอนุญาต ────────────────────────────────────────────────────────
+	// IssueDate = วันที่ออก/วันนำเข้าตามใบอนุญาต (เดิมอยู่ในบล็อก "Issue Date :"
+	// บนหัวไฟล์ Excel) ใบอนุญาตนำเข้า กสทช. มีอายุ 6 เดือนนับจากวันนี้
+	// วันหมดอายุ = IssueDate + 6 เดือน (คำนวณตอน query ไม่เก็บซ้ำ กันข้อมูลเพี้ยน)
+	//
+	// เป็น pointer (*time.Time) เพราะบางแถว/บางไฟล์อาจยังไม่มีวันที่ = ค่า null
+	// ไม่ใช่ 0001-01-01 ที่จะทำให้ทุกแถว "หมดอายุ" ทันที
+	IssueDate *time.Time `gorm:"index"`
+
 	// ── ผลการยืนยันจากหน้า Part Confirmation ────────────────────────────────
 	ConfirmStatus     string `gorm:"size:20;index;default:PENDING"`
 	ConfirmedTag      string `gorm:"size:100"` // TAG เครื่องจักรที่สแกนคู่กัน เช่น MC-LC14405563

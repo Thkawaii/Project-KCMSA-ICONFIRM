@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -84,6 +85,140 @@ var importLicenseColumns = map[string]func(*models.ImportLicenseItem, string){
 	"ประเทศ":         func(m *models.ImportLicenseItem, v string) { m.ExportCountry = v },
 	"country":        func(m *models.ImportLicenseItem, v string) { m.ExportCountry = v },
 	"exportcountry":  func(m *models.ImportLicenseItem, v string) { m.ExportCountry = v },
+
+	// วันที่ออกใบอนุญาต / วันนำเข้า (Import License Date) — คีย์ของฟีเจอร์อายุ 6 เดือน
+	// รองรับทั้งกรณีไฟล์มีคอลัมน์นี้ต่อแถว และหัวภาษาอังกฤษที่พิมพ์เอง
+	"วันที่ออกใบอนุญาต": func(m *models.ImportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"วันออกใบอนุญาต":    func(m *models.ImportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"วันนำเข้า":         func(m *models.ImportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"issuedate":         func(m *models.ImportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"importlicensedate": func(m *models.ImportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"licensedate":       func(m *models.ImportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"importdate":        func(m *models.ImportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+}
+
+// titleCaseWords ปรับตัวพิมพ์ของคำในสตริงให้ขึ้นต้นด้วยตัวใหญ่ตัวเดียว
+// ("jul"/"JUL" -> "Jul") เพื่อให้ time.Parse จับชื่อเดือนภาษาอังกฤษได้
+// ไม่ว่าไฟล์ต้นทางจะพิมพ์เดือนมาแบบไหน
+func titleCaseWords(s string) string {
+	var b strings.Builder
+	prevLetter := false
+	for _, r := range s {
+		isLetter := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+		switch {
+		case isLetter && !prevLetter:
+			if r >= 'a' && r <= 'z' {
+				r -= 32 // -> ตัวใหญ่
+			}
+		case isLetter && prevLetter:
+			if r >= 'A' && r <= 'Z' {
+				r += 32 // -> ตัวเล็ก
+			}
+		}
+		b.WriteRune(r)
+		prevLetter = isLetter
+	}
+	return b.String()
+}
+
+// parseLicenseDate แปลงค่าวันที่จากเซลล์ Excel/CSV ให้เป็น *time.Time
+//
+// excelize คืนค่าเซลล์วันที่มาเป็น "สตริงที่จัดรูปแล้ว" ซึ่งหน้าตาไม่แน่นอน
+// ขึ้นกับ number format ของไฟล์ต้นทาง จึงต้องลองหลายรูปแบบ:
+//   - ISO ที่ data_only ให้มา  "2026-07-23 00:00:00" / "2026-07-23"
+//   - รูปแบบ locale ไทย/สากล   "23/07/2026" "23-07-2026" "07/23/2026"
+//   - Excel serial number ล้วน "46226"  (จำนวนวันนับจาก 1899-12-30)
+//
+// คืน nil ถ้าว่างหรือแปลงไม่ได้ (ไม่โยน error เพราะบางแถวไม่มีวันที่ก็ปกติ)
+func parseLicenseDate(v string) *time.Time {
+	s := strings.TrimSpace(v)
+	if s == "" {
+		return nil
+	}
+
+	// ตัดเวลา 00:00:00 ท้ายทิ้งถ้ามี ให้เหลือแต่วันที่
+	if i := strings.IndexByte(s, ' '); i > 0 && strings.Contains(s, ":") {
+		s = strings.TrimSpace(s[:i])
+	}
+
+	layouts := []string{
+		"2006-01-02",
+		"2006/01/02",
+		"02/01/2006", // วัน/เดือน/ปี (ไทย)
+		"02-01-2006",
+		"01/02/2006", // เดือน/วัน/ปี (สากล) — ลองท้ายสุดกันชนกับแบบไทย
+		"2/1/2006",
+		"1/2/2006",
+		"1/2/06", // ปี 2 หลัก (excelize อาจคืน m/d/yy ตาม number format)
+		"01/02/06",
+		"2/1/06",
+		// เดือนแบบตัวอักษร — ไฟล์จริงจาก กสทช. ใช้ number format "d-mmm-yy"
+		// excelize จึงคืนค่าออกมาเป็น "23-Jul-26" ไม่ใช่ตัวเลขล้วน
+		"2-Jan-06",
+		"02-Jan-06",
+		"2-Jan-2006",
+		"02-Jan-2006",
+		"2 Jan 2006",
+		"2 Jan 06",
+		"2-January-2006",
+		"January 2, 2006",
+		"Jan 2, 2006",
+	}
+
+	// excelize อาจคืนชื่อเดือนเป็นตัวพิมพ์เล็ก/ใหญ่ปนกัน (jul / JUL) แต่ Go
+	// time.Parse ต้องการ "Jul" เป๊ะ ๆ จึงลองทั้งค่าดิบและค่าที่ปรับตัวพิมพ์แล้ว
+	candidates := []string{s}
+	if titled := titleCaseWords(s); titled != s {
+		candidates = append(candidates, titled)
+	}
+
+	for _, layout := range layouts {
+		for _, cand := range candidates {
+			if t, err := time.Parse(layout, cand); err == nil {
+				// ปีแบบพุทธศักราช (เช่น 2569) แปลงกลับเป็น ค.ศ.
+				if t.Year() > 2400 {
+					t = t.AddDate(-543, 0, 0)
+				}
+				return &t
+			}
+		}
+	}
+
+	// Excel serial number ล้วน — จำนวนวันนับจาก epoch 1899-12-30
+	if f, err := strconv.ParseFloat(s, 64); err == nil && f > 20000 && f < 90000 {
+		base := time.Date(1899, 12, 30, 0, 0, 0, 0, time.UTC)
+		t := base.AddDate(0, 0, int(f))
+		return &t
+	}
+
+	return nil
+}
+
+// scanIssueDateFromHeaderBlock กวาดหา "Issue Date :" ในบล็อกหัวไฟล์
+// (ส่วนที่อยู่ *เหนือ* แถวหัวตาราง) เพื่อใช้เป็นค่าตั้งต้นของทั้งไฟล์
+//
+// ไฟล์จริงเก็บวันที่ออกใบอนุญาตไว้ตรงนี้ ไม่ได้อยู่ในตาราง เช่น
+//
+//	Refer :        Plane 20 Ton
+//	Issue Date :   2026-07-23
+//
+// จึงเก็บวันแรกที่เจอมาเติมให้ทุกแถวที่ไม่มีคอลัมน์วันที่ของตัวเอง
+func scanIssueDateFromHeaderBlock(rows [][]string, headerIdx int) *time.Time {
+	for i := 0; i < headerIdx && i < len(rows); i++ {
+		for j, cell := range rows[i] {
+			key := normalizeHeader(cell)
+			if key != "issuedate" && key != "วันที่ออกใบอนุญาต" && key != "วันนำเข้า" {
+				continue
+			}
+			// ค่าวันที่อยู่เซลล์ถัดไปที่ไม่ว่างในแถวเดียวกัน
+			for k := j + 1; k < len(rows[i]); k++ {
+				if d := parseLicenseDate(rows[i][k]); d != nil {
+					return d
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // normalizeDigitCell กู้เลขยาวที่ Excel ส่งกลับมาเป็น scientific notation
@@ -209,6 +344,166 @@ func GetImportLicenseSummary(c *gin.Context) {
 	c.JSON(200, rows)
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// การแจ้งเตือนอายุใบอนุญาต — ใบอนุญาตนำเข้ามีอายุ 6 เดือนนับจากวันที่ออก
+// วันหมดอายุ = IssueDate + 6 เดือน  คำนวณสด ๆ ตอน query ทุกครั้ง ไม่เก็บซ้ำ
+// ─────────────────────────────────────────────────────────────────────────────
+
+// LicenseValidityMonths = อายุใบอนุญาตนำเข้า (เดือน)
+const LicenseValidityMonths = 6
+
+// สถานะอายุของใบอนุญาต (ใช้ทั้ง badge สีและการจัดกลุ่มบน panel แจ้งเตือน)
+const (
+	LicenseExpiryExpired = "EXPIRED"  // เลยวันหมดอายุแล้ว
+	LicenseExpirySoon    = "EXPIRING" // ใกล้หมดอายุ (ภายใน within_days)
+	LicenseExpiryValid   = "VALID"    // ยังไม่ใกล้หมดอายุ
+	LicenseExpiryNoDate  = "NO_DATE"  // ยังไม่ได้ระบุวันที่ออกใบอนุญาต
+)
+
+// GetImportLicenseAlerts สรุปอายุใบอนุญาต จัดกลุ่มตาม (ใบอนุญาต + อินวอยซ์)
+//
+//	?within_days=30   นับว่า "ใกล้หมดอายุ" ถ้าเหลือ <= จำนวนวันนี้ (ค่าปริยาย 30)
+//	?only=alert       คืนเฉพาะที่หมดอายุ/ใกล้หมดอายุ (ไว้ป้อน badge กระดิ่ง)
+//
+// ผลลัพธ์เรียงจาก "ด่วนที่สุด" ก่อน (หมดอายุแล้ว -> เหลือน้อยวัน) เพื่อให้ panel
+// แสดงเรื่องที่ต้องรีบจัดการอยู่บนสุดทันที
+func GetImportLicenseAlerts(c *gin.Context) {
+
+	withinDays := 30
+	if v := strings.TrimSpace(c.Query("within_days")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			withinDays = n
+		}
+	}
+	onlyAlert := strings.EqualFold(strings.TrimSpace(c.Query("only")), "alert")
+
+	// ดึงแบบรวมกลุ่มระดับใบอนุญาต+อินวอยซ์ พร้อมวันที่ออกที่เก่าที่สุดของกลุ่ม
+	type groupRow struct {
+		LicenseNo     string
+		InvoiceNo     string
+		DeclarationNo string
+		Model         string
+		Brand         string
+		Total         int
+		Confirmed     int
+		IssueDate     *time.Time
+	}
+
+	var groups []groupRow
+	config.DB.Model(&models.ImportLicenseItem{}).
+		Select(`license_no,
+			invoice_no,
+			max(declaration_no) as declaration_no,
+			max(model) as model,
+			max(brand) as brand,
+			count(*) as total,
+			count(*) filter (where confirm_status = 'CONFIRMED') as confirmed,
+			min(issue_date) as issue_date`).
+		Group("license_no, invoice_no").
+		Scan(&groups)
+
+	type alertRow struct {
+		LicenseNo     string     `json:"LicenseNo"`
+		InvoiceNo     string     `json:"InvoiceNo"`
+		DeclarationNo string     `json:"DeclarationNo"`
+		Model         string     `json:"Model"`
+		Brand         string     `json:"Brand"`
+		Total         int        `json:"Total"`
+		Confirmed     int        `json:"Confirmed"`
+		IssueDate     *time.Time `json:"IssueDate"`
+		ExpiryDate    *time.Time `json:"ExpiryDate"`
+		DaysLeft      int        `json:"DaysLeft"` // ติดลบ = เลยมาแล้วกี่วัน
+		Status        string     `json:"Status"`
+	}
+
+	// ตัดเวลาออกให้เหลือ "วันนี้" เที่ยงคืน เพื่อให้นับวันคงเหลือคงที่ทั้งวัน
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	var (
+		out                                   = []alertRow{}
+		expiredCnt, soonCnt, validCnt, noDate int
+	)
+
+	for _, g := range groups {
+		row := alertRow{
+			LicenseNo:     g.LicenseNo,
+			InvoiceNo:     g.InvoiceNo,
+			DeclarationNo: g.DeclarationNo,
+			Model:         g.Model,
+			Brand:         g.Brand,
+			Total:         g.Total,
+			Confirmed:     g.Confirmed,
+			IssueDate:     g.IssueDate,
+		}
+
+		if g.IssueDate == nil {
+			row.Status = LicenseExpiryNoDate
+			noDate++
+			if !onlyAlert {
+				out = append(out, row)
+			}
+			continue
+		}
+
+		expiry := g.IssueDate.AddDate(0, LicenseValidityMonths, 0)
+		expDay := time.Date(expiry.Year(), expiry.Month(), expiry.Day(), 0, 0, 0, 0, now.Location())
+		row.ExpiryDate = &expDay
+		row.DaysLeft = int(expDay.Sub(today).Hours() / 24)
+
+		switch {
+		case row.DaysLeft < 0:
+			row.Status = LicenseExpiryExpired
+			expiredCnt++
+		case row.DaysLeft <= withinDays:
+			row.Status = LicenseExpirySoon
+			soonCnt++
+		default:
+			row.Status = LicenseExpiryValid
+			validCnt++
+		}
+
+		if onlyAlert && row.Status == LicenseExpiryValid {
+			continue
+		}
+		out = append(out, row)
+	}
+
+	// เรียงความด่วน: EXPIRED ก่อน แล้วไล่ตามวันคงเหลือจากน้อยไปมาก
+	// NO_DATE ไปท้ายสุด (ยังไม่รู้วันหมดอายุ ทำอะไรไม่ได้จนกว่าจะเติมวันที่)
+	rank := func(r alertRow) int {
+		switch r.Status {
+		case LicenseExpiryExpired:
+			return 0
+		case LicenseExpirySoon:
+			return 1
+		case LicenseExpiryValid:
+			return 2
+		default:
+			return 3
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if rank(out[i]) != rank(out[j]) {
+			return rank(out[i]) < rank(out[j])
+		}
+		return out[i].DaysLeft < out[j].DaysLeft
+	})
+
+	c.JSON(200, gin.H{
+		"generatedAt": now,
+		"withinDays":  withinDays,
+		"counts": gin.H{
+			"expired":  expiredCnt,
+			"expiring": soonCnt,
+			"valid":    validCnt,
+			"noDate":   noDate,
+			"alert":    expiredCnt + soonCnt, // ตัวเลขที่ขึ้น badge กระดิ่ง
+		},
+		"items": out,
+	})
+}
+
 // UploadImportLicenseItems นำเข้าไฟล์ Excel บัญชีแนบใบอนุญาตนำเข้า
 //
 // ยึด "หมายเลขเครื่อง" เป็นตัวชี้ว่าแถวไหนซ้ำ: มีอยู่แล้ว = อัปเดตทับ,
@@ -247,6 +542,10 @@ func UploadImportLicenseItems(c *gin.Context) {
 	userID, userName := lookupUserName(c)
 	now := time.Now()
 
+	// วันที่ออกใบอนุญาตระดับ "ทั้งไฟล์" — ดึงจากบล็อก "Issue Date :" บนหัวไฟล์
+	// เอาไว้เติมให้แถวที่ไม่มีคอลัมน์วันที่ของตัวเอง (ไฟล์ กสทช. ส่วนใหญ่เป็นแบบนี้)
+	fallbackIssueDate := scanIssueDateFromHeaderBlock(rows, headerIdx)
+
 	var (
 		parsed   []models.ImportLicenseItem
 		seen     = map[string]bool{}
@@ -271,6 +570,11 @@ func UploadImportLicenseItems(c *gin.Context) {
 			if setter, ok := importLicenseColumns[header]; ok {
 				setter(&row, strings.TrimSpace(rows[i][col]))
 			}
+		}
+
+		// แถวไม่มีคอลัมน์วันที่ของตัวเอง -> เติมด้วยวันที่ระดับไฟล์
+		if row.IssueDate == nil {
+			row.IssueDate = fallbackIssueDate
 		}
 
 		// ไม่มีหมายเลขเครื่อง = ไม่ใช่แถวข้อมูล (แถวว่าง/แถวรวม/แถวหมายเหตุ)
@@ -325,6 +629,7 @@ func UploadImportLicenseItems(c *gin.Context) {
 					"production_no":  row.ProductionNo,
 					"remark":         row.Remark,
 					"export_country": row.ExportCountry,
+					"issue_date":     row.IssueDate,
 					"file_name":      row.FileName,
 					"upload_date":    now,
 					"user_id":        userID,
