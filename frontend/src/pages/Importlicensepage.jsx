@@ -37,16 +37,22 @@ import {
   CubeIcon,
   DocumentTextIcon,
   ReceiptPercentIcon,
+  RectangleStackIcon,
   Squares2X2Icon,
 } from '../components/icons.jsx'
 
-// เมนูของ role WH — เหลือ 2 หน้า: อัปโหลดบัญชีใบอนุญาต แล้วไปสแกนยืนยัน
+// เมนูของ role WH — Import License -> Part Confirmation -> Matching Assembly
 export const WH_NAV_ITEMS = [
   { to: '/warehouse', label: 'Import License', icon: <DocumentTextIcon className="size-4" /> },
   {
     to: '/warehouse/confirm',
     label: 'Part Confirmation',
     icon: <ClipboardDocumentCheckIcon className="size-4" />,
+  },
+  {
+    to: '/warehouse/matching-assembly',
+    label: 'Matching Assembly',
+    icon: <RectangleStackIcon className="size-4" />,
   },
 ]
 

@@ -223,120 +223,79 @@
   justify-content: center;
   width: 40px;
   height: 40px;
-  border-radius: 11px;
-  border: 1px solid #ffffff;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
   background: #ffffff;
   color: var(--color-brand-700, #0f8580);
-  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.25);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.12), 0 1px 2px rgba(16, 24, 40, 0.08);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 .lab-bell:hover {
   background: var(--color-brand-50, #eafcfb);
   color: var(--color-brand-800, #146a66);
-  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 4px 12px rgba(16, 24, 40, 0.16);
   transform: translateY(-1px);
 }
 .lab-bell:active {
   transform: translateY(0);
 }
+
+/* มีรายการเตือน: ไอคอนเป็นแดง + พื้นแดงจาง ๆ แบบเรียบ ไม่มีวงเรืองแสง/สั่น */
 .lab-bell-active {
-  background: radial-gradient(circle at 32% 28%, #ffffff 0%, #fff5f5 60%, #ffe8e8 100%);
   color: #dc2626;
-  border-color: #ffffff;
-  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.5), 0 6px 18px rgba(220, 38, 38, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  background: #fef2f2;
+  border-color: #fee2e2;
 }
-/* hover ของสถานะแจ้งเตือน ต้องเข้มขึ้น/อลังการขึ้น ไม่ใช่จางลง — ระบุแยกเพราะ specificity ต้องชนะ .lab-bell:hover */
 .lab-bell-active:hover {
-  background: radial-gradient(circle at 32% 28%, #ffffff 0%, #ffecec 55%, #ffd6d6 100%);
   color: #b91c1c;
-  border-color: #ffffff;
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.65), 0 12px 28px rgba(220, 38, 38, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-}
-/* วงแหวนแดงเรือง ๆ รอบปุ่มตลอดเวลาที่มีรายการเตือน (นอกเหนือจาก pulse ของ hasNew) */
-.lab-bell-active::before {
-  content: '';
-  position: absolute;
-  inset: -5px;
-  border-radius: 15px;
-  border: 2px solid rgba(220, 38, 38, 0.6);
-  box-shadow: 0 0 10px rgba(220, 38, 38, 0.35);
-  animation: labGlow 2s ease-in-out infinite;
-  pointer-events: none;
-}
-@keyframes labGlow {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.03); }
+  background: #fee2e2;
+  border-color: #fecaca;
 }
 
-/* ไอคอนกระดิ่งสั่นเป็นจังหวะเมื่อมีรายการเตือน — ดึงสายตาโดยไม่กวนตลอดเวลา */
 .lab-bell-icon {
   display: inline-flex;
-  transform-origin: top center;
-}
-.lab-bell-active .lab-bell-icon {
-  animation: labRing 4s ease-in-out infinite;
-}
-@keyframes labRing {
-  0%, 88%, 100% { transform: rotate(0); }
-  90% { transform: rotate(-14deg); }
-  92% { transform: rotate(11deg); }
-  94% { transform: rotate(-8deg); }
-  96% { transform: rotate(5deg); }
-  98% { transform: rotate(-2deg); }
 }
 
-/* badge จำนวนที่ต้องจัดการ */
+/* badge จำนวนที่ต้องจัดการ — กลม คมชัด เรียบ */
 .lab-badge {
   position: absolute;
-  top: -7px;
-  right: -7px;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 6px;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
   border-radius: 999px;
-  background: linear-gradient(155deg, #f87171 0%, #dc2626 55%, #b91c1c 100%);
+  background: #ef4444;
   color: #ffffff;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 22px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
   text-align: center;
   border: 2px solid #ffffff;
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.3), 0 3px 8px rgba(153, 27, 27, 0.45);
-  animation: labBadgePop 2.2s ease-in-out infinite;
-}
-@keyframes labBadgePop {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.12); }
+  box-shadow: 0 1px 2px rgba(153, 27, 27, 0.35);
 }
 
-/* วงกระเพื่อมเมื่อมีของใหม่ตั้งแต่เปิดดูครั้งก่อน */
+/* มีของใหม่ตั้งแต่เปิดดูครั้งก่อน: วงกระเพื่อมเบา ๆ รอบปุ่ม (เตือนแบบไม่กวน) */
 .lab-bell-pulse::after {
   content: '';
   position: absolute;
-  inset: -4px;
+  inset: -3px;
   border-radius: 14px;
-  border: 2px solid #f87171;
+  border: 2px solid rgba(239, 68, 68, 0.55);
   animation: labPulse 1.8s ease-out infinite;
   pointer-events: none;
 }
 @keyframes labPulse {
-  0% { opacity: 0.75; transform: scale(0.9); }
-  70% { opacity: 0; transform: scale(1.35); }
-  100% { opacity: 0; transform: scale(1.35); }
+  0% { opacity: 0.6; transform: scale(0.92); }
+  70% { opacity: 0; transform: scale(1.3); }
+  100% { opacity: 0; transform: scale(1.3); }
 }
 
-/* เคารพผู้ใช้ที่ตั้งค่าลดการเคลื่อนไหว — คงความเด่นด้วยสี/วงแหวนแต่ไม่สั่น/ไม่กระพริบ */
+/* เคารพผู้ใช้ที่ตั้งค่าลดการเคลื่อนไหว */
 @media (prefers-reduced-motion: reduce) {
-  .lab-bell-active .lab-bell-icon,
-  .lab-badge,
-  .lab-bell-active::before,
   .lab-bell-pulse::after {
     animation: none;
-  }
-  .lab-bell-active::before {
-    opacity: 0.7;
   }
 }
 
