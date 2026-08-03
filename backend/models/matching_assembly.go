@@ -42,7 +42,8 @@ type MatchingAssembly struct {
 	// Assembly Parts Number — เลข P/N ที่ใช้เป็น "ตัวเชื่อม" (เช่น YN22E00849FA)
 	AssemblyPartsNo string `gorm:"column:assembly_parts_no;size:100;index"`
 
-	// Assembly Parts Name — ชื่อพาร์ท (Part Name จากทะเบียนกลาง)
+	// Assembly Parts Name — ชื่อรุ่นเครื่อง (เช่น SK75-11) เลือกเองจาก dropdown ในหน้าเว็บ
+	// ไม่ auto-fill จากทะเบียนกลาง เพราะทะเบียนกลางเก็บชื่อของ IT Controller เอง ไม่ใช่รุ่นเครื่อง
 	AssemblyPartsName string `gorm:"column:assembly_parts_name;size:150"`
 
 	CreatedBy       string    `gorm:"column:created_by;size:100"`
