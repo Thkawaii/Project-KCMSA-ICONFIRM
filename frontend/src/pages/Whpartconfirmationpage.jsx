@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getPartChecks, scanPartCheck, deletePartCheck } from '../api/partcheck.js'
 import { getImportLicenseItems } from '../api/importLicense.js'
-import { scanStep, scanLoading, scanSuccessToast, scanErrorAlert } from '../lib/scanPopup.js'
+import { scanStep, scanSelect, scanLoading, scanSuccessToast, scanErrorAlert, scanClose } from '../lib/scanPopup.js'
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js'
 import {
   CheckIcon,
@@ -172,6 +172,10 @@ export default function WHPartConfirmationPage() {
     const needsPN = Boolean(part.needsPN)
 
     busyRef.current = true
+    // ข้อความ toast แจ้ง "สำเร็จ" (ถ้ามี) — เก็บไว้เด้ง "หลัง" ปลด busy เสมอ
+    // เพราะ toast มี timer 3 วินาที ถ้า await ใต้ busy จะกันตัวดักสแกนไว้ตลอด 3 วิ
+    // ทำให้บาร์โค้ดพาร์ทถัดไปที่ยิงระหว่างนั้นถูกกลืน/ตัดครึ่ง แล้วเดาชนิดพาร์ทผิดเป็น ITC
+    let successToast = null
     try {
       // 1) สแกน "หรือกรอก" P/N (เฉพาะพาร์ทที่ต้องมี P/N เช่น IT Controller)
       let pn = ''
@@ -234,11 +238,14 @@ export default function WHPartConfirmationPage() {
         }
 
         if (res.matched) {
-          await scanSuccessToast(`ตรงกับบัญชี: ${sn}`)
+          // toast แจ้งสำเร็จ — เก็บไว้เด้งหลังปลด busy (ห้าม await ใต้ busy)
+          successToast = `ตรงกับบัญชี: ${sn}`
         } else if (isITC) {
+          // ITC ไม่ตรงบัญชี = ต้องให้ผู้ใช้กดรับทราบ จึง await ทั้งที่ยัง busy อยู่
+          // (กันไม่ให้บาร์โค้ดถัดไปเปิด flow ใหม่ทับกล่อง error ที่กำลังโชว์)
           await scanErrorAlert(check.MatchMessage || res.message || 'ไม่ตรงกับบัญชีใบอนุญาตนำเข้า')
         } else {
-          await scanSuccessToast(`บันทึกแล้ว: ${tagLabel(check.PartType)} — ${sn}`)
+          successToast = `บันทึกแล้ว: ${tagLabel(check.PartType)} — ${sn}`
         }
 
         await loadRows()
@@ -247,28 +254,57 @@ export default function WHPartConfirmationPage() {
       }
     } finally {
       busyRef.current = false
+      scanClose() // ปิด popup loading ที่อาจค้างอยู่ ก่อนเด้ง toast/รับสแกนตัวถัดไป
     }
+
+    // เด้ง toast แจ้งสำเร็จ "หลัง" ปลด busy แล้ว — ตอนนี้ตัวดักสแกนพร้อมรับบาร์โค้ด
+    // พาร์ทถัดไปแบบเต็มตั้งแต่ตัวอักษรแรก ไม่โดน 3 วินาทีของ toast กันไว้อีก
+    if (successToast) scanSuccessToast(successToast)
   }
 
-  // ระบุชนิดพาร์ทจากข้อความบาร์โค้ดที่ยิงมา
-  // ป้าย IT Controller เป็นแค่ตัวเลข P/N หรือ S/N ล้วนๆ ไม่มีคำอธิบายกำกับ (ต่างจาก
-  // พาร์ทอื่นที่มีคำเช่น SWING/PROPEL/PUMP/VALVE ปนอยู่ในเนื้อบาร์โค้ด) เลยตรวจไม่เจอ
-  // ด้วยคีย์เวิร์ดแบบพาร์ทอื่น — ให้ถือว่าเป็น ITC (พาร์ทหลักที่สแกนบ่อยที่สุด) เป็นค่า
-  // เริ่มต้นไปเลย ไม่ต้องเด้ง popup ให้เลือกชนิดพาร์ทอีก
+  // ระบุชนิดพาร์ทจากข้อความบาร์โค้ดที่ยิงมา — คืน code พาร์ท ถ้าดูออก, หรือ null ถ้าดูไม่ออก
+  // ป้ายบาร์โค้ดอ้างอิงบนการ์ด (และป้ายของจริงส่วนใหญ่) มีคำกำกับ เช่น
+  //   SWING / PROPEL / PUMP / HYD / VALVE / CONTROLLER อยู่ในเนื้อบาร์โค้ด -> จับด้วยคีย์เวิร์ดได้
+  // ⚠️ ห้าม default เป็น ITC เด็ดขาด: ถ้าดูไม่ออก (เช่น ยิงสติกเกอร์ S/N จริงที่เป็นเลขล้วน
+  //    ไม่มีคำกำกับ หรือบาร์โค้ดถูกอ่านมาไม่ครบ) การเดาเป็น ITC จะทำให้เด้ง flow "IT Controller"
+  //    ผิดพาร์ท (นี่คือบั๊กที่เจอ: ยิง Control Valve แล้วขึ้น popup IT Controller( P/N))
+  //    -> คืน null แล้วให้ผู้ใช้เลือกชนิดพาร์ทเองแทน
   function detectPartType(raw) {
     const s = (raw || '').toUpperCase()
     if (s.includes('SWING')) return 'SM'
     if (s.includes('PROPEL')) return 'MP'
     if (s.includes('PUMP') || s.includes('HYD')) return 'PH'
     if (s.includes('CONTROL VALVE') || s.includes('VALVE')) return 'CV'
-    return 'ITC'
+    if (s.includes('CONTROLLER')) return 'ITC'
+    return null
   }
 
-  // เมื่อสแกนเนอร์ยิง 1 ครั้ง: ระบุชนิดพาร์ทได้แล้วเสมอ (ดีฟอลต์เป็น ITC) -> เข้า flow ทันที
-  // ไม่ต้องเด้ง popup ให้เลือกชนิดพาร์ทอีกต่อไป
+  // เมื่อสแกนเนอร์ยิง 1 ครั้ง (ไม่มี popup เปิดอยู่):
+  //  - ถ้าระบุชนิดพาร์ทจากบาร์โค้ดได้ -> เข้า flow ของพาร์ทนั้นทันที
+  //  - ถ้าระบุไม่ได้ -> เด้งตัวเลือกให้ผู้ใช้ยืนยันชนิดพาร์ทก่อน (ไม่เดามั่วเป็น ITC อีก)
   async function handleScannerFire(code) {
     if (busyRef.current) return
-    runScanFlow(detectPartType(code))
+
+    let partType = detectPartType(code)
+
+    if (!partType) {
+      // กัน flow/สแกนซ้อนระหว่างเปิดตัวเลือก
+      busyRef.current = true
+      let picked = null
+      try {
+        picked = await scanSelect({
+          title: 'เลือกชนิดพาร์ทที่จะยืนยัน',
+          html: `<div class="scan-popup-hint">บาร์โค้ดที่ยิง: <b>${code}</b></div>`,
+          options: PART_TYPES.map((p) => ({ value: p.code, label: p.label })),
+        })
+      } finally {
+        busyRef.current = false
+      }
+      if (!picked) return // ผู้ใช้ยกเลิก
+      partType = picked
+    }
+
+    runScanFlow(partType)
   }
 
   fireRef.current = handleScannerFire
@@ -282,6 +318,10 @@ export default function WHPartConfirmationPage() {
     let buffer = ''
     let lastTime = 0
     let flushTimer = null
+    // startedClean = true ก็ต่อเมื่อ buffer เริ่มนับจาก "จังหวะว่างจริง ๆ" (เว้นเกิน 50ms)
+    // ไม่ใช่เศษท้ายของบาร์โค้ดที่ผู้ใช้ยิงคร่อมช่วงที่ flow ยัง busy อยู่ (popup เปิดค้าง)
+    // แล้ว busy เพิ่งปิดกลางคัน — เศษแบบนั้นจะสั้นและไม่มีคีย์เวิร์ด เลยถูกเดาผิดเป็น ITC
+    let startedClean = false
 
     function fireBuffered() {
       if (flushTimer) {
@@ -289,26 +329,41 @@ export default function WHPartConfirmationPage() {
         flushTimer = null
       }
       const code = buffer.trim()
+      const clean = startedClean
       buffer = ''
+      startedClean = false
       if (busyRef.current) return // มี popup/flow เปิดอยู่ -> ให้ช่องใน popup รับเอง
-      if (code.length >= 2) fireRef.current(code)
+      // ยิงเฉพาะโค้ดที่เริ่มนับจากจังหวะว่าง — กันเศษท้ายบาร์โค้ดที่คร่อมช่วง busy หลุดมา
+      if (clean && code.length >= 2) fireRef.current(code)
     }
 
     function onKeydown(e) {
-      // ระหว่าง flow กำลังทำงาน (popup เปิด) ปล่อยให้ช่อง input ใน popup จัดการเอง
-      if (busyRef.current) return
+      // ระหว่าง flow กำลังทำงาน (popup เปิด): ล้าง buffer ทิ้ง + อัปเดตเวลาไว้ตลอด
+      // เพื่อว่าถ้า flow ปิดกลางคันตอนบาร์โค้ดถัดไปยังยิงไม่จบ ตัวอักษรที่เหลือจะยัง
+      // ต่อเนื่อง (gap < 50ms) ทำให้ startedClean = false -> ไม่ถูกยิงเป็นโค้ดใหม่
+      if (busyRef.current) {
+        lastTime = Date.now()
+        buffer = ''
+        startedClean = false
+        return
+      }
 
       const now = Date.now()
       const gap = now - lastTime
       lastTime = now
-      if (gap > 50) buffer = '' // เว้นเกิน 50ms = คนพิมพ์ ไม่ใช่สแกนเนอร์ -> เริ่มนับใหม่
+      if (gap > 50) {
+        // เว้นเกิน 50ms = เริ่มสแกนชุดใหม่จากจังหวะว่าง -> เริ่มนับใหม่แบบ "สะอาด"
+        buffer = ''
+        startedClean = true
+      }
 
       if (e.key === 'Enter') {
-        if (buffer.trim().length >= 2) {
+        if (startedClean && buffer.trim().length >= 2) {
           e.preventDefault()
           fireBuffered()
         } else {
           buffer = ''
+          startedClean = false
         }
         return
       }
@@ -347,6 +402,7 @@ export default function WHPartConfirmationPage() {
       }
 
       buffer = ''
+      startedClean = false
       fireRef.current(code)
     }
 
