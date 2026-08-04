@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import LoginPage from './pages/LoginPage.jsx'
 import ImportLicensePage from './pages/Importlicensepage.jsx'
+import ExportLicensePage from './pages/Exportlicensepage.jsx'
 import WHPartConfirmationPage from './pages/Whpartconfirmationpage.jsx'
 import WHMatchingAssemblyPage from './pages/Whmatchingassemblypage.jsx'
 import DashboardPage from './pages/Dashboardpage.jsx'
@@ -41,6 +42,7 @@ function resolveHomeRoute(role) {
 const ROUTE_CONFIG = {
   '/login': { component: LoginPage, public: true },
   '/warehouse': { component: ImportLicensePage, roles: ['WH'] },
+  '/warehouse/export-license': { component: ExportLicensePage, roles: ['WH'] },
   '/warehouse/confirm': { component: WHPartConfirmationPage, roles: ['WH'] },
   '/warehouse/matching-assembly': { component: WHMatchingAssemblyPage, roles: ['WH'] },
   '/tsf': { component: TSFOperatorPage, roles: ['TSF'] },
