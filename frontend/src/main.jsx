@@ -4,7 +4,6 @@ import LoginPage from './pages/LoginPage.jsx'
 import ImportLicensePage from './pages/Importlicensepage.jsx'
 import ExportLicensePage from './pages/Exportlicensepage.jsx'
 import WHPartConfirmationPage from './pages/Whpartconfirmationpage.jsx'
-import WHMatchingAssemblyPage from './pages/Whmatchingassemblypage.jsx'
 import DashboardPage from './pages/Dashboardpage.jsx'
 import TSFOperatorPage from './pages/Tsfoperatorpage.jsx'
 import UploadViewPage from './pages/UploadViewpage.jsx'
@@ -44,7 +43,6 @@ const ROUTE_CONFIG = {
   '/warehouse': { component: ImportLicensePage, roles: ['WH'] },
   '/warehouse/export-license': { component: ExportLicensePage, roles: ['WH'] },
   '/warehouse/confirm': { component: WHPartConfirmationPage, roles: ['WH'] },
-  '/warehouse/matching-assembly': { component: WHMatchingAssemblyPage, roles: ['WH'] },
   '/tsf': { component: TSFOperatorPage, roles: ['TSF'] },
   '/upload': { component: UploadViewPage, roles: ['UPLOAD'] },
   '/master-data': { component: MasterDataPage, roles: ['UPLOAD'] },

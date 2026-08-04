@@ -77,8 +77,8 @@ func ConnectDB() {
 		&models.WHMachineStock{},
 		&models.WHInvoiceItem{},
 
-		// ── Matching Assembly: ผลจับคู่ประกอบที่สร้างตอนสแกน IT Controller สำเร็จ ──
-		&models.MatchingAssembly{},
+		// ── MFG Assembly: ผลตรวจตอนประกอบเสร็จ (Machine No + IT Controller No.) ──
+		&models.MFGAssembly{},
 	)
 
 	SeedData()
