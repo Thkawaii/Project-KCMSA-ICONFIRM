@@ -2,6 +2,7 @@ import { useAppNavigate, useAppView } from '../lib/nav.jsx'
 import { logout } from '../api/auth.js'
 import { ArrowRightStartOnRectangleIcon } from './icons.jsx'
 import LicenseAlertBell from './LicenseAlertBell.jsx'
+import ExportLicenseAlertBell from './ExportLicenseAlertBell.jsx'
 
 export default function AppShell({ navItems, roleLabel, children }) {
   const navigate = useAppNavigate()
@@ -29,6 +30,7 @@ export default function AppShell({ navItems, roleLabel, children }) {
 
         <div className="shell-topbar-right">
           {showLicenseBell && <LicenseAlertBell />}
+          {showLicenseBell && <ExportLicenseAlertBell />}
           <div className="shell-user" title={roleLabel}>
             <span className="shell-avatar">{initial}</span>
             <span className="shell-user-info">
