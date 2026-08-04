@@ -1,8 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getImportLicenseAlerts } from '../api/importLicense.js'
 import { useAppNavigate } from '../lib/nav.jsx'
 import { formatThaiDate, daysLeftLabel } from '../lib/licenseExpiry.js'
-import { BellAlertIcon, XMarkIcon, DocumentTextIcon, ClockIcon } from './icons.jsx'
+import {
+  addDismissed,
+  clearDismissed,
+  dismissKey,
+  pruneDismissed,
+  readDismissed,
+  removeDismissed,
+} from '../lib/licenseDismiss.js'
+import { BellAlertIcon, XMarkIcon, ClockIcon, EyeSlashIcon, ArrowPathIcon } from './icons.jsx'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LicenseAlertBell — กระดิ่งแจ้งเตือนอายุใบอนุญาตนำเข้าบน topbar
@@ -11,13 +19,16 @@ import { BellAlertIcon, XMarkIcon, DocumentTextIcon, ClockIcon } from './icons.j
 // • badge สีแดง = จำนวนใบที่ต้องรีบจัดการ  ·  วงกระเพื่อม (pulse) เมื่อมีของใหม่
 //   ตั้งแต่ครั้งล่าสุดที่เปิดดู (จำผ่าน localStorage) — ให้ความรู้สึก "เตือนรายสัปดาห์"
 // • คลิก -> panel จัดกลุ่ม หมดอายุแล้ว / ใกล้หมดอายุ เรียงด่วนสุดขึ้นก่อน
+// • ปุ่ม "ซ่อน" (Dismiss) ต่อรายการ — เอาออกจากกระดิ่งโดยไม่ลบใบอนุญาต
+//   ตัวเลข badge ลดตามของที่ยังเห็นจริง · ของที่ซ่อนไว้กดคืนค่าได้ ไม่หายถาวร
+//   (รายละเอียดตรรกะการซ่อน/เด้งกลับ ดูที่ lib/licenseDismiss.js)
 //
 // แสดงเฉพาะ role WH (คนเดียวที่มีสิทธิ์ /import-license) — role อื่นจะไม่เห็นกระดิ่ง
 // และไม่ยิง API ที่จะโดน 403
 // ─────────────────────────────────────────────────────────────────────────────
 
 const POLL_MS = 60_000
-const ACK_KEY = 'iconfirm_license_alert_ack' // จำนวน alert ที่ผู้ใช้เห็นล่าสุด
+const ACK_KEY = 'iconfirm_license_alert_ack' // จำนวน alert ที่ผู้ใช้เห็นล่าสุด (นับเฉพาะที่ยังไม่ซ่อน)
 
 export default function LicenseAlertBell() {
   const navigate = useAppNavigate()
@@ -26,22 +37,24 @@ export default function LicenseAlertBell() {
   const [counts, setCounts] = useState({ alert: 0, expired: 0, expiring: 0, noDate: 0 })
   const [loaded, setLoaded] = useState(false)
   const [hasNew, setHasNew] = useState(false)
+  const [dismissed, setDismissed] = useState(() => readDismissed()) // { key: dismissedAtISO }
+  const [showHidden, setShowHidden] = useState(false)
   const rootRef = useRef(null)
 
   const load = useCallback(async () => {
     try {
       const data = await getImportLicenseAlerts({ onlyAlert: true })
       const c = data?.counts || {}
-      setItems(data?.items || [])
+      const list = data?.items || []
+      setItems(list)
       setCounts({
         alert: c.alert || 0,
         expired: c.expired || 0,
         expiring: c.expiring || 0,
         noDate: c.noDate || 0,
       })
-      // เทียบกับจำนวนที่ผู้ใช้เห็นล่าสุด -> มีของใหม่ไหม
-      const ack = Number(localStorage.getItem(ACK_KEY) || 0)
-      setHasNew((c.alert || 0) > ack)
+      // เก็บกวาด key ที่ซ่อนไว้แต่ไม่มีในรายการแล้ว (ใบถูกลบ/ต่ออายุ) แล้ว sync state
+      setDismissed(pruneDismissed(list))
       setLoaded(true)
     } catch {
       // เงียบไว้ — กระดิ่งพังไม่ควรทำทั้งหน้าล้ม (เช่น token หมดอายุ)
@@ -59,6 +72,27 @@ export default function LicenseAlertBell() {
       window.removeEventListener('focus', onFocus)
     }
   }, [load])
+
+  // ── แยกรายการที่ "ยังเห็น" กับ "ซ่อนไว้" ตามคลัง dismissed ───────────────────
+  // badge/summary ทั้งหมดคิดจากของที่ยังเห็นจริง เพื่อให้ตัวเลขตรงกับสิ่งที่ผู้ใช้เห็น
+  const { hidden, vExpired, vExpiring, visibleAlert } = useMemo(() => {
+    const isHidden = (it) => Object.prototype.hasOwnProperty.call(dismissed, dismissKey(it))
+    const vis = items.filter((it) => !isHidden(it))
+    const hid = items.filter(isHidden)
+    return {
+      hidden: hid,
+      vExpired: vis.filter((it) => it.Status === 'EXPIRED'),
+      vExpiring: vis.filter((it) => it.Status === 'EXPIRING'),
+      visibleAlert: vis.length,
+    }
+  }, [items, dismissed])
+
+  // เทียบจำนวนที่ยังเห็น (หลังหักของที่ซ่อน) กับที่ผู้ใช้รับรู้ล่าสุด -> มีของใหม่ไหม
+  useEffect(() => {
+    if (!loaded) return
+    const ack = Number(localStorage.getItem(ACK_KEY) || 0)
+    setHasNew(visibleAlert > ack)
+  }, [loaded, visibleAlert])
 
   // ปิด panel เมื่อคลิกนอกกล่อง / กด Esc
   useEffect(() => {
@@ -81,9 +115,11 @@ export default function LicenseAlertBell() {
     const next = !open
     setOpen(next)
     if (next) {
-      // เปิดดู = รับรู้แล้ว หยุดกระเพื่อม และจำจำนวนล่าสุดไว้
-      localStorage.setItem(ACK_KEY, String(counts.alert))
+      // เปิดดู = รับรู้แล้ว หยุดกระเพื่อม และจำจำนวนที่ยังเห็นไว้
+      localStorage.setItem(ACK_KEY, String(visibleAlert))
       setHasNew(false)
+    } else {
+      setShowHidden(false)
     }
   }
 
@@ -92,9 +128,25 @@ export default function LicenseAlertBell() {
     navigate('/warehouse')
   }
 
-  const expired = items.filter((it) => it.Status === 'EXPIRED')
-  const expiring = items.filter((it) => it.Status === 'EXPIRING')
-  const badge = counts.alert
+  // ── ซ่อน / คืนค่า ──────────────────────────────────────────────────────────
+  function handleDismiss(item) {
+    const next = addDismissed(item)
+    setDismissed({ ...next })
+    // ซ่อนแล้วถือว่ารับรู้จำนวนใหม่ทันที กันไม่ให้ badge เด้ง pulse ซ้ำ
+    localStorage.setItem(ACK_KEY, String(Math.max(0, visibleAlert - 1)))
+  }
+  function handleRestore(item) {
+    const next = removeDismissed(item)
+    setDismissed({ ...next })
+  }
+  function handleRestoreAll() {
+    setDismissed(clearDismissed())
+    setShowHidden(false)
+  }
+
+  const badge = visibleAlert
+  const hiddenCount = hidden.length
+  const allDismissed = loaded && items.length > 0 && visibleAlert === 0 && hiddenCount > 0
 
   return (
     <div className="lab-root" ref={rootRef}>
@@ -123,14 +175,14 @@ export default function LicenseAlertBell() {
             </button>
           </div>
 
-          {/* แถบสรุปตัวเลข */}
+          {/* แถบสรุปตัวเลข — นับเฉพาะที่ยังไม่ถูกซ่อน */}
           <div className="lab-summary">
             <div className="lab-sum-chip lab-sum-expired">
-              <span className="lab-sum-num">{counts.expired}</span>
+              <span className="lab-sum-num">{vExpired.length}</span>
               <span className="lab-sum-lbl">หมดอายุแล้ว</span>
             </div>
             <div className="lab-sum-chip lab-sum-expiring">
-              <span className="lab-sum-num">{counts.expiring}</span>
+              <span className="lab-sum-num">{vExpiring.length}</span>
               <span className="lab-sum-lbl">ใกล้หมดอายุ</span>
             </div>
           </div>
@@ -138,27 +190,50 @@ export default function LicenseAlertBell() {
           <div className="lab-list">
             {!loaded && <div className="lab-empty">กำลังโหลด...</div>}
 
-            {loaded && badge === 0 && (
+            {loaded && badge === 0 && !allDismissed && (
               <div className="lab-empty lab-empty-ok">
                 <span className="lab-empty-dot" />
                 ทุกใบอนุญาตยังอยู่ในอายุ ไม่มีรายการต้องจัดการ
               </div>
             )}
 
-            {expired.length > 0 && (
+            {loaded && allDismissed && (
+              <div className="lab-empty lab-empty-ok">
+                <span className="lab-empty-dot" />
+                ซ่อนรายการแจ้งเตือนไว้ทั้งหมดแล้ว
+              </div>
+            )}
+
+            {vExpired.length > 0 && (
               <>
                 <div className="lab-group-label lab-group-expired">หมดอายุแล้ว</div>
-                {expired.map((it, i) => (
-                  <AlertItem key={`e${i}`} item={it} onClick={goToLicense} />
+                {vExpired.map((it) => (
+                  <AlertItem key={dismissKey(it)} item={it} onOpen={goToLicense} onDismiss={handleDismiss} />
                 ))}
               </>
             )}
 
-            {expiring.length > 0 && (
+            {vExpiring.length > 0 && (
               <>
                 <div className="lab-group-label lab-group-expiring">ใกล้หมดอายุ (ภายใน 30 วัน)</div>
-                {expiring.map((it, i) => (
-                  <AlertItem key={`s${i}`} item={it} onClick={goToLicense} />
+                {vExpiring.map((it) => (
+                  <AlertItem key={dismissKey(it)} item={it} onOpen={goToLicense} onDismiss={handleDismiss} />
+                ))}
+              </>
+            )}
+
+            {/* กลุ่ม "ซ่อนไว้" — โผล่เฉพาะเมื่อกดดู กดคืนค่าได้ทีละใบ */}
+            {showHidden && hidden.length > 0 && (
+              <>
+                <div className="lab-group-label lab-group-hidden">ซ่อนไว้</div>
+                {hidden.map((it) => (
+                  <AlertItem
+                    key={dismissKey(it)}
+                    item={it}
+                    hidden
+                    onOpen={goToLicense}
+                    onRestore={handleRestore}
+                  />
                 ))}
               </>
             )}
@@ -171,34 +246,67 @@ export default function LicenseAlertBell() {
             </div>
           )}
 
-          <button className="lab-foot-link" onClick={goToLicense}>
-            <DocumentTextIcon className="size-4" />
-            เปิดตาราง Import License
-          </button>
+          {/* แถวจัดการของที่ซ่อนไว้ — ไม่มีอะไรซ่อนก็ไม่โผล่ */}
+          {hiddenCount > 0 && (
+            <div className="lab-hidden-bar">
+              <button className="lab-hidden-toggle" onClick={() => setShowHidden((v) => !v)}>
+                <EyeSlashIcon className="size-4" />
+                {showHidden ? 'ซ่อนรายการที่ซ่อนไว้' : `ดูที่ซ่อนไว้ ${hiddenCount} รายการ`}
+              </button>
+              <button className="lab-hidden-restore" onClick={handleRestoreAll} title="คืนค่าการแจ้งเตือนทั้งหมด">
+                <ArrowPathIcon className="size-4" />
+                คืนค่าทั้งหมด
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
   )
 }
 
-function AlertItem({ item, onClick }) {
+function AlertItem({ item, hidden = false, onOpen, onDismiss, onRestore }) {
   const isExpired = item.Status === 'EXPIRED'
   return (
-    <button className="lab-item" onClick={onClick}>
-      <span className={'lab-item-bar ' + (isExpired ? 'lab-bar-expired' : 'lab-bar-expiring')} />
-      <span className="lab-item-body">
-        <span className="lab-item-top">
-          <span className="lab-item-license">{item.LicenseNo || '—'}</span>
-          <span className={'lab-item-days ' + (isExpired ? 'lab-days-expired' : 'lab-days-expiring')}>
-            {daysLeftLabel(item.DaysLeft)}
+    <div className={'lab-item' + (hidden ? ' lab-item-hidden' : '')}>
+      <button className="lab-item-main" onClick={() => onOpen?.(item)}>
+        <span className={'lab-item-bar ' + (isExpired ? 'lab-bar-expired' : 'lab-bar-expiring')} />
+        <span className="lab-item-body">
+          <span className="lab-item-top">
+            <span className="lab-item-license">{item.LicenseNo || '—'}</span>
+            <span className={'lab-item-days ' + (isExpired ? 'lab-days-expired' : 'lab-days-expiring')}>
+              {daysLeftLabel(item.DaysLeft)}
+            </span>
           </span>
+          <span className="lab-item-meta">
+            Invoice {item.InvoiceNo || '—'}
+            {item.Model ? ` · ${item.Model}` : ''} · {item.Total} เครื่อง
+          </span>
+          <span className="lab-item-expiry">หมดอายุ {formatThaiDate(item.ExpiryDate)}</span>
         </span>
-        <span className="lab-item-meta">
-          Invoice {item.InvoiceNo || '—'}
-          {item.Model ? ` · ${item.Model}` : ''} · {item.Total} เครื่อง
-        </span>
-        <span className="lab-item-expiry">หมดอายุ {formatThaiDate(item.ExpiryDate)}</span>
-      </span>
-    </button>
+      </button>
+
+      {hidden ? (
+        <button
+          type="button"
+          className="lab-item-action lab-item-restore"
+          onClick={() => onRestore?.(item)}
+          aria-label="คืนค่าการแจ้งเตือนนี้"
+          title="คืนค่าการแจ้งเตือน"
+        >
+          <ArrowPathIcon className="size-4" />
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="lab-item-action lab-item-dismiss"
+          onClick={() => onDismiss?.(item)}
+          aria-label="ซ่อนการแจ้งเตือนนี้"
+          title="ซ่อนการแจ้งเตือน (ไม่ลบใบอนุญาต)"
+        >
+          <XMarkIcon className="size-4" />
+        </button>
+      )}
+    </div>
   )
 }
