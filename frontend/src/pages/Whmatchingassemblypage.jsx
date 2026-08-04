@@ -18,7 +18,6 @@ import { WH_NAV_ITEMS } from './Importlicensepage.jsx'
 
 const EMPTY_FORM = {
   item: '',
-  dateAssy: '',
   machineNo: '',
   itControllerSN: '',
   country: '',
@@ -38,16 +37,6 @@ const ASSEMBLY_PARTS_OPTIONS = [
   { value: 'LG03', name: 'SK75-11' },
   { value: 'YC14', name: 'SK350(N)LC-10/SK380XD(LC)-10/SK400LC-10' },
 ]
-
-// ISO datetime -> "YYYY-MM-DD" สำหรับ <input type="date">
-function toDateInput(v) {
-  if (!v) return ''
-  const d = new Date(v)
-  if (Number.isNaN(d.getTime())) return ''
-  const off = d.getTimezoneOffset()
-  const local = new Date(d.getTime() - off * 60000)
-  return local.toISOString().slice(0, 10)
-}
 
 export default function WHMatchingAssemblyPage() {
   const [rows, setRows] = useState([])
@@ -104,7 +93,6 @@ export default function WHMatchingAssemblyPage() {
     setEditId(row.ID)
     setForm({
       item: row.Item || '',
-      dateAssy: toDateInput(row.DateAssy),
       machineNo: row.MachineNo || '',
       itControllerSN: row.ITControllerSN || '',
       country: row.Country || '',
@@ -192,10 +180,6 @@ export default function WHMatchingAssemblyPage() {
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">Matching Assembly</h2>
-          <p className="wh-subtitle">
-            เมื่อสแกน IT Controller สำเร็จบนหน้า Part Confirmation ระบบใช้ P/N (เช่น YN22E00849FA)
-            เป็นตัวเชื่อม ดึงข้อมูลลงตารางนี้อัตโนมัติ — แก้ไข/ลบ/เพิ่มเองได้
-          </p>
         </div>
       </div>
 
@@ -235,7 +219,6 @@ export default function WHMatchingAssemblyPage() {
           <thead>
             <tr>
               <th>Item</th>
-              <th>Date Assy</th>
               <th>Machine No.</th>
               <th>IT Controller Serial No.</th>
               <th>Country</th>
@@ -248,7 +231,7 @@ export default function WHMatchingAssemblyPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={9} className="wh-empty-cell">
+                <td colSpan={8} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -258,9 +241,6 @@ export default function WHMatchingAssemblyPage() {
                 <tr key={a.ID}>
                   <td className="wh-cell-head" data-label="Item">
                     <strong>{a.Item || '—'}</strong>
-                  </td>
-                  <td data-label="Date Assy">
-                    {a.DateAssy ? new Date(a.DateAssy).toLocaleDateString('th-TH') : '—'}
                   </td>
                   <td className="il-mono" data-label="Machine No.">
                     {a.MachineNo || '—'}
@@ -289,7 +269,7 @@ export default function WHMatchingAssemblyPage() {
               ))}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={9} className="wh-empty-cell">
+                <td colSpan={8} className="wh-empty-cell">
                   {rows.length === 0
                     ? 'ยังไม่มีรายการ — สแกน IT Controller สำเร็จแล้วข้อมูลจะขึ้นที่นี่'
                     : 'ไม่พบรายการที่ค้นหา'}
@@ -348,14 +328,6 @@ export default function WHMatchingAssemblyPage() {
               value={form.item}
               onChange={(e) => setField('item', e.target.value)}
               placeholder="ลำดับ/รหัสรายการ"
-            />
-
-            <label className="wh-modal-label">Date Assy</label>
-            <input
-              className="wh-modal-input"
-              type="date"
-              value={form.dateAssy}
-              onChange={(e) => setField('dateAssy', e.target.value)}
             />
 
             <label className="wh-modal-label">Machine No.</label>

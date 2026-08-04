@@ -23,10 +23,6 @@ type MatchingAssembly struct {
 	// Item — ลำดับ/รหัสรายการ (ค่าเริ่มต้น = ลำดับถัดไป, แก้ไขได้)
 	Item string `gorm:"column:item;size:50"`
 
-	// Date Assy — วันที่ประกอบ (ค่าเริ่มต้น = วันที่สแกน, แก้ไขได้)
-	// เป็น pointer เพื่อให้เว้นว่าง (null) ได้ ไม่ถูกบังคับเป็น 0001-01-01
-	DateAssy *time.Time `gorm:"column:date_assy"`
-
 	// Machine No. — หมายเลขเครื่อง (IT Controller No. 12 หลัก) ดึงจากทะเบียนกลาง
 	MachineNo string `gorm:"column:machine_no;size:30;index"`
 

@@ -508,9 +508,6 @@ export default function WHPartConfirmationPage() {
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">Part Confirmation</h2>
-          <p className="wh-subtitle">
-            แตะการ์ดพาร์ท (หรือยิงบาร์โค้ด) เพื่อเริ่ม แล้วสแกน P/N → S/N — ระบบเทียบกับบัญชีใบอนุญาตนำเข้าให้ทันที ตรง/ไม่ตรง ขึ้นในตารางด้านล่างเลย
-          </p>
         </div>
       </div>
 
