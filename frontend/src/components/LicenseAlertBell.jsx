@@ -10,7 +10,7 @@ import {
   readDismissed,
   removeDismissed,
 } from '../lib/licenseDismiss.js'
-import { BellAlertIcon, XMarkIcon, ClockIcon, EyeSlashIcon, ArrowPathIcon } from './icons.jsx'
+import { BellAlertIcon, XMarkIcon, ClockIcon, EyeSlashIcon, ArrowPathIcon, ArrowDownTrayIcon } from './icons.jsx'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LicenseAlertBell — กระดิ่งแจ้งเตือนอายุใบอนุญาตนำเข้าบน topbar
@@ -154,11 +154,15 @@ export default function LicenseAlertBell() {
         type="button"
         className={'lab-bell' + (badge > 0 ? ' lab-bell-active' : '') + (hasNew ? ' lab-bell-pulse' : '')}
         onClick={toggle}
-        aria-label={`แจ้งเตือนอายุใบอนุญาต${badge > 0 ? ` (${badge})` : ''}`}
+        aria-label={`แจ้งเตือนอายุใบอนุญาตนำเข้า${badge > 0 ? ` (${badge})` : ''}`}
         title="แจ้งเตือนอายุใบอนุญาตนำเข้า"
       >
         <span className="lab-bell-icon">
           <BellAlertIcon className="size-5" />
+        </span>
+        {/* ป้ายเล็ก "นำเข้า" มุมล่าง บอกชนิดกระดิ่งแม้ยังไม่มีแจ้งเตือน — คู่กับป้าย "ส่งออก" ของอีกอัน */}
+        <span className="lab-kind lab-kind-import" aria-hidden="true">
+          <ArrowDownTrayIcon className="size-3" />
         </span>
         {badge > 0 && <span className="lab-badge">{badge > 99 ? '99+' : badge}</span>}
       </button>

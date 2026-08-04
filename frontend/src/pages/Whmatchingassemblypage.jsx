@@ -14,7 +14,13 @@ import {
 } from '../components/icons.jsx'
 import AppShell from '../components/AppShell.jsx'
 import SelectField from '../components/Selectfield.jsx'
-import { WH_NAV_ITEMS } from './Importlicensepage.jsx'
+import { WH_NAV_ITEMS, WHMachineStockPanel } from './Importlicensepage.jsx'
+
+// แท็บของหน้า Matching Assembly — เพิ่มแท็บ "MC" เข้ามา (ย้ายมาจากหน้า Import License เดิม)
+const MATCHING_TABS = [
+  { key: 'assembly', label: 'Matching Assembly' },
+  { key: 'mc', label: 'MC' },
+]
 
 const EMPTY_FORM = {
   item: '',
@@ -39,6 +45,7 @@ const ASSEMBLY_PARTS_OPTIONS = [
 ]
 
 export default function WHMatchingAssemblyPage() {
+  const [tab, setTab] = useState('assembly')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -189,6 +196,22 @@ export default function WHMatchingAssemblyPage() {
         </p>
       )}
 
+      <div className="vr-tabs il-wh-tabs">
+        {MATCHING_TABS.map((t) => (
+          <button
+            key={t.key}
+            className={'vr-tab' + (tab === t.key ? ' vr-tab-active' : '')}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'mc' && <WHMachineStockPanel />}
+
+      {tab === 'assembly' && (
+        <>
       <div className="tsf-history-toolbar">
         <div className="tsf-history-pagesize">
           <div className="wh-pagesize-select">
@@ -312,6 +335,8 @@ export default function WHMatchingAssemblyPage() {
             </button>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* ── แก้ไข / เพิ่ม Matching Assembly ─────────────────────────────── */}

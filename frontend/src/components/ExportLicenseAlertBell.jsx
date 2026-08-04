@@ -115,7 +115,7 @@ export default function ExportLicenseAlertBell() {
 
   function goToLicense() {
     setOpen(false)
-    navigate('/warehouse', { tab: 'export' })
+    navigate('/warehouse/export-license')
   }
 
   function handleDismiss(item) {
@@ -160,7 +160,7 @@ export default function ExportLicenseAlertBell() {
           <div className="lab-panel-head">
             <div>
               <h3 className="lab-panel-title">อายุใบอนุญาตส่งออก</h3>
-              <p className="lab-panel-sub">ใบอนุญาตมีอายุ 1 เดือน · เตือนก่อนหมดอายุ 7 วัน</p>
+              <p className="lab-panel-sub">ใบอนุญาตมีอายุ 1 เดือน · ตรวจสอบรายสัปดาห์</p>
             </div>
             <button className="lab-panel-close" onClick={() => setOpen(false)} aria-label="ปิด">
               <XMarkIcon className="size-4" />

@@ -34,7 +34,6 @@ import {
   EXPIRY_STATUS,
 } from '../lib/licenseExpiry.js'
 import { useDailyTick } from '../lib/useDailyTick.js'
-import { useAppParams } from '../lib/nav.jsx'
 import {
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
@@ -48,9 +47,14 @@ import {
   Squares2X2Icon,
 } from '../components/icons.jsx'
 
-// เมนูของ role WH — Import License -> Part Confirmation -> Matching Assembly
+// เมนูของ role WH — Import License -> Export License -> Part Confirmation -> Matching Assembly
 export const WH_NAV_ITEMS = [
   { to: '/warehouse', label: 'Import License', icon: <DocumentTextIcon className="size-4" /> },
+  {
+    to: '/warehouse/export-license',
+    label: 'Export License',
+    icon: <ReceiptPercentIcon className="size-4" />,
+  },
   {
     to: '/warehouse/confirm',
     label: 'Part Confirmation',
@@ -69,15 +73,9 @@ export const WH_NAV_ITEMS = [
 // คือของที่ถูกต้องโดยนิยาม
 // สถานะการสแกนยืนยันไปอยู่ที่หน้า Part Confirmation ซึ่งเป็นคนสแกนของจริง
 
-// แท็บของหน้า WH — อัปโหลดตารางอ้างอิง 3 ชนิดจากไฟล์ Excel เล่มเดียวกัน
-//   serial = บัญชีแนบใบอนุญาต (ชีต Serail)  · เดิม
-//   mc     = สต๊อกเครื่อง/ออเดอร์ (ชีต MC)   · เอาไว้เช็คของเข้าคลัง
-//   inv    = รายการอินวอยซ์ (ชีต Inv)        · ตำแหน่งจัดเก็บ
-const WH_TABS = [
-  { key: 'serial', label: 'Import License' },
-  { key: 'export', label: 'Export License' },
-  { key: 'mc', label: 'MC' },
-]
+// หน้านี้เหลือแค่บัญชีใบอนุญาตนำเข้า (ชีต Serial) อย่างเดียวแล้ว
+//   Export License ย้ายไปเป็นเมนูหลักของตัวเอง (ดู pages/Exportlicensepage.jsx)
+//   MC ย้ายไปอยู่ในหน้า Matching Assembly แล้ว (ดู pages/Whmatchingassemblypage.jsx)
 
 // คอลัมน์ทั้งหมดของชีต MC (เรียงตามไฟล์จริง) — key ตรงกับชื่อฟิลด์ที่ backend ส่งกลับ
 // mono = ใช้ฟอนต์ monospace (เลข/รหัส), head = ตัวหนา (คีย์หลัก Order No)
@@ -142,17 +140,6 @@ function ExpiryCell({ issueDate }) {
 
 export default function ImportLicensePage() {
   const today = useDailyTick() // เปลี่ยนค่าเมื่อข้ามวัน → บังคับ recompute สถานะอายุ
-  const navParams = useAppParams() // รับ { tab } จากกระดิ่งแจ้งเตือน (เช่น เปิดแท็บ export)
-  const [tab, setTab] = useState(() =>
-    WH_TABS.some((t) => t.key === navParams?.tab) ? navParams.tab : 'serial'
-  )
-
-  // คลิกกระดิ่ง "ส่งออก" แล้ว navigate มาพร้อม tab: 'export' → เด้งไปแท็บนั้นให้เลย
-  useEffect(() => {
-    if (navParams?.tab && WH_TABS.some((t) => t.key === navParams.tab)) {
-      setTab(navParams.tab)
-    }
-  }, [navParams?.tab])
   const [items, setItems] = useState([])
   const [summary, setSummary] = useState([])
   const [loading, setLoading] = useState(true)
@@ -346,20 +333,6 @@ export default function ImportLicensePage() {
       )}
 
       {/* ── อัปโหลดไฟล์บัญชี ─────────────────────────────────────────────── */}
-      <div className="vr-tabs il-wh-tabs">
-        {WH_TABS.map((t) => (
-          <button
-            key={t.key}
-            className={'vr-tab' + (tab === t.key ? ' vr-tab-active' : '')}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'serial' && (
-        <>
       <div className="wh-upload-card">
         <div className="fdz-row">
           <FileDropZone
@@ -596,12 +569,6 @@ export default function ImportLicensePage() {
           </div>
         </div>
       )}
-        </>
-      )}
-
-      {tab === 'export' && <WHExportLicensePanel />}
-
-      {tab === 'mc' && <WHMachineStockPanel />}
     </AppShell>
   )
 }
@@ -651,7 +618,7 @@ function ExportExpiryCell({ expireDate }) {
   )
 }
 
-function WHExportLicensePanel() {
+export function WHExportLicensePanel() {
   useDailyTick() // ข้ามวัน → recompute สถานะ Expire date
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -876,8 +843,9 @@ function WHExportLicensePanel() {
 }
 // ═══════════════════════════════════════════════════════════════════════════
 // แผง MC — สต๊อกเครื่อง/ออเดอร์ (ชีต MC) เอาไว้เช็คของเข้าคลัง
+// ใช้อยู่ในหน้า Matching Assembly (ดู pages/Whmatchingassemblypage.jsx)
 // ═══════════════════════════════════════════════════════════════════════════
-function WHMachineStockPanel() {
+export function WHMachineStockPanel() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
