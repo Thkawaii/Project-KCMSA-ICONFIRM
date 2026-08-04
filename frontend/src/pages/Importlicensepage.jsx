@@ -322,7 +322,7 @@ export default function ImportLicensePage() {
     <AppShell navItems={WH_NAV_ITEMS} roleLabel="Warehouse">
       <div className="wh-heading-row">
         <div>
-          <h2 className="wh-title">Import Data</h2>
+          <h2 className="wh-title">Import License</h2>
         </div>
       </div>
 
@@ -623,6 +623,8 @@ export function WHExportLicensePanel() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [exceptionFilter, setExceptionFilter] = useState('all') // แบบ/รุ่น (ฝั่งส่งออกใช้ Exception License)
+  const [expiryFilter, setExpiryFilter] = useState('all') // สถานะวันหมดอายุ
   const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [msg, setMsg] = useState(null)
@@ -645,7 +647,7 @@ export function WHExportLicensePanel() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, pageSize])
+  }, [search, exceptionFilter, expiryFilter, pageSize])
 
   async function handleUpload() {
     if (!file) {
@@ -694,14 +696,48 @@ export function WHExportLicensePanel() {
   }
 
   const filtered = useMemo(() => {
+    let list = rows
+
+    // กรองตามแบบ/รุ่น — ฝั่งส่งออกไม่มีคอลัมน์ Model จึงใช้ Exception License เป็นตัวจัดกลุ่ม
+    if (exceptionFilter !== 'all') {
+      list = list.filter((r) => (r.ExceptionLicense || '') === exceptionFilter)
+    }
+
+    // กรองตามสถานะวันหมดอายุ (ยังไม่ระบุวันที่ / ใกล้หมดอายุ / หมดอายุแล้ว / ปกติ)
+    if (expiryFilter !== 'all') {
+      list = list.filter((r) => computeExpireStatus(r.ExpireDate).status === expiryFilter)
+    }
+
     const term = search.trim().toLowerCase()
-    if (!term) return rows
-    return rows.filter(
-      (r) =>
-        (r.SerialNumber || '').toLowerCase().includes(term) ||
-        (r.ExceptionLicense || '').toLowerCase().includes(term)
-    )
-  }, [rows, search])
+    if (term) {
+      list = list.filter(
+        (r) =>
+          (r.SerialNumber || '').toLowerCase().includes(term) ||
+          (r.ExceptionLicense || '').toLowerCase().includes(term)
+      )
+    }
+
+    return list
+  }, [rows, exceptionFilter, expiryFilter, search])
+
+  // รายการ Exception License (unique) สำหรับ dropdown filter — เทียบเท่า "แบบ/รุ่น" ของฝั่งนำเข้า
+  const exceptionOptions = useMemo(() => {
+    const set = new Set(rows.map((r) => r.ExceptionLicense).filter(Boolean))
+    const list = Array.from(set).sort((a, b) => a.localeCompare(b))
+    return [{ value: 'all', label: 'ทุกแบบ/รุ่น' }, ...list.map((m) => ({ value: m, label: m }))]
+  }, [rows])
+
+  // ตัวเลือก filter สถานะวันหมดอายุ — เรียงตามความเร่งด่วน (ชุดเดียวกับฝั่งนำเข้า)
+  const expiryOptions = useMemo(
+    () => [
+      { value: 'all', label: 'ทุกสถานะวันหมดอายุ' },
+      { value: EXPIRY_STATUS.NO_DATE, label: STATUS_LABEL[EXPIRY_STATUS.NO_DATE] }, // ยังไม่ระบุวันที่
+      { value: EXPIRY_STATUS.EXPIRING, label: STATUS_LABEL[EXPIRY_STATUS.EXPIRING] }, // ใกล้หมดอายุ
+      { value: EXPIRY_STATUS.EXPIRED, label: STATUS_LABEL[EXPIRY_STATUS.EXPIRED] }, // หมดอายุแล้ว
+      { value: EXPIRY_STATUS.VALID, label: STATUS_LABEL[EXPIRY_STATUS.VALID] }, // ปกติ
+    ],
+    []
+  )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize)
@@ -745,18 +781,26 @@ export function WHExportLicensePanel() {
           </div>
           entries per page
         </div>
-        <input
-          className="wh-search"
-          type="text"
-          placeholder="ค้นหา Serial Number / Exception License"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        {rows.length > 0 && (
-          <button className="wh-modal-cancel" onClick={handleClearAll}>
-            ลบทั้งหมด
-          </button>
-        )}
+        <div className="il-filter-search-group">
+          <div className="wh-pagesize-select il-model-filter">
+            <SelectField value={exceptionFilter} onChange={setExceptionFilter} options={exceptionOptions} />
+          </div>
+          <div className="wh-pagesize-select il-model-filter">
+            <SelectField value={expiryFilter} onChange={setExpiryFilter} options={expiryOptions} />
+          </div>
+          <input
+            className="wh-search"
+            type="text"
+            placeholder="ค้นหา Serial Number / Exception License"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {rows.length > 0 && (
+            <button className="wh-modal-cancel" onClick={handleClearAll}>
+              ลบทั้งหมด
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="wh-table-card">
