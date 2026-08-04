@@ -11,22 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// parseAssyDate แปลงวันที่ที่ส่งมาจาก frontend (รับได้ทั้ง "YYYY-MM-DD" และ RFC3339)
-// คืน *time.Time (nil ถ้าว่าง/แปลงไม่ได้ เพื่อให้เก็บเป็น null ได้)
-func parseAssyDate(v string) *time.Time {
-	v = strings.TrimSpace(v)
-	if v == "" {
-		return nil
-	}
-	layouts := []string{time.RFC3339, "2006-01-02T15:04", "2006-01-02"}
-	for _, l := range layouts {
-		if t, err := time.Parse(l, v); err == nil {
-			return &t
-		}
-	}
-	return nil
-}
-
 // GetMatchingAssemblies คืนรายการ Matching Assembly ทั้งหมด (ใหม่สุดอยู่บน)
 func GetMatchingAssemblies(c *gin.Context) {
 
@@ -37,7 +21,6 @@ func GetMatchingAssemblies(c *gin.Context) {
 
 type MatchingAssemblyRequest struct {
 	Item              string `json:"item"`
-	DateAssy          string `json:"dateAssy"` // "YYYY-MM-DD" หรือ RFC3339
 	MachineNo         string `json:"machineNo"`
 	ITControllerSN    string `json:"itControllerSN"`
 	Country           string `json:"country"`
@@ -66,14 +49,8 @@ func CreateMatchingAssembly(c *gin.Context) {
 		item = strconv.FormatInt(count+1, 10)
 	}
 
-	dateAssy := parseAssyDate(req.DateAssy)
-	if dateAssy == nil {
-		dateAssy = &now
-	}
-
 	row := models.MatchingAssembly{
 		Item:              item,
-		DateAssy:          dateAssy,
 		MachineNo:         strings.TrimSpace(req.MachineNo),
 		ITControllerSN:    strings.TrimSpace(req.ITControllerSN),
 		Country:           strings.TrimSpace(req.Country),
@@ -127,7 +104,6 @@ func UpdateMatchingAssembly(c *gin.Context) {
 		"classification":      strings.TrimSpace(req.Classification),
 		"assembly_parts_no":   strings.TrimSpace(req.AssemblyPartsNo),
 		"assembly_parts_name": strings.TrimSpace(req.AssemblyPartsName),
-		"date_assy":           parseAssyDate(req.DateAssy),
 		"updated_datetime":    time.Now(),
 	}
 
@@ -210,10 +186,8 @@ func upsertMatchingAssemblyFromScan(machineNo, serialNo, partsNo, partsName, cou
 	var count int64
 	config.DB.Model(&models.MatchingAssembly{}).Count(&count)
 
-	dateAssy := when
 	row := models.MatchingAssembly{
 		Item:              strconv.FormatInt(count+1, 10),
-		DateAssy:          &dateAssy,
 		MachineNo:         machineNo,
 		ITControllerSN:    serialNo,
 		Country:           country,
