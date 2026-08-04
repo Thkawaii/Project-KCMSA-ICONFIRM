@@ -16,6 +16,12 @@ import {
   deleteWHInvoice,
   clearWHInvoice,
 } from '../api/whStock.js'
+import {
+  getExportLicense,
+  uploadExportLicense,
+  deleteExportLicense,
+  clearExportLicense,
+} from '../api/exportLicense.js'
 import AppShell from '../components/AppShell.jsx'
 import FileDropZone from '../components/Filedropzone.jsx'
 import SelectField from '../components/Selectfield.jsx'
@@ -28,6 +34,7 @@ import {
   EXPIRY_STATUS,
 } from '../lib/licenseExpiry.js'
 import { useDailyTick } from '../lib/useDailyTick.js'
+import { useAppParams } from '../lib/nav.jsx'
 import {
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
@@ -68,6 +75,7 @@ export const WH_NAV_ITEMS = [
 //   inv    = รายการอินวอยซ์ (ชีต Inv)        · ตำแหน่งจัดเก็บ
 const WH_TABS = [
   { key: 'serial', label: 'Import License' },
+  { key: 'export', label: 'Export License' },
   { key: 'mc', label: 'MC' },
 ]
 
@@ -134,7 +142,17 @@ function ExpiryCell({ issueDate }) {
 
 export default function ImportLicensePage() {
   const today = useDailyTick() // เปลี่ยนค่าเมื่อข้ามวัน → บังคับ recompute สถานะอายุ
-  const [tab, setTab] = useState('serial')
+  const navParams = useAppParams() // รับ { tab } จากกระดิ่งแจ้งเตือน (เช่น เปิดแท็บ export)
+  const [tab, setTab] = useState(() =>
+    WH_TABS.some((t) => t.key === navParams?.tab) ? navParams.tab : 'serial'
+  )
+
+  // คลิกกระดิ่ง "ส่งออก" แล้ว navigate มาพร้อม tab: 'export' → เด้งไปแท็บนั้นให้เลย
+  useEffect(() => {
+    if (navParams?.tab && WH_TABS.some((t) => t.key === navParams.tab)) {
+      setTab(navParams.tab)
+    }
+  }, [navParams?.tab])
   const [items, setItems] = useState([])
   const [summary, setSummary] = useState([])
   const [loading, setLoading] = useState(true)
@@ -581,8 +599,279 @@ export default function ImportLicensePage() {
         </>
       )}
 
+      {tab === 'export' && <WHExportLicensePanel />}
+
       {tab === 'mc' && <WHMachineStockPanel />}
     </AppShell>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// แผง Export License — บัญชีใบอนุญาตส่งออก (คู่กับ Import License)
+// ตาราง: ใบขน (Date) · Exception License · Serial Number · Expire date
+// ═══════════════════════════════════════════════════════════════════════════
+
+// คำนวณสถานะจาก "วันหมดอายุ" ที่ระบุมาตรง ๆ (ไม่ใช่ +6 เดือนแบบ Import)
+// คืนรูปแบบเดียวกับ computeLicenseExpiry เพื่อให้ใช้ ExportExpiryCell ร่วมกับ
+// EXPIRY_BADGE_CLASS / STATUS_LABEL / daysLeftLabel ที่มีอยู่แล้วได้ทันที
+function computeExpireStatus(expireRaw, withinDays = 30) {
+  if (!expireRaw) {
+    return { hasDate: false, expiryDate: null, daysLeft: null, status: EXPIRY_STATUS.NO_DATE }
+  }
+  const exp = new Date(expireRaw)
+  if (Number.isNaN(exp.getTime())) {
+    return { hasDate: false, expiryDate: null, daysLeft: null, status: EXPIRY_STATUS.NO_DATE }
+  }
+  const atMidnight = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const today = atMidnight(new Date())
+  const expDay = atMidnight(exp)
+  const daysLeft = Math.round((expDay - today) / 86400000)
+
+  let status
+  if (daysLeft < 0) status = EXPIRY_STATUS.EXPIRED
+  else if (daysLeft <= withinDays) status = EXPIRY_STATUS.EXPIRING
+  else status = EXPIRY_STATUS.VALID
+
+  return { hasDate: true, expiryDate: expDay, daysLeft, status }
+}
+
+// เซลล์ "Expire date" — ป้ายสถานะ + วันหมดอายุ + วันคงเหลือ (ใช้ชุดสีเดียวกับ Import)
+function ExportExpiryCell({ expireDate }) {
+  const exp = computeExpireStatus(expireDate)
+  return (
+    <div className="il-expiry-cell">
+      <span className={EXPIRY_BADGE_CLASS[exp.status]}>{STATUS_LABEL[exp.status]}</span>
+      {exp.hasDate && (
+        <>
+          <span>{formatThaiDate(exp.expiryDate)}</span>
+          <span className="il-expiry-days">{daysLeftLabel(exp.daysLeft)}</span>
+        </>
+      )}
+    </div>
+  )
+}
+
+function WHExportLicensePanel() {
+  useDailyTick() // ข้ามวัน → recompute สถานะ Expire date
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [file, setFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [msg, setMsg] = useState(null)
+  const [pageSize, setPageSize] = useState(25)
+  const [page, setPage] = useState(1)
+
+  async function load() {
+    setLoading(true)
+    try {
+      setRows(await getExportLicense())
+    } catch (err) {
+      toastError(err.message || 'โหลดบัญชีใบอนุญาตส่งออกไม่สำเร็จ')
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => {
+    load()
+  }, [])
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, pageSize])
+
+  async function handleUpload() {
+    if (!file) {
+      setMsg({ error: 'กรุณาเลือกไฟล์ Excel หรือ CSV ก่อน' })
+      return
+    }
+    setUploading(true)
+    setMsg(null)
+    try {
+      const r = await uploadExportLicense(file)
+      setMsg({ success: `นำเข้าสำเร็จ — ${r.imported} แถว, ข้าม ${r.skipped} แถว` })
+      setFile(null)
+      await load()
+    } catch (err) {
+      setMsg({ error: err.message || 'อัปโหลดไม่สำเร็จ' })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleDelete(row) {
+    const ok = await confirmDelete({ text: `ลบ Serial Number ${row.SerialNumber || '—'} ออกจากบัญชี?` })
+    if (!ok) return
+    try {
+      await deleteExportLicense(row.ID)
+      await load()
+      toastSuccess(`ลบ ${row.SerialNumber || ''} แล้ว`)
+    } catch (err) {
+      toastError(err.message || 'ลบไม่สำเร็จ')
+    }
+  }
+
+  async function handleClearAll() {
+    const ok = await confirmDelete({
+      text: 'ลบบัญชีใบอนุญาตส่งออกทั้งหมด? กู้คืนไม่ได้',
+      confirmText: 'ลบทั้งหมด',
+    })
+    if (!ok) return
+    try {
+      await clearExportLicense()
+      await load()
+      toastSuccess('ลบบัญชีใบอนุญาตส่งออกทั้งหมดแล้ว')
+    } catch (err) {
+      toastError(err.message || 'ลบไม่สำเร็จ')
+    }
+  }
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    if (!term) return rows
+    return rows.filter(
+      (r) =>
+        (r.SerialNumber || '').toLowerCase().includes(term) ||
+        (r.ExceptionLicense || '').toLowerCase().includes(term)
+    )
+  }, [rows, search])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  return (
+    <>
+      <div className="wh-upload-card">
+        <div className="fdz-row">
+          <FileDropZone
+            file={file}
+            onSelect={(f) => {
+              setFile(f)
+              setMsg(null)
+            }}
+            accept=".xlsx,.xls,.csv"
+            label="อัปโหลดบัญชีใบอนุญาตส่งออก"
+            hint="ไฟล์ Excel หรือ CSV ที่มีคอลัมน์ ใบขน (Date) / Exception License / Serial Number / Expire date (อัปโหลดซ้ำ Serial เดิม ระบบทับให้)"
+            disabled={uploading}
+          />
+          <button className="wh-issue-btn" onClick={handleUpload} disabled={uploading || !file}>
+            {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลด'}
+          </button>
+        </div>
+        {msg?.success && <p className="upload-card-msg upload-card-msg-ok wh-upload-msg">{msg.success}</p>}
+        {msg?.error && <p className="upload-card-msg upload-card-msg-err wh-upload-msg">{msg.error}</p>}
+      </div>
+
+      <div className="tsf-history-toolbar">
+        <div className="tsf-history-pagesize">
+          <div className="wh-pagesize-select">
+            <SelectField
+              value={pageSize}
+              onChange={setPageSize}
+              options={[
+                { value: 10, label: '10' },
+                { value: 25, label: '25' },
+                { value: 50, label: '50' },
+                { value: 100, label: '100' },
+              ]}
+            />
+          </div>
+          entries per page
+        </div>
+        <input
+          className="wh-search"
+          type="text"
+          placeholder="ค้นหา Serial Number / Exception License"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {rows.length > 0 && (
+          <button className="wh-modal-cancel" onClick={handleClearAll}>
+            ลบทั้งหมด
+          </button>
+        )}
+      </div>
+
+      <div className="wh-table-card">
+        <table className="wh-table">
+          <thead>
+            <tr>
+              <th>ลำดับ</th>
+              <th>ใบขน (Date)</th>
+              <th>Exception License</th>
+              <th>Serial Number</th>
+              <th>Expire date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={6} className="wh-empty-cell">
+                  กำลังโหลดข้อมูล...
+                </td>
+              </tr>
+            )}
+            {!loading &&
+              paged.map((row, i) => (
+                <tr key={row.ID}>
+                  <td className="wh-cell-head" data-label="ลำดับ">
+                    {(page - 1) * pageSize + i + 1}
+                  </td>
+                  <td data-label="ใบขน (Date)">{formatThaiDate(row.DeclarationDate)}</td>
+                  <td data-label="Exception License">{row.ExceptionLicense || '—'}</td>
+                  <td className="il-mono wh-cell-head" data-label="Serial Number">
+                    <strong>{row.SerialNumber || '—'}</strong>
+                  </td>
+                  <td data-label="Expire date">
+                    <ExportExpiryCell expireDate={row.ExpireDate} />
+                  </td>
+                  <td className="wh-cell-action">
+                    <button className="wh-modal-cancel" onClick={() => handleDelete(row)}>
+                      ลบ
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            {!loading && paged.length === 0 && (
+              <tr>
+                <td colSpan={6} className="wh-empty-cell">
+                  ยังไม่มีข้อมูลใบอนุญาตส่งออก — อัปโหลดไฟล์ Excel หรือ CSV ด้านบนก่อน
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {!loading && filtered.length > pageSize && (
+        <div className="tsf-pagination">
+          <span className="wh-subtitle" style={{ fontSize: 13 }}>
+            Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, filtered.length)} of{' '}
+            {filtered.length} entries
+          </span>
+          <div className="tsf-pagination-buttons">
+            <button
+              className="wh-modal-cancel"
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page === 1}
+            >
+              <ChevronLeftIcon className="size-4" />
+            </button>
+            <span className="tsf-pagination-current">
+              {page} / {totalPages}
+            </span>
+            <button
+              className="wh-modal-cancel"
+              onClick={() => setPage(Math.min(totalPages, page + 1))}
+              disabled={page === totalPages}
+            >
+              <ChevronRightIcon className="size-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 // ═══════════════════════════════════════════════════════════════════════════

@@ -112,6 +112,23 @@ func SetupRoutes(r *gin.Engine) {
 	}
 
 	// ─────────────────────────────────────────────────────────────────────
+	// Export License — บัญชีใบอนุญาตส่งออก (คู่กับ Import License)
+	//
+	// WH อัปโหลดไฟล์ Excel/CSV ที่มีคอลัมน์ ใบขน (Date) / Exception License /
+	// Serial Number / Expire date เก็บไว้เป็น "ตารางอ้างอิง" ฝั่งขาออก
+	// สิทธิ์เดียวกับ import-license (role WH)
+	// ─────────────────────────────────────────────────────────────────────
+	exportLicense := auth.Group("/export-license")
+	exportLicense.Use(middleware.RoleMiddleware("WH"))
+	{
+		exportLicense.GET("", controllers.GetExportLicense)
+		exportLicense.GET("/alerts", controllers.GetExportLicenseAlerts)
+		exportLicense.POST("/upload", controllers.UploadExportLicense)
+		exportLicense.DELETE("/:id", controllers.DeleteExportLicense)
+		exportLicense.DELETE("", controllers.ClearExportLicense)
+	}
+
+	// ─────────────────────────────────────────────────────────────────────
 	// WH Stock — ตารางอ้างอิงเพิ่มเติมของ Warehouse ที่อัปโหลดจาก Excel
 	//   /wh-stock/mc   = ชีต MC  (สต๊อกเครื่อง/ออเดอร์ เอาไว้เช็คของเข้าคลัง)
 	//   /wh-stock/inv  = ชีต Inv (รายการอินวอยซ์ + ตำแหน่งจัดเก็บ)
