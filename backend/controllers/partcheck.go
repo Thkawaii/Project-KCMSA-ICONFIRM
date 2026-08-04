@@ -218,15 +218,6 @@ func ScanPartCheck(c *gin.Context) {
 	//    ผลเทียบจะขึ้นในตาราง WH ให้อัตโนมัติ
 	var matchedItem *models.ImportLicenseItem
 
-	// เก็บไว้ใช้ต่อในการสร้างแถว Matching Assembly หลังบันทึกสำเร็จ
-	// (ITControllerSN = S/N ในทะเบียนกลาง)
-	//
-	// หมายเหตุ: Assembly Parts Name ไม่ auto-fill จากทะเบียนกลางแล้ว เพราะ master.Name
-	// คือชื่อของ IT Controller เอง (เช่น "Q4000 IRIDIUM IT CONTROLLER") ไม่ใช่ชื่อรุ่นเครื่อง
-	// (เช่น SK75-11) ที่ต้องการ — ยังไม่มี master data เชื่อมหมายเลขเครื่อง -> รุ่นเครื่องจริง
-	// ปล่อยว่างไว้ ผู้ใช้เลือกเองจาก dropdown ในหน้า Matching Assembly แทน
-	var assyPartsName, assySerial string
-
 	if partType == "ITC" {
 		master := resolveITControllerMaster(check.PN, sn)
 
@@ -239,7 +230,6 @@ func ScanPartCheck(c *gin.Context) {
 			machineNo := derefStr(master.ITControllerNo)
 			imei := derefStr(master.IMEI)
 			check.MachineNo = machineNo
-			assySerial = strings.TrimSpace(master.SerialNo)
 			if productionNo == "" {
 				check.ProductionNo = imei
 			}
@@ -288,26 +278,6 @@ func ScanPartCheck(c *gin.Context) {
 		if err := config.DB.First(&refreshed, matchedItem.ID).Error; err == nil {
 			matchedItem = &refreshed
 		}
-	}
-
-	// ── Matching Assembly ──────────────────────────────────────────────────
-	// สแกน IT Controller สำเร็จ (ดึงหมายเลขเครื่องจากทะเบียนกลางได้) -> ใช้ P/N
-	// (เช่น YN22E00849FA) เป็นตัวเชื่อม ดึงข้อมูลลงตาราง Matching Assembly ให้เลย
-	//   Machine No.              = check.MachineNo (IT Controller No.)
-	//   IT Controller Serial No. = S/N ในทะเบียนกลาง (fallback เป็นค่าที่สแกน)
-	//   Country                  = ประเทศปลายทางจากบัญชีใบอนุญาต (ถ้าจับคู่ได้)
-	//   Assembly Parts Number    = P/N ที่สแกน (ตัวเชื่อม)
-	//   Assembly Parts Name      = ว่างไว้ ผู้ใช้เลือกเองจาก dropdown ในหน้า Matching Assembly
-	if partType == "ITC" && check.MachineNo != "" {
-		serial := assySerial
-		if serial == "" {
-			serial = sn
-		}
-		country := ""
-		if matchedItem != nil {
-			country = matchedItem.ExportCountry
-		}
-		upsertMatchingAssemblyFromScan(check.MachineNo, serial, check.PN, assyPartsName, country, now, userID, name)
 	}
 
 	CreateAuditLog("PART_CHECK", check.ID, "scan_check", partType+"/"+check.MatchStatus, userID, name)

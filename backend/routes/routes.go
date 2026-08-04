@@ -79,20 +79,6 @@ func SetupRoutes(r *gin.Engine) {
 	}
 
 	// ─────────────────────────────────────────────────────────────────────
-	// Matching Assembly — ผลการจับคู่ประกอบ IT Controller เข้ากับเครื่อง
-	// สร้างอัตโนมัติเมื่อสแกน IT Controller สำเร็จบนหน้า Part Confirmation
-	// และแก้ไข/ลบ/เพิ่มเองได้ (สิทธิ์เดียวกับ part-check คือ role WH)
-	// ─────────────────────────────────────────────────────────────────────
-	matchingAssembly := auth.Group("/matching-assembly")
-	matchingAssembly.Use(middleware.RoleMiddleware("WH"))
-	{
-		matchingAssembly.GET("", controllers.GetMatchingAssemblies)
-		matchingAssembly.POST("", controllers.CreateMatchingAssembly)
-		matchingAssembly.PATCH("/:id", controllers.UpdateMatchingAssembly)
-		matchingAssembly.DELETE("/:id", controllers.DeleteMatchingAssembly)
-	}
-
-	// ─────────────────────────────────────────────────────────────────────
 	// Import License — บัญชีแสดงหมายเลขเครื่องแนบท้ายใบอนุญาตนำเข้า
 	//
 	// WH อัปโหลดไฟล์ Excel ที่ได้มาพร้อมใบอนุญาต (เช่น E05036901604 /
@@ -165,6 +151,23 @@ func SetupRoutes(r *gin.Engine) {
 		tsf.GET("/by-machine/:machineNo", controllers.GetTSFByMachine)
 		tsf.POST("", controllers.CreateTSF)
 		tsf.PATCH("/:id", controllers.UpdateTSF)
+	}
+
+	// ─────────────────────────────────────────────────────────────────────
+	// MFG Assembly — ผลตรวจตอนประกอบเสร็จ ของฝั่ง MFG (login = role TSF)
+	//
+	// สแกน QR ของเครื่องที่ประกอบเสร็จ (บรรจุ Machine No + IT Controller No.)
+	// ระบบบันทึกคู่ + flag สถานะ (OK/UNKNOWN/REUSED/DUPLICATE) และแก้ไข/ลบ/
+	// เพิ่มเองได้ (สิทธิ์เดียวกับ tsf คือ role TSF)
+	// ─────────────────────────────────────────────────────────────────────
+	mfgAssembly := auth.Group("/mfg-assembly")
+	mfgAssembly.Use(middleware.RoleMiddleware("TSF"))
+	{
+		mfgAssembly.GET("", controllers.GetMFGAssemblies)
+		mfgAssembly.POST("/scan", controllers.ScanMFGAssembly)
+		mfgAssembly.POST("", controllers.CreateMFGAssembly)
+		mfgAssembly.PATCH("/:id", controllers.UpdateMFGAssembly)
+		mfgAssembly.DELETE("/:id", controllers.DeleteMFGAssembly)
 	}
 
 	// TSF confirm — QA also needs to read/confirm these, so it's

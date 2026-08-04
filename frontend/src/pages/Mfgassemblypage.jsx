@@ -1,27 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   getMFGAssemblies,
   scanMFGAssembly,
+  createMFGAssembly,
   updateMFGAssembly,
   deleteMFGAssembly,
 } from '../api/mfgAssembly.js'
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js'
-import { scanStep, scanLoading, scanClose, scanSuccessToast, scanErrorAlert } from '../lib/scanPopup.js'
-import AppShell from '../components/AppShell.jsx'
-import SelectField from '../components/Selectfield.jsx'
-import bcMachine from '../assets/barcodes/Machine_Barcode.gif'
 import {
-  ArrowsRightLeftIcon,
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  QrCodeIcon,
 } from '../components/icons.jsx'
-
-// MFG มีหน้าเดียว — AppShell จะซ่อนแถบเมนูย่อยให้เองเมื่อมีรายการเดียว
-export const MFG_NAV_ITEMS = [
-  { to: '/tsf', label: 'Scan & Validate', icon: <ArrowsRightLeftIcon className="size-4" /> },
-]
+import AppShell from '../components/AppShell.jsx'
+import SelectField from '../components/Selectfield.jsx'
+import BarcodeScannerModal from '../components/Barcodescannermodal.jsx'
+import { MFG_NAV_ITEMS } from './Tsfoperatorpage.jsx'
 
 // ป้ายสถานะ — ใช้ชุดคลาส .il-badge เดิม
 const STATUS_META = {
@@ -66,10 +62,8 @@ function toDateInput(value) {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
-// แยกค่าที่ยิง/พิมพ์เข้ามา
-// - ปกติป้าย Machine Part Confirmation จะมีแค่ "หมายเลขเครื่อง" (เช่น LX10400690)
-//   -> ระบบจะไปดึง IT Controller No. ให้เองที่ backend
-// - เผื่อ QR บรรจุทั้งคู่: โทเคนตัวเลขล้วน 10–15 หลัก = IT Controller No.
+// แยกค่าที่สแกนได้จาก QR ตอนประกอบเสร็จ (บรรจุ Machine No + IT Controller No.)
+// heuristic: IT Controller No. = โทเคนตัวเลขล้วน 10–15 หลัก, ที่เหลือ = Machine No
 function parseAssemblyCode(raw) {
   const s = (raw || '').trim()
   if (!s) return { machineNo: '', itControllerNo: '' }
@@ -80,7 +74,7 @@ function parseAssemblyCode(raw) {
   return { machineNo: tokens[0] || '', itControllerNo: tokens[1] || '' }
 }
 
-export default function TSFOperatorPage() {
+export default function MFGAssemblyPage() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -89,14 +83,20 @@ export default function TSFOperatorPage() {
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
 
-  // ── โมดัลแก้ไข ─────────────────────────────────────────────────────────
+  // ── โมดัลแก้ไข/เพิ่ม ───────────────────────────────────────────────────
   const [modalOpen, setModalOpen] = useState(false)
-  const [editId, setEditId] = useState(null)
+  const [editId, setEditId] = useState(null) // null = เพิ่มใหม่
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
 
-  const busyRef = useRef(false) // กันเปิด popup สแกนซ้อน
+  // ── สแกนเนอร์ ──────────────────────────────────────────────────────────
+  // scanTarget: 'combined' = สแกน QR ประกอบเสร็จ (ได้ทั้งสองค่า)
+  //             'machineNo' / 'itControllerNo' = สแกนเติมทีละช่องในโมดัล
+  const [showScanner, setShowScanner] = useState(false)
+  const [scanTarget, setScanTarget] = useState('combined')
+  const [scanBusy, setScanBusy] = useState(false)
 
+  // 404/405 = backend ยังไม่มี endpoint (มักเพราะยังไม่ได้ rebuild/restart)
   function friendlyError(err, fallback) {
     if (err?.status === 404 || err?.status === 405) {
       return 'ยังไม่พบ API /mfg-assembly ที่ฝั่งเซิร์ฟเวอร์ — ต้อง rebuild แล้ว restart backend ก่อน'
@@ -125,43 +125,70 @@ export default function TSFOperatorPage() {
     setPage(1)
   }, [search, pageSize])
 
-  // ── SCAN FLOW (แบบเดียวกับ WH) ───────────────────────────────────────────
-  // คลิกการ์ด -> popup ให้ "ยิงบาร์โค้ด หรือพิมพ์เอง" Machine No แล้วกดปุ่ม
-  // -> ระบบดึง IT Controller No. + Country ให้ แล้วขึ้นในตาราง
-  async function runScanFlow() {
-    if (busyRef.current) return
-    busyRef.current = true
+  // ── สแกน ───────────────────────────────────────────────────────────────
+  function openCombinedScan() {
+    setScanTarget('combined')
+    setShowScanner(true)
+  }
+
+  function openFieldScan(field) {
+    setScanTarget(field)
+    setShowScanner(true)
+  }
+
+  async function submitScan(machineNo, itControllerNo) {
+    setScanBusy(true)
     try {
-      const code = await scanStep({
-        title: 'Machine Part Confirmation',
-        placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ Machine No แล้วกดปุ่ม',
-        confirmText: 'บันทึก',
-      })
-      if (!code) return
-
-      const { machineNo, itControllerNo } = parseAssemblyCode(code)
-      if (!machineNo) return
-
-      scanLoading('กำลังบันทึก...')
-      try {
-        const res = await scanMFGAssembly({ machineNo, itControllerNo: itControllerNo || '' })
-        scanClose()
-        if (res?.matched) {
-          scanSuccessToast(res?.message || 'บันทึกสำเร็จ')
-        } else {
-          toastError(res?.message || 'บันทึกแล้ว — มีข้อควรตรวจสอบ')
-        }
-        await loadRows()
-      } catch (err) {
-        scanClose()
-        await scanErrorAlert(friendlyError(err, 'บันทึกไม่สำเร็จ'))
+      const res = await scanMFGAssembly({ machineNo, itControllerNo })
+      if (res?.matched) {
+        toastSuccess(res?.message || 'บันทึกสำเร็จ')
+      } else {
+        // ยังบันทึกแล้ว แต่ต้อง flag ให้เห็น
+        toastError(res?.message || 'บันทึกแล้ว — มีข้อควรตรวจสอบ')
       }
+      await loadRows()
+    } catch (err) {
+      toastError(friendlyError(err, 'บันทึกไม่สำเร็จ'))
     } finally {
-      busyRef.current = false
+      setScanBusy(false)
     }
   }
 
-  // ── โมดัล แก้ไข ──────────────────────────────────────────────────────────
+  async function handleScanDetected(text) {
+    const target = scanTarget
+    setShowScanner(false)
+
+    if (target === 'machineNo' || target === 'itControllerNo') {
+      const parsed = parseAssemblyCode(text)
+      // ถ้าช่องนั้นเป็น IT Controller ใช้ค่าเลขล้วน ถ้าเป็น Machine ใช้ตัวที่เหลือ
+      const val =
+        target === 'itControllerNo'
+          ? parsed.itControllerNo || text.trim()
+          : parsed.machineNo || text.trim()
+      setForm((f) => ({ ...f, [target]: val }))
+      return
+    }
+
+    // combined
+    const { machineNo, itControllerNo } = parseAssemblyCode(text)
+    if (machineNo && itControllerNo) {
+      await submitScan(machineNo, itControllerNo)
+    } else {
+      // แยกไม่ครบ — เปิดโมดัลให้เติม/แก้เอง
+      setEditId(null)
+      setForm({ ...EMPTY_FORM, machineNo, itControllerNo })
+      setModalOpen(true)
+      toastError('อ่านได้ไม่ครบทั้งสองค่า — กรุณาตรวจ/เติมข้อมูลก่อนบันทึก')
+    }
+  }
+
+  // ── โมดัล เพิ่ม/แก้ไข ────────────────────────────────────────────────────
+  function openAdd() {
+    setEditId(null)
+    setForm(EMPTY_FORM)
+    setModalOpen(true)
+  }
+
   function openEdit(row) {
     setEditId(row.ID)
     setForm({
@@ -186,14 +213,19 @@ export default function TSFOperatorPage() {
   }
 
   async function save() {
-    if (!form.machineNo.trim()) {
-      toastError('กรุณากรอก Machine No')
+    if (!form.machineNo.trim() || !form.itControllerNo.trim()) {
+      toastError('กรุณากรอก Machine No และ IT Controller No.')
       return
     }
     setSaving(true)
     try {
-      await updateMFGAssembly(editId, form)
-      toastSuccess('แก้ไขรายการแล้ว')
+      if (editId) {
+        await updateMFGAssembly(editId, form)
+        toastSuccess('แก้ไขรายการแล้ว')
+      } else {
+        await createMFGAssembly(form)
+        toastSuccess('เพิ่มรายการแล้ว')
+      }
       setModalOpen(false)
       await loadRows()
     } catch (err) {
@@ -235,15 +267,26 @@ export default function TSFOperatorPage() {
     setPage(Math.min(Math.max(1, p), totalPages))
   }
 
+  const scannerTitle =
+    scanTarget === 'machineNo'
+      ? 'สแกน Machine No'
+      : scanTarget === 'itControllerNo'
+        ? 'สแกน IT Controller No.'
+        : 'สแกน QR เครื่องที่ประกอบเสร็จ'
+
   return (
     <AppShell navItems={MFG_NAV_ITEMS} roleLabel="MFG">
       <div className="wh-heading-row">
         <div>
-          <h2 className="wh-title">MFG</h2>
+          <h2 className="wh-title">Matching Assembly</h2>
           <p className="wh-subtitle">
-            คลิกการ์ดแล้วยิงบาร์โค้ด หรือพิมพ์ Machine No — ระบบดึง IT Controller No. ให้แล้วขึ้นในตาราง
+            สแกน QR ตอนประกอบเสร็จ — ระบบบันทึก Machine No + IT Controller No. แล้วตรวจสถานะให้
           </p>
         </div>
+        <button className="wh-issue-btn" onClick={openCombinedScan} disabled={scanBusy}>
+          <QrCodeIcon className="size-4" />
+          {scanBusy ? 'กำลังบันทึก...' : 'สแกน QR ประกอบเสร็จ'}
+        </button>
       </div>
 
       {loadError && (
@@ -251,33 +294,6 @@ export default function TSFOperatorPage() {
           {loadError}
         </p>
       )}
-
-      {/* ── การ์ดบาร์โค้ด: คลิกเพื่อยิง/กรอก Machine No (เหมือนหน้า WH) ── */}
-      <div className="pc-barcode-grid pc-barcode-grid--single">
-        <div
-          className="pc-barcode-card"
-          role="button"
-          tabIndex={0}
-          onClick={runScanFlow}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') runScanFlow()
-          }}
-        >
-          <div className="pc-barcode-title">Machine Part Confirmation</div>
-          <div className="pc-barcode-box">
-            <img className="pc-barcode-img" src={bcMachine} alt="บาร์โค้ด Machine No." />
-          </div>
-        </div>
-      </div>
-
-      {/* ── ตาราง: รายการที่ส่งแล้ว ──────────────────────────────────────── */}
-      <div className="wh-heading-row" style={{ marginTop: 8 }}>
-        <div>
-          <h3 className="wh-title" style={{ fontSize: 18 }}>
-            รายการที่ส่งแล้ว
-          </h3>
-        </div>
-      </div>
 
       <div className="tsf-history-toolbar">
         <div className="tsf-history-pagesize">
@@ -295,13 +311,18 @@ export default function TSFOperatorPage() {
           </div>
           entries per page
         </div>
-        <input
-          className="wh-search"
-          type="text"
-          placeholder="ค้นหา Item / Machine No / IT Controller / Country / Status"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            className="wh-search"
+            type="text"
+            placeholder="ค้นหา Item / Machine No / IT Controller / Country / Status"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <button className="tsf-action-btn" onClick={openAdd}>
+            + เพิ่มรายการ
+          </button>
+        </div>
       </div>
 
       <div className="wh-table-card">
@@ -367,7 +388,7 @@ export default function TSFOperatorPage() {
               <tr>
                 <td colSpan={8} className="wh-empty-cell">
                   {rows.length === 0
-                    ? 'ยังไม่มีรายการ — คลิกการ์ดด้านบนแล้วยิง/กรอก Machine No'
+                    ? 'ยังไม่มีรายการ — สแกน QR เครื่องที่ประกอบเสร็จแล้วข้อมูลจะขึ้นที่นี่'
                     : 'ไม่พบรายการที่ค้นหา'}
                 </td>
               </tr>
@@ -410,17 +431,18 @@ export default function TSFOperatorPage() {
         </div>
       )}
 
-      {/* ── แก้ไขรายการ ─────────────────────────────────────────────────── */}
+      {/* ── แก้ไข / เพิ่มรายการ ─────────────────────────────────────────── */}
       {modalOpen && (
         <div className="wh-modal-overlay" onClick={closeModal}>
           <div className="wh-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="wh-modal-title">แก้ไขรายการ</h3>
+            <h3 className="wh-modal-title">{editId ? 'แก้ไขรายการ' : 'เพิ่มรายการ'}</h3>
 
             <label className="wh-modal-label">Item</label>
             <input
               className="wh-modal-input"
               value={form.item}
               onChange={(e) => setField('item', e.target.value)}
+              placeholder="ลำดับ/รหัสรายการ (เว้นว่างให้ระบบใส่ลำดับถัดไป)"
             />
 
             <label className="wh-modal-label">Date Ass'y</label>
@@ -432,26 +454,47 @@ export default function TSFOperatorPage() {
             />
 
             <label className="wh-modal-label">Machine No</label>
-            <input
-              className="wh-modal-input"
-              value={form.machineNo}
-              onChange={(e) => setField('machineNo', e.target.value)}
-              placeholder="เช่น LX10400690"
-            />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                className="wh-modal-input"
+                style={{ flex: 1 }}
+                value={form.machineNo}
+                onChange={(e) => setField('machineNo', e.target.value)}
+                placeholder="เช่น LX10400690"
+              />
+              <button
+                type="button"
+                className="tsf-action-btn"
+                onClick={() => openFieldScan('machineNo')}
+              >
+                <QrCodeIcon className="size-4" /> สแกน
+              </button>
+            </div>
 
             <label className="wh-modal-label">IT Controller No.</label>
-            <input
-              className="wh-modal-input"
-              value={form.itControllerNo}
-              onChange={(e) => setField('itControllerNo', e.target.value)}
-              placeholder="เช่น 878250022802"
-            />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                className="wh-modal-input"
+                style={{ flex: 1 }}
+                value={form.itControllerNo}
+                onChange={(e) => setField('itControllerNo', e.target.value)}
+                placeholder="เช่น 878250022802"
+              />
+              <button
+                type="button"
+                className="tsf-action-btn"
+                onClick={() => openFieldScan('itControllerNo')}
+              >
+                <QrCodeIcon className="size-4" /> สแกน
+              </button>
+            </div>
 
             <label className="wh-modal-label">Country</label>
             <input
               className="wh-modal-input"
               value={form.country}
               onChange={(e) => setField('country', e.target.value)}
+              placeholder="เว้นว่างให้ระบบดึงจากบัญชีใบอนุญาตนำเข้า (ถ้ามี)"
             />
 
             <label className="wh-modal-label">Check Date</label>
@@ -479,6 +522,15 @@ export default function TSFOperatorPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── สแกนเนอร์ ───────────────────────────────────────────────────── */}
+      {showScanner && (
+        <BarcodeScannerModal
+          title={scannerTitle}
+          onDetected={handleScanDetected}
+          onClose={() => setShowScanner(false)}
+        />
       )}
     </AppShell>
   )
