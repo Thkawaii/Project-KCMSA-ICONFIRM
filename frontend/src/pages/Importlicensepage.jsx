@@ -69,7 +69,6 @@ export const WH_NAV_ITEMS = [
 const WH_TABS = [
   { key: 'serial', label: 'Import License' },
   { key: 'mc', label: 'MC' },
-  { key: 'inv', label: 'Inv' },
 ]
 
 // คอลัมน์ทั้งหมดของชีต MC (เรียงตามไฟล์จริง) — key ตรงกับชื่อฟิลด์ที่ backend ส่งกลับ
@@ -583,7 +582,6 @@ export default function ImportLicensePage() {
       )}
 
       {tab === 'mc' && <WHMachineStockPanel />}
-      {tab === 'inv' && <WHInvoicePanel />}
     </AppShell>
   )
 }

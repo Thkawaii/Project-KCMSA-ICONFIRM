@@ -417,21 +417,64 @@
 }
 .lab-group-expired { color: #b42318; }
 .lab-group-expiring { color: #c2410c; }
+.lab-group-hidden { color: var(--text-muted); }
 
 .lab-item {
+  position: relative;
   display: flex;
+  align-items: stretch;
   width: 100%;
+}
+.lab-item:hover {
+  background: #f8fafc;
+}
+/* พื้นที่กดเพื่อไปหน้าใบอนุญาต (กินพื้นที่ส่วนใหญ่ของแถว) */
+.lab-item-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
   gap: 10px;
-  padding: 10px 16px;
+  padding: 10px 8px 10px 16px;
   background: transparent;
   border: none;
   border-radius: 0;
   text-align: left;
   cursor: pointer;
-  transition: background 0.12s ease;
 }
-.lab-item:hover {
-  background: #f8fafc;
+/* ปุ่ม ซ่อน / คืนค่า ท้ายแถว */
+.lab-item-action {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  padding: 0;
+  margin-right: 6px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: background 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+}
+.lab-item:hover .lab-item-action {
+  opacity: 1;
+}
+.lab-item-dismiss:hover {
+  color: #b42318;
+  background: #fee2e2;
+}
+.lab-item-restore:hover {
+  color: var(--brand-700);
+  background: var(--brand-50);
+}
+/* รายการที่ถูกซ่อน — จางลงให้เห็นว่าไม่ active */
+.lab-item-hidden .lab-item-main {
+  opacity: 0.55;
+}
+.lab-item-hidden .lab-item-action {
+  opacity: 0.8;
 }
 .lab-item-bar {
   width: 4px;
@@ -528,6 +571,44 @@
   cursor: pointer;
 }
 .lab-foot-link:hover {
+  background: var(--brand-50);
+}
+
+/* ── แถวจัดการรายการที่ซ่อนไว้ (Dismiss) ───────────────────────────────── */
+.lab-hidden-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--card-border);
+  background: #fafafa;
+}
+.lab-hidden-toggle,
+.lab-hidden-restore {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.lab-hidden-toggle {
+  color: var(--text-secondary);
+}
+.lab-hidden-toggle:hover {
+  background: #eef2f7;
+  color: var(--text-primary);
+}
+.lab-hidden-restore {
+  color: var(--brand-700);
+}
+.lab-hidden-restore:hover {
   background: var(--brand-50);
 }
 
