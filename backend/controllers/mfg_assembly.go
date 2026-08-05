@@ -15,6 +15,18 @@ import (
 func GetMFGAssemblies(c *gin.Context) {
 	var rows []models.MFGAssembly
 	config.DB.Order("id desc").Find(&rows)
+	// คำนวณผลยืนยันฝั่ง WH สดทุกครั้ง เผื่อ WH เพิ่งมายืนยันหลัง MFG สแกนไปแล้ว
+	// DUPLICATE เป็นสถานะ ณ ตอนสแกน (snapshot) จึงไม่คำนวณใหม่ ให้คงไว้
+	for i := range rows {
+		enrichMFGWithWH(&rows[i])
+		if rows[i].Status != models.MFGStatusDuplicate {
+			if rows[i].WHMatched {
+				rows[i].Status = models.MFGStatusMatched
+			} else {
+				rows[i].Status = models.MFGStatusNotMatched
+			}
+		}
+	}
 	c.JSON(200, rows)
 }
 
@@ -32,17 +44,6 @@ func parseMFGDate(s string) *time.Time {
 	return nil
 }
 
-// isKnownITController เช็คว่า IT Controller No. นี้อยู่ในทะเบียนกลาง (MasterData) ไหม
-func isKnownITController(itcNo string) bool {
-	itcNo = strings.TrimSpace(itcNo)
-	if itcNo == "" {
-		return false
-	}
-	var count int64
-	config.DB.Model(&models.MasterData{}).Where("it_controller_no = ?", itcNo).Count(&count)
-	return count > 0
-}
-
 // lookupMFGCountry ดึงประเทศปลายทางจากบัญชีใบอนุญาตนำเข้าโดยใช้ IT Controller No.
 // (ImportLicenseItem.MachineNo = IT Controller No. 12 หลัก)
 func lookupMFGCountry(itcNo string) string {
@@ -57,50 +58,45 @@ func lookupMFGCountry(itcNo string) string {
 	return ""
 }
 
-// evaluateMFGStatus คำนวณสถานะแบบ record & flag (ไม่มี pre-check) ตามลำดับความสำคัญ:
-//
-//	REUSED    — IT Controller No. นี้เคยผูกกับ Machine No อื่นแล้ว (สำคัญสุด)
-//	DUPLICATE — เคยบันทึกคู่ Machine No + IT Controller No. นี้ไปแล้ว
-//	UNKNOWN   — ไม่พบ IT Controller No. ในทะเบียนกลาง
-//	OK        — รู้จัก + ผูกครั้งแรก
-func evaluateMFGStatus(machineNo, itcNo string) string {
+// isMFGDuplicate เช็คว่า IT Controller No. นี้เคยถูกบันทึกใน MFG มาก่อนไหม (ซ้ำ)
+func isMFGDuplicate(itcNo string) bool {
 	itcNo = strings.TrimSpace(itcNo)
-	machineNo = strings.TrimSpace(machineNo)
-
-	var rows []models.MFGAssembly
-	config.DB.Where("it_controller_no = ?", itcNo).Find(&rows)
-
-	reused, duplicate := false, false
-	for _, r := range rows {
-		if strings.EqualFold(strings.TrimSpace(r.MachineNo), machineNo) {
-			duplicate = true
-		} else {
-			reused = true
-		}
+	if itcNo == "" {
+		return false
 	}
+	var count int64
+	config.DB.Model(&models.MFGAssembly{}).Where("it_controller_no = ?", itcNo).Count(&count)
+	return count > 0
+}
 
+// computeMFGStatus คำนวณสถานะ 3 แบบ ตามลำดับความสำคัญ:
+//
+//	DUPLICATE   — IT Controller No. นี้เคยบันทึกแล้ว (ซ้ำ) — สำคัญสุด
+//	MATCHED     — ฝั่ง WH ยืนยันว่าตรงกับใบอนุญาตนำเข้าแล้ว
+//	NOT_MATCHED — นอกนั้น
+func computeMFGStatus(itcNo string, whMatched bool) string {
 	switch {
-	case reused:
-		return models.MFGStatusReused
-	case duplicate:
+	case isMFGDuplicate(itcNo):
 		return models.MFGStatusDuplicate
-	case !isKnownITController(itcNo):
-		return models.MFGStatusUnknown
+	case whMatched:
+		return models.MFGStatusMatched
 	default:
-		return models.MFGStatusOK
+		return models.MFGStatusNotMatched
 	}
 }
 
-func mfgStatusMessage(status, machineNo, itcNo string) string {
+func mfgStatusMessage(status, itcNo, licenseNo string) string {
 	switch status {
-	case models.MFGStatusReused:
-		return "IT Controller No. " + itcNo + " เคยถูกผูกกับเครื่องอื่นมาก่อน — กรุณาตรวจสอบ"
 	case models.MFGStatusDuplicate:
-		return "เคยบันทึกคู่ " + machineNo + " + " + itcNo + " นี้ไปแล้ว"
-	case models.MFGStatusUnknown:
-		return "ไม่พบ IT Controller No. " + itcNo + " ในทะเบียนกลาง"
+		return "รายการซ้ำ — IT Controller No. " + itcNo + " เคยบันทึกไปแล้ว"
+	case models.MFGStatusMatched:
+		msg := "ตรงกับใบอนุญาตนำเข้า (WH ยืนยันแล้ว)"
+		if licenseNo != "" {
+			msg += " — ใบอนุญาต " + licenseNo
+		}
+		return msg
 	default:
-		return "บันทึกสำเร็จ — ตรงกัน"
+		return "ไม่ตรงกับใบอนุญาต — ฝั่ง WH ยังไม่ยืนยัน"
 	}
 }
 
@@ -142,6 +138,65 @@ func deriveMFGFromMachine(machineNo string) (itcNo, country string) {
 	return itcNo, country
 }
 
+// enrichMFGWithWH เอา IT Controller No. ของแถวนี้ไปเทียบกับผลยืนยันฝั่ง WH
+// (PartCheck: PartType = ITC, MatchStatus = MATCH) ถ้า WH ยืนยันว่า "ตรงกับ
+// ใบอนุญาตนำเข้า" แล้ว จะดึงข้อมูลใบอนุญาต (เลขใบอนุญาต/อินวอยซ์/หมายเลขการผลิต/
+// รุ่น/ผู้ยืนยัน/เวลา) มาใส่ให้แถวนี้ — เรียกทั้งตอนสแกน/สร้าง และตอนดึงรายการ
+// (ตอนดึงคำนวณสดทุกครั้ง เผื่อ WH เพิ่งมายืนยันทีหลัง)
+func enrichMFGWithWH(row *models.MFGAssembly) {
+	// เคลียร์ค่าเดิมก่อนเสมอ (เผื่อ WH ถูกลบ/แก้ทีหลัง)
+	row.WHMatched = false
+	row.WHLicenseNo = ""
+	row.WHInvoiceNo = ""
+	row.WHProductionNo = ""
+	row.WHModel = ""
+	row.WHCheckedBy = ""
+	row.WHCheckedDatetime = nil
+
+	itcNo := strings.TrimSpace(row.ITControllerNo)
+	if itcNo == "" {
+		return
+	}
+
+	var pc models.PartCheck
+	err := config.DB.
+		Where("machine_no = ? AND part_type = ? AND match_status = ?",
+			itcNo, "ITC", models.MatchStatusMatch).
+		Order("checked_datetime desc").
+		First(&pc).Error
+	if err != nil {
+		return // WH ยังไม่เคยยืนยันตัวนี้ว่าตรงกับใบอนุญาต
+	}
+
+	row.WHMatched = true
+	row.WHLicenseNo = pc.LicenseNo
+	row.WHInvoiceNo = pc.InvoiceNo
+	row.WHProductionNo = pc.ProductionNo
+	row.WHCheckedBy = pc.CheckedBy
+	t := pc.CheckedDatetime
+	row.WHCheckedDatetime = &t
+
+	// ดึงรุ่น + ประเทศจากบัญชีใบอนุญาตนำเข้าที่จับคู่ได้
+	var lic models.ImportLicenseItem
+	found := false
+	if pc.ImportLicenseItemID != nil {
+		if config.DB.First(&lic, *pc.ImportLicenseItemID).Error == nil {
+			found = true
+		}
+	}
+	if !found {
+		if config.DB.Where("machine_no = ?", itcNo).First(&lic).Error == nil {
+			found = true
+		}
+	}
+	if found {
+		row.WHModel = lic.Model
+		if strings.TrimSpace(row.Country) == "" && strings.TrimSpace(lic.ExportCountry) != "" {
+			row.Country = lic.ExportCountry
+		}
+	}
+}
+
 type MFGScanRequest struct {
 	MachineNo      string `json:"machineNo" binding:"required"`
 	ITControllerNo string `json:"itControllerNo"` // ไม่บังคับ — ถ้าว่าง ระบบจะดึงจากหมายเลขเครื่องให้
@@ -170,12 +225,6 @@ func ScanMFGAssembly(c *gin.Context) {
 		_, derivedCountry = deriveMFGFromMachine(machineNo)
 	}
 
-	// สถานะ: หา IT Controller No. ให้เครื่องนี้ไม่เจอ -> UNKNOWN, ไม่งั้นประเมินตามปกติ
-	status := models.MFGStatusUnknown
-	if itcNo != "" {
-		status = evaluateMFGStatus(machineNo, itcNo)
-	}
-
 	// Country: ใช้จาก Machine Spec ก่อน ไม่มีค่อย fallback ไปบัญชีใบอนุญาตนำเข้า
 	country := derivedCountry
 	if country == "" {
@@ -184,6 +233,9 @@ func ScanMFGAssembly(c *gin.Context) {
 
 	userID, name := lookupUserName(c)
 	now := time.Now()
+
+	// เช็คซ้ำ "ก่อน" สร้างแถวใหม่ (ถ้าเช็คหลังจะเจอตัวเองเสมอ)
+	duplicate := isMFGDuplicate(itcNo)
 
 	var count int64
 	config.DB.Model(&models.MFGAssembly{}).Count(&count)
@@ -195,11 +247,23 @@ func ScanMFGAssembly(c *gin.Context) {
 		ITControllerNo:  itcNo,
 		Country:         country,
 		CheckDate:       &now,
-		Status:          status,
 		CreatedBy:       name,
 		CreatedDatetime: now,
 		UpdatedDatetime: now,
 		UserID:          userID,
+	}
+
+	// เอา IT Controller No. ไปเทียบผลยืนยันฝั่ง WH (ตรงกับใบอนุญาตไหม) แล้วดึงมาแสดง
+	enrichMFGWithWH(&row)
+
+	// สถานะ 3 แบบ: DUPLICATE (ซ้ำ) > MATCHED (WH ยืนยันใบอนุญาต) > NOT_MATCHED
+	switch {
+	case duplicate:
+		row.Status = models.MFGStatusDuplicate
+	case row.WHMatched:
+		row.Status = models.MFGStatusMatched
+	default:
+		row.Status = models.MFGStatusNotMatched
 	}
 
 	if err := config.DB.Create(&row).Error; err != nil {
@@ -207,13 +271,16 @@ func ScanMFGAssembly(c *gin.Context) {
 		return
 	}
 
-	CreateAuditLog("MFG_ASSEMBLY", row.ID, "scan_create", machineNo+"/"+status, userID, name)
+	CreateAuditLog("MFG_ASSEMBLY", row.ID, "scan_create", machineNo+"/"+row.Status, userID, name)
+
+	message := mfgStatusMessage(row.Status, itcNo, row.WHLicenseNo)
 
 	c.JSON(201, gin.H{
-		"row":     row,
-		"status":  status,
-		"matched": status == models.MFGStatusOK,
-		"message": mfgStatusMessage(status, machineNo, itcNo),
+		"row":       row,
+		"status":    row.Status,
+		"matched":   row.Status == models.MFGStatusMatched,
+		"whMatched": row.WHMatched,
+		"message":   message,
 	})
 }
 
@@ -257,14 +324,13 @@ func CreateMFGAssembly(c *gin.Context) {
 	machineNo := strings.TrimSpace(req.MachineNo)
 	itcNo := strings.TrimSpace(req.ITControllerNo)
 
-	status := strings.TrimSpace(req.Status)
-	if status == "" {
-		status = evaluateMFGStatus(machineNo, itcNo)
-	}
 	country := strings.TrimSpace(req.Country)
 	if country == "" {
 		country = lookupMFGCountry(itcNo)
 	}
+
+	// เช็คซ้ำก่อนสร้างแถวใหม่
+	duplicate := isMFGDuplicate(itcNo)
 
 	row := models.MFGAssembly{
 		Item:            item,
@@ -273,12 +339,23 @@ func CreateMFGAssembly(c *gin.Context) {
 		ITControllerNo:  itcNo,
 		Country:         country,
 		CheckDate:       checkDate,
-		Status:          status,
 		CreatedBy:       name,
 		CreatedDatetime: now,
 		UpdatedDatetime: now,
 		UserID:          userID,
 	}
+
+	enrichMFGWithWH(&row)
+
+	// สถานะ: ถ้าผู้ใช้ระบุมาเองก็ใช้ค่านั้น ไม่งั้นคำนวณ 3 แบบให้
+	status := strings.TrimSpace(req.Status)
+	if status == "" {
+		status = computeMFGStatus(itcNo, row.WHMatched)
+		if duplicate {
+			status = models.MFGStatusDuplicate
+		}
+	}
+	row.Status = status
 
 	if err := config.DB.Create(&row).Error; err != nil {
 		c.JSON(500, gin.H{"message": err.Error()})

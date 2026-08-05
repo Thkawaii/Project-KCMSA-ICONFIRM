@@ -20,12 +20,11 @@ import "time"
 // การแปลงชื่อคอลัมน์อัตโนมัติอาจได้ไม่ตรงกับ key ที่ใช้ตอน query ในคอนโทรลเลอร์
 // ─────────────────────────────────────────────────────────────────────────────
 
-// สถานะผลตรวจของ MFG Assembly
+// สถานะผลตรวจของ MFG Assembly (เหลือ 3 แบบ)
 const (
-	MFGStatusOK        = "OK"        // รู้จัก + ผูกครั้งแรก
-	MFGStatusUnknown   = "UNKNOWN"   // ไม่พบ IT Controller No. ในทะเบียนกลาง
-	MFGStatusReused    = "REUSED"    // IT Controller No. นี้เคยผูกกับเครื่องอื่นแล้ว
-	MFGStatusDuplicate = "DUPLICATE" // เคยบันทึกคู่นี้ไปแล้ว
+	MFGStatusMatched    = "MATCHED"     // IT Controller No. ตรงกับใบอนุญาตที่ฝั่ง WH ยืนยันแล้ว
+	MFGStatusNotMatched = "NOT_MATCHED" // ไม่ตรง / ฝั่ง WH ยังไม่ยืนยันใบอนุญาต
+	MFGStatusDuplicate  = "DUPLICATE"   // IT Controller No. นี้เคยบันทึกไปแล้ว (ซ้ำ)
 )
 
 type MFGAssembly struct {
@@ -51,6 +50,18 @@ type MFGAssembly struct {
 
 	// Status — ผล flag (OK / UNKNOWN / REUSED / DUPLICATE)
 	Status string `gorm:"column:status;size:20;index"`
+
+	// ── ผลเชื่อมโยงกับฝั่ง WH (Part Confirmation) ────────────────────────────
+	// ตอนสแกน MFG ระบบเอา IT Controller No. ไปเทียบกับผลยืนยันของ WH:
+	// ถ้า WH เคยสแกนยืนยันตัวนี้แล้ว "ตรงกับใบอนุญาตนำเข้า" (PartCheck.MatchStatus
+	// = MATCH, PartType = ITC) จะดึงข้อมูลใบอนุญาตมาแสดงคู่กัน
+	WHMatched         bool       `gorm:"column:wh_matched;index"`         // WH ยืนยันตรงกับใบอนุญาตแล้ว
+	WHLicenseNo       string     `gorm:"column:wh_license_no;size:50"`    // เลขใบอนุญาตนำเข้า
+	WHInvoiceNo       string     `gorm:"column:wh_invoice_no;size:50"`    // เลขอินวอยซ์
+	WHProductionNo    string     `gorm:"column:wh_production_no;size:30"` // หมายเลขการผลิต (IMEI)
+	WHModel           string     `gorm:"column:wh_model;size:50"`         // รุ่นตามใบอนุญาต
+	WHCheckedBy       string     `gorm:"column:wh_checked_by;size:100"`   // ผู้ยืนยันฝั่ง WH
+	WHCheckedDatetime *time.Time `gorm:"column:wh_checked_datetime"`      // เวลาที่ WH ยืนยัน
 
 	CreatedBy       string    `gorm:"column:created_by;size:100"`
 	CreatedDatetime time.Time `gorm:"column:created_datetime"`

@@ -500,11 +500,11 @@
 .tsf-action-btn-warn,
 .tsf-action-btn-warn:active:not(:disabled) {
   background: var(--color-warn-500);
-  color: #1e1305;
+  color: #fff;
 }
 .tsf-action-btn-warn:hover:not(:disabled) {
   background: #f0a93a;
-  color: #1e1305;
+  color: #fff;
 }
 
 /* ปุ่มอันตราย: แจ้งไม่ผ่าน */
@@ -1075,8 +1075,24 @@ body:not(.swal2-toast-shown) .swal2-container.swal2-backdrop-show {
 }
 
 @media (max-width: 720px) {
+  /* เซลล์ปุ่มดำเนินการบนมือถือ: บังคับให้ปุ่มอยู่ "บรรทัดเดียวกัน" (ไม่ตกบรรทัด)
+     แล้วแบ่งความกว้างเท่า ๆ กัน — เดิมใช้ flex-wrap + ปุ่มกว้าง ทำให้ปุ่มที่ 2
+     ตกลงไปซ้อนใต้ปุ่มแรก (เช่น รายละเอียด / ลบ) */
+  .wh-table tbody td.wh-cell-action {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
   .wh-table tbody td.wh-cell-action .wh-issue-btn,
   .wh-table tbody td.wh-cell-action .tsf-action-btn,
+  .wh-table tbody td.wh-cell-action > button {
+    flex: 1 1 0;
+    width: auto;
+    padding: 10px 10px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
   .wh-table tbody td.qa-action-cell .qa-fail-btn {
     flex: 0 0 auto;
     width: auto;
@@ -1097,5 +1113,41 @@ body:not(.swal2-toast-shown) .swal2-container.swal2-backdrop-show {
 @media (max-width: 560px) {
   .shell-subnav {
     top: 56px;
+  }
+}
+/* ============================================================================
+   [FIX] ปุ่มในตาราง (รายละเอียด / แก้ไข / ลบ) ต้องอยู่ "บรรทัดเดียวกัน"
+   ทั้งเดสก์ท็อปและมือถือ — วางไว้ท้ายไฟล์สุด + ใช้ !important ให้ชนะทุกกฎเดิม/บิลด์เก่า
+   ถ้าแก้แล้วยังตกบรรทัด = เบราว์เซอร์/เซิร์ฟเวอร์ยัง cache ไฟล์ CSS เก่าอยู่
+   -> rebuild frontend ใหม่ แล้ว hard refresh (Ctrl/Cmd + Shift + R)
+   ========================================================================== */
+.wh-table tbody td.wh-cell-action {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;        /* ห้ามตกบรรทัด ทุกขนาดจอ */
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.wh-table tbody td.wh-cell-action > button,
+.wh-table tbody td.wh-cell-action .tsf-action-btn,
+.wh-table tbody td.wh-cell-action .wh-issue-btn {
+  flex: 0 0 auto !important;           /* กว้างตามเนื้อหา ไม่ตกบรรทัด */
+  width: auto !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 720px) {
+  /* มือถือ (การ์ด): ปุ่มแบ่งความกว้างเท่า ๆ กัน (ปุ่มละครึ่ง) เต็มความกว้างการ์ด */
+  .wh-table tbody td.wh-cell-action {
+    justify-content: stretch !important;
+  }
+  .wh-table tbody td.wh-cell-action > button,
+  .wh-table tbody td.wh-cell-action .tsf-action-btn,
+  .wh-table tbody td.wh-cell-action .wh-issue-btn {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    padding: 10px 12px !important;
+    font-size: 13px !important;
   }
 }
