@@ -13,14 +13,21 @@ import {
 } from '../lib/scanPopup.js'
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js'
 import {
+  ArrowUpTrayIcon,
+  CameraIcon,
   CheckIcon,
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
+  DocumentTextIcon,
   ExclamationTriangleIcon,
+  EyeIcon,
   MinusIcon,
+  PART_ICONS_BY_CODE,
+  ShieldCheckIcon,
+  TagIcon,
   XMarkIcon,
 } from '../components/icons.jsx'
 import AppShell from '../components/AppShell.jsx'
@@ -135,11 +142,18 @@ export default function WHPartConfirmationPage() {
 
   const [detailRow, setDetailRow] = useState(null)
   const [photoView, setPhotoView] = useState(null) // URL รูปที่กำลังเปิดดูใน viewer
+  const [photoEditRow, setPhotoEditRow] = useState(null) // แถวที่กำลังจะแก้ไขรูปถ่าย (เลือกถ่ายใหม่/อัปโหลด)
 
   // busyRef = true ระหว่างที่ flow สแกนกำลังทำงาน (กันตัวดักสแกนเนอร์ยิงซ้อน)
   const busyRef = useRef(false)
   // เก็บฟังก์ชันจัดการเมื่อสแกนเนอร์ยิง (อัปเดตทุก render กัน closure ค้าง)
   const fireRef = useRef(() => {})
+
+  // ── แก้ไขรูปถ่ายป้าย (ถ่ายใหม่ / อัปโหลดแทน) หลังตรงกับใบอนุญาตแล้ว ──────
+  // ใช้ได้ทั้งจากแถบ "ผลสแกนล่าสุด" และปุ่ม "แก้ไข" ในตารางประวัติ (ทุกแถวที่ตรงกับใบอนุญาต)
+  const [photoUpdating, setPhotoUpdating] = useState(false)
+  const photoFileInputRef = useRef(null)
+  const pendingPhotoRowIdRef = useRef(null) // แถวเป้าหมายที่กำลังจะอัปโหลดไฟล์แทน
 
   async function loadRows() {
     setLoading(true)
@@ -250,6 +264,7 @@ export default function WHPartConfirmationPage() {
 
         const buildLastScan = () =>
           setLastScan({
+            id: check.ID,
             machineTag: check.Tag || '',
             partType: check.PartType || partTypeCode,
             pn: needsPN ? pn : '',
@@ -272,10 +287,9 @@ export default function WHPartConfirmationPage() {
         }
 
         // ── ถ่ายรูปยืนยัน (เฉพาะ ITC) ────────────────────────────────────
-        // หลังบันทึกผลสแกนแล้ว เปิดกล้องให้ถ่ายรูปป้าย IT Controller จริง
-        // ส่งขึ้น backend ให้ Claude Vision อ่าน P/N/S/N/IMEI จากรูปมาเทียบ
-        // กับค่าที่สแกน/ดึงจาก master data ไว้ — กันกรณีสแกนถูกป้ายแต่เป็น
-        // เครื่องคนละตัว (ยิงบาร์โค้ดสลับกล่อง) ผู้ใช้กด "ข้าม" ได้ถ้าถ่ายรูปไม่สะดวก
+        // หลังบันทึกผลสแกนแล้ว เปิดกล้องให้ถ่ายรูปป้าย IT Controller จริงทันที
+        // เป็นขั้นตอนบังคับต่อเนื่องกับการสแกน (ไม่มีปุ่มข้าม — flow เดียว)
+        // ถ้าถ่ายรูปไม่ชัด แก้ไขทีหลังได้จากแถบ "ผลสแกนล่าสุด" ด้านล่าง
         if (isITC && check?.ID) {
           scanClose() // ปิด popup loading ก่อนเปิดกล้อง กันซ้อนกัน
           const photoBlob = await scanPhotoCapture({
@@ -324,6 +338,63 @@ export default function WHPartConfirmationPage() {
     // เด้ง toast แจ้งสำเร็จ "หลัง" ปลด busy แล้ว — ตอนนี้ตัวดักสแกนพร้อมรับบาร์โค้ด
     // พาร์ทถัดไปแบบเต็มตั้งแต่ตัวอักษรแรก ไม่โดน 3 วินาทีของ toast กันไว้อีก
     if (successToast) scanSuccessToast(successToast)
+  }
+
+  // ── แก้ไขรูปถ่ายของรายการ (ถ่ายรูปตอนสแกนไม่ชัด) ────────────────────────
+  // ใช้ endpoint เดิม (uploadPartCheckPhoto) — อัปโหลดซ้ำจะทับรูป/สถานะเดิมของ
+  // รายการนั้นไปเลย ไม่ต้องสแกน P/N + S/N ใหม่ ใช้ได้ทั้งแถวในตารางประวัติ
+  // และแถบ "ผลสแกนล่าสุด" (id ตรงกัน)
+  async function applyPhotoUpdate(id, fileOrBlob) {
+    if (!id || photoUpdating) return
+    setPhotoUpdating(true)
+    scanLoading('กำลังอัปเดตรูปถ่าย...')
+    try {
+      const res = await uploadPartCheckPhoto(id, fileOrBlob)
+      const updated = res.check || {}
+      setLastScan((prev) =>
+        prev && prev.id === id
+          ? {
+              ...prev,
+              photoMatchStatus: updated.PhotoMatchStatus || prev.photoMatchStatus,
+              photoMatchMessage: updated.PhotoMatchMessage || prev.photoMatchMessage,
+            }
+          : prev,
+      )
+      scanClose()
+      await scanSuccessToast('อัปเดตรูปถ่ายแล้ว')
+      await loadRows()
+    } catch (err) {
+      scanClose()
+      await scanErrorAlert('อัปเดตรูปไม่สำเร็จ: ' + (err.message || ''))
+    } finally {
+      setPhotoUpdating(false)
+    }
+  }
+
+  // เปิดกล้องถ่ายรูปใหม่ทับของเดิม — ใช้กับรายการใดก็ได้ (ผ่าน id)
+  async function handleRetakePhoto(row) {
+    if (!row?.ID || photoUpdating) return
+    const photoBlob = await scanPhotoCapture({
+      title: 'ถ่ายรูปป้ายใหม่',
+      html: `<div class="scan-popup-hint">ค่าที่สแกน — P/N: <b>${row.PN || '-'}</b> / S/N: <b>${row.SN || '-'}</b></div>`,
+    })
+    if (photoBlob) await applyPhotoUpdate(row.ID, photoBlob)
+  }
+
+  // เปิดหน้าต่างเลือกไฟล์รูปจากเครื่อง แล้วอัปโหลดแทนรูปเดิม ของรายการที่ระบุ
+  function handleUploadPhotoClick(row) {
+    if (!row?.ID || photoUpdating) return
+    pendingPhotoRowIdRef.current = row.ID
+    photoFileInputRef.current?.click()
+  }
+
+  async function handleUploadPhotoChange(e) {
+    const file = e.target.files?.[0]
+    const targetId = pendingPhotoRowIdRef.current
+    e.target.value = '' // เคลียร์ค่า ให้เลือกไฟล์เดิมซ้ำได้อีกครั้งถ้าต้องการ
+    pendingPhotoRowIdRef.current = null
+    if (!file || !targetId) return
+    await applyPhotoUpdate(targetId, file)
   }
 
   // ระบุชนิดพาร์ทจากข้อความบาร์โค้ดที่ยิงมา — คืน code พาร์ท ถ้าดูออก, หรือ null ถ้าดูไม่ออก
@@ -649,6 +720,27 @@ export default function WHPartConfirmationPage() {
               {photoMatchBadge(lastScan.photoMatchStatus)} {lastScan.photoMatchMessage}
             </div>
           ) : null}
+          {lastScan.partType === 'ITC' && lastScan.matchStatus === 'MATCH' && lastScan.id ? (
+            <div className="pc-photo-edit">
+              <span className="pc-photo-edit-label">ถ่ายภาพไม่ชัด?</span>
+              <button
+                type="button"
+                className="pc-photo-edit-btn"
+                onClick={() => handleRetakePhoto({ ID: lastScan.id, PN: lastScan.pn, SN: lastScan.sn })}
+                disabled={photoUpdating}
+              >
+                <CameraIcon className="size-4" /> ถ่ายใหม่
+              </button>
+              <button
+                type="button"
+                className="pc-photo-edit-btn"
+                onClick={() => handleUploadPhotoClick({ ID: lastScan.id })}
+                disabled={photoUpdating}
+              >
+                <ArrowUpTrayIcon className="size-4" /> อัปโหลดแทน
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
 
@@ -950,6 +1042,15 @@ export default function WHPartConfirmationPage() {
                     <button className="tsf-action-btn" onClick={() => setDetailRow(r)}>
                       รายละเอียด
                     </button>
+                    {r.PartType === 'ITC' && r.MatchStatus === 'MATCH' && (
+                      <button
+                        className="tsf-action-btn tsf-action-btn-warn"
+                        onClick={() => setPhotoEditRow(r)}
+                        disabled={photoUpdating}
+                      >
+                        แก้ไข
+                      </button>
+                    )}
                     {r.MatchStatus === 'NOT_FOUND' && (
                       <button
                         className="tsf-action-btn tsf-action-btn-danger"
@@ -1008,46 +1109,120 @@ export default function WHPartConfirmationPage() {
 
       {detailRow && (
         <div className="wh-modal-overlay" onClick={() => setDetailRow(null)}>
-          <div className="wh-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="wh-modal-title">รายละเอียดการตรวจสอบ</h3>
-            <p className="wh-modal-line">
-              ชนิดพาร์ท: <strong>{tagLabel(detailRow.PartType)}</strong>
-            </p>
-            {detailRow.Tag ? (
-              <p className="wh-modal-line">Machine TAG: {detailRow.Tag}</p>
-            ) : null}
-            <p className="wh-modal-line">P/N: {detailRow.PN || '—'}</p>
-            <p className="wh-modal-line">S/N: {detailRow.SN || '—'}</p>
-            <p className="wh-modal-line">
-              หมายเลขเครื่อง (IT Controller): {detailRow.MachineNo || '—'}
-            </p>
-            <p className="wh-modal-line">หมายเลขการผลิต (IMEI): {detailRow.ProductionNo || '—'}</p>
-            <p className="wh-modal-line">ใบอนุญาตนำเข้า: {detailRow.LicenseNo || '—'}</p>
-            <p className="wh-modal-line">อินวอยซ์: {detailRow.InvoiceNo || '—'}</p>
-            <p className="wh-modal-line">
-              ผลเทียบ: {matchBadge(detailRow.MatchStatus)} {detailRow.MatchMessage || ''}
-            </p>
-            <p className="wh-modal-line">
-              รูปถ่าย: {photoMatchBadge(detailRow.PhotoMatchStatus)}{' '}
-              {detailRow.PhotoMatchMessage || ''}
-            </p>
-            {detailRow.PhotoURL ? (
-              <p className="wh-modal-line">
-                รูปถ่าย:{' '}
+          <div className="wh-modal wh-detail-modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="wh-detail-close"
+              onClick={() => setDetailRow(null)}
+              aria-label="ปิด"
+            >
+              <XMarkIcon className="size-4" />
+            </button>
+
+            <div className="wh-detail-header">
+              <span className="wh-detail-header-icon">
+                {(() => {
+                  const PartIcon = PART_ICONS_BY_CODE[detailRow.PartType] || TagIcon
+                  return <PartIcon className="size-5" />
+                })()}
+              </span>
+              <div>
+                <h3 className="wh-modal-title">รายละเอียดการตรวจสอบ</h3>
+                <span className="wh-detail-header-sub">{tagLabel(detailRow.PartType)}</span>
+              </div>
+            </div>
+
+            <div className="wh-detail-section">
+              <span className="wh-detail-section-title">
+                <DocumentTextIcon className="size-4" /> ข้อมูลชิ้นงาน
+              </span>
+              <div className="wh-detail-grid">
+                {detailRow.Tag ? (
+                  <div className="wh-detail-item">
+                    <span className="wh-detail-label">Machine TAG</span>
+                    <span className="wh-detail-value mono">{detailRow.Tag}</span>
+                  </div>
+                ) : null}
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">P/N</span>
+                  <span className="wh-detail-value mono">{detailRow.PN || '—'}</span>
+                </div>
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">S/N</span>
+                  <span className="wh-detail-value mono">{detailRow.SN || '—'}</span>
+                </div>
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">หมายเลขเครื่อง (IT Controller)</span>
+                  <span className="wh-detail-value mono">{detailRow.MachineNo || '—'}</span>
+                </div>
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">หมายเลขการผลิต (IMEI)</span>
+                  <span className="wh-detail-value mono">{detailRow.ProductionNo || '—'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="wh-detail-divider" />
+
+            <div className="wh-detail-section">
+              <span className="wh-detail-section-title">
+                <ShieldCheckIcon className="size-4" /> ผลตรวจสอบใบอนุญาต
+              </span>
+              <div className="wh-detail-grid">
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">ใบอนุญาตนำเข้า</span>
+                  <span className="wh-detail-value mono">{detailRow.LicenseNo || '—'}</span>
+                </div>
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">อินวอยซ์</span>
+                  <span className="wh-detail-value mono">{detailRow.InvoiceNo || '—'}</span>
+                </div>
+              </div>
+              <div className="wh-detail-result">
+                {matchBadge(detailRow.MatchStatus)}
+                {detailRow.MatchMessage ? (
+                  <span className="wh-detail-result-msg">{detailRow.MatchMessage}</span>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="wh-detail-divider" />
+
+            <div className="wh-detail-section">
+              <span className="wh-detail-section-title">
+                <CameraIcon className="size-4" /> รูปถ่าย
+              </span>
+              <div className="wh-detail-result">
+                {photoMatchBadge(detailRow.PhotoMatchStatus)}
+                {detailRow.PhotoMatchMessage ? (
+                  <span className="wh-detail-result-msg">{detailRow.PhotoMatchMessage}</span>
+                ) : null}
+              </div>
+              {detailRow.PhotoURL ? (
                 <button
                   type="button"
-                  className="wh-photo-thumb wh-photo-thumb-lg"
+                  className="wh-detail-photo"
                   onClick={() => setPhotoView(detailRow.PhotoURL)}
                   title="คลิกเพื่อขยาย"
                 >
                   <img src={`${API_BASE_URL}${detailRow.PhotoURL}`} alt="รูปถ่ายป้าย" />
+                  <span className="wh-detail-photo-hint">
+                    <EyeIcon className="size-3.5" /> ขยาย
+                  </span>
                 </button>
-              </p>
-            ) : null}
-            <p className="wh-modal-line">ตรวจสอบโดย: {detailRow.CheckedBy}</p>
-            <p className="wh-modal-line">
-              เวลา: {new Date(detailRow.CheckedDatetime).toLocaleString('th-TH')}
-            </p>
+              ) : null}
+            </div>
+
+            <div className="wh-detail-meta">
+              <span>
+                <TagIcon className="size-3.5" /> ตรวจสอบโดย {detailRow.CheckedBy}
+              </span>
+              <span>
+                <ClockIcon className="size-3.5" />{' '}
+                {new Date(detailRow.CheckedDatetime).toLocaleString('th-TH')}
+              </span>
+            </div>
+
             <div className="wh-modal-actions">
               <button className="wh-modal-cancel" onClick={() => setDetailRow(null)}>
                 ปิด
@@ -1074,6 +1249,59 @@ export default function WHPartConfirmationPage() {
           </div>
         </div>
       )}
+
+      {photoEditRow && (
+        <div className="wh-modal-overlay" onClick={() => setPhotoEditRow(null)}>
+          <div className="wh-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="wh-modal-title">แก้ไขรูปถ่ายป้าย</h3>
+            <p className="wh-modal-line">
+              {tagLabel(photoEditRow.PartType)} — S/N {photoEditRow.SN || photoEditRow.PN || '—'}
+            </p>
+            <p className="wh-modal-line" style={{ color: '#64748b' }}>
+              ถ่ายภาพไม่ชัด สามารถถ่ายใหม่หรืออัปโหลดรูปแทนได้ ระบบจะอัปเดตทับรูปเดิม
+            </p>
+            <div className="pc-photo-edit" style={{ borderTop: 'none', paddingTop: 4 }}>
+              <button
+                type="button"
+                className="pc-photo-edit-btn"
+                disabled={photoUpdating}
+                onClick={async () => {
+                  const row = photoEditRow
+                  setPhotoEditRow(null)
+                  await handleRetakePhoto(row)
+                }}
+              >
+                <CameraIcon className="size-4" /> ถ่ายใหม่
+              </button>
+              <button
+                type="button"
+                className="pc-photo-edit-btn"
+                disabled={photoUpdating}
+                onClick={() => {
+                  const row = photoEditRow
+                  setPhotoEditRow(null)
+                  handleUploadPhotoClick(row)
+                }}
+              >
+                <ArrowUpTrayIcon className="size-4" /> อัปโหลดแทน
+              </button>
+            </div>
+            <div className="wh-modal-actions">
+              <button className="wh-modal-cancel" onClick={() => setPhotoEditRow(null)}>
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <input
+        ref={photoFileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleUploadPhotoChange}
+      />
     </AppShell>
   )
 }

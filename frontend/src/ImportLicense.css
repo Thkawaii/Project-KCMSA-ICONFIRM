@@ -118,6 +118,51 @@
   font-weight: 600;
 }
 
+/* ── แก้ไขรูปถ่าย (ถ่ายใหม่/อัปโหลดแทน) ในแถบผลสแกนล่าสุด ────────────── */
+.pc-photo-edit {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  padding-top: 10px;
+  margin-top: 4px;
+  border-top: 1px dashed rgba(15, 23, 42, 0.12);
+}
+
+.pc-photo-edit-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #64748b;
+  margin-right: 2px;
+}
+
+.pc-photo-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #d9dee3;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: border-color .12s ease, color .12s ease, background .12s ease;
+}
+
+.pc-photo-edit-btn:hover:not(:disabled) {
+  border-color: #0f9488;
+  color: #0f8580;
+  background: #eafcfb;
+}
+
+.pc-photo-edit-btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
 /* ── ไฮไลต์แถวที่เพิ่งสแกนโดน ────────────────────────────────────────── */
 .il-row-hit {
   animation: il-hit-flash 6s ease-out;
