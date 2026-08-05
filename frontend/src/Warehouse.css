@@ -129,13 +129,14 @@
   white-space: nowrap;
 }
 
-/* เซลล์ปุ่มดำเนินการ ("รายละเอียด" / "แก้ไข" / "ลบ") — กันปุ่มติดกัน
-   ใช้ flex-wrap ไว้ด้วย เผื่อพื้นที่แคบมีปุ่ม 2-3 ปุ่มพร้อมกัน */
+/* เซลล์ปุ่มดำเนินการ ("รายละเอียด" / "แก้ไข" / "ลบ") — ให้ปุ่มอยู่บรรทัดเดียวกัน
+   ใช้ nowrap เพื่อให้คอลัมน์ในตารางขยายพอดีปุ่ม ไม่บีบจนปุ่มตกบรรทัด (เดสก์ท็อป)
+   ส่วนบนมือถือ (การ์ด) มีกฎเฉพาะที่ media query อีกชั้น */
 .wh-table tbody td.wh-cell-action {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
+  flex-wrap: nowrap;
+  gap: 8px;
   white-space: normal;
 }
 
@@ -1096,11 +1097,12 @@
     font-weight: 700;
   }
 
-  /* Action cell -> full-width footer buttons */
+  /* Action cell -> full-width footer buttons, บรรทัดเดียวกัน แบ่งกว้างเท่า ๆ กัน */
   .wh-table tbody td.wh-cell-action {
     padding: 12px 16px 14px;
     border-bottom: none;
-    gap: 10px;
+    flex-wrap: nowrap;
+    gap: 8px;
   }
 
   .wh-table tbody td.wh-cell-action::before {
@@ -1110,9 +1112,9 @@
   .wh-table tbody td.wh-cell-action .wh-issue-btn,
   .wh-table tbody td.wh-cell-action .tsf-action-btn,
   .wh-table tbody td.wh-cell-action > button {
-    flex: 0 0 auto;
+    flex: 1 1 0;
     width: auto;
-    padding: 10px 16px;
+    padding: 10px 10px;
     font-size: 13px;
     white-space: nowrap;
   }

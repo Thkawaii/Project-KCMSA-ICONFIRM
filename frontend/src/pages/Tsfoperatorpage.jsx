@@ -23,19 +23,17 @@ export const MFG_NAV_ITEMS = [
   { to: '/tsf', label: 'Scan & Validate', icon: <ArrowsRightLeftIcon className="size-4" /> },
 ]
 
-// ป้ายสถานะ — ใช้ชุดคลาส .il-badge เดิม
+// ป้ายสถานะ — เหลือ 3 แบบ: Matched / Not Matched / Duplicate (ซ้ำ)
 const STATUS_META = {
-  OK: { label: 'ตรงกัน', cls: 'il-badge il-badge-ok' },
-  UNKNOWN: { label: 'ไม่พบในทะเบียน', cls: 'il-badge il-badge-warn' },
-  REUSED: { label: 'ผูกกับเครื่องอื่น', cls: 'il-badge il-badge-bad' },
-  DUPLICATE: { label: 'ซ้ำ', cls: 'il-badge il-badge-warn' },
+  MATCHED: { label: 'Matched', cls: 'il-badge il-badge-ok' },
+  NOT_MATCHED: { label: 'Not Matched', cls: 'il-badge il-badge-bad' },
+  DUPLICATE: { label: 'Duplicate (ซ้ำ)', cls: 'il-badge il-badge-warn' },
 }
 
 const STATUS_OPTIONS = [
-  { value: 'OK', label: 'OK — ตรงกัน' },
-  { value: 'UNKNOWN', label: 'UNKNOWN — ไม่พบในทะเบียน' },
-  { value: 'REUSED', label: 'REUSED — ผูกกับเครื่องอื่น' },
-  { value: 'DUPLICATE', label: 'DUPLICATE — ซ้ำ' },
+  { value: 'MATCHED', label: 'Matched' },
+  { value: 'NOT_MATCHED', label: 'Not Matched' },
+  { value: 'DUPLICATE', label: 'Duplicate (ซ้ำ)' },
 ]
 
 const EMPTY_FORM = {
@@ -96,6 +94,7 @@ export default function TSFOperatorPage() {
   const [saving, setSaving] = useState(false)
 
   const busyRef = useRef(false) // กันเปิด popup สแกนซ้อน
+  const fireRef = useRef(() => {}) // ตัวรับสัญญาณจากเครื่องสแกน (ตั้งค่าใหม่ทุกเรนเดอร์)
 
   function friendlyError(err, fallback) {
     if (err?.status === 404 || err?.status === 405) {
@@ -125,9 +124,129 @@ export default function TSFOperatorPage() {
     setPage(1)
   }, [search, pageSize])
 
+  // ── ตัวดักสัญญาณเครื่องสแกนระดับหน้าเว็บ (แบบเดียวกับหน้า WH) ──────────────
+  // เครื่องสแกน = คีย์บอร์ดที่พิมพ์เร็วมาก (เว้นแต่ละตัว < ~50ms) แล้วปิดท้ายด้วย Enter
+  // จับจาก "ความเร็วการยิง" จึงเด้ง flow ได้ไม่ว่าโฟกัสจะอยู่ตรงไหน (รวมถึงตอนที่
+  // เคอร์เซอร์ค้างในช่องค้นหา) + กันไม่ให้ตัวอักษรบาร์โค้ดตกลงช่องค้นหา/ช่องอื่น
+  useEffect(() => {
+    let buffer = ''
+    let lastTime = 0
+    let flushTimer = null
+    let startedClean = false
+
+    function fireBuffered() {
+      if (flushTimer) {
+        clearTimeout(flushTimer)
+        flushTimer = null
+      }
+      const code = buffer.trim()
+      const clean = startedClean
+      buffer = ''
+      startedClean = false
+      if (busyRef.current) return // มี popup/flow เปิดอยู่ -> ให้ช่องใน popup รับเอง
+      if (clean && code.length >= 2) fireRef.current(code)
+    }
+
+    function onKeydown(e) {
+      // ระหว่าง flow กำลังทำงาน (popup เปิด): ล้าง buffer ทิ้ง ให้ช่องใน popup รับเอง
+      if (busyRef.current) {
+        lastTime = Date.now()
+        buffer = ''
+        startedClean = false
+        return
+      }
+
+      const now = Date.now()
+      const gap = now - lastTime
+      lastTime = now
+      if (gap > 50) {
+        // เว้นเกิน 50ms = เริ่มยิงชุดใหม่จากจังหวะว่าง -> เริ่มนับใหม่แบบ "สะอาด"
+        buffer = ''
+        startedClean = true
+      }
+
+      if (e.key === 'Enter') {
+        if (startedClean && buffer.trim().length >= 2) {
+          e.preventDefault()
+          fireBuffered()
+        } else {
+          buffer = ''
+          startedClean = false
+        }
+        return
+      }
+
+      if (e.key && e.key.length === 1) {
+        buffer += e.key
+        // ยิงเป็นชุดเร็ว ๆ (บาร์โค้ด) -> ดักไว้ ไม่ให้ตัวอักษรตกลงช่องค้นหา/ช่องอื่น
+        if (buffer.length >= 2) e.preventDefault()
+        // เผื่อเครื่องสแกนไม่มี Enter suffix: ยิงเองหลังเงียบ ~120ms
+        if (flushTimer) clearTimeout(flushTimer)
+        flushTimer = setTimeout(fireBuffered, 120)
+      }
+    }
+
+    // Fallback สำหรับสแกนเนอร์ที่ "วาง" ข้อความทั้งก้อนทีเดียว (Android/PDA/IME)
+    // แทนการจำลองปุ่มกดทีละตัว — onKeydown จะไม่เห็นอะไรเลย จึงต้องดัก 'input' เพิ่ม
+    function onGlobalInput(e) {
+      if (busyRef.current) return
+      const inserted = typeof e.data === 'string' ? e.data : ''
+      const code = inserted.trim()
+      if (code.length < 2) return // ตัวอักษรเดียว -> น่าจะเป็นคนพิมพ์เอง ปล่อยผ่าน
+
+      // เอาข้อความที่เพิ่งแทรกออกจากช่องเดิม กันไปปนกับค่าที่มีอยู่ (เช่น ช่องค้นหา)
+      const target = e.target
+      if (target && typeof target.value === 'string') {
+        try {
+          target.value = target.value.slice(0, Math.max(0, target.value.length - inserted.length))
+        } catch {
+          /* ignore */
+        }
+      }
+
+      buffer = ''
+      startedClean = false
+      fireRef.current(code)
+    }
+
+    window.addEventListener('keydown', onKeydown)
+    window.addEventListener('input', onGlobalInput, true)
+    return () => {
+      window.removeEventListener('keydown', onKeydown)
+      window.removeEventListener('input', onGlobalInput, true)
+      if (flushTimer) clearTimeout(flushTimer)
+    }
+  }, [])
+
   // ── SCAN FLOW (แบบเดียวกับ WH) ───────────────────────────────────────────
   // คลิกการ์ด -> popup ให้ "ยิงบาร์โค้ด หรือพิมพ์เอง" Machine No แล้วกดปุ่ม
   // -> ระบบดึง IT Controller No. + Country ให้ แล้วขึ้นในตาราง
+
+  // แยกส่วน "บันทึกโค้ดที่ได้" ออกมาใช้ร่วมกัน ทั้งจากการคลิกการ์ด (พิมพ์/ยิงในป๊อปอัป)
+  // และจากเครื่องสแกนที่ยิงตรงเข้าหน้าเว็บ (ตัวดักด้านล่าง)
+  async function submitAssemblyCode(code) {
+    const { machineNo, itControllerNo } = parseAssemblyCode(code)
+    if (!machineNo) return
+
+    scanLoading('กำลังบันทึก...')
+    try {
+      const res = await scanMFGAssembly({ machineNo, itControllerNo: itControllerNo || '' })
+      scanClose()
+      const msg = res?.message || 'บันทึกแล้ว'
+      if (res?.status === 'MATCHED') {
+        scanSuccessToast(msg)
+      } else {
+        // DUPLICATE (ซ้ำ) หรือ NOT_MATCHED — แจ้งเตือนให้ผู้ใช้ตรวจสอบ
+        toastError(msg)
+      }
+      await loadRows()
+    } catch (err) {
+      scanClose()
+      await scanErrorAlert(friendlyError(err, 'บันทึกไม่สำเร็จ'))
+    }
+  }
+
+  // คลิกการ์ด -> เปิด popup ให้ยิง/พิมพ์ Machine No เอง
   async function runScanFlow() {
     if (busyRef.current) return
     busyRef.current = true
@@ -138,28 +257,24 @@ export default function TSFOperatorPage() {
         confirmText: 'บันทึก',
       })
       if (!code) return
-
-      const { machineNo, itControllerNo } = parseAssemblyCode(code)
-      if (!machineNo) return
-
-      scanLoading('กำลังบันทึก...')
-      try {
-        const res = await scanMFGAssembly({ machineNo, itControllerNo: itControllerNo || '' })
-        scanClose()
-        if (res?.matched) {
-          scanSuccessToast(res?.message || 'บันทึกสำเร็จ')
-        } else {
-          toastError(res?.message || 'บันทึกแล้ว — มีข้อควรตรวจสอบ')
-        }
-        await loadRows()
-      } catch (err) {
-        scanClose()
-        await scanErrorAlert(friendlyError(err, 'บันทึกไม่สำเร็จ'))
-      }
+      await submitAssemblyCode(code)
     } finally {
       busyRef.current = false
     }
   }
+
+  // เครื่องสแกนยิงบาร์โค้ดเข้าหน้าเว็บโดยตรง (ไม่ต้องคลิกการ์ดก่อน)
+  // -> บันทึกให้ทันที พร้อมแสดง popup กำลังบันทึก/ผลลัพธ์
+  async function handleScannerFire(code) {
+    if (busyRef.current) return
+    busyRef.current = true
+    try {
+      await submitAssemblyCode(code)
+    } finally {
+      busyRef.current = false
+    }
+  }
+  fireRef.current = handleScannerFire
 
   // ── โมดัล แก้ไข ──────────────────────────────────────────────────────────
   function openEdit(row) {
@@ -225,7 +340,9 @@ export default function TSFOperatorPage() {
         (r.MachineNo || '').toLowerCase().includes(term) ||
         (r.ITControllerNo || '').toLowerCase().includes(term) ||
         (r.Country || '').toLowerCase().includes(term) ||
-        (r.Status || '').toLowerCase().includes(term)
+        (r.Status || '').toLowerCase().includes(term) ||
+        (r.WHLicenseNo || '').toLowerCase().includes(term) ||
+        (r.WHInvoiceNo || '').toLowerCase().includes(term)
     )
   }, [rows, search])
 
@@ -327,42 +444,39 @@ export default function TSFOperatorPage() {
               </tr>
             )}
             {!loading &&
-              paged.map((a) => {
-                const meta = STATUS_META[a.Status] || {
-                  label: a.Status || '—',
-                  cls: 'il-badge il-badge-muted',
-                }
-                return (
-                  <tr key={a.ID}>
-                    <td className="wh-cell-head" data-label="Item">
-                      <strong>{a.Item || '—'}</strong>
-                    </td>
-                    <td data-label="Date Ass'y">{fmtDate(a.DateAssembly)}</td>
-                    <td className="il-mono" data-label="Machine No">
-                      {a.MachineNo || '—'}
-                    </td>
-                    <td className="il-mono" data-label="IT Controller No.">
-                      {a.ITControllerNo || '—'}
-                    </td>
-                    <td data-label="Country">{a.Country || '—'}</td>
-                    <td data-label="Check Date">{fmtDate(a.CheckDate)}</td>
-                    <td data-label="Status">
-                      <span className={meta.cls}>{meta.label}</span>
-                    </td>
-                    <td className="wh-cell-action">
-                      <button className="tsf-action-btn" onClick={() => openEdit(a)}>
-                        แก้ไข
-                      </button>
-                      <button
-                        className="tsf-action-btn tsf-action-btn-danger"
-                        onClick={() => handleDelete(a)}
-                      >
-                        ลบ
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
+              paged.map((a) => (
+                <tr key={a.ID}>
+                  <td className="wh-cell-head" data-label="Item">
+                    <strong>{a.Item || '—'}</strong>
+                  </td>
+                  <td data-label="Date Ass'y">{fmtDate(a.DateAssembly)}</td>
+                  <td className="il-mono" data-label="Machine No">
+                    {a.MachineNo || '—'}
+                  </td>
+                  <td className="il-mono" data-label="IT Controller No.">
+                    {a.ITControllerNo || '—'}
+                  </td>
+                  <td data-label="Country">{a.Country || '—'}</td>
+                  <td data-label="Check Date">{fmtDate(a.CheckDate)}</td>
+                  <td data-label="Status">
+                    {(() => {
+                      const meta = STATUS_META[a.Status] || {
+                        label: a.Status || '—',
+                        cls: 'il-badge il-badge-muted',
+                      }
+                      return <span className={meta.cls}>{meta.label}</span>
+                    })()}
+                  </td>
+                  <td className="wh-cell-action">
+                    <button
+                      className="tsf-action-btn tsf-action-btn-danger"
+                      onClick={() => handleDelete(a)}
+                    >
+                      ลบ
+                    </button>
+                  </td>
+                </tr>
+              ))}
             {!loading && filtered.length === 0 && (
               <tr>
                 <td colSpan={8} className="wh-empty-cell">
