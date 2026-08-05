@@ -160,10 +160,10 @@ export function scanErrorAlert(text) {
 /**
  * เปิดกล้อง (กล้องหลังบนมือถือ) ให้ถ่ายรูปป้ายเพื่อยืนยัน หลังจากสแกน
  * P/N + S/N เสร็จ — ใช้คู่กับ uploadPartCheckPhoto ฝั่ง api/partcheck.js
- * ระบบ backend จะเอารูปนี้ไปอ่านด้วย Claude Vision แล้วเทียบกับค่าที่สแกน
  *
- * คืนค่า Blob รูป (JPEG) ถ้าถ่ายสำเร็จ, หรือ null ถ้าผู้ใช้กด "ข้าม" /
- * ปิดกล้องไม่สำเร็จ (เช่น ไม่มีกล้อง/ไม่ได้อนุญาต permission)
+ * เป็นขั้นตอน "บังคับ" ต่อจากสแกน P/N + S/N เสมอ (flow เดียว ไม่มีปุ่มข้าม)
+ * คืนค่า Blob รูป (JPEG) เมื่อถ่ายสำเร็จ, หรือ null ถ้าเปิดกล้องไม่สำเร็จจริงๆ
+ * (เช่น ไม่มีกล้อง/ไม่ได้อนุญาต permission/ไม่ใช่ secure context)
  *
  * @param {object} opts
  * @param {string} opts.title หัวข้อ popup
@@ -181,8 +181,7 @@ export async function scanPhotoCapture({ title, html = '' }) {
     `,
     customClass: { popup: 'scan-popup' },
     confirmButtonText: 'ถ่ายรูป',
-    showCancelButton: true,
-    cancelButtonText: 'ข้าม (ไม่ถ่ายรูป)',
+    showCancelButton: false,
     allowOutsideClick: false,
     allowEscapeKey: false,
     didOpen: async () => {
@@ -205,6 +204,9 @@ export async function scanPhotoCapture({ title, html = '' }) {
         if (video) video.srcObject = stream
       } catch (err) {
         Swal.showValidationMessage('เปิดกล้องไม่สำเร็จ: ' + (err.message || err))
+        // เปิดกล้องไม่ได้จริงๆ (ไม่มีกล้อง/ไม่ได้อนุญาต/ไม่ใช่ secure context) —
+        // ให้ทางออกฉุกเฉินเฉพาะกรณีนี้ ปกติ flow นี้ไม่มีปุ่มข้าม
+        Swal.update({ showCancelButton: true, cancelButtonText: 'ปิด' })
       }
     },
     preConfirm: () => {
@@ -228,7 +230,7 @@ export async function scanPhotoCapture({ title, html = '' }) {
       })
     },
     willClose: () => {
-      // ปิดกล้องเสมอไม่ว่าจะกดถ่ายรูป/ข้าม/ปิด popup — กันไฟกล้องค้างเปิด
+      // ปิดกล้องเสมอเมื่อ popup นี้ปิดลง (ถ่ายรูปสำเร็จ) — กันไฟกล้องค้างเปิด
       if (stream) stream.getTracks().forEach((t) => t.stop())
     },
   })

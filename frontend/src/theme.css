@@ -404,6 +404,7 @@
   transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
   -webkit-appearance: none;
   appearance: none;
+  white-space: nowrap;
 }
 
 .submit-btn {
@@ -493,6 +494,17 @@
 }
 .tsf-action-btn-danger:hover:not(:disabled) {
   background: var(--color-bad-700);
+}
+
+/* ปุ่มเตือน (สีเหลือง): แก้ไขรูปถ่ายของรายการที่ตรงกับใบอนุญาตแล้ว */
+.tsf-action-btn-warn,
+.tsf-action-btn-warn:active:not(:disabled) {
+  background: var(--color-warn-500);
+  color: #1e1305;
+}
+.tsf-action-btn-warn:hover:not(:disabled) {
+  background: #f0a93a;
+  color: #1e1305;
 }
 
 /* ปุ่มอันตราย: แจ้งไม่ผ่าน */
@@ -1066,9 +1078,11 @@ body:not(.swal2-toast-shown) .swal2-container.swal2-backdrop-show {
   .wh-table tbody td.wh-cell-action .wh-issue-btn,
   .wh-table tbody td.wh-cell-action .tsf-action-btn,
   .wh-table tbody td.qa-action-cell .qa-fail-btn {
-    width: 100%;
-    padding: 12px;
-    font-size: 14px;
+    flex: 0 0 auto;
+    width: auto;
+    padding: 10px 16px;
+    font-size: 13px;
+    white-space: nowrap;
   }
 
   /* iOS จะซูมหน้าจอเองถ้าช่องกรอกเล็กกว่า 16px */
