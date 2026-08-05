@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getPartChecks, scanPartCheck, deletePartCheck } from '../api/partcheck.js'
+import { getPartChecks, scanPartCheck, deletePartCheck, uploadPartCheckPhoto } from '../api/partcheck.js'
 import { getImportLicenseItems } from '../api/importLicense.js'
-import { scanStep, scanSelect, scanLoading, scanSuccessToast, scanErrorAlert, scanClose } from '../lib/scanPopup.js'
+import { API_BASE_URL } from '../api/client.js'
+import {
+  scanStep,
+  scanSelect,
+  scanLoading,
+  scanSuccessToast,
+  scanErrorAlert,
+  scanClose,
+  scanPhotoCapture,
+} from '../lib/scanPopup.js'
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js'
 import {
   CheckIcon,
@@ -74,6 +83,25 @@ function matchBadge(status) {
   )
 }
 
+// ป้ายผลเทียบ "รูปถ่าย" กับค่าที่สแกน (เฉพาะ ITC — เทียบด้วย Claude Vision OCR)
+const PHOTO_MATCH_LABELS = {
+  MATCH: { Icon: CheckIcon, text: 'รูปตรงกับที่สแกน', cls: 'il-badge-ok' },
+  MISMATCH: { Icon: ExclamationTriangleIcon, text: 'รูปไม่ตรงกับที่สแกน', cls: 'il-badge-bad' },
+  UNREADABLE: { Icon: ExclamationTriangleIcon, text: 'อ่านรูปไม่สำเร็จ', cls: 'il-badge-warn' },
+  SAVED: { Icon: CheckIcon, text: 'ถ่ายรูปแล้ว', cls: 'il-badge-ok' },
+}
+
+function photoMatchBadge(status) {
+  if (!status) return <span className="il-badge il-badge-muted">ยังไม่ถ่ายรูป</span>
+  const m = PHOTO_MATCH_LABELS[status]
+  if (!m) return <span className="il-badge il-badge-muted">—</span>
+  return (
+    <span className={'il-badge ' + m.cls}>
+      <m.Icon className="inline size-3.5 align-text-bottom" /> {m.text}
+    </span>
+  )
+}
+
 // การ์ดบาร์โค้ดที่โชว์บนหน้า Part Confirmation (ตามรูป label จริง)
 const BARCODE_CARDS = [
   { partType: 'ITC', title: 'IT Controller', caption: 'IT Controller', img: bcItc, kind: 'P/N + S/N' },
@@ -106,6 +134,7 @@ export default function WHPartConfirmationPage() {
   const [page, setPage] = useState(1)
 
   const [detailRow, setDetailRow] = useState(null)
+  const [photoView, setPhotoView] = useState(null) // URL รูปที่กำลังเปิดดูใน viewer
 
   // busyRef = true ระหว่างที่ flow สแกนกำลังทำงาน (กันตัวดักสแกนเนอร์ยิงซ้อน)
   const busyRef = useRef(false)
@@ -219,22 +248,57 @@ export default function WHPartConfirmationPage() {
 
         const check = res.check || res
 
-        setLastScan({
-          machineTag: check.Tag || '',
-          partType: check.PartType || partTypeCode,
-          pn: needsPN ? pn : '',
-          sn,
-          machineNo: check.MachineNo || '',
-          productionNo: check.ProductionNo || '',
-          matchStatus: check.MatchStatus,
-          message: check.MatchMessage || res.message,
-          at: check.CheckedDatetime || new Date().toISOString(),
-        })
+        const buildLastScan = () =>
+          setLastScan({
+            machineTag: check.Tag || '',
+            partType: check.PartType || partTypeCode,
+            pn: needsPN ? pn : '',
+            sn,
+            machineNo: check.MachineNo || '',
+            productionNo: check.ProductionNo || '',
+            matchStatus: check.MatchStatus,
+            message: check.MatchMessage || res.message,
+            photoMatchStatus: check.PhotoMatchStatus || '',
+            photoMatchMessage: check.PhotoMatchMessage || '',
+            at: check.CheckedDatetime || new Date().toISOString(),
+          })
+
+        buildLastScan()
 
         // ไฮไลต์แถวในตารางที่เพิ่งจับคู่ได้ ให้เห็นด้วยตาว่าไปโดนแถวไหน
         if (res.item?.ID) {
           setHighlightId(res.item.ID)
           setTimeout(() => setHighlightId(null), 6000)
+        }
+
+        // ── ถ่ายรูปยืนยัน (เฉพาะ ITC) ────────────────────────────────────
+        // หลังบันทึกผลสแกนแล้ว เปิดกล้องให้ถ่ายรูปป้าย IT Controller จริง
+        // ส่งขึ้น backend ให้ Claude Vision อ่าน P/N/S/N/IMEI จากรูปมาเทียบ
+        // กับค่าที่สแกน/ดึงจาก master data ไว้ — กันกรณีสแกนถูกป้ายแต่เป็น
+        // เครื่องคนละตัว (ยิงบาร์โค้ดสลับกล่อง) ผู้ใช้กด "ข้าม" ได้ถ้าถ่ายรูปไม่สะดวก
+        if (isITC && check?.ID) {
+          scanClose() // ปิด popup loading ก่อนเปิดกล้อง กันซ้อนกัน
+          const photoBlob = await scanPhotoCapture({
+            title: 'ถ่ายรูปป้าย IT Controller',
+            html: `<div class="scan-popup-hint">ค่าที่สแกน — P/N: <b>${pn || '-'}</b> / S/N: <b>${sn}</b></div>`,
+          })
+
+          if (photoBlob) {
+            scanLoading('กำลังบันทึกรูป...')
+            try {
+              const photoRes = await uploadPartCheckPhoto(check.ID, photoBlob)
+              check.PhotoURL = photoRes.check?.PhotoURL
+              check.PhotoMatchStatus = photoRes.check?.PhotoMatchStatus
+              check.PhotoMatchMessage = photoRes.check?.PhotoMatchMessage
+              buildLastScan() // อัปเดตแถบสรุปผลสแกนล่าสุดให้โชว์ว่าถ่ายรูปแล้ว
+
+              scanClose()
+              await scanSuccessToast('บันทึกรูปถ่ายแล้ว')
+            } catch (err) {
+              scanClose()
+              await scanErrorAlert('บันทึกรูปไม่สำเร็จ: ' + (err.message || ''))
+            }
+          }
         }
 
         if (res.matched) {
@@ -580,6 +644,11 @@ export default function WHPartConfirmationPage() {
           <div className="il-result-msg">
             {matchBadge(lastScan.matchStatus)} {lastScan.message}
           </div>
+          {lastScan.photoMatchStatus ? (
+            <div className="il-result-msg">
+              {photoMatchBadge(lastScan.photoMatchStatus)} {lastScan.photoMatchMessage}
+            </div>
+          ) : null}
         </div>
       )}
 
@@ -833,6 +902,7 @@ export default function WHPartConfirmationPage() {
               <th>S/N</th>
               <th>หมายเลขเครื่อง (IT Controller)</th>
               <th>ผลเทียบใบอนุญาต</th>
+              <th>รูปถ่าย</th>
               <th>Checked By</th>
               <th>วันที่</th>
               <th></th>
@@ -841,7 +911,7 @@ export default function WHPartConfirmationPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={8} className="wh-empty-cell">
+                <td colSpan={9} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -860,6 +930,20 @@ export default function WHPartConfirmationPage() {
                     {r.MachineNo || '—'}
                   </td>
                   <td data-label="ผลเทียบใบอนุญาต">{matchBadge(r.MatchStatus)}</td>
+                  <td data-label="รูปถ่าย">
+                    {r.PhotoURL ? (
+                      <button
+                        type="button"
+                        className="wh-photo-thumb"
+                        onClick={() => setPhotoView(r.PhotoURL)}
+                        title="คลิกเพื่อขยาย"
+                      >
+                        <img src={`${API_BASE_URL}${r.PhotoURL}`} alt="รูปถ่ายป้าย" loading="lazy" />
+                      </button>
+                    ) : (
+                      <span className="il-badge il-badge-muted">ไม่มีรูป</span>
+                    )}
+                  </td>
                   <td data-label="Checked By">{r.CheckedBy}</td>
                   <td data-label="วันที่">{new Date(r.CheckedDatetime).toLocaleString('th-TH')}</td>
                   <td className="wh-cell-action">
@@ -879,7 +963,7 @@ export default function WHPartConfirmationPage() {
               ))}
             {!loading && paged.length === 0 && (
               <tr>
-                <td colSpan={8} className="wh-empty-cell">
+                <td colSpan={9} className="wh-empty-cell">
                   ยังไม่มีรายการตรวจสอบ
                 </td>
               </tr>
@@ -943,12 +1027,47 @@ export default function WHPartConfirmationPage() {
             <p className="wh-modal-line">
               ผลเทียบ: {matchBadge(detailRow.MatchStatus)} {detailRow.MatchMessage || ''}
             </p>
+            <p className="wh-modal-line">
+              รูปถ่าย: {photoMatchBadge(detailRow.PhotoMatchStatus)}{' '}
+              {detailRow.PhotoMatchMessage || ''}
+            </p>
+            {detailRow.PhotoURL ? (
+              <p className="wh-modal-line">
+                รูปถ่าย:{' '}
+                <button
+                  type="button"
+                  className="wh-photo-thumb wh-photo-thumb-lg"
+                  onClick={() => setPhotoView(detailRow.PhotoURL)}
+                  title="คลิกเพื่อขยาย"
+                >
+                  <img src={`${API_BASE_URL}${detailRow.PhotoURL}`} alt="รูปถ่ายป้าย" />
+                </button>
+              </p>
+            ) : null}
             <p className="wh-modal-line">ตรวจสอบโดย: {detailRow.CheckedBy}</p>
             <p className="wh-modal-line">
               เวลา: {new Date(detailRow.CheckedDatetime).toLocaleString('th-TH')}
             </p>
             <div className="wh-modal-actions">
               <button className="wh-modal-cancel" onClick={() => setDetailRow(null)}>
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {photoView && (
+        <div className="wh-modal-overlay" onClick={() => setPhotoView(null)}>
+          <div
+            className="wh-modal wh-photo-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="wh-modal-title">รูปถ่ายป้าย</h3>
+            <div className="wh-photo-modal-img">
+              <img src={`${API_BASE_URL}${photoView}`} alt="รูปถ่ายป้าย" />
+            </div>
+            <div className="wh-modal-actions">
+              <button className="wh-modal-cancel" onClick={() => setPhotoView(null)}>
                 ปิด
               </button>
             </div>

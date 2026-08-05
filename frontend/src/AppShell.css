@@ -4,6 +4,7 @@
   min-height: 100vh;
   background: #f4f6f8;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
 }
 
 .shell-topbar {
@@ -18,6 +19,15 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.shell-topbar .brand-title-sm {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .shell-topbar .brand-badge {
@@ -34,6 +44,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
+  flex-shrink: 0;
 }
 
 .shell-user {
@@ -153,7 +164,32 @@
 
 @media (max-width: 560px) {
   .shell-topbar {
-    padding: 12px 16px;
+    padding: 12px 14px;
+    gap: 8px;
+  }
+
+  .shell-topbar .brand-title-sm {
+    font-size: 14px;
+    letter-spacing: 0;
+  }
+
+  .shell-topbar .brand-badge {
+    font-size: 11px;
+    padding: 3px 7px;
+  }
+
+  .shell-topbar .brand-row {
+    gap: 7px;
+  }
+
+  .shell-topbar-right {
+    gap: 8px;
+  }
+
+  .shell-topbar-right .lab-bell {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
   }
 
   .shell-user-info {
@@ -175,7 +211,37 @@
   .shell-subnav {
     padding: 0 12px;
   }
+}
 
+/* จอแคบมาก (มือถือเล็ก) — ย่อกระดิ่ง/หัวข้อ/avatar ลงอีกให้ครบทุกปุ่มในบรรทัดเดียว */
+@media (max-width: 400px) {
+  .shell-topbar {
+    padding: 10px 12px;
+  }
+
+  .shell-topbar .brand-title-sm {
+    font-size: 13px;
+  }
+
+  .shell-topbar-right {
+    gap: 6px;
+  }
+
+  .shell-topbar-right .lab-bell {
+    width: 33px;
+    height: 33px;
+  }
+
+  .shell-topbar-right .lab-bell .lab-bell-icon .size-5 {
+    width: 18px;
+    height: 18px;
+  }
+
+  .shell-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
 }
 
 /* ===== Validation Results: filter tabs + expandable table ===== */
