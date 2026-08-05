@@ -50,6 +50,27 @@ type PartCheck struct {
 
 	CheckedDatetime time.Time
 
+	// ── รูปถ่ายป้ายยืนยัน (ถ่ายหลังสแกน) + ผลเทียบจาก OCR ──────────────────
+	// เฉพาะ ITC: WH ถ่ายรูปป้าย IT Controller หลังสแกนเสร็จ ระบบส่งรูปให้
+	// Claude Vision อ่านค่า P/N, S/N, IMEI ที่พิมพ์บนป้ายจริง แล้วเทียบกับ
+	// PN / SN / ProductionNo ที่สแกน/ดึงจาก master data ไว้ข้างบน
+	PhotoURL string `gorm:"size:255"` // path เสิร์ฟจาก /uploads/...
+
+	PhotoOCRPN   string `gorm:"size:100"` // P/N ที่ OCR อ่านได้จากรูป
+	PhotoOCRSN   string `gorm:"size:100"` // S/N ที่ OCR อ่านได้จากรูป
+	PhotoOCRIMEI string `gorm:"size:100"` // IMEI ที่ OCR อ่านได้จากรูป
+
+	PhotoMatchStatus  string `gorm:"size:20"`  // MATCH | MISMATCH | UNREADABLE | "" (ยังไม่ถ่ายรูป)
+	PhotoMatchMessage string `gorm:"size:255"` // ข้อความอธิบายผลเทียบ
+
 	UserID uint
 	User   User
 }
+
+// ค่าคงที่ผลเทียบรูปถ่ายกับค่าที่สแกน (PartCheck.PhotoMatchStatus)
+const (
+	PhotoMatchStatusMatch      = "MATCH"      // รูปตรงกับค่าที่สแกนทุกช่อง
+	PhotoMatchStatusMismatch   = "MISMATCH"   // อ่านรูปได้ แต่มีบางช่องไม่ตรง
+	PhotoMatchStatusUnreadable = "UNREADABLE" // อ่านรูปไม่สำเร็จ (มืด/เบลอ/เรียก OCR ไม่ได้)
+	PhotoMatchStatusSaved      = "SAVED"      // ถ่ายรูปเก็บไว้เป็นหลักฐานเฉยๆ (ไม่มีการเทียบค่า)
+)

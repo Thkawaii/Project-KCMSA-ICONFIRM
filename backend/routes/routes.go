@@ -76,6 +76,10 @@ func SetupRoutes(r *gin.Engine) {
 		partCheck.GET("", controllers.GetPartChecks)
 		partCheck.POST("", controllers.ScanPartCheck)
 		partCheck.DELETE("/:id", controllers.DeletePartCheck)
+
+		// ถ่ายรูปป้ายยืนยันหลังสแกน (ITC) — เรียก Claude Vision อ่าน P/N/S/N/IMEI
+		// จากรูปมาเทียบกับค่าที่สแกน/ดึงจาก master data ไว้ (ดู partcheck_photo.go)
+		partCheck.POST("/:id/photo", controllers.UploadPartCheckPhoto)
 	}
 
 	// ─────────────────────────────────────────────────────────────────────

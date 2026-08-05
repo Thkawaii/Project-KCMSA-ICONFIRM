@@ -55,19 +55,46 @@ export async function scanStep({
       const input = Swal.getInput()
       if (!input) return
       input.focus() // โฟกัสช่อง input อัตโนมัติ
-      // เครื่องสแกนส่ง Enter มา -> ยืนยันทันที (popup ปิดเอง)
+
+      let confirmed = false
+      const doConfirm = () => {
+        if (confirmed) return
+        if (!input.value.trim()) return
+        confirmed = true
+        Swal.clickConfirm()
+      }
+
+      // (1) เครื่องสแกนแบบ keyboard-wedge ส่ง Enter ปิดท้าย -> ยืนยันทันที
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault()
-          if (input.value.trim()) Swal.clickConfirm()
+          doConfirm()
         }
       })
-      // ⭐ สแกนเนอร์บางรุ่น (เช่น WinMax P307) แทรกข้อความที่อ่านได้ทั้งก้อนเข้าช่อง
-      // ในทีเดียวโดยไม่มี Enter ตามมา (ยิงผ่าน IME/paste ไม่ใช่จำลองปุ่มกดทีละตัว)
-      // ถ้าเจอการแทรกแบบนี้ (ยาวกว่า 1 ตัวอักษรในจังหวะเดียว) ให้ยืนยันให้อัตโนมัติ
-      input.addEventListener('input', (e) => {
-        const inserted = typeof e.data === 'string' ? e.data : ''
-        if (inserted.trim().length > 1 && input.value.trim()) Swal.clickConfirm()
+
+      // (2) เครื่องสแกนแบบ "วาง" (paste) ยิงรหัสมาทั้งก้อนทีเดียว -> ยืนยันอัตโนมัติ
+      input.addEventListener('paste', () => {
+        // รอให้ค่าถูกวางเข้าช่องก่อนแล้วค่อยยืนยัน
+        setTimeout(doConfirm, 0)
+      })
+
+      // (3) ตรวจจับเครื่องสแกนจาก "ความเร็วการพิมพ์": สแกนเนอร์ยิงตัวอักษรรัวมาก
+      // (หลายตัวใน < ~150ms) ซึ่งมือคนพิมพ์ไม่ทัน จึงแยกจากการพิมพ์เองบนมือถือ
+      // ได้ชัด (รวมถึง autocomplete/คำแนะนำที่แทรกทีละหลายตัว — พวกนั้นไม่ได้มา
+      // เป็น keydown รัวๆ) ถ้าเจอ burst แบบนี้ค่อยยืนยันให้เอง
+      let burstStart = 0
+      let burstCount = 0
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key.length !== 1) return // นับเฉพาะตัวอักษรจริง
+        const now = Date.now()
+        if (now - burstStart > 150) {
+          burstStart = now
+          burstCount = 0
+        }
+        burstCount++
+        if (burstCount >= 6) {
+          setTimeout(doConfirm, 60) // รอตัวอักษรสุดท้ายเข้าช่องก่อน
+        }
       })
     },
   })
@@ -128,4 +155,84 @@ export function scanErrorAlert(text) {
     text,
     confirmButtonText: 'ตกลง',
   })
+}
+
+/**
+ * เปิดกล้อง (กล้องหลังบนมือถือ) ให้ถ่ายรูปป้ายเพื่อยืนยัน หลังจากสแกน
+ * P/N + S/N เสร็จ — ใช้คู่กับ uploadPartCheckPhoto ฝั่ง api/partcheck.js
+ * ระบบ backend จะเอารูปนี้ไปอ่านด้วย Claude Vision แล้วเทียบกับค่าที่สแกน
+ *
+ * คืนค่า Blob รูป (JPEG) ถ้าถ่ายสำเร็จ, หรือ null ถ้าผู้ใช้กด "ข้าม" /
+ * ปิดกล้องไม่สำเร็จ (เช่น ไม่มีกล้อง/ไม่ได้อนุญาต permission)
+ *
+ * @param {object} opts
+ * @param {string} opts.title หัวข้อ popup
+ * @param {string} [opts.html] คำอธิบาย/บริบท (HTML) — เช่น โชว์ P/N, S/N ที่สแกนไว้
+ */
+export async function scanPhotoCapture({ title, html = '' }) {
+  let stream = null
+
+  const res = await Swal.fire({
+    title,
+    html: `
+      ${html}
+      <video id="scan-photo-video" autoplay playsinline muted class="scan-photo-video"></video>
+      <canvas id="scan-photo-canvas" style="display:none;"></canvas>
+    `,
+    customClass: { popup: 'scan-popup' },
+    confirmButtonText: 'ถ่ายรูป',
+    showCancelButton: true,
+    cancelButtonText: 'ข้าม (ไม่ถ่ายรูป)',
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    didOpen: async () => {
+      const video = document.getElementById('scan-photo-video')
+      try {
+        // กล้อง (getUserMedia) ใช้ได้เฉพาะ secure context: HTTPS หรือ http://localhost
+        // ถ้าเปิดผ่าน http://<ip> ธรรมดา navigator.mediaDevices จะเป็น undefined
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          Swal.showValidationMessage(
+            'เปิดกล้องไม่ได้: ต้องเข้าเว็บผ่าน https (เช่น https://' +
+              location.host +
+              ') บนมือถือ กล้องถึงจะทำงาน'
+          )
+          return
+        }
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+          audio: false,
+        })
+        if (video) video.srcObject = stream
+      } catch (err) {
+        Swal.showValidationMessage('เปิดกล้องไม่สำเร็จ: ' + (err.message || err))
+      }
+    },
+    preConfirm: () => {
+      const video = document.getElementById('scan-photo-video')
+      const canvas = document.getElementById('scan-photo-canvas')
+      if (!video || !canvas || !video.videoWidth) {
+        Swal.showValidationMessage('กล้องยังไม่พร้อม กรุณารอสักครู่แล้วลองใหม่')
+        return false
+      }
+      const vw = video.videoWidth
+      const vh = video.videoHeight
+      // crop กลางภาพให้เป็นสี่เหลี่ยมจัตุรัส (ตรงกับกรอบพรีวิวที่เป็น 1:1)
+      const side = Math.min(vw, vh)
+      const sx = (vw - side) / 2
+      const sy = (vh - side) / 2
+      canvas.width = side
+      canvas.height = side
+      canvas.getContext('2d').drawImage(video, sx, sy, side, side, 0, 0, side, side)
+      return new Promise((resolve) => {
+        canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.9)
+      })
+    },
+    willClose: () => {
+      // ปิดกล้องเสมอไม่ว่าจะกดถ่ายรูป/ข้าม/ปิด popup — กันไฟกล้องค้างเปิด
+      if (stream) stream.getTracks().forEach((t) => t.stop())
+    },
+  })
+
+  if (res.isConfirmed && res.value) return res.value
+  return null
 }

@@ -1333,3 +1333,62 @@
   gap: 6px;
   flex-wrap: wrap;
 }
+/* ===== รูปถ่ายป้าย: รูปย่อในตาราง + viewer ขยาย (ย้ายมาจาก append ที่ไม่เคยถูก import) ===== */
+.wh-photo-thumb {
+  padding: 0;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #f2f4f7;
+  cursor: pointer;
+  line-height: 0;
+  overflow: hidden;
+  display: inline-block;
+  transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease;
+}
+.wh-photo-thumb img {
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  display: block;
+}
+.wh-photo-thumb:hover {
+  border-color: #0f9488;
+  box-shadow: 0 0 0 3px rgba(15, 148, 136, .15);
+  transform: scale(1.05);
+}
+.wh-photo-thumb.wh-photo-thumb-lg img {
+  width: 64px;
+  height: 64px;
+}
+
+/* หน้าต่างขยายรูป */
+.wh-photo-modal {
+  max-width: min(92vw, 560px);
+}
+.wh-photo-modal-img {
+  margin: 8px 0 4px;
+  background: #0b0f14;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wh-photo-modal-img img {
+  width: 100%;
+  height: auto;
+  max-height: 70vh;
+  object-fit: contain;
+  display: block;
+}
+
+/* กรอบพรีวิวกล้องตอนถ่าย (ทำเป็นสี่เหลี่ยมจัตุรัส) */
+.scan-popup .scan-photo-video {
+  width: 100%;
+  max-width: 360px;
+  margin-top: 12px;
+  border-radius: 12px;
+  background: #000;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
