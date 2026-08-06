@@ -27,6 +27,7 @@ type QAConfirmedRow struct {
 	IMEI           string `json:"imei"`
 	LicenseNo      string `json:"licenseNo"`    // ใบอนุญาตนำเข้า
 	InvoiceNo      string `json:"invoiceNo"`    // อินวอยซ์
+	ExportCountry  string `json:"exportCountry"` // ส่งออกไปประเทศ (จากบัญชีใบอนุญาตนำเข้า)
 	MatchStatus    string `json:"matchStatus"`  // ผลเทียบใบอนุญาต (MATCH)
 	MatchMessage   string `json:"matchMessage"` // ข้อความอธิบายผลเทียบ
 	PhotoURL       string `json:"photoURL"`     // รูปถ่ายป้ายยืนยันจากฝั่ง WH
@@ -130,6 +131,9 @@ func GetQAConfirmedTable(c *gin.Context) {
 			}
 			if row.InvoiceNo == "" {
 				row.InvoiceNo = strings.TrimSpace(lic.InvoiceNo)
+			}
+			if row.ExportCountry == "" {
+				row.ExportCountry = strings.TrimSpace(lic.ExportCountry)
 			}
 			if row.IMEI == "" {
 				row.IMEI = strings.TrimSpace(lic.ProductionNo)
