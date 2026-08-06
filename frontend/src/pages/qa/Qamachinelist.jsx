@@ -10,6 +10,9 @@ import {
 } from '../../components/icons.jsx'
 import { getQAConfirmedTable } from '../../api/qaConfirmed.js'
 import { API_BASE_URL } from '../../api/client.js'
+import { jsPDF } from 'jspdf'
+import { autoTable } from 'jspdf-autotable'
+import { SARABUN_REGULAR_BASE64, SARABUN_BOLD_BASE64 } from '../../lib/sarabunFont.js'
 
 const navItems = [{ to: '/qa', label: 'ตรวจสอบ QA', icon: <CheckCircleIcon className="size-4" /> }]
 
@@ -33,87 +36,55 @@ function licenseMatchMeta(status) {
 
 const dash = (v) => (v && String(v).trim() !== '' ? v : '—')
 
-// escape ค่าที่จะฝังลง HTML ของ Check Sheet กันอักขระพิเศษทำ markup พัง
-function escapeHtml(s) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+const THAI_MONTHS = [
+  'มกราคม',
+  'กุมภาพันธ์',
+  'มีนาคม',
+  'เมษายน',
+  'พฤษภาคม',
+  'มิถุนายน',
+  'กรกฎาคม',
+  'สิงหาคม',
+  'กันยายน',
+  'ตุลาคม',
+  'พฤศจิกายน',
+  'ธันวาคม',
+]
+
+const pad2 = (n) => String(n).padStart(2, '0')
+
+// ลงทะเบียนฟอนต์ Sarabun (รองรับภาษาไทย) ให้ jsPDF — ฟอนต์ default ของ jsPDF ไม่มีตัวไทย
+function registerThaiFont(doc) {
+  doc.addFileToVFS('Sarabun-Regular.ttf', SARABUN_REGULAR_BASE64)
+  doc.addFont('Sarabun-Regular.ttf', 'Sarabun', 'normal')
+  doc.addFileToVFS('Sarabun-Bold.ttf', SARABUN_BOLD_BASE64)
+  doc.addFont('Sarabun-Bold.ttf', 'Sarabun', 'bold')
+  doc.setFont('Sarabun', 'normal')
 }
 
-// สร้าง HTML ของ "Check Sheet" (แนวนอน A4) จากรายการที่ยืนยันแล้ว
-function buildCheckSheetHTML(list) {
-  const now = new Date()
-  const dateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })
-  const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-
-  const rowsHtml = list
-    .map((r, i) => {
-      const lic = licenseMatchMeta(r.matchStatus)
-      const photo = r.photoURL
-        ? `<img class="ph" src="${API_BASE_URL}${escapeHtml(r.photoURL)}" alt="" />`
-        : '—'
-      return `<tr>
-        <td class="c">${i + 1}</td>
-        <td>${escapeHtml(dash(r.partName))}</td>
-        <td>${escapeHtml(dash(r.model))}</td>
-        <td>${escapeHtml(dash(r.machineNo))}</td>
-        <td>${escapeHtml(dash(r.partNo))}</td>
-        <td>${escapeHtml(dash(r.serialNo))}</td>
-        <td>${escapeHtml(dash(r.itControllerNo))}</td>
-        <td>${escapeHtml(dash(r.imei))}</td>
-        <td>${escapeHtml(dash(r.licenseNo))}</td>
-        <td>${escapeHtml(dash(r.invoiceNo))}</td>
-        <td>${escapeHtml(lic.label)}</td>
-        <td class="c">${photo}</td>
-        <td class="c">Matched</td>
-      </tr>`
+// แปลง URL รูปเป็น data URL เพื่อฝังลง PDF (ล้มเหลวได้ ไม่ทำให้การสร้าง PDF ทั้งฉบับพัง)
+async function fetchImageAsDataURL(url) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return await new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result)
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
     })
-    .join('')
+  } catch {
+    return null
+  }
+}
 
-  return `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8" />
-<title>QA Check Sheet</title>
-<style>
-  @page { size: A4 landscape; margin: 12mm; }
-  * { box-sizing: border-box; }
-  body { font-family: 'Sarabun','TH Sarabun New','Segoe UI',Tahoma,sans-serif; color:#0f172a; margin:0; }
-  .head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
-  h1 { font-size:18px; margin:0 0 4px; }
-  .sub { color:#475569; font-size:11px; }
-  .meta { text-align:right; font-size:11px; color:#475569; white-space:nowrap; }
-  table { width:100%; border-collapse:collapse; }
-  th,td { border:1px solid #94a3b8; padding:4px 6px; text-align:left; vertical-align:middle; word-break:break-word; }
-  th { background:#f1f5f9; font-size:10px; }
-  td { font-size:10px; }
-  td.c, th.c { text-align:center; }
-  .ph { width:40px; height:40px; object-fit:cover; border-radius:4px; }
-  .sign { display:flex; justify-content:space-between; margin-top:30px; gap:40px; }
-  .sign > div { flex:1; text-align:center; font-size:11px; }
-  .sign .line { margin-top:40px; border-top:1px solid #0f172a; padding-top:4px; }
-</style></head>
-<body>
-  <div class="head">
-    <div>
-      <h1>QA Check Sheet — ใบตรวจสอบ QA</h1>
-      <div class="sub">รายการเครื่องที่ยืนยันแล้ว (WH Part Confirmation ตรงกับใบอนุญาต + MFG Matched)</div>
-    </div>
-    <div class="meta">วันที่พิมพ์: ${escapeHtml(dateStr)} ${escapeHtml(timeStr)}<br/>จำนวน: ${list.length} เครื่อง</div>
-  </div>
-  <table>
-    <thead><tr>
-      <th class="c">ITEM</th><th>Part Name</th><th>Model</th><th>Machine No</th>
-      <th>Part No.</th><th>Serial No.</th><th>IT Controller No.</th><th>IMEI</th>
-      <th>ใบอนุญาตนำเข้า</th><th>อินวอยซ์</th><th>ผลเทียบใบอนุญาต</th><th class="c">รูปถ่าย</th><th class="c">Status</th>
-    </tr></thead>
-    <tbody>${rowsHtml}</tbody>
-  </table>
-  <div class="sign">
-    <div><div class="line">ผู้ตรวจสอบ (QA)</div></div>
-    <div><div class="line">ผู้อนุมัติ</div></div>
-    <div><div class="line">วันที่</div></div>
-  </div>
-</body></html>`
+// หา format รูปจาก data URL (jsPDF ต้องระบุ format ให้ตรงตอน addImage)
+function imageFormatFromDataURL(dataUrl) {
+  const m = /^data:image\/(\w+);/.exec(dataUrl || '')
+  const ext = (m?.[1] || 'jpeg').toLowerCase()
+  if (ext === 'jpg') return 'JPEG'
+  return ext.toUpperCase()
 }
 
 export default function QAMachineList() {
@@ -125,6 +96,12 @@ export default function QAMachineList() {
   const [search, setSearch] = useState('')
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
+  const [exportingPDF, setExportingPDF] = useState(false)
+
+  // ตัวกรองวันที่ (ปี/เดือน/วัน ที่ WH ยืนยัน) — ต้องเลือกให้ครบก่อนถึง Export PDF ได้
+  const [selectedYear, setSelectedYear] = useState('')
+  const [selectedMonth, setSelectedMonth] = useState('')
+  const [selectedDay, setSelectedDay] = useState('')
 
   async function loadConfirmed() {
     setLoading(true)
@@ -154,7 +131,51 @@ export default function QAMachineList() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, pageSize])
+  }, [search, pageSize, selectedYear, selectedMonth, selectedDay])
+
+  // ตัวเลือกปี — ดึงจากปีที่มีข้อมูลจริงเท่านั้น (ใหม่ไปเก่า)
+  const yearOptions = useMemo(() => {
+    const years = new Set()
+    confirmedRows.forEach((r) => {
+      if (r.confirmedAt) years.add(new Date(r.confirmedAt).getFullYear())
+    })
+    if (!years.size) years.add(new Date().getFullYear())
+    return Array.from(years)
+      .sort((a, b) => b - a)
+      .map((y) => ({ value: String(y), label: String(y + 543) })) // แสดง พ.ศ.
+  }, [confirmedRows])
+
+  const monthOptions = useMemo(
+    () => THAI_MONTHS.map((label, i) => ({ value: String(i + 1), label })),
+    []
+  )
+
+  // ตัวเลือกวัน — คำนวณจำนวนวันตามปี/เดือนที่เลือกจริง (ถ้ายังไม่เลือกปี/เดือน ใช้ 31 วันไปก่อน)
+  const dayOptions = useMemo(() => {
+    const daysInMonth =
+      selectedYear && selectedMonth
+        ? new Date(Number(selectedYear), Number(selectedMonth), 0).getDate()
+        : 31
+    return Array.from({ length: daysInMonth }, (_, i) => ({
+      value: String(i + 1),
+      label: String(i + 1),
+    }))
+  }, [selectedYear, selectedMonth])
+
+  // ถ้าเปลี่ยนปี/เดือนแล้ววันที่เลือกไว้เกินจำนวนวันของเดือนนั้น ให้เคลียร์ทิ้ง
+  useEffect(() => {
+    if (selectedDay && Number(selectedDay) > dayOptions.length) {
+      setSelectedDay('')
+    }
+  }, [dayOptions, selectedDay])
+
+  const dateFullySelected = Boolean(selectedYear && selectedMonth && selectedDay)
+
+  function clearDateFilter() {
+    setSelectedYear('')
+    setSelectedMonth('')
+    setSelectedDay('')
+  }
 
   const stats = useMemo(() => {
     const total = confirmedRows.length
@@ -164,89 +185,197 @@ export default function QAMachineList() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return confirmedRows
-    return confirmedRows.filter((r) =>
-      [
-        r.partName,
-        r.model,
-        r.machineNo,
-        r.partNo,
-        r.serialNo,
-        r.itControllerNo,
-        r.imei,
-        r.licenseNo,
-        r.invoiceNo,
-      ].some((v) => (v || '').toLowerCase().includes(q))
-    )
-  }, [confirmedRows, search])
+    return confirmedRows.filter((r) => {
+      if (q) {
+        const matchesSearch = [
+          r.partName,
+          r.model,
+          r.machineNo,
+          r.partNo,
+          r.serialNo,
+          r.itControllerNo,
+          r.imei,
+          r.licenseNo,
+          r.invoiceNo,
+        ].some((v) => (v || '').toLowerCase().includes(q))
+        if (!matchesSearch) return false
+      }
+
+      if (dateFullySelected) {
+        if (!r.confirmedAt) return false
+        const d = new Date(r.confirmedAt)
+        if (
+          d.getFullYear() !== Number(selectedYear) ||
+          d.getMonth() + 1 !== Number(selectedMonth) ||
+          d.getDate() !== Number(selectedDay)
+        ) {
+          return false
+        }
+      }
+
+      return true
+    })
+  }, [confirmedRows, search, dateFullySelected, selectedYear, selectedMonth, selectedDay])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize)
 
-  // Export เป็น PDF (Check Sheet) — สร้าง iframe ซ่อน เขียน HTML แล้วสั่งพิมพ์
-  // (เลี่ยง popup blocker) ผู้ใช้เลือก "Save as PDF" จากหน้าต่างพิมพ์ของเบราว์เซอร์
-  // แนะนำให้เลือกกระดาษ "แนวนอน (Landscape)" เพราะตารางกว้าง
-  function handleExportPDF() {
-    const list = filtered // ส่งออกตามที่กรอง/ค้นหาอยู่ (ทุกหน้า)
-    if (!list.length) return
+  // Export เป็น PDF (Check Sheet) — สร้าง PDF จริงด้วย jsPDF + autoTable (ข้อความเป็น vector
+  // ไม่ใช่รูปถ่ายหน้าจอ) แล้วสั่งดาวน์โหลดไฟล์ทันที ไม่ต้องผ่านหน้าต่างพิมพ์ของเบราว์เซอร์
+  async function handleExportPDF() {
+    const list = filtered // ส่งออกตามที่กรอง/ค้นหา/วันที่เลือกอยู่ (ทุกหน้า)
+    if (!list.length || exportingPDF || !dateFullySelected) return
 
-    const iframe = document.createElement('iframe')
-    iframe.setAttribute('aria-hidden', 'true')
-    Object.assign(iframe.style, {
-      position: 'fixed',
-      right: '0',
-      bottom: '0',
-      width: '0',
-      height: '0',
-      border: '0',
-    })
-    document.body.appendChild(iframe)
+    setExportingPDF(true)
+    try {
+      // ดึงรูปถ่ายทั้งหมดมาแปลงเป็น data URL ก่อน (ถ้าโหลดไม่สำเร็จ ข้ามรูปนั้นไปเฉยๆ ไม่ทำให้ทั้งไฟล์พัง)
+      const photoDataUrls = await Promise.all(
+        list.map((r) => (r.photoURL ? fetchImageAsDataURL(`${API_BASE_URL}${r.photoURL}`) : Promise.resolve(null)))
+      )
 
-    const doc = iframe.contentWindow.document
-    doc.open()
-    doc.write(buildCheckSheetHTML(list))
-    doc.close()
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+      registerThaiFont(doc)
 
-    let printed = false
-    const cleanup = () =>
-      setTimeout(() => {
-        try {
-          document.body.removeChild(iframe)
-        } catch {
-          /* ignore */
-        }
-      }, 1000)
+      const now = new Date()
+      const printedStr = `${now.toLocaleDateString('th-TH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })} ${now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`
 
-    const doPrint = () => {
-      if (printed) return
-      printed = true
-      try {
-        iframe.contentWindow.focus()
-        iframe.contentWindow.print()
-      } catch {
-        /* ignore */
+      const checkDateLabel = new Date(
+        Number(selectedYear),
+        Number(selectedMonth) - 1,
+        Number(selectedDay)
+      ).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })
+
+      const PHOTO_COL_INDEX = 11
+      const head = [
+        [
+          'ITEM',
+          'Part Name',
+          'Model',
+          'Machine No',
+          'Part No.',
+          'Serial No.',
+          'IT Controller No.',
+          'IMEI',
+          'ใบอนุญาตนำเข้า',
+          'อินวอยซ์',
+          'ผลเทียบใบอนุญาต',
+          'รูปถ่าย',
+          'Status',
+        ],
+      ]
+      const body = list.map((r, i) => [
+        String(i + 1),
+        dash(r.partName),
+        dash(r.model),
+        dash(r.machineNo),
+        dash(r.partNo),
+        dash(r.serialNo),
+        dash(r.itControllerNo),
+        dash(r.imei),
+        dash(r.licenseNo),
+        dash(r.invoiceNo),
+        licenseMatchMeta(r.matchStatus).label,
+        '', // รูปถ่ายวาดเองใน didDrawCell
+        'Matched',
+      ])
+
+      const drawHeader = () => {
+        doc.setFont('Sarabun', 'bold')
+        doc.setFontSize(16)
+        doc.setTextColor(15, 23, 42)
+        doc.text('QA Check Sheet — ใบตรวจสอบ QA', 10, 14)
+
+        doc.setFont('Sarabun', 'normal')
+        doc.setFontSize(9)
+        doc.setTextColor(71, 85, 105)
+        doc.text(
+          'รายการเครื่องที่ยืนยันแล้ว (WH Part Confirmation ตรงกับใบอนุญาต + MFG Matched)',
+          10,
+          19
+        )
+
+        const pageWidth = doc.internal.pageSize.getWidth()
+        doc.text(`วันที่ตรวจสอบ (Check Sheet): ${checkDateLabel}`, pageWidth - 10, 12, { align: 'right' })
+        doc.text(`วันที่พิมพ์: ${printedStr}`, pageWidth - 10, 17, { align: 'right' })
+        doc.text(`จำนวน: ${list.length} เครื่อง`, pageWidth - 10, 22, { align: 'right' })
       }
-      cleanup()
-    }
 
-    // รอรูปถ่ายโหลดครบก่อนพิมพ์ (มี timeout กันค้าง)
-    const imgs = Array.from(doc.images || [])
-    let pending = imgs.length
-    if (pending === 0) {
-      setTimeout(doPrint, 300)
-    } else {
-      const settle = () => {
-        pending -= 1
-        if (pending <= 0) doPrint()
-      }
-      imgs.forEach((img) => {
-        if (img.complete) settle()
-        else {
-          img.addEventListener('load', settle)
-          img.addEventListener('error', settle)
-        }
+      autoTable(doc, {
+        head,
+        body,
+        startY: 26,
+        margin: { top: 26, left: 8, right: 8, bottom: 12 },
+        styles: {
+          font: 'Sarabun',
+          fontSize: 8,
+          cellPadding: 1.5,
+          lineColor: [148, 163, 184],
+          lineWidth: 0.1,
+          valign: 'middle',
+        },
+        headStyles: {
+          font: 'Sarabun',
+          fontStyle: 'bold',
+          fillColor: [241, 245, 249],
+          textColor: [15, 23, 42],
+          halign: 'center',
+        },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 10 },
+          [PHOTO_COL_INDEX]: { halign: 'center', cellWidth: 16, minCellHeight: 14 },
+          12: { halign: 'center' },
+        },
+        didDrawPage: drawHeader,
+        didDrawCell: (data) => {
+          if (data.section !== 'body' || data.column.index !== PHOTO_COL_INDEX) return
+          const dataUrl = photoDataUrls[data.row.index]
+          if (!dataUrl) return
+          try {
+            const pad = 1
+            const size = Math.min(data.cell.height, data.cell.width) - pad * 2
+            const x = data.cell.x + (data.cell.width - size) / 2
+            const y = data.cell.y + (data.cell.height - size) / 2
+            doc.addImage(dataUrl, imageFormatFromDataURL(dataUrl), x, y, size, size)
+          } catch {
+            // ข้ามรูปที่ฝังไม่สำเร็จ ไม่ทำให้ PDF ทั้งฉบับพัง
+          }
+        },
       })
-      setTimeout(doPrint, 4000) // fallback ถ้ารูปโหลดช้า/ค้าง
+
+      // เส้นเซ็นชื่อท้ายเอกสาร — วางในหน้าสุดท้าย ถ้าที่ไม่พอให้ขึ้นหน้าใหม่
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      let signY = doc.lastAutoTable.finalY + 18
+      if (signY + 14 > pageHeight - 10) {
+        doc.addPage()
+        drawHeader()
+        signY = 40
+      }
+
+      const cols = [
+        { label: 'ผู้ตรวจสอบ (QA)', cx: pageWidth * 0.2 },
+        { label: 'ผู้อนุมัติ', cx: pageWidth * 0.5 },
+        { label: 'วันที่', cx: pageWidth * 0.8 },
+      ]
+      doc.setFont('Sarabun', 'normal')
+      doc.setFontSize(9)
+      doc.setTextColor(15, 23, 42)
+      cols.forEach((c) => {
+        doc.line(c.cx - 25, signY, c.cx + 25, signY)
+        doc.text(c.label, c.cx, signY + 5, { align: 'center' })
+      })
+
+      const fileDate = `${selectedYear}-${pad2(selectedMonth)}-${pad2(selectedDay)}`
+      doc.save(`QA-CheckSheet-${fileDate}.pdf`)
+    } catch (err) {
+      console.error(err)
+      alert('สร้าง PDF ไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setExportingPDF(false)
     }
   }
 
@@ -260,15 +389,47 @@ export default function QAMachineList() {
             (ดึงข้อมูลจาก WH + MFG + Master Data)
           </p>
         </div>
+      </div>
+
+      <div className="qa-date-filter-row" style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, color: '#475569', marginBottom: 4 }}>ปี</label>
+          <SelectField value={selectedYear} onChange={setSelectedYear} options={yearOptions} placeholder="— ปี —" />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, color: '#475569', marginBottom: 4 }}>เดือน</label>
+          <SelectField
+            value={selectedMonth}
+            onChange={setSelectedMonth}
+            options={monthOptions}
+            placeholder="— เดือน —"
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, color: '#475569', marginBottom: 4 }}>วัน</label>
+          <SelectField value={selectedDay} onChange={setSelectedDay} options={dayOptions} placeholder="— วัน —" />
+        </div>
+        {(selectedYear || selectedMonth || selectedDay) && (
+          <button type="button" className="qa-download-btn" onClick={clearDateFilter} style={{ height: 40 }}>
+            ล้างวันที่
+          </button>
+        )}
         <button
           className="qa-download-btn"
           onClick={handleExportPDF}
-          disabled={loading || filtered.length === 0}
-          title="พิมพ์/บันทึกเป็น PDF (Check Sheet)"
+          disabled={loading || filtered.length === 0 || exportingPDF || !dateFullySelected}
+          title={dateFullySelected ? 'ดาวน์โหลดเป็น PDF (Check Sheet)' : 'กรุณาเลือกปี เดือน วัน ก่อน Export PDF'}
+          style={{ marginLeft: 'auto' }}
         >
-          <ArrowDownTrayIcon className="size-4" /> Export PDF (Check Sheet)
+          <ArrowDownTrayIcon className="size-4" />
+          {exportingPDF ? 'กำลังสร้าง PDF...' : 'Export PDF (Check Sheet)'}
         </button>
       </div>
+      {!dateFullySelected && (
+        <p className="qa-stat-sub" style={{ marginTop: -8, marginBottom: 16 }}>
+          กรุณาเลือกปี เดือน และวัน ที่ต้องการออก Check Sheet ก่อนถึงจะกด Export PDF ได้
+        </p>
+      )}
 
       <div className="dash-stats-row">
         <div className="dash-stat-card">
