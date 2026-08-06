@@ -816,14 +816,13 @@ export default function WHPartConfirmationPage() {
               <th>หมายเหตุ</th>
               <th>ส่งออกไปประเทศ</th>
               <th>สถานะ</th>
-              <th>TAG ที่สแกนคู่</th>
               <th>ยืนยันเมื่อ</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={11} className="wh-empty-cell">
+                <td colSpan={10} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -856,7 +855,6 @@ export default function WHPartConfirmationPage() {
                       </span>
                     )}
                   </td>
-                  <td data-label="TAG ที่สแกนคู่">{r.ConfirmedTag || '—'}</td>
                   <td data-label="ยืนยันเมื่อ">
                     {r.ConfirmedDatetime ? new Date(r.ConfirmedDatetime).toLocaleString('th-TH') : '—'}
                   </td>
@@ -864,7 +862,7 @@ export default function WHPartConfirmationPage() {
               ))}
             {!loading && licenseRows.length === 0 && (
               <tr>
-                <td colSpan={11} className="wh-empty-cell">
+                <td colSpan={10} className="wh-empty-cell">
                   ไม่มีรายการในมุมมองนี้
                 </td>
               </tr>
@@ -989,6 +987,7 @@ export default function WHPartConfirmationPage() {
         <table className="wh-table">
           <thead>
             <tr>
+              <th>ITEM</th>
               <th>Part</th>
               <th>P/N</th>
               <th>S/N</th>
@@ -1003,14 +1002,17 @@ export default function WHPartConfirmationPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={9} className="wh-empty-cell">
+                <td colSpan={10} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
             )}
             {!loading &&
-              paged.map((r) => (
+              paged.map((r, idx) => (
                 <tr key={r.ID}>
+                  <td className="wh-cell-head" data-label="ITEM">
+                    {(page - 1) * pageSize + idx + 1}
+                  </td>
                   <td className="wh-cell-head" data-label="Part">
                     <strong>{tagLabel(r.PartType)}</strong>
                   </td>
@@ -1064,7 +1066,7 @@ export default function WHPartConfirmationPage() {
               ))}
             {!loading && paged.length === 0 && (
               <tr>
-                <td colSpan={9} className="wh-empty-cell">
+                <td colSpan={10} className="wh-empty-cell">
                   ยังไม่มีรายการตรวจสอบ
                 </td>
               </tr>
