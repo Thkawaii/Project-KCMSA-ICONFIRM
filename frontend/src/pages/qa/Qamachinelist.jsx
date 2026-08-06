@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import AppShell from '../../components/AppShell.jsx'
 import SelectField from '../../components/Selectfield.jsx'
 import {
-  CheckCircleIcon,
+  ArrowDownTrayIcon,
   CameraIcon,
+  CheckCircleIcon,
   Squares2X2Icon,
   XMarkIcon,
 } from '../../components/icons.jsx'
@@ -31,6 +32,89 @@ function licenseMatchMeta(status) {
 }
 
 const dash = (v) => (v && String(v).trim() !== '' ? v : '—')
+
+// escape ค่าที่จะฝังลง HTML ของ Check Sheet กันอักขระพิเศษทำ markup พัง
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+// สร้าง HTML ของ "Check Sheet" (แนวนอน A4) จากรายการที่ยืนยันแล้ว
+function buildCheckSheetHTML(list) {
+  const now = new Date()
+  const dateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })
+  const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+
+  const rowsHtml = list
+    .map((r, i) => {
+      const lic = licenseMatchMeta(r.matchStatus)
+      const photo = r.photoURL
+        ? `<img class="ph" src="${API_BASE_URL}${escapeHtml(r.photoURL)}" alt="" />`
+        : '—'
+      return `<tr>
+        <td class="c">${i + 1}</td>
+        <td>${escapeHtml(dash(r.partName))}</td>
+        <td>${escapeHtml(dash(r.model))}</td>
+        <td>${escapeHtml(dash(r.machineNo))}</td>
+        <td>${escapeHtml(dash(r.partNo))}</td>
+        <td>${escapeHtml(dash(r.serialNo))}</td>
+        <td>${escapeHtml(dash(r.itControllerNo))}</td>
+        <td>${escapeHtml(dash(r.imei))}</td>
+        <td>${escapeHtml(dash(r.licenseNo))}</td>
+        <td>${escapeHtml(dash(r.invoiceNo))}</td>
+        <td>${escapeHtml(lic.label)}</td>
+        <td class="c">${photo}</td>
+        <td class="c">Matched</td>
+      </tr>`
+    })
+    .join('')
+
+  return `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8" />
+<title>QA Check Sheet</title>
+<style>
+  @page { size: A4 landscape; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Sarabun','TH Sarabun New','Segoe UI',Tahoma,sans-serif; color:#0f172a; margin:0; }
+  .head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .sub { color:#475569; font-size:11px; }
+  .meta { text-align:right; font-size:11px; color:#475569; white-space:nowrap; }
+  table { width:100%; border-collapse:collapse; }
+  th,td { border:1px solid #94a3b8; padding:4px 6px; text-align:left; vertical-align:middle; word-break:break-word; }
+  th { background:#f1f5f9; font-size:10px; }
+  td { font-size:10px; }
+  td.c, th.c { text-align:center; }
+  .ph { width:40px; height:40px; object-fit:cover; border-radius:4px; }
+  .sign { display:flex; justify-content:space-between; margin-top:30px; gap:40px; }
+  .sign > div { flex:1; text-align:center; font-size:11px; }
+  .sign .line { margin-top:40px; border-top:1px solid #0f172a; padding-top:4px; }
+</style></head>
+<body>
+  <div class="head">
+    <div>
+      <h1>QA Check Sheet — ใบตรวจสอบ QA</h1>
+      <div class="sub">รายการเครื่องที่ยืนยันแล้ว (WH Part Confirmation ตรงกับใบอนุญาต + MFG Matched)</div>
+    </div>
+    <div class="meta">วันที่พิมพ์: ${escapeHtml(dateStr)} ${escapeHtml(timeStr)}<br/>จำนวน: ${list.length} เครื่อง</div>
+  </div>
+  <table>
+    <thead><tr>
+      <th class="c">ITEM</th><th>Part Name</th><th>Model</th><th>Machine No</th>
+      <th>Part No.</th><th>Serial No.</th><th>IT Controller No.</th><th>IMEI</th>
+      <th>ใบอนุญาตนำเข้า</th><th>อินวอยซ์</th><th>ผลเทียบใบอนุญาต</th><th class="c">รูปถ่าย</th><th class="c">Status</th>
+    </tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  <div class="sign">
+    <div><div class="line">ผู้ตรวจสอบ (QA)</div></div>
+    <div><div class="line">ผู้อนุมัติ</div></div>
+    <div><div class="line">วันที่</div></div>
+  </div>
+</body></html>`
+}
 
 export default function QAMachineList() {
   const [confirmedRows, setConfirmedRows] = useState([])
@@ -99,12 +183,91 @@ export default function QAMachineList() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize)
 
+  // Export เป็น PDF (Check Sheet) — สร้าง iframe ซ่อน เขียน HTML แล้วสั่งพิมพ์
+  // (เลี่ยง popup blocker) ผู้ใช้เลือก "Save as PDF" จากหน้าต่างพิมพ์ของเบราว์เซอร์
+  // แนะนำให้เลือกกระดาษ "แนวนอน (Landscape)" เพราะตารางกว้าง
+  function handleExportPDF() {
+    const list = filtered // ส่งออกตามที่กรอง/ค้นหาอยู่ (ทุกหน้า)
+    if (!list.length) return
+
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('aria-hidden', 'true')
+    Object.assign(iframe.style, {
+      position: 'fixed',
+      right: '0',
+      bottom: '0',
+      width: '0',
+      height: '0',
+      border: '0',
+    })
+    document.body.appendChild(iframe)
+
+    const doc = iframe.contentWindow.document
+    doc.open()
+    doc.write(buildCheckSheetHTML(list))
+    doc.close()
+
+    let printed = false
+    const cleanup = () =>
+      setTimeout(() => {
+        try {
+          document.body.removeChild(iframe)
+        } catch {
+          /* ignore */
+        }
+      }, 1000)
+
+    const doPrint = () => {
+      if (printed) return
+      printed = true
+      try {
+        iframe.contentWindow.focus()
+        iframe.contentWindow.print()
+      } catch {
+        /* ignore */
+      }
+      cleanup()
+    }
+
+    // รอรูปถ่ายโหลดครบก่อนพิมพ์ (มี timeout กันค้าง)
+    const imgs = Array.from(doc.images || [])
+    let pending = imgs.length
+    if (pending === 0) {
+      setTimeout(doPrint, 300)
+    } else {
+      const settle = () => {
+        pending -= 1
+        if (pending <= 0) doPrint()
+      }
+      imgs.forEach((img) => {
+        if (img.complete) settle()
+        else {
+          img.addEventListener('load', settle)
+          img.addEventListener('error', settle)
+        }
+      })
+      setTimeout(doPrint, 4000) // fallback ถ้ารูปโหลดช้า/ค้าง
+    }
+  }
+
   return (
     <AppShell navItems={navItems} roleLabel="QA">
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">QA</h2>
+          <p className="wh-subtitle">
+            ตารางสรุปเครื่องที่ยืนยันแล้ว — WH สแกน Part Confirmation ตรงกับใบอนุญาต และ MFG สแกนได้ Matched
+            (ดึงข้อมูลจาก WH + MFG + Master Data)
+          </p>
         </div>
+        <button
+          className="qa-download-btn"
+          onClick={handleExportPDF}
+          disabled={loading || filtered.length === 0}
+          title="พิมพ์/บันทึกเป็น PDF (Check Sheet)"
+        >
+          <ArrowDownTrayIcon className="size-4" /> Export PDF (Check Sheet)
+        </button>
       </div>
 
       <div className="dash-stats-row">
@@ -167,6 +330,7 @@ export default function QAMachineList() {
         <table className="wh-table">
           <thead>
             <tr>
+              <th>ITEM</th>
               <th>Part Name</th>
               <th>Model</th>
               <th>Machine No</th>
@@ -184,16 +348,19 @@ export default function QAMachineList() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={12} className="wh-empty-cell">
+                <td colSpan={13} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
             )}
             {!loading &&
-              pageRows.map((r) => {
+              pageRows.map((r, i) => {
                 const lic = licenseMatchMeta(r.matchStatus)
                 return (
                   <tr key={r.itControllerNo}>
+                    <td className="wh-cell-head" data-label="ITEM">
+                      <strong>{(page - 1) * pageSize + i + 1}</strong>
+                    </td>
                     <td data-label="Part Name">{dash(r.partName)}</td>
                     <td data-label="Model">{dash(r.model)}</td>
                     <td className="wh-cell-head" data-label="Machine No">
@@ -253,7 +420,7 @@ export default function QAMachineList() {
               })}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={12} className="wh-empty-cell">
+                <td colSpan={13} className="wh-empty-cell">
                   {confirmedRows.length === 0
                     ? 'ยังไม่มีเครื่องที่ครบเงื่อนไข — ต้องให้ WH ยืนยันตรงกับใบอนุญาต และ MFG สแกนได้ Matched ก่อน'
                     : 'ไม่พบรายการที่ค้นหา'}
