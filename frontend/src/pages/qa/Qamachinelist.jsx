@@ -1,136 +1,103 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useAppNavigate } from '../../lib/nav.jsx'
 import AppShell from '../../components/AppShell.jsx'
 import SelectField from '../../components/Selectfield.jsx'
-import BarcodeScannerModal from '../../components/Barcodescannermodal.jsx'
 import {
   CheckCircleIcon,
-  CheckIcon,
-  ClockIcon,
-  FunnelIcon,
-  QrCodeIcon,
+  CameraIcon,
   Squares2X2Icon,
+  XMarkIcon,
 } from '../../components/icons.jsx'
-import { getMachineSpecs } from '../../api/machineSpec.js'
-import { computeStatus, getApprovals, STATUS_LABEL } from '../../api/qaMachineStatus.js'
+import { getQAConfirmedTable } from '../../api/qaConfirmed.js'
+import { API_BASE_URL } from '../../api/client.js'
 
 const navItems = [{ to: '/qa', label: 'ตรวจสอบ QA', icon: <CheckCircleIcon className="size-4" /> }]
 
-// รวมรายการที่อัปโหลดมาแล้ว (อาจมีหลายแถวต่อ 1 เครื่อง เพราะอัปโหลดทีละหมวด)
-// ให้เหลือ 1 แถวต่อเครื่อง โดยใช้แถวที่อัปโหลดล่าสุด
-function dedupeByMachine(rows) {
-  const byMachine = new Map()
-  for (const row of rows) {
-    const no = row.MachineNo
-    if (!no) continue
-    const existing = byMachine.get(no)
-    if (!existing) {
-      byMachine.set(no, row)
-      continue
-    }
-    const existingDate = existing.UploadDate ? new Date(existing.UploadDate).getTime() : 0
-    const rowDate = row.UploadDate ? new Date(row.UploadDate).getTime() : 0
-    if (rowDate >= existingDate) byMachine.set(no, row)
+// ป้ายผลเทียบใบอนุญาต — ตารางสรุปจะมีแต่ MATCH แต่แม็พเผื่อค่าอื่นไว้ด้วย
+function licenseMatchMeta(status) {
+  switch (status) {
+    case 'MATCH':
+      return { label: 'ตรงกับใบอนุญาต', cls: 'il-badge il-badge-ok' }
+    case 'WRONG_INVOICE':
+      return { label: 'คนละอินวอยซ์', cls: 'il-badge il-badge-warn' }
+    case 'WRONG_PRODNO':
+      return { label: 'IMEI ไม่ตรง', cls: 'il-badge il-badge-warn' }
+    case 'DUPLICATE':
+      return { label: 'ซ้ำ', cls: 'il-badge il-badge-warn' }
+    case 'NOT_FOUND':
+      return { label: 'ไม่พบในบัญชี', cls: 'il-badge il-badge-bad' }
+    default:
+      return { label: status || '—', cls: 'il-badge il-badge-muted' }
   }
-  return Array.from(byMachine.values())
 }
 
-export default function QAMachineList() {
-  const navigate = useAppNavigate()
+const dash = (v) => (v && String(v).trim() !== '' ? v : '—')
 
-  const [rows, setRows] = useState([])
+export default function QAMachineList() {
+  const [confirmedRows, setConfirmedRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
-  const [showScanner, setShowScanner] = useState(false)
+  const [photoView, setPhotoView] = useState(null) // URL รูปที่กำลังเปิดดู
 
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
   const [search, setSearch] = useState('')
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
 
-  // เก็บ approvals ทั้งหมดไว้ใน state เดียว จะได้ re-render ตารางเมื่อกลับมาจากหน้า detail
-  const [approvalsVersion, setApprovalsVersion] = useState(0)
-
-  async function loadRows() {
+  async function loadConfirmed() {
     setLoading(true)
     setLoadError('')
     try {
-      const data = await getMachineSpecs()
-      setRows(dedupeByMachine(data || []))
+      const data = await getQAConfirmedTable()
+      setConfirmedRows(data || [])
     } catch (err) {
-      setLoadError(err.message || 'โหลดรายการไม่สำเร็จ')
+      setLoadError(err.message || 'โหลดตารางสรุปไม่สำเร็จ')
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    loadRows()
+    loadConfirmed()
   }, [])
 
-  // รีเฟรชสถานะทุกครั้งที่กลับมาที่หน้านี้ (เช่น ตรวจเสร็จจากหน้า detail แล้วกด "กลับ")
+  // รีเฟรชทุกครั้งที่กลับมาโฟกัสหน้านี้ (เผื่อ WH/MFG เพิ่งยืนยันเพิ่ม)
   useEffect(() => {
     function handleFocus() {
-      setApprovalsVersion((v) => v + 1)
+      loadConfirmed()
     }
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
   }, [])
 
-  const machinesWithStatus = useMemo(() => {
-    // eslint-disable-next-line no-unused-expressions
-    approvalsVersion
-    return rows.map((row) => {
-      const approvals = getApprovals(row.MachineNo)
-      return { ...row, __status: computeStatus(row, approvals) }
-    })
-  }, [rows, approvalsVersion])
+  useEffect(() => {
+    setPage(1)
+  }, [search, pageSize])
 
   const stats = useMemo(() => {
-    const total = machinesWithStatus.length
-    const pending = machinesWithStatus.filter((m) => m.__status === 'PENDING').length
-    const ok = machinesWithStatus.filter((m) => m.__status === 'OK').length
-    const fix = machinesWithStatus.filter((m) => m.__status === 'FIX').length
-    return { total, pending, ok, fix }
-  }, [machinesWithStatus])
+    const total = confirmedRows.length
+    const withPhoto = confirmedRows.filter((r) => r.photoURL).length
+    return { total, withPhoto }
+  }, [confirmedRows])
 
   const filtered = useMemo(() => {
-    let list = machinesWithStatus
-
-    if (startDate) {
-      const start = new Date(startDate).getTime()
-      list = list.filter((m) => !m.UploadDate || new Date(m.UploadDate).getTime() >= start)
-    }
-    if (endDate) {
-      const end = new Date(endDate).getTime() + 24 * 60 * 60 * 1000 - 1
-      list = list.filter((m) => !m.UploadDate || new Date(m.UploadDate).getTime() <= end)
-    }
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      list = list.filter(
-        (m) =>
-          m.MachineNo?.toLowerCase().includes(q) ||
-          m.Spec1?.toLowerCase().includes(q) ||
-          m.BaseSpec?.toLowerCase().includes(q)
-      )
-    }
-
-    return list
-  }, [machinesWithStatus, startDate, endDate, search])
+    const q = search.trim().toLowerCase()
+    if (!q) return confirmedRows
+    return confirmedRows.filter((r) =>
+      [
+        r.partName,
+        r.model,
+        r.machineNo,
+        r.partNo,
+        r.serialNo,
+        r.itControllerNo,
+        r.imei,
+        r.licenseNo,
+        r.invoiceNo,
+      ].some((v) => (v || '').toLowerCase().includes(q))
+    )
+  }, [confirmedRows, search])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize)
-
-  useEffect(() => {
-    setPage(1)
-  }, [startDate, endDate, search, pageSize])
-
-  function handleScanDetected(decodedText) {
-    setShowScanner(false)
-    const machineNo = decodedText.trim()
-    if (machineNo) navigate('/qa/machine', { machineNo })
-  }
 
   return (
     <AppShell navItems={navItems} roleLabel="QA">
@@ -143,81 +110,23 @@ export default function QAMachineList() {
       <div className="dash-stats-row">
         <div className="dash-stat-card">
           <div className="dash-stat-label">
-            <span>แมชชีนทั้งหมด</span>
-            <span className="dash-stat-icon dash-icon-blue">
+            <span>เครื่องที่ยืนยันแล้ว</span>
+            <span className="dash-stat-icon dash-icon-green">
               <Squares2X2Icon className="size-4" />
             </span>
           </div>
           <div className="dash-stat-value">{stats.total}</div>
-          <div className="qa-stat-sub">ทั้งหมด</div>
+          <div className="qa-stat-sub">ครบเงื่อนไข WH + MFG</div>
         </div>
         <div className="dash-stat-card">
           <div className="dash-stat-label">
-            <span>รอตรวจสอบ</span>
-            <span className="dash-stat-icon dash-icon-yellow">
-              <ClockIcon className="size-4" />
+            <span>มีรูปถ่ายยืนยัน</span>
+            <span className="dash-stat-icon dash-icon-blue">
+              <CameraIcon className="size-4" />
             </span>
           </div>
-          <div className="dash-stat-value">{stats.pending}</div>
-          <div className="qa-stat-sub">ทั้งหมด</div>
-        </div>
-        <div className="dash-stat-card">
-          <div className="dash-stat-label">
-            <span>สำเร็จ</span>
-            <span className="dash-stat-icon dash-icon-green">
-              <CheckIcon className="size-4" />
-            </span>
-          </div>
-          <div className="dash-stat-value">{stats.ok}</div>
-          <div className="qa-stat-sub">ทั้งหมด</div>
-        </div>
-        <div className="dash-stat-card">
-          <div className="dash-stat-label">
-            <span>รอแก้ไข</span>
-            <span className="dash-stat-icon dash-icon-red">!</span>
-          </div>
-          <div className="dash-stat-value">{stats.fix}</div>
-          <div className="qa-stat-sub">ทั้งหมด</div>
-        </div>
-      </div>
-
-      <div className="qa-scan-row">
-        <button className="qa-scan-btn" onClick={() => setShowScanner(true)}>
-          <span className="qa-btn-icon">
-            <QrCodeIcon className="size-[18px]" />
-          </span>
-          เริ่มสแกน
-        </button>
-      </div>
-
-      {showScanner && (
-        <BarcodeScannerModal
-          title="สแกนแมชชีน"
-          onDetected={handleScanDetected}
-          onClose={() => setShowScanner(false)}
-        />
-      )}
-
-      <div className="qa-filter-card">
-        <h3 className="qa-filter-title">เลือกช่วงเวลาที่ต้องการให้แสดง</h3>
-        <div className="qa-filter-row">
-          <div className="qa-filter-field">
-            <label>วันเริ่มต้น</label>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          </div>
-          <div className="qa-filter-field">
-            <label>วันสิ้นสุด</label>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          </div>
-          <button
-            className="qa-filter-btn"
-            onClick={() => {
-              setPage(1)
-            }}
-          >
-            <FunnelIcon className="size-4" />
-            กรอง
-          </button>
+          <div className="dash-stat-value">{stats.withPhoto}</div>
+          <div className="qa-stat-sub">จาก {stats.total} เครื่อง</div>
         </div>
       </div>
 
@@ -227,7 +136,7 @@ export default function QAMachineList() {
         </p>
       )}
 
-      <div className="wh-table-card">
+      <div className="wh-table-card" style={{ overflowX: 'auto' }}>
         <div className="qa-table-toolbar">
           <div className="qa-table-toolbar-left">
             แสดง{' '}
@@ -248,7 +157,7 @@ export default function QAMachineList() {
             <input
               className="wh-search"
               type="text"
-              placeholder="ค้นหา..."
+              placeholder="ค้นหา Part / Machine No / IT Controller / ใบอนุญาต / อินวอยซ์..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -258,43 +167,96 @@ export default function QAMachineList() {
         <table className="wh-table">
           <thead>
             <tr>
-              <th>Machine</th>
-              <th>Spec</th>
-              <th>Base Spec</th>
-              <th>สถานะ</th>
+              <th>Part Name</th>
+              <th>Model</th>
+              <th>Machine No</th>
+              <th>Part No.</th>
+              <th>Serial No.</th>
+              <th>IT Controller No.</th>
+              <th>IMEI</th>
+              <th>ใบอนุญาตนำเข้า</th>
+              <th>อินวอยซ์</th>
+              <th>ผลเทียบใบอนุญาต</th>
+              <th>รูปถ่าย</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={4} className="wh-empty-cell">
+                <td colSpan={12} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
             )}
             {!loading &&
-              pageRows.map((row) => (
-                <tr
-                  key={row.MachineNo}
-                  className="qa-clickable-row"
-                  onClick={() => navigate('/qa/machine', { machineNo: row.MachineNo })}
-                >
-                  <td className="wh-cell-head" data-label="Machine">
-                    <strong>{row.MachineNo}</strong>
-                  </td>
-                  <td data-label="Spec">{row.Spec1 || '—'}</td>
-                  <td data-label="Base Spec">{row.BaseSpec || '—'}</td>
-                  <td data-label="สถานะ">
-                    <span className={`qa-status-badge qa-status-${row.__status.toLowerCase()}`}>
-                      {row.__status === 'OK' ? 'OK' : STATUS_LABEL[row.__status]}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            {!loading && pageRows.length === 0 && (
+              pageRows.map((r) => {
+                const lic = licenseMatchMeta(r.matchStatus)
+                return (
+                  <tr key={r.itControllerNo}>
+                    <td data-label="Part Name">{dash(r.partName)}</td>
+                    <td data-label="Model">{dash(r.model)}</td>
+                    <td className="wh-cell-head" data-label="Machine No">
+                      <strong>{dash(r.machineNo)}</strong>
+                    </td>
+                    <td className="il-mono" data-label="Part No.">
+                      {dash(r.partNo)}
+                    </td>
+                    <td className="il-mono" data-label="Serial No.">
+                      {dash(r.serialNo)}
+                    </td>
+                    <td className="il-mono" data-label="IT Controller No.">
+                      {dash(r.itControllerNo)}
+                    </td>
+                    <td className="il-mono" data-label="IMEI">
+                      {dash(r.imei)}
+                    </td>
+                    <td data-label="ใบอนุญาตนำเข้า">{dash(r.licenseNo)}</td>
+                    <td data-label="อินวอยซ์">{dash(r.invoiceNo)}</td>
+                    <td data-label="ผลเทียบใบอนุญาต">
+                      <span className={lic.cls} title={r.matchMessage || ''}>
+                        {lic.label}
+                      </span>
+                    </td>
+                    <td data-label="รูปถ่าย">
+                      {r.photoURL ? (
+                        <button
+                          type="button"
+                          className="qa-photo-thumb"
+                          onClick={() => setPhotoView(r.photoURL)}
+                          title="ดูรูปถ่าย"
+                          style={{ padding: 0, border: 'none', background: 'transparent' }}
+                        >
+                          <img
+                            src={`${API_BASE_URL}${r.photoURL}`}
+                            alt="รูปถ่ายป้าย"
+                            loading="lazy"
+                            style={{
+                              width: 44,
+                              height: 44,
+                              objectFit: 'cover',
+                              borderRadius: 6,
+                              display: 'block',
+                              cursor: 'pointer',
+                            }}
+                          />
+                        </button>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td data-label="Status">
+                      <span className="il-badge il-badge-ok">Matched</span>
+                    </td>
+                  </tr>
+                )
+              })}
+            {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={4} className="wh-empty-cell">
-                  ไม่พบรายการ
+                <td colSpan={12} className="wh-empty-cell">
+                  {confirmedRows.length === 0
+                    ? 'ยังไม่มีเครื่องที่ครบเงื่อนไข — ต้องให้ WH ยืนยันตรงกับใบอนุญาต และ MFG สแกนได้ Matched ก่อน'
+                    : 'ไม่พบรายการที่ค้นหา'}
                 </td>
               </tr>
             )}
@@ -309,12 +271,37 @@ export default function QAMachineList() {
             <span>
               หน้า {page} / {totalPages}
             </span>
-            <button disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+            <button
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
               ถัดไป
             </button>
           </div>
         )}
       </div>
+
+      {/* ── Lightbox ดูรูปถ่ายป้าย ───────────────────────────────────────── */}
+      {photoView && (
+        <div className="wh-modal-overlay" onClick={() => setPhotoView(null)}>
+          <div
+            className="wh-modal"
+            style={{ maxWidth: 520, textAlign: 'center' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="wh-modal-actions" style={{ justifyContent: 'flex-end', marginTop: 0 }}>
+              <button className="wh-modal-cancel" onClick={() => setPhotoView(null)} aria-label="ปิด">
+                <XMarkIcon className="size-4" />
+              </button>
+            </div>
+            <img
+              src={`${API_BASE_URL}${photoView}`}
+              alt="รูปถ่ายป้าย"
+              style={{ maxWidth: '100%', borderRadius: 8 }}
+            />
+          </div>
+        </div>
+      )}
     </AppShell>
   )
 }

@@ -188,6 +188,9 @@ func SetupRoutes(r *gin.Engine) {
 	{
 		qa.GET("", controllers.GetQA)
 		qa.POST("", controllers.CreateQA)
+		// ตารางสรุป QA — รวมข้อมูล WH + MFG + Master Data เมื่อครบเงื่อนไข
+		// (MFG = MATCHED และ WH Part Confirmation ตรงกับใบอนุญาต)
+		qa.GET("/confirmed", controllers.GetQAConfirmedTable)
 	}
 
 	qaConfirm := auth.Group("/qa-confirm")
