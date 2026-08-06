@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"strings"
+	"time"
 
 	"iconfirm/config"
 	"iconfirm/models"
@@ -30,6 +31,7 @@ type QAConfirmedRow struct {
 	MatchMessage   string `json:"matchMessage"` // ข้อความอธิบายผลเทียบ
 	PhotoURL       string `json:"photoURL"`     // รูปถ่ายป้ายยืนยันจากฝั่ง WH
 	Status         string `json:"status"`       // สถานะรวม (MATCHED เมื่อครบเงื่อนไข)
+	ConfirmedAt    string `json:"confirmedAt"`  // วันเวลาที่ WH ยืนยัน (RFC3339) — ใช้กรองตามปี/เดือน/วันฝั่ง QA
 }
 
 // GetQAConfirmedTable คืนตารางสรุปสำหรับ QA
@@ -100,6 +102,7 @@ func GetQAConfirmedTable(c *gin.Context) {
 			MatchMessage:   pc.MatchMessage,
 			PhotoURL:       pc.PhotoURL,
 			Status:         models.MFGStatusMatched,
+			ConfirmedAt:    pc.CheckedDatetime.Format(time.RFC3339),
 		}
 
 		if hasMD {
