@@ -84,6 +84,7 @@ export default function TSFOperatorPage() {
   const [loadError, setLoadError] = useState('')
 
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('') // '' = ทั้งหมด
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
 
@@ -122,7 +123,7 @@ export default function TSFOperatorPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, pageSize])
+  }, [search, statusFilter, pageSize])
 
   // ── ตัวดักสัญญาณเครื่องสแกนระดับหน้าเว็บ (แบบเดียวกับหน้า WH) ──────────────
   // เครื่องสแกน = คีย์บอร์ดที่พิมพ์เร็วมาก (เว้นแต่ละตัว < ~50ms) แล้วปิดท้ายด้วย Enter
@@ -330,9 +331,11 @@ export default function TSFOperatorPage() {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
-    if (!term) return rows
-    return rows.filter(
-      (r) =>
+    return rows.filter((r) => {
+      // กรองตามสถานะที่เลือก ('' = ทั้งหมด)
+      if (statusFilter && (r.Status || '') !== statusFilter) return false
+      if (!term) return true
+      return (
         (r.Item || '').toLowerCase().includes(term) ||
         (r.MachineNo || '').toLowerCase().includes(term) ||
         (r.ITControllerNo || '').toLowerCase().includes(term) ||
@@ -340,8 +343,9 @@ export default function TSFOperatorPage() {
         (r.Status || '').toLowerCase().includes(term) ||
         (r.WHLicenseNo || '').toLowerCase().includes(term) ||
         (r.WHInvoiceNo || '').toLowerCase().includes(term)
-    )
-  }, [rows, search])
+      )
+    })
+  }, [rows, search, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize)
@@ -409,13 +413,27 @@ export default function TSFOperatorPage() {
           </div>
           entries per page
         </div>
-        <input
-          className="wh-search"
-          type="text"
-          placeholder="ค้นหา Item / Machine No / IT Controller / Country / Status"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="wh-pagesize-select" style={{ minWidth: 180 }}>
+            <SelectField
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: '', label: 'สถานะทั้งหมด' },
+                { value: 'MATCHED', label: 'Matched' },
+                { value: 'NOT_MATCHED', label: 'Not Matched' },
+                { value: 'DUPLICATE', label: 'Duplicate (ซ้ำ)' },
+              ]}
+            />
+          </div>
+          <input
+            className="wh-search"
+            type="text"
+            placeholder="ค้นหา Item / Machine No / IT Controller / Country / Status"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
       </div>
 
       <div className="wh-table-card">
