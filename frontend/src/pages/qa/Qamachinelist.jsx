@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import AppShell from '../../components/AppShell.jsx'
 import SelectField from '../../components/Selectfield.jsx'
+import DatePickerField from '../../components/DatePickerField.jsx'
 import {
   ArrowDownTrayIcon,
   CameraIcon,
@@ -36,21 +37,6 @@ function licenseMatchMeta(status) {
 
 const dash = (v) => (v && String(v).trim() !== '' ? v : '—')
 
-const THAI_MONTHS = [
-  'มกราคม',
-  'กุมภาพันธ์',
-  'มีนาคม',
-  'เมษายน',
-  'พฤษภาคม',
-  'มิถุนายน',
-  'กรกฎาคม',
-  'สิงหาคม',
-  'กันยายน',
-  'ตุลาคม',
-  'พฤศจิกายน',
-  'ธันวาคม',
-]
-
 const pad2 = (n) => String(n).padStart(2, '0')
 
 // ลงทะเบียนฟอนต์ Sarabun (รองรับภาษาไทย) ให้ jsPDF — ฟอนต์ default ของ jsPDF ไม่มีตัวไทย
@@ -80,11 +66,63 @@ async function fetchImageAsDataURL(url) {
 }
 
 // หา format รูปจาก data URL (jsPDF ต้องระบุ format ให้ตรงตอน addImage)
+// jsPDF ฝังได้เฉพาะ JPEG/PNG — ถ้าเป็นชนิดอื่น (webp, gif ฯลฯ) คืน null เพื่อให้ข้ามไป
+// จะได้ไม่เสี่ยงทำให้ไฟล์ PDF พัง
 function imageFormatFromDataURL(dataUrl) {
-  const m = /^data:image\/(\w+);/.exec(dataUrl || '')
-  const ext = (m?.[1] || 'jpeg').toLowerCase()
-  if (ext === 'jpg') return 'JPEG'
-  return ext.toUpperCase()
+  const m = /^data:image\/(\w+);base64,/.exec(dataUrl || '')
+  if (!m) return null
+  const ext = m[1].toLowerCase()
+  if (ext === 'jpg' || ext === 'jpeg') return 'JPEG'
+  if (ext === 'png') return 'PNG'
+  return null // ชนิดที่ jsPDF ฝังไม่ได้ — ข้าม
+}
+
+// วันที่วันนี้ในรูปแบบ YYYY-MM-DD (ตามเวลาเครื่องผู้ใช้) — ใช้กับ <input type="date">
+function toYMD(d) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+
+// ป้ายวันที่ภาษาไทยจากสตริง YYYY-MM-DD (เช่น "6 สิงหาคม 2569")
+function thaiDateLabel(ymd) {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('th-TH', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+}
+
+// ดาวน์โหลด PDF แบบทนทาน — เดสก์ท็อปใช้ลิงก์ดาวน์โหลดปกติ,
+// มือถือ/เว็บวิวบางตัวสั่งดาวน์โหลด blob แล้วได้ไฟล์ว่าง จึงเปิดในแท็บใหม่ให้แทน
+// (ผู้ใช้กดบันทึก/แชร์/พิมพ์จากตัวเปิด PDF ได้เอง)
+function savePdf(doc, filename) {
+  const blob = doc.output('blob')
+  const url = URL.createObjectURL(blob)
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
+
+  if (isMobile) {
+    // เปิดในแท็บ/ตัวอ่าน PDF ของเครื่อง — เชื่อถือได้กว่าการสั่งดาวน์โหลดตรงๆ บนมือถือ
+    const win = window.open(url, '_blank')
+    if (!win) {
+      // ป็อปอัปโดนบล็อก → ถอยไปใช้ลิงก์ดาวน์โหลด
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    }
+  } else {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }
+
+  // เผื่อตัวอ่าน PDF ยังต้องใช้ URL อยู่ ค่อยคืนหน่วยความจำหลังผ่านไปสักครู่
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 export default function QAMachineList() {
@@ -98,10 +136,9 @@ export default function QAMachineList() {
   const [page, setPage] = useState(1)
   const [exportingPDF, setExportingPDF] = useState(false)
 
-  // ตัวกรองวันที่ (ปี/เดือน/วัน ที่ WH ยืนยัน) — ต้องเลือกให้ครบก่อนถึง Export PDF ได้
-  const [selectedYear, setSelectedYear] = useState('')
-  const [selectedMonth, setSelectedMonth] = useState('')
-  const [selectedDay, setSelectedDay] = useState('')
+  // ตัวกรองวันที่ (วันที่ WH ยืนยัน) — เลือกได้ตามใจ ไม่บังคับ
+  // ว่าง = ออก Check Sheet ของทุกวันรวมกัน / เลือกวัน = เฉพาะวันนั้น
+  const [selectedDate, setSelectedDate] = useState('') // 'YYYY-MM-DD' หรือ ''
 
   async function loadConfirmed() {
     setLoading(true)
@@ -131,50 +168,23 @@ export default function QAMachineList() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, pageSize, selectedYear, selectedMonth, selectedDay])
+  }, [search, pageSize, selectedDate])
 
-  // ตัวเลือกปี — ดึงจากปีที่มีข้อมูลจริงเท่านั้น (ใหม่ไปเก่า)
-  const yearOptions = useMemo(() => {
-    const years = new Set()
+  // ขอบเขตวันที่ที่มีข้อมูลจริง — ใช้กำหนด min/max ให้ปฏิทิน และปุ่ม "ล่าสุด"
+  const dateBounds = useMemo(() => {
+    let min = null
+    let max = null
     confirmedRows.forEach((r) => {
-      if (r.confirmedAt) years.add(new Date(r.confirmedAt).getFullYear())
+      if (!r.confirmedAt) return
+      const ymd = toYMD(new Date(r.confirmedAt))
+      if (min === null || ymd < min) min = ymd
+      if (max === null || ymd > max) max = ymd
     })
-    if (!years.size) years.add(new Date().getFullYear())
-    return Array.from(years)
-      .sort((a, b) => b - a)
-      .map((y) => ({ value: String(y), label: String(y + 543) })) // แสดง พ.ศ.
+    return { min, max }
   }, [confirmedRows])
 
-  const monthOptions = useMemo(
-    () => THAI_MONTHS.map((label, i) => ({ value: String(i + 1), label })),
-    []
-  )
-
-  // ตัวเลือกวัน — คำนวณจำนวนวันตามปี/เดือนที่เลือกจริง (ถ้ายังไม่เลือกปี/เดือน ใช้ 31 วันไปก่อน)
-  const dayOptions = useMemo(() => {
-    const daysInMonth =
-      selectedYear && selectedMonth
-        ? new Date(Number(selectedYear), Number(selectedMonth), 0).getDate()
-        : 31
-    return Array.from({ length: daysInMonth }, (_, i) => ({
-      value: String(i + 1),
-      label: String(i + 1),
-    }))
-  }, [selectedYear, selectedMonth])
-
-  // ถ้าเปลี่ยนปี/เดือนแล้ววันที่เลือกไว้เกินจำนวนวันของเดือนนั้น ให้เคลียร์ทิ้ง
-  useEffect(() => {
-    if (selectedDay && Number(selectedDay) > dayOptions.length) {
-      setSelectedDay('')
-    }
-  }, [dayOptions, selectedDay])
-
-  const dateFullySelected = Boolean(selectedYear && selectedMonth && selectedDay)
-
   function clearDateFilter() {
-    setSelectedYear('')
-    setSelectedMonth('')
-    setSelectedDay('')
+    setSelectedDate('')
   }
 
   const stats = useMemo(() => {
@@ -201,21 +211,14 @@ export default function QAMachineList() {
         if (!matchesSearch) return false
       }
 
-      if (dateFullySelected) {
+      if (selectedDate) {
         if (!r.confirmedAt) return false
-        const d = new Date(r.confirmedAt)
-        if (
-          d.getFullYear() !== Number(selectedYear) ||
-          d.getMonth() + 1 !== Number(selectedMonth) ||
-          d.getDate() !== Number(selectedDay)
-        ) {
-          return false
-        }
+        if (toYMD(new Date(r.confirmedAt)) !== selectedDate) return false
       }
 
       return true
     })
-  }, [confirmedRows, search, dateFullySelected, selectedYear, selectedMonth, selectedDay])
+  }, [confirmedRows, search, selectedDate])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize)
@@ -224,7 +227,7 @@ export default function QAMachineList() {
   // ไม่ใช่รูปถ่ายหน้าจอ) แล้วสั่งดาวน์โหลดไฟล์ทันที ไม่ต้องผ่านหน้าต่างพิมพ์ของเบราว์เซอร์
   async function handleExportPDF() {
     const list = filtered // ส่งออกตามที่กรอง/ค้นหา/วันที่เลือกอยู่ (ทุกหน้า)
-    if (!list.length || exportingPDF || !dateFullySelected) return
+    if (!list.length || exportingPDF) return
 
     setExportingPDF(true)
     try {
@@ -243,13 +246,9 @@ export default function QAMachineList() {
         day: 'numeric',
       })} ${now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`
 
-      const checkDateLabel = new Date(
-        Number(selectedYear),
-        Number(selectedMonth) - 1,
-        Number(selectedDay)
-      ).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })
+      const checkDateLabel = selectedDate ? thaiDateLabel(selectedDate) : 'ทั้งหมด'
 
-      const PHOTO_COL_INDEX = 11
+      const PHOTO_COL_INDEX = 12
       const head = [
         [
           'ITEM',
@@ -262,6 +261,7 @@ export default function QAMachineList() {
           'IMEI',
           'ใบอนุญาตนำเข้า',
           'อินวอยซ์',
+          'ส่งออกไปประเทศ',
           'ผลเทียบใบอนุญาต',
           'รูปถ่าย',
           'Status',
@@ -278,6 +278,7 @@ export default function QAMachineList() {
         dash(r.imei),
         dash(r.licenseNo),
         dash(r.invoiceNo),
+        dash(r.exportCountry),
         licenseMatchMeta(r.matchStatus).label,
         '', // รูปถ่ายวาดเองใน didDrawCell
         'Matched',
@@ -292,11 +293,6 @@ export default function QAMachineList() {
         doc.setFont('Sarabun', 'normal')
         doc.setFontSize(9)
         doc.setTextColor(71, 85, 105)
-        doc.text(
-          'รายการเครื่องที่ยืนยันแล้ว (WH Part Confirmation ตรงกับใบอนุญาต + MFG Matched)',
-          10,
-          19
-        )
 
         const pageWidth = doc.internal.pageSize.getWidth()
         doc.text(`วันที่ตรวจสอบ (Check Sheet): ${checkDateLabel}`, pageWidth - 10, 12, { align: 'right' })
@@ -327,19 +323,21 @@ export default function QAMachineList() {
         columnStyles: {
           0: { halign: 'center', cellWidth: 10 },
           [PHOTO_COL_INDEX]: { halign: 'center', cellWidth: 16, minCellHeight: 14 },
-          12: { halign: 'center' },
+          13: { halign: 'center' },
         },
         didDrawPage: drawHeader,
         didDrawCell: (data) => {
           if (data.section !== 'body' || data.column.index !== PHOTO_COL_INDEX) return
           const dataUrl = photoDataUrls[data.row.index]
           if (!dataUrl) return
+          const fmt = imageFormatFromDataURL(dataUrl)
+          if (!fmt) return // ชนิดรูปที่ฝังไม่ได้ — ข้าม ไม่ให้ไฟล์พัง
           try {
             const pad = 1
             const size = Math.min(data.cell.height, data.cell.width) - pad * 2
             const x = data.cell.x + (data.cell.width - size) / 2
             const y = data.cell.y + (data.cell.height - size) / 2
-            doc.addImage(dataUrl, imageFormatFromDataURL(dataUrl), x, y, size, size)
+            doc.addImage(dataUrl, fmt, x, y, size, size)
           } catch {
             // ข้ามรูปที่ฝังไม่สำเร็จ ไม่ทำให้ PDF ทั้งฉบับพัง
           }
@@ -369,8 +367,8 @@ export default function QAMachineList() {
         doc.text(c.label, c.cx, signY + 5, { align: 'center' })
       })
 
-      const fileDate = `${selectedYear}-${pad2(selectedMonth)}-${pad2(selectedDay)}`
-      doc.save(`QA-CheckSheet-${fileDate}.pdf`)
+      const fileDate = selectedDate || 'ทั้งหมด'
+      savePdf(doc, `QA-CheckSheet-${fileDate}.pdf`)
     } catch (err) {
       console.error(err)
       alert('สร้าง PDF ไม่สำเร็จ กรุณาลองใหม่')
@@ -384,32 +382,23 @@ export default function QAMachineList() {
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">QA</h2>
-          <p className="wh-subtitle">
-            ตารางสรุปเครื่องที่ยืนยันแล้ว — WH สแกน Part Confirmation ตรงกับใบอนุญาต และ MFG สแกนได้ Matched
-            (ดึงข้อมูลจาก WH + MFG + Master Data)
-          </p>
         </div>
       </div>
 
       <div className="qa-date-filter-row" style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div>
-          <label style={{ display: 'block', fontSize: 12, color: '#475569', marginBottom: 4 }}>ปี</label>
-          <SelectField value={selectedYear} onChange={setSelectedYear} options={yearOptions} placeholder="— ปี —" />
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: 12, color: '#475569', marginBottom: 4 }}>เดือน</label>
-          <SelectField
-            value={selectedMonth}
-            onChange={setSelectedMonth}
-            options={monthOptions}
-            placeholder="— เดือน —"
+        <div style={{ minWidth: 220 }}>
+          <label style={{ display: 'block', fontSize: 12, color: '#475569', marginBottom: 4 }}>
+            วันที่ยืนยัน (ไม่บังคับ)
+          </label>
+          <DatePickerField
+            value={selectedDate}
+            onChange={setSelectedDate}
+            min={dateBounds.min}
+            max={dateBounds.max}
+            placeholder="— เลือกวันที่ —"
           />
         </div>
-        <div>
-          <label style={{ display: 'block', fontSize: 12, color: '#475569', marginBottom: 4 }}>วัน</label>
-          <SelectField value={selectedDay} onChange={setSelectedDay} options={dayOptions} placeholder="— วัน —" />
-        </div>
-        {(selectedYear || selectedMonth || selectedDay) && (
+        {selectedDate && (
           <button type="button" className="qa-download-btn" onClick={clearDateFilter} style={{ height: 40 }}>
             ล้างวันที่
           </button>
@@ -417,19 +406,25 @@ export default function QAMachineList() {
         <button
           className="qa-download-btn"
           onClick={handleExportPDF}
-          disabled={loading || filtered.length === 0 || exportingPDF || !dateFullySelected}
-          title={dateFullySelected ? 'ดาวน์โหลดเป็น PDF (Check Sheet)' : 'กรุณาเลือกปี เดือน วัน ก่อน Export PDF'}
+          disabled={loading || filtered.length === 0 || exportingPDF}
+          title={
+            filtered.length === 0
+              ? 'ไม่มีรายการให้ออก Check Sheet'
+              : selectedDate
+                ? `ดาวน์โหลด Check Sheet ของวันที่ ${thaiDateLabel(selectedDate)}`
+                : 'ดาวน์โหลด Check Sheet ของรายการทั้งหมด'
+          }
           style={{ marginLeft: 'auto' }}
         >
           <ArrowDownTrayIcon className="size-4" />
           {exportingPDF ? 'กำลังสร้าง PDF...' : 'Export PDF (Check Sheet)'}
         </button>
       </div>
-      {!dateFullySelected && (
-        <p className="qa-stat-sub" style={{ marginTop: -8, marginBottom: 16 }}>
-          กรุณาเลือกปี เดือน และวัน ที่ต้องการออก Check Sheet ก่อนถึงจะกด Export PDF ได้
-        </p>
-      )}
+      <p className="qa-stat-sub" style={{ marginTop: -8, marginBottom: 16 }}>
+        {selectedDate
+          ? `กำลังกรองเฉพาะวันที่ ${thaiDateLabel(selectedDate)} — พบ ${filtered.length} เครื่อง`
+          : `ยังไม่ได้เลือกวัน — Export จะได้ทั้งหมด ${filtered.length} เครื่อง (เลือกวันเพื่อออกเฉพาะวันนั้น)`}
+      </p>
 
       <div className="dash-stats-row">
         <div className="dash-stat-card">
@@ -501,6 +496,7 @@ export default function QAMachineList() {
               <th>IMEI</th>
               <th>ใบอนุญาตนำเข้า</th>
               <th>อินวอยซ์</th>
+              <th>ส่งออกไปประเทศ</th>
               <th>ผลเทียบใบอนุญาต</th>
               <th>รูปถ่าย</th>
               <th>Status</th>
@@ -509,7 +505,7 @@ export default function QAMachineList() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={13} className="wh-empty-cell">
+                <td colSpan={14} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -541,6 +537,7 @@ export default function QAMachineList() {
                     </td>
                     <td data-label="ใบอนุญาตนำเข้า">{dash(r.licenseNo)}</td>
                     <td data-label="อินวอยซ์">{dash(r.invoiceNo)}</td>
+                    <td data-label="ส่งออกไปประเทศ">{dash(r.exportCountry)}</td>
                     <td data-label="ผลเทียบใบอนุญาต">
                       <span className={lic.cls} title={r.matchMessage || ''}>
                         {lic.label}
@@ -581,7 +578,7 @@ export default function QAMachineList() {
               })}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={13} className="wh-empty-cell">
+                <td colSpan={14} className="wh-empty-cell">
                   {confirmedRows.length === 0
                     ? 'ยังไม่มีเครื่องที่ครบเงื่อนไข — ต้องให้ WH ยืนยันตรงกับใบอนุญาต และ MFG สแกนได้ Matched ก่อน'
                     : 'ไม่พบรายการที่ค้นหา'}
