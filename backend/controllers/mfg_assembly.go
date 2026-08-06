@@ -11,13 +11,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetMFGAssemblies คืนรายการ MFG Assembly ทั้งหมด (ใหม่สุดอยู่บน)
+// GetMFGAssemblies คืนรายการ MFG Assembly ทั้งหมด — เรียง Item จาก "น้อยไปมาก" (1..N)
 func GetMFGAssemblies(c *gin.Context) {
 	var rows []models.MFGAssembly
-	config.DB.Order("id desc").Find(&rows)
+	// ดึงเรียงจาก "เก่า -> ใหม่" (id asc) แล้วไล่หมายเลข Item ให้ต่อเนื่อง 1..N ตามลำดับ
+	// การสร้างจริง — ป้องกันเลขซ้ำ/ข้ามเลขที่เกิดจากการลบแถวกลางทาง
+	// (ของเดิมตั้ง Item = จำนวนแถว+1 พอมีการลบแล้วจำนวนแถวลด เลขจึงชนกันได้)
+	// ส่งกลับตามลำดับนี้เลย -> ตารางจะเห็น Item เรียงน้อยไปมาก (1, 2, 3, ..., N) จากบนลงล่าง
+	config.DB.Order("id asc").Find(&rows)
 	// คำนวณผลยืนยันฝั่ง WH สดทุกครั้ง เผื่อ WH เพิ่งมายืนยันหลัง MFG สแกนไปแล้ว
 	// DUPLICATE เป็นสถานะ ณ ตอนสแกน (snapshot) จึงไม่คำนวณใหม่ ให้คงไว้
 	for i := range rows {
+		rows[i].Item = strconv.Itoa(i + 1) // ไล่ลำดับใหม่ตามการสร้างจริง (เก่าสุด = 1)
 		enrichMFGWithWH(&rows[i])
 		if rows[i].Status != models.MFGStatusDuplicate {
 			if rows[i].WHMatched {

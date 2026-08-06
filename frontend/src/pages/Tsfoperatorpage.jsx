@@ -246,7 +246,9 @@ export default function TSFOperatorPage() {
     }
   }
 
-  // คลิกการ์ด -> เปิด popup ให้ยิง/พิมพ์ Machine No เอง
+  // เปิด popup "ว่าง" ให้ยิง/พิมพ์ Machine No แล้วกด "บันทึก" ค่อยบันทึก (ไม่บันทึกทันที)
+  // ใช้ร่วมกันทั้งตอนคลิกการ์ด และตอนเครื่องสแกนยิงเข้าหน้าเว็บ (เหมือนหน้า WH)
+  // — ช่องในป๊อปอัปเว้นว่างเสมอ ให้ยิงบาร์โค้ดจริงเข้ามาในนี้ (ไม่ prefill ค่าเดิม)
   async function runScanFlow() {
     if (busyRef.current) return
     busyRef.current = true
@@ -264,15 +266,10 @@ export default function TSFOperatorPage() {
   }
 
   // เครื่องสแกนยิงบาร์โค้ดเข้าหน้าเว็บโดยตรง (ไม่ต้องคลิกการ์ดก่อน)
-  // -> บันทึกให้ทันที พร้อมแสดง popup กำลังบันทึก/ผลลัพธ์
-  async function handleScannerFire(code) {
+  // -> เปิด popup "ว่าง" ให้ยิงซ้ำในป๊อปอัปก่อนบันทึก (เหมือนหน้า WH) ไม่บันทึกทันที
+  function handleScannerFire() {
     if (busyRef.current) return
-    busyRef.current = true
-    try {
-      await submitAssemblyCode(code)
-    } finally {
-      busyRef.current = false
-    }
+    runScanFlow()
   }
   fireRef.current = handleScannerFire
 
@@ -375,7 +372,7 @@ export default function TSFOperatorPage() {
           className="pc-barcode-card"
           role="button"
           tabIndex={0}
-          onClick={runScanFlow}
+          onClick={() => runScanFlow()}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') runScanFlow()
           }}
