@@ -46,12 +46,17 @@ const EMPTY_FORM = {
   status: '',
 }
 
-// วันที่แสดงผล (รับ ISO string / null)
+// วันที่-เวลา แสดงผล (รับ ISO string / null) เช่น 6/8/2569 14:35:32
 function fmtDate(value) {
   if (!value) return '—'
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleDateString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  const buddhistYear = d.getFullYear() + 543
+  const day = d.getDate()
+  const month = d.getMonth() + 1
+  const pad = (n) => String(n).padStart(2, '0')
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  return `${day}/${month}/${buddhistYear} ${time}`
 }
 
 // แปลงเป็นค่าใส่ <input type="date"> (yyyy-mm-dd)
@@ -358,9 +363,6 @@ export default function TSFOperatorPage() {
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">MFG</h2>
-          <p className="wh-subtitle">
-            คลิกการ์ดแล้วยิงบาร์โค้ด หรือพิมพ์ Machine No — ระบบดึง IT Controller No. ให้แล้วขึ้นในตาราง
-          </p>
         </div>
       </div>
 
@@ -459,10 +461,10 @@ export default function TSFOperatorPage() {
               </tr>
             )}
             {!loading &&
-              paged.map((a) => (
+              paged.map((a, idx) => (
                 <tr key={a.ID}>
                   <td className="wh-cell-head" data-label="Item">
-                    <strong>{a.Item || '—'}</strong>
+                    <strong>{(page - 1) * pageSize + idx + 1}</strong>
                   </td>
                   <td data-label="Date Ass'y">{fmtDate(a.DateAssembly)}</td>
                   <td className="il-mono" data-label="Machine No">

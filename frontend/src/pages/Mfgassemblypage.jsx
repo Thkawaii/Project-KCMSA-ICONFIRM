@@ -44,12 +44,17 @@ const EMPTY_FORM = {
   status: '',
 }
 
-// วันที่แสดงผล (รับ ISO string / null)
+// วันที่-เวลา แสดงผล (รับ ISO string / null) เช่น 6/8/2569 14:35:32
 function fmtDate(value) {
   if (!value) return '—'
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleDateString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  const buddhistYear = d.getFullYear() + 543
+  const day = d.getDate()
+  const month = d.getMonth() + 1
+  const pad = (n) => String(n).padStart(2, '0')
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  return `${day}/${month}/${buddhistYear} ${time}`
 }
 
 // แปลงเป็นค่าใส่ <input type="date"> (yyyy-mm-dd)
