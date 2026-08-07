@@ -286,15 +286,20 @@ export default function WHPartConfirmationPage() {
           setTimeout(() => setHighlightId(null), 6000)
         }
 
-        // ── ถ่ายรูปยืนยัน (เฉพาะ ITC) ────────────────────────────────────
-        // หลังบันทึกผลสแกนแล้ว เปิดกล้องให้ถ่ายรูปป้าย IT Controller จริงทันที
+        // ── ถ่ายรูปยืนยัน (ทุกชนิดพาร์ท) ─────────────────────────────────
+        // หลังบันทึกผลสแกนแล้ว เปิดกล้องให้ถ่ายรูปป้ายพาร์ทจริงทันที เป็นขั้นตอน
+        // ต่อเนื่องกับการสแกนแบบเดียวกับ IT Controller — ต่างกันแค่ ITC สแกน P/N + S/N
+        // ส่วน Swing Motor / Pump Assy HYD / Motor Propel / Control Valve สแกนแค่ S/N
+        // (backend เก็บรูปเป็นหลักฐานแบบ generic รองรับทุกชนิดพาร์ทอยู่แล้ว)
         // เป็นขั้นตอนบังคับต่อเนื่องกับการสแกน (ไม่มีปุ่มข้าม — flow เดียว)
         // ถ้าถ่ายรูปไม่ชัด แก้ไขทีหลังได้จากแถบ "ผลสแกนล่าสุด" ด้านล่าง
-        if (isITC && check?.ID) {
+        if (check?.ID) {
           scanClose() // ปิด popup loading ก่อนเปิดกล้อง กันซ้อนกัน
           const photoBlob = await scanPhotoCapture({
-            title: 'ถ่ายรูปป้าย IT Controller',
-            html: `<div class="scan-popup-hint">ค่าที่สแกน — P/N: <b>${pn || '-'}</b> / S/N: <b>${sn}</b></div>`,
+            title: `ถ่ายรูปป้าย ${partLabel}`,
+            html: `<div class="scan-popup-hint">ค่าที่สแกน — ${
+              needsPN ? `P/N: <b>${pn || '-'}</b> / ` : ''
+            }S/N: <b>${sn}</b></div>`,
           })
 
           if (photoBlob) {
@@ -720,7 +725,7 @@ export default function WHPartConfirmationPage() {
               {photoMatchBadge(lastScan.photoMatchStatus)} {lastScan.photoMatchMessage}
             </div>
           ) : null}
-          {lastScan.partType === 'ITC' && lastScan.matchStatus === 'MATCH' && lastScan.id ? (
+          {lastScan.id && lastScan.photoMatchStatus ? (
             <div className="pc-photo-edit">
               <span className="pc-photo-edit-label">ถ่ายภาพไม่ชัด?</span>
               <button
@@ -1044,13 +1049,13 @@ export default function WHPartConfirmationPage() {
                     <button className="tsf-action-btn" onClick={() => setDetailRow(r)}>
                       รายละเอียด
                     </button>
-                    {r.PartType === 'ITC' && r.MatchStatus === 'MATCH' && (
+                    {r.PhotoURL && (
                       <button
                         className="tsf-action-btn tsf-action-btn-warn"
                         onClick={() => setPhotoEditRow(r)}
                         disabled={photoUpdating}
                       >
-                        แก้ไข
+                        แก้ไขรูป
                       </button>
                     )}
                     {r.MatchStatus === 'NOT_FOUND' && (
