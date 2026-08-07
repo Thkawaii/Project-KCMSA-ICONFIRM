@@ -1613,3 +1613,102 @@
     padding: 18px 18px 16px;
   }
 }
+
+/* ============================================================================
+   Mobile toolbar refinements — WH / MFG / QA
+   ปรับ toolbar (pagesize / ปุ่ม export / ช่องค้นหา) ให้เรียงตัวเหมาะกับจอมือถือ
+   ใช้งานง่าย กดง่าย ไม่มีปุ่มลอยหรือกล่องบานผิดสัดส่วน
+   ========================================================================== */
+
+/* กล่อง "N entries per page" — บีบให้พอดีเลข อยู่บรรทัดเดียวทุกขนาดจอ */
+.tsf-history-pagesize,
+.qa-table-toolbar-left {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.tsf-history-pagesize .wh-pagesize-select,
+.qa-table-toolbar-left .wh-pagesize-select {
+  width: 72px;
+  flex: 0 0 72px;
+}
+
+/* QA: แถววันที่ + ปุ่ม export (เลย์เอาต์ desktop — ย้ายมาจาก inline style เดิม) */
+.qa-date-filter-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.qa-date-filter-row .qa-date-field {
+  min-width: 220px;
+}
+.qa-date-filter-row .qa-date-field label {
+  display: block;
+  font-size: 12px;
+  color: #475569;
+  margin-bottom: 4px;
+}
+/* บน desktop ดันปุ่ม Export ไปชิดขวา */
+.qa-date-filter-row .qa-export-btn {
+  margin-left: auto;
+}
+
+/* MFG: ช่องค้นหา + ปุ่มเพิ่มรายการ (เลย์เอาต์ desktop — ย้ายมาจาก inline style เดิม) */
+.mfg-search-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  /* แถว pagesize ชิดซ้าย ไม่ยืดเต็มแถว */
+  .tsf-history-toolbar > .tsf-history-pagesize,
+  .wh-history-filters > .tsf-history-pagesize,
+  .qa-table-toolbar .qa-table-toolbar-left {
+    align-self: flex-start;
+    justify-content: flex-start;
+  }
+
+  /* MFG: ช่องค้นหา + ปุ่มเพิ่มรายการ วางซ้อนกันเต็มความกว้าง */
+  .mfg-search-actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  .mfg-search-actions .wh-search {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .mfg-search-actions .tsf-action-btn {
+    width: 100%;
+    padding: 11px 12px;
+    font-size: 13px;
+  }
+
+  /* QA: แถววันที่ + ปุ่ม export วางซ้อนเต็มความกว้าง ไม่ให้ปุ่มลอยชิดขวา */
+  .qa-date-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .qa-date-filter-row .qa-date-field {
+    width: 100%;
+    min-width: 0;
+  }
+  .qa-date-filter-row .qa-download-btn {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+    height: auto;
+    padding: 12px 16px;
+  }
+
+  /* QA: ช่องค้นหาในตารางเต็มความกว้าง อยู่ใต้ pagesize */
+  .qa-table-toolbar-right {
+    width: 100%;
+  }
+  .qa-table-toolbar-right .wh-search {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}

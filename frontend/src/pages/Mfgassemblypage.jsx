@@ -316,7 +316,7 @@ export default function MFGAssemblyPage() {
           </div>
           entries per page
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="mfg-search-actions">
           <input
             className="wh-search"
             type="text"
