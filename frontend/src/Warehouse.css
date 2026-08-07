@@ -1242,6 +1242,37 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--pc-accent, #00cec8) 22%, transparent);
 }
 
+/* การ์ดที่เป็น "โหมดสแกนปัจจุบัน" (armed) — ผู้ใช้แตะเลือกไว้ล่าสุด
+   ยิงบาร์โค้ดที่ระบุชนิดไม่ได้จะเข้าโหมดนี้ให้เอง ไม่ต้องเลือกซ้ำ */
+.pc-barcode-card-armed {
+  border-color: var(--pc-accent, #00cec8);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc-accent, #00cec8) 30%, transparent),
+    0 10px 26px rgba(16, 24, 40, 0.1);
+}
+.pc-barcode-armed-tag {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--pc-accent, #00cec8);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+.pc-scan-mode-hint {
+  margin: 10px 2px 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--brand-500, #00cec8) 10%, #fff);
+  border: 1px solid color-mix(in srgb, var(--brand-500, #00cec8) 30%, transparent);
+  color: #0f5b57;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 /* ─── สีประจำแต่ละชนิดพาร์ท (คุมแถบหัวการ์ด + เส้นตอน hover/focus) หาเจอง่าย ─── */
 .pc-card-itc { --pc-accent: #4f46e5; } /* IT Controller — indigo */
 .pc-card-sm  { --pc-accent: #00a39d; } /* Swing Motor — teal (สีแบรนด์) */
