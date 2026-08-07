@@ -1072,6 +1072,29 @@ body:not(.swal2-toast-shown) .swal2-container.swal2-backdrop-show {
   .fdz-cta {
     display: none; /* จอเล็กแตะทั้งกล่องได้อยู่แล้ว ไม่ต้องมีปุ่มซ้ำ */
   }
+
+  /* ── Toast บนมือถือ ──────────────────────────────────────────────────
+     ปัญหาเดิม: SweetAlert ตั้ง container ของ toast เป็น width: 360px วางชิด
+     มุมขวาบนสุด (inset: 0 0 auto auto) บนจอ ~380px จึงกว้างเกือบเต็มจอ ทับ
+     header/โลโก้ และดูยาวผิดสัดส่วน
+     แก้เป็น: แถบกะทัดรัดพอดีข้อความ เว้นระยะจากขอบบน/ขวา ไม่ทับ header */
+  body.swal2-toast-shown .swal2-container {
+    width: auto !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 10px !important;
+  }
+  body.swal2-toast-shown .swal2-container.swal2-top-end,
+  body.swal2-toast-shown .swal2-container.swal2-top-right {
+    inset: max(10px, env(safe-area-inset-top)) 12px auto auto !important;
+  }
+  .swal2-popup.swal2-toast {
+    width: auto !important;
+    max-width: 100% !important;
+  }
+  /* ลดช่องว่างระหว่างไอคอนกับข้อความให้เป็นแถบกะทัดรัด */
+  .swal2-popup.swal2-toast .swal2-title {
+    margin: 0.4em 0.85em 0.4em 0.25em !important;
+  }
 }
 
 @media (max-width: 720px) {

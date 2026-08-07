@@ -385,11 +385,9 @@ export default function QAMachineList() {
         </div>
       </div>
 
-      <div className="qa-date-filter-row" style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div style={{ minWidth: 220 }}>
-          <label style={{ display: 'block', fontSize: 12, color: '#475569', marginBottom: 4 }}>
-            วันที่ยืนยัน (ไม่บังคับ)
-          </label>
+      <div className="qa-date-filter-row">
+        <div className="qa-date-field">
+          <label>วันที่ยืนยัน (ไม่บังคับ)</label>
           <DatePickerField
             value={selectedDate}
             onChange={setSelectedDate}
@@ -399,12 +397,12 @@ export default function QAMachineList() {
           />
         </div>
         {selectedDate && (
-          <button type="button" className="qa-download-btn" onClick={clearDateFilter} style={{ height: 40 }}>
+          <button type="button" className="qa-download-btn" onClick={clearDateFilter}>
             ล้างวันที่
           </button>
         )}
         <button
-          className="qa-download-btn"
+          className="qa-download-btn qa-export-btn"
           onClick={handleExportPDF}
           disabled={loading || filtered.length === 0 || exportingPDF}
           title={
@@ -414,7 +412,6 @@ export default function QAMachineList() {
                 ? `ดาวน์โหลด Check Sheet ของวันที่ ${thaiDateLabel(selectedDate)}`
                 : 'ดาวน์โหลด Check Sheet ของรายการทั้งหมด'
           }
-          style={{ marginLeft: 'auto' }}
         >
           <ArrowDownTrayIcon className="size-4" />
           {exportingPDF ? 'กำลังสร้าง PDF...' : 'Export PDF (Check Sheet)'}
