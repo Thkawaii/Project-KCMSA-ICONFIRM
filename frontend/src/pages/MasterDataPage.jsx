@@ -21,31 +21,68 @@ import {
 } from '../components/icons.jsx'
 import '../UploadData.css'
 
-// ประเภทข้อมูลที่เลือก "อัปโหลด" และ "ดูในตาราง" ได้
-// it_controller = ทะเบียน Master Data เดิม (อ่านชนิดจากคอลัมน์ในไฟล์, ยึด Serial No.
-// เป็นคีย์, อัปโหลดทับได้) ที่เหลือคือไฟล์ Planning/WH1/WH2/Engine ผ่าน /upload-data
-const TYPE_OPTIONS = [
-  { value: 'it_controller', label: 'IT Controller' },
+// ── ประเภทอะไหล่ในทะเบียน Master Data (อัปโหลดผ่าน /master-data/upload) ──
+// ใช้ร่วมกันทั้ง dropdown "ประเภทที่อัปโหลด" และตัวกรอง (Filter) ในตาราง
+// รหัสตรงกับ MasterData.ComponentType ที่ backend เก็บ
+// noLabel = ชื่อคอลัมน์ "หมายเลข" เฉพาะของอะไหล่ชนิดนั้น (แสดงแทน "IT Controller no.")
+const COMPONENT_TYPES = [
+  { value: 'it_controller', label: 'IT Controller', noLabel: 'IT Controller no.' },
+  { value: 'swing_motor', label: 'Swing Motor', noLabel: 'Swing Motor no.' },
+  { value: 'pump_assy_hyd', label: 'Pump Assy HYD', noLabel: 'Pump Assy HYD NO.' },
+  { value: 'motor_propel', label: 'Motor Propel', noLabel: 'Motor Propel NO.' },
+  { value: 'control_valve', label: 'Control Valve', noLabel: 'Control Valve NO.' },
+]
+
+// เซ็ตรหัสอะไหล่ — เช็คว่า "ประเภทที่อัปโหลด" เป็นทะเบียน Master Data หรือชุดข้อมูลไฟล์
+const COMPONENT_TYPE_VALUES = new Set(COMPONENT_TYPES.map((t) => t.value))
+
+// ── ชุดข้อมูลไฟล์ภายนอก (อัปโหลดผ่าน /upload-data) — ตารางไดนามิกตามคอลัมน์ ──
+const DATASET_TYPES = [
   { value: 'planning', label: 'Planning' },
   { value: 'wh1', label: 'WH1' },
   { value: 'wh2', label: 'WH2' },
   { value: 'engine', label: 'Engine' },
 ]
 
+// dropdown "ประเภทที่อัปโหลด" = อะไหล่ทุกชนิด + ชุดข้อมูลไฟล์
+const UPLOAD_TYPE_OPTIONS = [
+  ...COMPONENT_TYPES.map((t) => ({ value: t.value, label: t.label })),
+  ...DATASET_TYPES,
+]
+
+// dropdown "ดูในตาราง" = ทะเบียน Master Data (ALL = อะไหล่ทุกชนิดรวมกัน) + ชุดข้อมูลไฟล์
+// เลือก ALL แล้วเจาะดูแต่ละชนิดผ่านตัวกรอง (Filter) ในตาราง — ไม่แยกชนิดเป็นตัวเลือกที่นี่
+const TYPE_OPTIONS = [
+  { value: 'it_controller', label: 'ALL PART' },
+  ...DATASET_TYPES,
+]
+
+// ป้ายชื่อรวมทุกประเภท (ใช้กับข้อความ/ปุ่มอัปโหลด)
+const ALL_TYPE_LABELS = Object.fromEntries(
+  [...COMPONENT_TYPES, ...DATASET_TYPES].map((t) => [t.value, t.label]),
+)
+
 function typeLabel(value) {
-  return TYPE_OPTIONS.find((t) => t.value === value)?.label || value
+  return ALL_TYPE_LABELS[value] || value
 }
 
 // ชนิดอะไหล่ในทะเบียน Master Data — ใช้เป็นตัวกรอง (Filter) ในตาราง IT Controller
-// รหัสตรงกับ MasterData.ComponentType ที่ backend เก็บ
 const COMPONENT_TYPE_FILTER = [
   { value: 'all', label: 'ทุกชนิด' },
-  { value: 'it_controller', label: 'IT Controller' },
-  { value: 'swing_motor', label: 'Swing Motor' },
-  { value: 'pump_assy_hyd', label: 'Pump Assy HYD' },
-  { value: 'motor_propel', label: 'Motor Propel' },
-  { value: 'control_valve', label: 'Control Valve' },
+  ...COMPONENT_TYPES.map((t) => ({ value: t.value, label: t.label })),
 ]
+
+// ชื่อคอลัมน์ "หมายเลข" ตามตัวกรองที่เลือก — all (ทุกชนิด) ใช้ "No." กลางๆ เพราะรวมหลายชนิด
+const NO_LABEL_BY_TYPE = {
+  all: 'No.',
+  ...Object.fromEntries(COMPONENT_TYPES.map((t) => [t.value, t.noLabel])),
+}
+
+// ชื่อที่แสดงต่อท้าย "รายการ —" ตามตัวกรอง — all แสดงเป็น ALL PART (ดูอะไหล่ทุกชนิดรวมกัน)
+const HEADING_LABEL_BY_TYPE = {
+  all: 'ALL PART',
+  ...Object.fromEntries(COMPONENT_TYPES.map((t) => [t.value, t.label])),
+}
 
 const navItems = [
   { to: '/master-data', label: 'ทะเบียน Master Data', icon: <RectangleStackIcon className="size-4" /> },
@@ -58,6 +95,8 @@ export default function MasterDataPage() {
   // ประเภทที่จะอัปโหลด (เลือกก่อนอัปโหลด) และประเภทที่กำลังดูในตาราง
   const [uploadType, setUploadType] = useState('it_controller')
   const [viewType, setViewType] = useState('it_controller')
+  // ตัวกรองชนิดอะไหล่ในตาราง IT Controller — ยกมาไว้ที่นี่เพื่อให้ตั้งค่าอัตโนมัติหลังอัปโหลดได้
+  const [compType, setCompType] = useState('all')
 
   const [pendingFile, setPendingFile] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -82,9 +121,11 @@ export default function MasterDataPage() {
     setUploadMsg(null)
 
     try {
-      if (uploadType === 'it_controller') {
-        // ทะเบียน Master Data เดิม — backend อ่านชนิดจากคอลัมน์ในไฟล์เอง, ยึด Serial No. เป็นคีย์
-        const result = await uploadMasterData(pendingFile)
+      if (COMPONENT_TYPE_VALUES.has(uploadType)) {
+        // ทะเบียน Master Data (IT Controller / Swing Motor / Pump Assy HYD / Motor Propel /
+        // Control Valve) — ส่ง component_type เป็นชนิดตั้งต้น ถ้าไฟล์มีคอลัมน์ชนิดอะไหล่เอง
+        // backend จะใช้ค่าจากไฟล์ก่อน, ยึด Serial No. เป็นคีย์ อัปโหลดทับได้
+        const result = await uploadMasterData(pendingFile, uploadType)
         setUploadMsg({
           success: `นำเข้าสำเร็จ — เพิ่มใหม่ ${result.imported} รายการ, อัปเดตของเดิม ${result.updated} รายการ`,
           problems: result.problems || [],
@@ -100,7 +141,14 @@ export default function MasterDataPage() {
       if (fileInputRef.current) fileInputRef.current.value = ''
 
       // อัปโหลดเสร็จแล้วสลับตารางไปดูประเภทที่เพิ่งอัปโหลด แล้วรีโหลด
-      setViewType(uploadType)
+      if (COMPONENT_TYPE_VALUES.has(uploadType)) {
+        // อะไหล่ทะเบียน Master Data ดูผ่านตาราง IT Controller + ตั้ง Filter ให้ตรงชนิด
+        // (it_controller อาจเป็นไฟล์รวมหลายชนิด จึงตั้ง Filter เป็น "ทุกชนิด")
+        setViewType('it_controller')
+        setCompType(uploadType === 'it_controller' ? 'all' : uploadType)
+      } else {
+        setViewType(uploadType)
+      }
       setReloadKey((n) => n + 1)
     } catch (err) {
       setUploadMsg({ error: err.message || 'อัปโหลดไม่สำเร็จ' })
@@ -151,7 +199,7 @@ export default function MasterDataPage() {
                 setUploadMsg(null)
                 if (fileInputRef.current) fileInputRef.current.value = ''
               }}
-              options={TYPE_OPTIONS.map((t) => ({ value: t.value, label: t.label }))}
+              options={UPLOAD_TYPE_OPTIONS.map((t) => ({ value: t.value, label: t.label }))}
             />
           </div>
 
@@ -176,7 +224,7 @@ export default function MasterDataPage() {
       <div className="wh-heading-row" style={{ marginTop: 28 }}>
         <div>
           <h2 className="wh-title" style={{ fontSize: 19 }}>
-            รายการ — {typeLabel(viewType)}
+            รายการ — {viewType === 'it_controller' ? HEADING_LABEL_BY_TYPE[compType] : typeLabel(viewType)}
           </h2>
         </div>
         <div className="md-type-field">
@@ -189,7 +237,12 @@ export default function MasterDataPage() {
       </div>
 
       {viewType === 'it_controller' ? (
-        <ITControllerView reloadKey={reloadKey} bumpReload={() => setReloadKey((n) => n + 1)} />
+        <ITControllerView
+          reloadKey={reloadKey}
+          bumpReload={() => setReloadKey((n) => n + 1)}
+          compType={compType}
+          setCompType={setCompType}
+        />
       ) : (
         <DatasetView key={`${viewType}-${reloadKey}`} dataset={viewType} />
       )}
@@ -201,13 +254,15 @@ export default function MasterDataPage() {
    IT Controller = ทะเบียน Master Data เดิม (สรุป + ตาราง + ค้นหา + Export CSV)
    ยกเนื้อในเดิมมาทั้งหมด ไม่แตะพฤติกรรม
    ───────────────────────────────────────────────────────────────────────── */
-function ITControllerView({ reloadKey, bumpReload }) {
+function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [keyword, setKeyword] = useState('')
-  const [compType, setCompType] = useState('all')
   const [deletingId, setDeletingId] = useState(0)
+
+  // ชื่อคอลัมน์ "หมายเลข" ของตารางนี้ — เปลี่ยนตามตัวกรอง (Filter) ที่เลือก
+  const noLabel = NO_LABEL_BY_TYPE[compType] || 'IT Controller no.'
 
   useEffect(() => {
     let cancelled = false
@@ -276,7 +331,7 @@ function ITControllerView({ reloadKey, bumpReload }) {
   }
 
   function handleExportCsv() {
-    const header = ['Item No', 'Part Name', 'Model', 'Part No', 'Serial No', 'IT Controller no.', 'IMEI']
+    const header = ['Item No', 'Part Name', 'Model', 'Part No', 'Serial No', noLabel, 'IMEI']
     const body = filtered.map((row, i) => [
       i + 1,
       row.Name || '',
@@ -362,7 +417,7 @@ function ITControllerView({ reloadKey, bumpReload }) {
             type="search"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="สแกนหรือพิมพ์ S/N, IT Controller no., IMEI, P/N"
+            placeholder={`สแกนหรือพิมพ์ S/N, ${noLabel}, IMEI, P/N`}
             style={{ minWidth: 200, flex: '1 1 200px' }}
           />
           <button className="wh-issue-btn" onClick={handleExportCsv} disabled={filtered.length === 0}>
@@ -380,7 +435,7 @@ function ITControllerView({ reloadKey, bumpReload }) {
               <th>Model</th>
               <th>Part No.</th>
               <th>Serial No.</th>
-              <th>IT Controller no.</th>
+              <th>{noLabel}</th>
               <th>IMEI</th>
               <th></th>
             </tr>
@@ -408,7 +463,7 @@ function ITControllerView({ reloadKey, bumpReload }) {
                   <td data-label="Serial No." style={codeStyle}>
                     {row.SerialNo || DASH}
                   </td>
-                  <td data-label="IT Controller no." style={codeStyle}>
+                  <td data-label={noLabel} style={codeStyle}>
                     {row.ITControllerNo || DASH}
                   </td>
                   <td data-label="IMEI" style={codeStyle}>
