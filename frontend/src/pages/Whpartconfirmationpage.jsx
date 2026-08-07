@@ -149,6 +149,15 @@ export default function WHPartConfirmationPage() {
   // เก็บฟังก์ชันจัดการเมื่อสแกนเนอร์ยิง (อัปเดตทุก render กัน closure ค้าง)
   const fireRef = useRef(() => {})
 
+  // ── โหมดพาร์ทที่เลือกไว้ (armed) ─────────────────────────────────────────
+  // เมื่อผู้ใช้ "แตะการ์ดชนิดพาร์ท" ครั้งหนึ่ง ระบบจะจำชนิดนั้นไว้เป็นโหมดสแกนปัจจุบัน
+  // ทำให้การยิงบาร์โค้ดครั้งถัดๆ ไปที่ระบุชนิดจากตัวบาร์โค้ดไม่ได้ (เช่น P/N หรือ S/N
+  // ที่เป็นเลข/ตัวอักษรล้วน ไม่มีคำว่า CONTROLLER/SWING ฯลฯ) เข้า flow ของพาร์ทที่เลือกไว้
+  // ได้เลย — ไม่ต้องเด้ง popup ให้เลือกชนิดซ้ำทุกครั้ง (นี่คือสาเหตุที่ผู้ใช้เจอ
+  // "บางทีสแกนแล้วขึ้นให้เลือกประเภท") การจับชนิดจากคำในบาร์โค้ดยังมาก่อนเสมอ
+  const armedPartRef = useRef(null)
+  const [armedPart, setArmedPart] = useState(null)
+
   // ── แก้ไขรูปถ่ายป้าย (ถ่ายใหม่ / อัปโหลดแทน) หลังตรงกับใบอนุญาตแล้ว ──────
   // ใช้ได้ทั้งจากแถบ "ผลสแกนล่าสุด" และปุ่ม "แก้ไข" ในตารางประวัติ (ทุกแถวที่ตรงกับใบอนุญาต)
   const [photoUpdating, setPhotoUpdating] = useState(false)
@@ -214,6 +223,11 @@ export default function WHPartConfirmationPage() {
     const isITC = part.code === 'ITC'
     const needsPN = Boolean(part.needsPN)
 
+    // จำชนิดพาร์ทที่กำลังยืนยันไว้เป็น "โหมดสแกนปัจจุบัน" — การยิงบาร์โค้ดที่ระบุ
+    // ชนิดจากตัวมันเองไม่ได้ครั้งต่อไปจะเข้าพาร์ทนี้ทันที ไม่ต้องเลือกซ้ำ
+    armedPartRef.current = partTypeCode
+    setArmedPart(partTypeCode)
+
     busyRef.current = true
     // ข้อความ toast แจ้ง "สำเร็จ" (ถ้ามี) — เก็บไว้เด้ง "หลัง" ปลด busy เสมอ
     // เพราะ toast มี timer 3 วินาที ถ้า await ใต้ busy จะกันตัวดักสแกนไว้ตลอด 3 วิ
@@ -248,7 +262,14 @@ export default function WHPartConfirmationPage() {
       )
       if (!sn) return
 
-      // 3) ส่งขึ้น API — backend เทียบกับบัญชีแล้วตอบผลกลับมาในทีเดียว
+      // กันสแกนบาร์โค้ดเดิมซ้ำเข้าทั้งช่อง P/N และ S/N (เช่น กดยิงป้ายเดิมสองครั้ง)
+      // — เป็นสาเหตุหนึ่งที่ทำให้ S/N ออกมาเป็นค่าเดียวกับ P/N แบบผิดๆ
+      if (needsPN && sn === pn) {
+        await scanErrorAlert(
+          `ค่า S/N ซ้ำกับ P/N (${sn}) — เหมือนสแกนบาร์โค้ดเดิมซ้ำ กรุณาสแกน S/N ของ ${partLabel} อีกครั้ง`,
+        )
+        return
+      }
       scanLoading('กำลังตรวจสอบกับบัญชีใบอนุญาต...')
       try {
         const res = await scanPartCheck({
@@ -268,7 +289,7 @@ export default function WHPartConfirmationPage() {
             machineTag: check.Tag || '',
             partType: check.PartType || partTypeCode,
             pn: needsPN ? pn : '',
-            sn,
+            sn: check.SN || sn,
             machineNo: check.MachineNo || '',
             productionNo: check.ProductionNo || '',
             matchStatus: check.MatchStatus,
@@ -427,8 +448,14 @@ export default function WHPartConfirmationPage() {
 
     let partType = detectPartType(code)
 
+    // ระบุชนิดจากตัวบาร์โค้ดไม่ได้ -> ใช้ "โหมดพาร์ทที่เลือกไว้ล่าสุด" ถ้ามี
+    // (ผู้ใช้แตะการ์ดชนิดพาร์ทไว้แล้ว) เพื่อไม่ต้องเด้งให้เลือกซ้ำทุกครั้ง
+    if (!partType && armedPartRef.current) {
+      partType = armedPartRef.current
+    }
+
     if (!partType) {
-      // กัน flow/สแกนซ้อนระหว่างเปิดตัวเลือก
+      // ยังไม่เคยเลือกชนิดพาร์ทเลย -> เด้งตัวเลือกให้ยืนยันก่อน (ไม่เดามั่วเป็น ITC)
       busyRef.current = true
       let picked = null
       try {
@@ -660,7 +687,11 @@ export default function WHPartConfirmationPage() {
       <div className="pc-barcode-grid">
         {BARCODE_CARDS.map((card) => (
           <div
-            className={'pc-barcode-card pc-card-' + card.partType.toLowerCase()}
+            className={
+              'pc-barcode-card pc-card-' +
+              card.partType.toLowerCase() +
+              (armedPart === card.partType ? ' pc-barcode-card-armed' : '')
+            }
             key={card.partType}
             role="button"
             tabIndex={0}
@@ -673,6 +704,9 @@ export default function WHPartConfirmationPage() {
               }
             }}
           >
+            {armedPart === card.partType && (
+              <span className="pc-barcode-armed-tag">โหมดสแกน</span>
+            )}
             <span className="pc-barcode-kind">{card.kind}</span>
             <div className="pc-barcode-title">{card.title}</div>
             <div className="pc-barcode-box">
@@ -681,6 +715,13 @@ export default function WHPartConfirmationPage() {
           </div>
         ))}
       </div>
+
+      {armedPart && (
+        <p className="pc-scan-mode-hint">
+          กำลังสแกนในโหมด <b>{tagLabel(armedPart)}</b> — ยิงบาร์โค้ดที่ระบุชนิดไม่ได้
+          (เช่น P/N, S/N ที่เป็นเลขล้วน) จะเข้าโหมดนี้ให้เอง ถ้าจะเปลี่ยนชนิดให้แตะการ์ดอื่น
+        </p>
+      )}
 
       {/* ── ผลสแกนล่าสุด ────────────────────────────────────────────────── */}
       {lastScan && (

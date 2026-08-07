@@ -234,6 +234,17 @@ func ScanPartCheck(c *gin.Context) {
 				check.ProductionNo = imei
 			}
 
+			// ── กันช่อง S/N โชว์ "หมายเลขเครื่อง" แทน serial จริง ────────────────
+			// ถ้าผู้ใช้ยิงบาร์โค้ดหมายเลขเครื่อง 12 หลัก / IMEI มาที่ช่อง S/N
+			// (resolveITControllerMaster จับคู่ได้ด้วย it_controller_no/imei)
+			// ค่าที่บันทึกลง SN จะกลายเป็นเลขเครื่องซึ่งดูเหมือนบั๊ก — เมื่อรู้แน่ชัด
+			// แล้วว่าเป็นแถวไหนในทะเบียนกลาง จึงตั้ง SN ให้เป็น serial จริงของแถวนั้น
+			// (ถ้าทะเบียนกลางมี serial) ช่อง S/N จะได้ตรงกับ serial เสมอ ส่วนเลขเครื่อง
+			// ยังแสดงในคอลัมน์ "หมายเลขเครื่อง (IT Controller)" ตามเดิม
+			if master.SerialNo != "" && !strings.EqualFold(sn, master.SerialNo) {
+				check.SN = master.SerialNo
+			}
+
 			if machineNo == "" {
 				check.MatchStatus = models.MatchStatusNotFound
 				check.MatchMessage = "S/N " + sn + " ไม่มีหมายเลขเครื่อง (IT Controller) ในทะเบียนกลาง"
