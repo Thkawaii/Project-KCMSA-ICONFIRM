@@ -5,11 +5,21 @@ import { apiFetch, API_BASE_URL, getToken } from './client.js'
 // Serial Number / Expire date เก็บไว้เป็น "ตารางอ้างอิง" ฝั่งขาออก
 // หลักการเดียวกับ importLicense.js / whStock.js
 
-// getExportLicense() -> ทั้งหมด
-// getExportLicense('KQ300') -> ค้น Serial Number / Exception License
-export function getExportLicense(q = '') {
-  const qs = q ? `?q=${encodeURIComponent(q)}` : ''
-  return apiFetch(`/export-license${qs}`)
+// getExportLicense() -> ทั้งหมด (แต่ละแถวมี field `Link` = ผลการเชื่อมโยง)
+// getExportLicense('YN15436814') -> ค้น Serial / Exception / Machine No / IT Controller No / Invoice No
+// getExportLicense('', 'matched'|'unmatched') -> กรองตามสถานะการเชื่อม
+export function getExportLicense(q = '', link = '') {
+  const params = new URLSearchParams()
+  if (q) params.set('q', q)
+  if (link === 'matched' || link === 'unmatched') params.set('link', link)
+  const qs = params.toString()
+  return apiFetch(`/export-license${qs ? `?${qs}` : ''}`)
+}
+
+// ลากเส้นทางของ 1 แถวใบอนุญาตส่งออกแบบละเอียด (เปิดใน modal)
+// คืน { item, keys, importLicense?, mfgAssembly?, machineSpecs?, whStock? }
+export function getExportLicenseTrace(id) {
+  return apiFetch(`/export-license/${id}/trace`)
 }
 
 // การแจ้งเตือนอายุใบอนุญาตส่งออก (อายุ 1 เดือน)

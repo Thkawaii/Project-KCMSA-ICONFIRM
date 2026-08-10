@@ -152,6 +152,16 @@ func parseLicenseDate(v string) *time.Time {
 		"1/2/06", // ปี 2 หลัก (excelize อาจคืน m/d/yy ตาม number format)
 		"01/02/06",
 		"2/1/06",
+		// ── ตัวเลขล้วนคั่นด้วยขีด (dash) ──────────────────────────────────
+		// ไฟล์ Export License (Date Ass'y / Invoice date) ตั้ง number format
+		// เป็น "mm-dd-yy" excelize จึงคืนค่าออกมาเป็น "09-19-22" (เดือน-วัน-ปี)
+		// เดิมไม่มี layout ตัวเลข+ขีด+ปี 2 หลัก จึงแปลงไม่ได้ = ค่าว่าง
+		"01-02-06", // mm-dd-yy (รูปที่ไฟล์นี้ใช้)
+		"1-2-06",
+		"02-01-06", // dd-mm-yy
+		"2-1-06",
+		"01-02-2006", // mm-dd-yyyy
+		"1-2-2006",
 		// เดือนแบบตัวอักษร — ไฟล์จริงจาก กสทช. ใช้ number format "d-mmm-yy"
 		// excelize จึงคืนค่าออกมาเป็น "23-Jul-26" ไม่ใช่ตัวเลขล้วน
 		"2-Jan-06",
@@ -239,9 +249,21 @@ func normalizeDigitCell(v string) string {
 		}
 	}
 
-	// "878250022501.0" -> "878250022501"
-	if strings.HasSuffix(s, ".0") {
-		return strings.TrimSuffix(s, ".0")
+	// ตัดทศนิยมที่เป็นศูนย์ล้วนที่ Excel/excelize เติมมา รองรับทุกจำนวนหลัก
+	// เช่น "878180022402.0" / "878180022402.00" / "878180022402.000" -> "878180022402"
+	// (ใช้วิธีเช็คสตริงตรง ๆ ไม่แปลงเป็น float กันเลขยาว 15 หลักเพี้ยนจาก precision)
+	if dot := strings.IndexByte(s, '.'); dot >= 0 {
+		frac := s[dot+1:]
+		allZero := frac != ""
+		for _, r := range frac {
+			if r != '0' {
+				allZero = false
+				break
+			}
+		}
+		if allZero {
+			return s[:dot]
+		}
 	}
 
 	return s
