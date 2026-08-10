@@ -113,6 +113,7 @@ func SetupRoutes(r *gin.Engine) {
 	{
 		exportLicense.GET("", controllers.GetExportLicense)
 		exportLicense.GET("/alerts", controllers.GetExportLicenseAlerts)
+		exportLicense.GET("/:id/trace", controllers.GetExportLicenseTrace)
 		exportLicense.POST("/upload", controllers.UploadExportLicense)
 		exportLicense.DELETE("/:id", controllers.DeleteExportLicense)
 		exportLicense.DELETE("", controllers.ClearExportLicense)

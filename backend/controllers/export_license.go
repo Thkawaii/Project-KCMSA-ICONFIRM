@@ -60,6 +60,81 @@ var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"expiry":     func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
 	"วันหมดอายุ": func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
 	"หมดอายุ":    func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
+
+	// ─────────────────────────────────────────────────────────────────────
+	// รูปแบบเต็ม (B) — ไฟล์หน้างานจริงที่แตกเป็นรายเครื่อง คอลัมน์เหล่านี้คือ
+	// "จุดเชื่อม" กับส่วนอื่นของระบบ (ดูหัวคอมเมนต์ใน models/export_license.go)
+	// ─────────────────────────────────────────────────────────────────────
+
+	// ── Item (ลำดับ) ──
+	"item":   func(m *models.ExportLicenseItem, v string) { m.ItemNo = atoiSafe(v) },
+	"itemno": func(m *models.ExportLicenseItem, v string) { m.ItemNo = atoiSafe(v) },
+	"ลำดับ":  func(m *models.ExportLicenseItem, v string) { m.ItemNo = atoiSafe(v) },
+
+	// ── Date Ass'y (วันที่ประกอบ) ──
+	"dateassy":     func(m *models.ExportLicenseItem, v string) { m.AssemblyDate = parseLicenseDate(v) },
+	"dateassey":    func(m *models.ExportLicenseItem, v string) { m.AssemblyDate = parseLicenseDate(v) },
+	"assemblydate": func(m *models.ExportLicenseItem, v string) { m.AssemblyDate = parseLicenseDate(v) },
+	"assydate":     func(m *models.ExportLicenseItem, v string) { m.AssemblyDate = parseLicenseDate(v) },
+	"วันที่ประกอบ": func(m *models.ExportLicenseItem, v string) { m.AssemblyDate = parseLicenseDate(v) },
+
+	// ── Machine No (frame serial) — LINK → MachineSpec / MFGAssembly ──
+	"machineno":     func(m *models.ExportLicenseItem, v string) { m.MachineNo = normalizeDigitCell(v) },
+	"machinenumber": func(m *models.ExportLicenseItem, v string) { m.MachineNo = normalizeDigitCell(v) },
+	"machine":       func(m *models.ExportLicenseItem, v string) { m.MachineNo = normalizeDigitCell(v) },
+	"หมายเลขเครื่อง": func(m *models.ExportLicenseItem, v string) { m.MachineNo = normalizeDigitCell(v) },
+
+	// ── IT Controller Serial No. 12 หลัก — LINK หลัก ──
+	"itcontrollerserialno":     func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
+	"itcontrollerserialnumber": func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
+	"itcontrollerno":           func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
+	"itcontroller":             func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
+	"itcserialno":              func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
+	"itcno":                    func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
+
+	// ── Invoice date ──
+	"invoicedate": func(m *models.ExportLicenseItem, v string) { m.InvoiceDate = parseLicenseDate(v) },
+	"invdate":     func(m *models.ExportLicenseItem, v string) { m.InvoiceDate = parseLicenseDate(v) },
+
+	// ── Invoice no. ──
+	"invoiceno":     func(m *models.ExportLicenseItem, v string) { m.InvoiceNo = normalizeDigitCell(v) },
+	"invoicenumber": func(m *models.ExportLicenseItem, v string) { m.InvoiceNo = normalizeDigitCell(v) },
+	"invno":         func(m *models.ExportLicenseItem, v string) { m.InvoiceNo = normalizeDigitCell(v) },
+
+	// ── Export Entry (เลขใบขนขาออก) ──
+	"exportentry":   func(m *models.ExportLicenseItem, v string) { m.ExportEntry = strings.TrimSpace(v) },
+	"exportentryno": func(m *models.ExportLicenseItem, v string) { m.ExportEntry = strings.TrimSpace(v) },
+	"entryno":       func(m *models.ExportLicenseItem, v string) { m.ExportEntry = strings.TrimSpace(v) },
+	"ใบขนขาออกเลข":  func(m *models.ExportLicenseItem, v string) { m.ExportEntry = strings.TrimSpace(v) },
+
+	// ── IMPORT License (in Invoice) — เลขคำร้องนำเข้า (DFT) ──
+	"importlicenseininvoice": func(m *models.ExportLicenseItem, v string) { m.ImportLicenseNo = strings.TrimSpace(v) },
+	"importlicense":          func(m *models.ExportLicenseItem, v string) { m.ImportLicenseNo = strings.TrimSpace(v) },
+	"importlicenseno":        func(m *models.ExportLicenseItem, v string) { m.ImportLicenseNo = strings.TrimSpace(v) },
+	"ใบอนุญาตนำเข้า":         func(m *models.ExportLicenseItem, v string) { m.ImportLicenseNo = strings.TrimSpace(v) },
+
+	// ── EXPORT License (in Invoice) — เลขคำร้องส่งออก (DFT) ──
+	// เก็บทั้งฟิลด์ใหม่ (ExportLicenseNo) และฟิลด์เดิม (ExceptionLicense) เพื่อให้
+	// ตัวกรอง/แจ้งเตือนที่อ้าง ExceptionLicense ยังทำงานกับไฟล์รูปแบบใหม่ได้
+	"exportlicenseininvoice": func(m *models.ExportLicenseItem, v string) {
+		s := strings.TrimSpace(v)
+		m.ExportLicenseNo = s
+		if m.ExceptionLicense == "" {
+			m.ExceptionLicense = s
+		}
+	},
+	"exportlicenseno": func(m *models.ExportLicenseItem, v string) {
+		s := strings.TrimSpace(v)
+		m.ExportLicenseNo = s
+		if m.ExceptionLicense == "" {
+			m.ExceptionLicense = s
+		}
+	},
+
+	// ── Remark ──
+	"remark":   func(m *models.ExportLicenseItem, v string) { m.Remark = strings.TrimSpace(v) },
+	"remarks":  func(m *models.ExportLicenseItem, v string) { m.Remark = strings.TrimSpace(v) },
+	"หมายเหตุ": func(m *models.ExportLicenseItem, v string) { m.Remark = strings.TrimSpace(v) },
 }
 
 func exportLicenseKnownHeaders() map[string]bool {
@@ -104,8 +179,178 @@ func findExportHeaderRow(rows [][]string, known map[string]bool, anchors []strin
 	return -1, nil
 }
 
-// GetExportLicense คืนบัญชีใบอนุญาตส่งออกทั้งหมด รองรับกรอง ?q=
-// (ค้น SerialNumber / ExceptionLicense)
+// ─────────────────────────────────────────────────────────────────────────────
+// การเชื่อมโยง (Linking) — ต่อ 1 แถวใบอนุญาตส่งออกเข้ากับส่วนอื่นของระบบ
+//
+// คีย์ที่เชื่อถือได้คือเลข IT Controller 12 หลัก (ไม่ใช่เลข License string) ดู
+// เหตุผลในหัวคอมเมนต์ของ models/export_license.go
+//
+//   ITControllerNo → ImportLicenseItem.MachineNo   (บัญชีแนบใบอนุญาตนำเข้า กสทช.)
+//   ITControllerNo → MFGAssembly.ITControllerNo    (ผลตรวจตอนประกอบ)
+//   MachineNo      → MachineSpec.MachineNo         (สเปคเครื่องจักร)
+//   MachineNo      → WHMachineStock.OrderNo        (สต๊อก/ออเดอร์คลัง)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// exportLicenseLink = ผลการเชื่อมโยงของ 1 แถว (คำนวณสด ไม่เก็บลง DB)
+type exportLicenseLink struct {
+	// ── Import License (บัญชีแนบใบอนุญาตนำเข้า กสทช.) ──
+	ImportMatched       bool   `json:"ImportMatched"`
+	ImportLicenseNo     string `json:"ImportLicenseNo"` // เลข กสทช. จริง เช่น E05036901604
+	ImportInvoiceNo     string `json:"ImportInvoiceNo"`
+	ImportModel         string `json:"ImportModel"`
+	ImportCountry       string `json:"ImportCountry"`
+	ImportConfirmStatus string `json:"ImportConfirmStatus"`
+
+	// ── Machine Spec (สเปคเครื่องจักร) ──
+	SpecMatched bool   `json:"SpecMatched"`
+	SpecCountry string `json:"SpecCountry"`
+
+	// ── MFG Assembly (ผลตรวจตอนประกอบ) ──
+	MFGMatched   bool   `json:"MFGMatched"`
+	MFGStatus    string `json:"MFGStatus"`
+	MFGMachineNo string `json:"MFGMachineNo"` // ไว้เทียบว่าเลขเครื่องตรงกันไหม
+
+	// ── WH Stock (ออเดอร์คลัง) ──
+	StockMatched bool `json:"StockMatched"`
+
+	// สรุประดับการเชื่อม: FULL (ครบ import+spec) / PARTIAL / NONE
+	LinkLevel string `json:"LinkLevel"`
+}
+
+// exportLicenseRow = แถวใบอนุญาตส่งออก + ผลการเชื่อมโยง
+type exportLicenseRow struct {
+	models.ExportLicenseItem
+	Link exportLicenseLink `json:"Link"`
+}
+
+// isControllerNo คืน true ถ้าค่าเป็นเลข IT Controller จริง (ตัวเลขล้วน) — กันค่า
+// อย่าง "IT LESS" (เครื่องไม่มี IT controller) ไม่ให้ถูกใช้เป็นคีย์เชื่อมโยง
+func isControllerNo(s string) bool {
+	s = strings.TrimSpace(s)
+	if len(s) < 6 {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// resolveExportLinks เติมข้อมูลการเชื่อมโยงให้ทุกแถวแบบ batch (กัน N+1)
+func resolveExportLinks(items []models.ExportLicenseItem) []exportLicenseRow {
+	// เก็บชุดคีย์ที่ไม่ว่างไว้ยิง IN-query ทีเดียว
+	itcSet := map[string]bool{}
+	machineSet := map[string]bool{}
+	for _, it := range items {
+		if isControllerNo(it.ITControllerNo) {
+			itcSet[it.ITControllerNo] = true
+		}
+		if it.MachineNo != "" {
+			machineSet[it.MachineNo] = true
+		}
+	}
+	itcNos := keysOf(itcSet)
+	machineNos := keysOf(machineSet)
+
+	// 1) Import License (บัญชี กสทช.) — machine_no = IT Controller No.
+	importByITC := map[string]models.ImportLicenseItem{}
+	if len(itcNos) > 0 {
+		var imp []models.ImportLicenseItem
+		config.DB.Where("machine_no IN ?", itcNos).Find(&imp)
+		for _, r := range imp {
+			if _, ok := importByITC[r.MachineNo]; !ok {
+				importByITC[r.MachineNo] = r
+			}
+		}
+	}
+
+	// 2) Machine Spec — machine_no
+	specByMachine := map[string]models.MachineSpec{}
+	if len(machineNos) > 0 {
+		var specs []models.MachineSpec
+		config.DB.Where("machine_no IN ?", machineNos).Find(&specs)
+		for _, r := range specs {
+			if _, ok := specByMachine[r.MachineNo]; !ok {
+				specByMachine[r.MachineNo] = r
+			}
+		}
+	}
+
+	// 3) MFG Assembly — it_controller_no
+	mfgByITC := map[string]models.MFGAssembly{}
+	if len(itcNos) > 0 {
+		var mfg []models.MFGAssembly
+		config.DB.Where("it_controller_no IN ?", itcNos).Find(&mfg)
+		for _, r := range mfg {
+			if _, ok := mfgByITC[r.ITControllerNo]; !ok {
+				mfgByITC[r.ITControllerNo] = r
+			}
+		}
+	}
+
+	// 4) WH Stock — order_no = machine_no
+	stockByOrder := map[string]bool{}
+	if len(machineNos) > 0 {
+		var st []models.WHMachineStock
+		config.DB.Select("order_no").Where("order_no IN ?", machineNos).Find(&st)
+		for _, r := range st {
+			stockByOrder[r.OrderNo] = true
+		}
+	}
+
+	out := make([]exportLicenseRow, 0, len(items))
+	for _, it := range items {
+		link := exportLicenseLink{}
+
+		if imp, ok := importByITC[it.ITControllerNo]; ok && isControllerNo(it.ITControllerNo) {
+			link.ImportMatched = true
+			link.ImportLicenseNo = imp.LicenseNo
+			link.ImportInvoiceNo = imp.InvoiceNo
+			link.ImportModel = imp.Model
+			link.ImportCountry = imp.ExportCountry
+			link.ImportConfirmStatus = imp.ConfirmStatus
+		}
+		if spec, ok := specByMachine[it.MachineNo]; ok && it.MachineNo != "" {
+			link.SpecMatched = true
+			link.SpecCountry = spec.CountryName
+		}
+		if mfg, ok := mfgByITC[it.ITControllerNo]; ok && isControllerNo(it.ITControllerNo) {
+			link.MFGMatched = true
+			link.MFGStatus = mfg.Status
+			link.MFGMachineNo = mfg.MachineNo
+		}
+		if it.MachineNo != "" && stockByOrder[it.MachineNo] {
+			link.StockMatched = true
+		}
+
+		switch {
+		case link.ImportMatched && link.SpecMatched:
+			link.LinkLevel = "FULL"
+		case link.ImportMatched || link.SpecMatched || link.MFGMatched || link.StockMatched:
+			link.LinkLevel = "PARTIAL"
+		default:
+			link.LinkLevel = "NONE"
+		}
+
+		out = append(out, exportLicenseRow{ExportLicenseItem: it, Link: link})
+	}
+	return out
+}
+
+// keysOf คืน slice ของคีย์ใน set (ตัวช่วยเล็ก ๆ)
+func keysOf(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
+
+// GetExportLicense คืนบัญชีใบอนุญาตส่งออกทั้งหมด พร้อมผลการเชื่อมโยง (Link)
+// รองรับกรอง ?q= (ค้น SerialNumber / ExceptionLicense / MachineNo /
+// ITControllerNo / InvoiceNo) และ ?link=matched|unmatched
 func GetExportLicense(c *gin.Context) {
 	var rows []models.ExportLicenseItem
 	query := config.DB.Order("id asc")
@@ -113,12 +358,84 @@ func GetExportLicense(c *gin.Context) {
 	if q := strings.TrimSpace(c.Query("q")); q != "" {
 		like := "%" + q + "%"
 		query = query.Where(
-			"serial_number ILIKE ? OR exception_license ILIKE ?",
-			like, like,
+			"serial_number ILIKE ? OR exception_license ILIKE ? OR machine_no ILIKE ? OR it_controller_no ILIKE ? OR invoice_no ILIKE ?",
+			like, like, like, like, like,
 		)
 	}
 	query.Find(&rows)
-	c.JSON(200, rows)
+
+	enriched := resolveExportLinks(rows)
+
+	// กรองตามสถานะการเชื่อม (ถ้าระบุ) — ทำหลัง resolve เพราะเป็นค่าคำนวณสด
+	if lf := strings.ToLower(strings.TrimSpace(c.Query("link"))); lf == "matched" || lf == "unmatched" {
+		filtered := enriched[:0]
+		for _, r := range enriched {
+			isMatched := r.Link.LinkLevel != "NONE"
+			if (lf == "matched") == isMatched {
+				filtered = append(filtered, r)
+			}
+		}
+		enriched = filtered
+	}
+
+	c.JSON(200, enriched)
+}
+
+// GetExportLicenseTrace ลากเส้นทางของ 1 แถวใบอนุญาตส่งออกแบบละเอียด
+// GET /export-license/:id/trace
+//
+// คืนตัวแถวเอง + เอกสาร/ผลตรวจที่เชื่อมได้ทั้งหมด เพื่อเปิดดูใน modal
+func GetExportLicenseTrace(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(400, gin.H{"message": "id ไม่ถูกต้อง"})
+		return
+	}
+
+	var item models.ExportLicenseItem
+	if err := config.DB.First(&item, id).Error; err != nil {
+		c.JSON(404, gin.H{"message": "ไม่พบแถวนี้"})
+		return
+	}
+
+	resp := gin.H{
+		"item": item,
+		"keys": gin.H{
+			"itControllerNo": item.ITControllerNo,
+			"machineNo":      item.MachineNo,
+		},
+	}
+
+	// Import License (บัญชี กสทช.) — machine_no = IT Controller No.
+	if isControllerNo(item.ITControllerNo) {
+		var imp models.ImportLicenseItem
+		if err := config.DB.Where("machine_no = ?", item.ITControllerNo).First(&imp).Error; err == nil {
+			resp["importLicense"] = imp
+		}
+
+		// MFG Assembly — it_controller_no
+		var mfg models.MFGAssembly
+		if err := config.DB.Where("it_controller_no = ?", item.ITControllerNo).First(&mfg).Error; err == nil {
+			resp["mfgAssembly"] = mfg
+		}
+	}
+
+	// Machine Spec — machine_no (คืนได้หลายแถว = หลายชิ้นส่วนของเครื่องเดียวกัน)
+	if item.MachineNo != "" {
+		var specs []models.MachineSpec
+		config.DB.Where("machine_no = ?", item.MachineNo).Find(&specs)
+		if len(specs) > 0 {
+			resp["machineSpecs"] = specs
+		}
+
+		// WH Stock — order_no = machine_no
+		var stock models.WHMachineStock
+		if err := config.DB.Where("order_no = ?", item.MachineNo).First(&stock).Error; err == nil {
+			resp["whStock"] = stock
+		}
+	}
+
+	c.JSON(200, resp)
 }
 
 // UploadExportLicense นำเข้าบัญชีใบอนุญาตส่งออกจาก Excel/CSV
@@ -126,7 +443,9 @@ func GetExportLicense(c *gin.Context) {
 // idempotent: ลบแถวเดิมที่ SerialNumber อยู่ในไฟล์นี้ทิ้งก่อน แล้วเพิ่มใหม่
 // อัปโหลดไฟล์เดิมซ้ำจึงไม่ทำให้ข้อมูลบาน
 func UploadExportLicense(c *gin.Context) {
-	rows, fileName, err := readSheetRows(c, []string{"export", "exportlicense", "serail", "serial"})
+	// ชื่อชีตที่รองรับ: รูปแบบเดิม (export/serial) + รูปแบบเต็มจากไฟล์หน้างานจริง
+	// ที่รวมทุกเครื่องไว้ในชีต "TOTAL"
+	rows, fileName, err := readSheetRows(c, []string{"export", "exportlicense", "serail", "serial", "total"})
 	if err != nil {
 		c.JSON(400, gin.H{"message": err.Error()})
 		return
@@ -136,14 +455,16 @@ func UploadExportLicense(c *gin.Context) {
 		return
 	}
 
+	// anchor รองรับทั้งไฟล์รูปแบบเดิม (Serial Number) และรูปแบบเต็ม
+	// (IT Controller Serial No. / Machine No)
 	headerIdx, headers := findExportHeaderRow(
 		rows,
 		exportLicenseKnownHeaders(),
-		[]string{"serialnumber", "serialno", "serial"},
+		[]string{"serialnumber", "serialno", "serial", "itcontrollerserialno", "itcontrollerno", "machineno"},
 		2,
 	)
 	if headerIdx < 0 {
-		c.JSON(400, gin.H{"message": "หาหัวตารางไม่เจอ — ต้องมีคอลัมน์ 'Serial Number' และคอลัมน์อื่นอย่างน้อย 1 คอลัมน์ (ใบขน / Exception License / Expire date)"})
+		c.JSON(400, gin.H{"message": "หาหัวตารางไม่เจอ — ต้องมีคอลัมน์คีย์ (Serial Number หรือ IT Controller Serial No.) และคอลัมน์อื่นอย่างน้อย 1 คอลัมน์"})
 		return
 	}
 
@@ -168,6 +489,20 @@ func UploadExportLicense(c *gin.Context) {
 			}
 			if setter, ok := exportLicenseColumns[header]; ok {
 				setter(&row, strings.TrimSpace(rows[i][col]))
+			}
+		}
+		// ไฟล์รูปแบบเต็ม (B) ไม่มีคอลัมน์ "Serial Number" ตรง ๆ ต้องเลือกคีย์
+		// กันซ้ำที่ "unique จริงต่อแถว":
+		//   1) Machine No — frame serial ไม่ซ้ำแน่นอน (คีย์ที่ดีที่สุด)
+		//   2) IT Controller Serial No. — ใช้ได้เฉพาะเมื่อไม่มี Machine No เพราะ
+		//      หลายแถวเป็น "IT LESS" (เครื่องไม่มี IT controller) ซึ่งซ้ำกันได้
+		//      ถ้าเผลอใช้เป็นคีย์ แถว "IT LESS" ทั้งหมดจะยุบเหลือแถวเดียว = ข้อมูลหาย
+		if row.SerialNumber == "" {
+			switch {
+			case row.MachineNo != "":
+				row.SerialNumber = row.MachineNo
+			case row.ITControllerNo != "":
+				row.SerialNumber = row.ITControllerNo
 			}
 		}
 		if row.SerialNumber == "" {
