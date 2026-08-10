@@ -190,7 +190,9 @@ export default function WHPartConfirmationPage() {
     setLicensePage(1)
   }, [licenseTab, licenseModel, licensePageSize])
 
-  // ลบรายการประวัติการสแกน — กดได้เฉพาะแถวที่ผลเทียบเป็น "ไม่พบในใบอนุญาต" (NOT_FOUND)
+  // ลบรายการประวัติการสแกน — กดได้เฉพาะแถวที่ผลเทียบเป็น "ไม่พบในใบอนุญาต" (NOT_FOUND),
+  // "ไม่ต้องเทียบ" (NOT_REQUIRED) หรือ "ยืนยันซ้ำ" (DUPLICATE) — แถวที่ตรงกับใบอนุญาต
+  // (MATCH) ยังคงลบไม่ได้ ต้องเก็บไว้เป็นหลักฐานการยืนยัน
   async function handleDeleteCheck(row) {
     const label = `${tagLabel(row.PartType)} — ${row.SN || row.PN || '#' + row.ID}`
     const ok = await confirmDelete({ text: `ลบรายการสแกน ${label} ออกจากประวัติ? กู้คืนไม่ได้` })
@@ -1016,6 +1018,8 @@ export default function WHPartConfirmationPage() {
                 { value: 'all', label: 'ทั้งหมด' },
                 { value: 'MATCH', label: 'ตรงกับใบอนุญาต' },
                 { value: 'NOT_FOUND', label: 'ไม่พบในใบอนุญาต' },
+                { value: 'NOT_REQUIRED', label: 'ไม่ต้องเทียบ' },
+                { value: 'DUPLICATE', label: 'ยืนยันซ้ำ' },
               ]}
             />
           </div>
@@ -1099,7 +1103,7 @@ export default function WHPartConfirmationPage() {
                         แก้ไขรูป
                       </button>
                     )}
-                    {r.MatchStatus === 'NOT_FOUND' && (
+                    {['NOT_FOUND', 'NOT_REQUIRED', 'DUPLICATE'].includes(r.MatchStatus) && (
                       <button
                         className="tsf-action-btn tsf-action-btn-danger"
                         onClick={() => handleDeleteCheck(r)}

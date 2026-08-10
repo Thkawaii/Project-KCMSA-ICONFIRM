@@ -44,10 +44,11 @@ func GetPartChecks(c *gin.Context) {
 
 // DeletePartCheck ลบรายการประวัติการสแกน 1 รายการ
 //
-// จำกัดไว้เฉพาะรายการที่ผลเทียบเป็น NOT_FOUND (ไม่พบในใบอนุญาต/ทะเบียนกลาง)
+// จำกัดไว้เฉพาะรายการที่ผลเทียบเป็น NOT_FOUND (ไม่พบในใบอนุญาต/ทะเบียนกลาง),
+// NOT_REQUIRED (ไม่ต้องเทียบ — พาร์ทชนิดอื่น) หรือ DUPLICATE (ยืนยันซ้ำ)
 // เพราะรายการที่ตรงกับบัญชีแล้ว (MATCH) ลบไม่ได้ — ต้องคงหลักฐานการยืนยันไว้
-// ส่วน NOT_FOUND มักเกิดจากสแกนผิด/ยิงเบอร์ผิด จึงให้ลบทิ้งเพื่อความสะอาดของ
-// ประวัติได้ โดยยังคงบันทึกลง Audit Log ไว้เผื่อตรวจสอบย้อนหลัง
+// ส่วนสามสถานะข้างต้นมักเกิดจากสแกนผิด/ยิงเบอร์ผิด/สแกนซ้ำ จึงให้ลบทิ้งเพื่อ
+// ความสะอาดของประวัติได้ โดยยังคงบันทึกลง Audit Log ไว้เผื่อตรวจสอบย้อนหลัง
 func DeletePartCheck(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))
@@ -62,8 +63,13 @@ func DeletePartCheck(c *gin.Context) {
 		return
 	}
 
-	if row.MatchStatus != models.MatchStatusNotFound {
-		c.JSON(400, gin.H{"message": "ลบได้เฉพาะรายการที่ไม่พบในใบอนุญาตเท่านั้น"})
+	deletable := map[string]bool{
+		models.MatchStatusNotFound:    true, // ไม่พบในใบอนุญาต — มักเกิดจากสแกนผิด
+		models.MatchStatusNotRequired: true, // ไม่ต้องเทียบ — พาร์ทชนิดอื่นที่ไม่ผูกใบอนุญาต
+		models.MatchStatusDuplicate:   true, // ยืนยันซ้ำ — สแกนซ้ำรายการเดิม ลบทิ้งได้
+	}
+	if !deletable[row.MatchStatus] {
+		c.JSON(400, gin.H{"message": "ลบได้เฉพาะรายการที่ไม่พบในใบอนุญาต, ไม่ต้องเทียบ หรือยืนยันซ้ำเท่านั้น"})
 		return
 	}
 
