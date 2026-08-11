@@ -13,6 +13,7 @@ import QAMachineDetail from './pages/qa/Qamachinedetail.jsx'
 import UiKitPage from './pages/UiKitPage.jsx'
 import { NavProvider, useAppNavigate, useAppView } from './lib/nav.jsx'
 import { getToken } from './api/client.js'
+import { homeRouteForRole } from './lib/roleRoutes.js'
 import './styles.css'
 import './Warehouse.css'
 import './AppShell.css'
@@ -24,25 +25,17 @@ import './theme.css'
 
 // role_name ที่ backend ส่งมา (ดู seed.go): QA / WH / TSF / UPLOAD
 // role อื่น ๆ ที่ไม่ตรงกับ 4 ตัวนี้ (เช่น LOG, Coding) จะถูกส่งไป /dashboard เป็น fallback
-function resolveHomeRoute(role) {
-  const normalized = (role || '').toUpperCase()
-
-  if (normalized === 'WH') return '/warehouse'
-  if (normalized === 'QA') return '/qa'
-  if (normalized === 'TSF') return '/tsf'
-  if (normalized === 'UPLOAD') return '/master-data'
-
-  return '/dashboard'
-}
+// หน้าแรกของแต่ละ role — ใช้ตัวเดียวกับ LoginPage (ดู lib/roleRoutes.js)
+const resolveHomeRoute = homeRouteForRole
 
 // ตารางหน้าทั้งหมดของระบบ + role ที่อนุญาต (roles: null = แค่ login ก็เข้าได้ ไม่จำกัด role)
 // หมายเหตุ: ค่า key พวกนี้ (เช่น '/warehouse') เป็นแค่ "ชื่อหน้า" ภายใน state เท่านั้น
 // ไม่ใช่ path จริงของ browser แล้ว — address bar จะไม่เปลี่ยนตามค่านี้อีกต่อไป
 const ROUTE_CONFIG = {
   '/login': { component: LoginPage, public: true },
-  '/warehouse': { component: ImportLicensePage, roles: ['WH'] },
-  '/warehouse/export-license': { component: ExportLicensePage, roles: ['WH'] },
-  '/warehouse/confirm': { component: WHPartConfirmationPage, roles: ['WH'] },
+  '/warehouse': { component: ImportLicensePage, roles: ['WH_MANAGER'] },
+  '/warehouse/export-license': { component: ExportLicensePage, roles: ['WH_MANAGER'] },
+  '/warehouse/confirm': { component: WHPartConfirmationPage, roles: ['WH', 'WH_MANAGER'] },
   '/tsf': { component: TSFOperatorPage, roles: ['TSF'] },
   '/upload': { component: UploadViewPage, roles: ['UPLOAD'] },
   '/master-data': { component: MasterDataPage, roles: ['UPLOAD'] },

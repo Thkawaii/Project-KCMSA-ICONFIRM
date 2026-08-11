@@ -55,6 +55,28 @@ func MigratePlaintextPasswords() {
 	}
 }
 
+// SeedWHManager เติมผู้ใช้ระดับหัวหน้าคลัง (WH_MANAGER) ถ้ายังไม่มีในระบบ
+//
+// แยกจาก SeedData() เพราะ SeedData() จะข้ามทั้งหมดถ้ามี user อยู่แล้ว — ฐานข้อมูล
+// ที่ติดตั้งไปก่อนหน้านี้จึงจะไม่มี whmanage ฟังก์ชันนี้จึงรันทุกครั้งตอน start
+// เพื่อเติมให้ (idempotent: ถ้ามีแล้วไม่ทำอะไร ไม่สร้างซ้ำ)
+func SeedWHManager() {
+	var count int64
+	DB.Model(&models.User{}).Where("username = ?", "whmanage@kobelco.com").Count(&count)
+	if count > 0 {
+		return
+	}
+
+	DB.Create(&models.User{
+		RoleName: "WH_MANAGER",
+		Username: "whmanage@kobelco.com",
+		Password: hashPassword("whmanage.kobelco"),
+		Status:   "Active",
+		Name:     "WH Manager",
+	})
+	log.Println("Seeded WH_MANAGER user: whmanage@kobelco.com")
+}
+
 func SeedData() {
 
 	var count int64
@@ -79,6 +101,13 @@ func SeedData() {
 			Password: hashPassword("wh.kobelco"),
 			Status:   "Active",
 			Name:     "Warehouse User",
+		},
+		{
+			RoleName: "WH_MANAGER",
+			Username: "whmanage@kobelco.com",
+			Password: hashPassword("whmanage.kobelco"),
+			Status:   "Active",
+			Name:     "WH Manager",
 		},
 		{
 			RoleName: "TSF",

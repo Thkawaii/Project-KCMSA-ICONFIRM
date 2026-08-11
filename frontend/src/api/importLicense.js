@@ -50,10 +50,41 @@ export function deleteImportLicenseItem(id) {
   return apiFetch(`/import-license/${id}`, { method: 'DELETE' })
 }
 
-export function clearImportLicense(licenseNo) {
-  return apiFetch(`/import-license?license_no=${encodeURIComponent(licenseNo)}`, {
-    method: 'DELETE',
+// ลบ "ล็อต" ออกทั้งใบ — เจาะจงด้วยคู่ (เลขใบอนุญาต, อินวอยซ์) ตามที่ UI จัดกลุ่มไว้
+// ส่งทั้งสอง key เสมอ (แม้ค่าว่าง) เพื่อรองรับล็อตที่ไม่มีเลขใบอนุญาต/อินวอยซ์
+//   clearImportLicense('E0503...', 'TQ60610')  -> ลบเฉพาะล็อตนั้น
+//   clearImportLicense('', '')                 -> ลบล็อตที่ไม่มีเลขใบอนุญาต+อินวอยซ์
+//   clearImportLicense(null, null, true)       -> ลบทั้งหมด (all=true)
+export function clearImportLicense(licenseNo = '', invoiceNo = '', all = false) {
+  const params = new URLSearchParams()
+  if (all) {
+    params.set('all', 'true')
+  } else {
+    params.set('license_no', licenseNo ?? '')
+    params.set('invoice_no', invoiceNo ?? '')
+  }
+  return apiFetch(`/import-license?${params.toString()}`, { method: 'DELETE' })
+}
+
+// ลองอ่านหัวตารางก่อนอัปโหลดจริง (ไม่บันทึกอะไร)
+// -> { file, headerFound, headerRow, matched:[...], extra:[...] }
+//    matched = คอลัมน์ที่ระบบแม็ปได้, extra = คอลัมน์ใหม่ที่ระบบยังไม่รู้จัก
+export async function previewImportLicense(file) {
+  const token = getToken()
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch(`${API_BASE_URL}/import-license/preview`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
   })
+
+  const data = await res.json().catch(() => null)
+  if (!res.ok) {
+    throw new Error(data?.message || `Preview failed (${res.status})`)
+  }
+  return data
 }
 
 // ใช้ fetch ตรงแทน apiFetch เพราะเป็น multipart/form-data

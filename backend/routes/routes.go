@@ -28,7 +28,10 @@ func SetupRoutes(r *gin.Engine) {
 		manage.Use(middleware.RoleMiddleware("UPLOAD"))
 		{
 			manage.POST("/upload", controllers.UploadMasterData)
+			manage.POST("/preview", controllers.PreviewMasterDataChanges)
+			manage.PATCH("/:id", controllers.UpdateMasterData)
 			manage.DELETE("/:id", controllers.DeleteMasterData)
+			manage.DELETE("", controllers.ClearMasterData)
 		}
 	}
 
@@ -64,14 +67,39 @@ func SetupRoutes(r *gin.Engine) {
 		manage.Use(middleware.RoleMiddleware("UPLOAD"))
 		{
 			manage.POST("/upload/:dataset", controllers.UploadDataFile)
+			// ทดลองอ่านไฟล์ (dry-run) เพื่อดูผลการแม็ปคอลัมน์ก่อนอัปโหลดจริง
+			manage.POST("/preview/:dataset", controllers.PreviewUploadDataMapping)
 			manage.DELETE("/:id", controllers.DeleteUploadDataRow)
 			manage.DELETE("", controllers.ClearUploadData)
 		}
 	}
 
+	// ─────────────────────────────────────────────────────────────────────
+	// Format Config — ตั้งค่ารองรับ "การเปลี่ยน format" ตอนรัน (สิทธิ์ UPLOAD)
+	//   /format-config/column-alias  จับคู่หัวคอลัมน์ไฟล์ → คอลัมน์มาตรฐาน (หน้า Upload Data)
+	//   /format-config/code-alias    จับคู่ค่า P/N/S/N/Machine No. รูปแบบใหม่ → แถวทะเบียนกลาง
+	// ─────────────────────────────────────────────────────────────────────
+	formatConfig := auth.Group("/format-config")
+	{
+		// อ่านได้ทุก role ที่ login (เผื่อหน้าอื่นอยากโชว์การตั้งค่า)
+		formatConfig.GET("/column-alias", controllers.GetColumnAliases)
+		formatConfig.GET("/code-alias", controllers.GetCodeAliases)
+
+		manage := formatConfig.Group("")
+		manage.Use(middleware.RoleMiddleware("UPLOAD"))
+		{
+			manage.POST("/column-alias", controllers.CreateColumnAlias)
+			manage.DELETE("/column-alias/:id", controllers.DeleteColumnAlias)
+
+			manage.POST("/code-alias", controllers.CreateCodeAlias)
+			manage.POST("/code-alias/upload", controllers.UploadCodeAliases)
+			manage.DELETE("/code-alias/:id", controllers.DeleteCodeAlias)
+		}
+	}
+
 	// Part Confirmation — สแกน tag แล้วบันทึกทันที (MC/ITC/CV/SM/MP/PH)
 	partCheck := auth.Group("/part-check")
-	partCheck.Use(middleware.RoleMiddleware("WH"))
+	partCheck.Use(middleware.RoleMiddleware("WH", "WH_MANAGER"))
 	{
 		partCheck.GET("", controllers.GetPartChecks)
 		partCheck.POST("", controllers.ScanPartCheck)
@@ -89,16 +117,24 @@ func SetupRoutes(r *gin.Engine) {
 	// TQ60610) เก็บไว้เป็น "ตารางอ้างอิง" แล้วหน้า Part Confirmation เอา
 	// ค่าที่สแกนได้มาเทียบว่าตรงกันไหม — หลักการเดียวกับ Master Data
 	// ─────────────────────────────────────────────────────────────────────
+	// อ่านบัญชี (GET) เปิดให้ทั้ง WH (หน้า Part Confirmation ต้องดึงบัญชีมาเทียบ) และ
+	// WH_MANAGER — ส่วนการแก้ไข (อัปโหลด/ลบ/verify) จำกัดเฉพาะ WH_MANAGER
 	importLicense := auth.Group("/import-license")
-	importLicense.Use(middleware.RoleMiddleware("WH"))
+	importLicense.Use(middleware.RoleMiddleware("WH", "WH_MANAGER"))
 	{
 		importLicense.GET("", controllers.GetImportLicenseItems)
 		importLicense.GET("/summary", controllers.GetImportLicenseSummary)
 		importLicense.GET("/alerts", controllers.GetImportLicenseAlerts)
-		importLicense.POST("/upload", controllers.UploadImportLicenseItems)
-		importLicense.POST("/verify", controllers.VerifyImportLicenseCode)
-		importLicense.DELETE("/:id", controllers.DeleteImportLicenseItem)
-		importLicense.DELETE("", controllers.ClearImportLicenseItems)
+
+		manage := importLicense.Group("")
+		manage.Use(middleware.RoleMiddleware("WH_MANAGER"))
+		{
+			manage.POST("/upload", controllers.UploadImportLicenseItems)
+			manage.POST("/preview", controllers.PreviewImportLicenseMapping)
+			manage.POST("/verify", controllers.VerifyImportLicenseCode)
+			manage.DELETE("/:id", controllers.DeleteImportLicenseItem)
+			manage.DELETE("", controllers.ClearImportLicenseItems)
+		}
 	}
 
 	// ─────────────────────────────────────────────────────────────────────
@@ -109,12 +145,13 @@ func SetupRoutes(r *gin.Engine) {
 	// สิทธิ์เดียวกับ import-license (role WH)
 	// ─────────────────────────────────────────────────────────────────────
 	exportLicense := auth.Group("/export-license")
-	exportLicense.Use(middleware.RoleMiddleware("WH"))
+	exportLicense.Use(middleware.RoleMiddleware("WH_MANAGER"))
 	{
 		exportLicense.GET("", controllers.GetExportLicense)
 		exportLicense.GET("/alerts", controllers.GetExportLicenseAlerts)
 		exportLicense.GET("/:id/trace", controllers.GetExportLicenseTrace)
 		exportLicense.POST("/upload", controllers.UploadExportLicense)
+		exportLicense.POST("/preview", controllers.PreviewExportLicenseMapping)
 		exportLicense.DELETE("/:id", controllers.DeleteExportLicense)
 		exportLicense.DELETE("", controllers.ClearExportLicense)
 	}
@@ -126,7 +163,7 @@ func SetupRoutes(r *gin.Engine) {
 	// สิทธิ์เดียวกับ import-license (role WH)
 	// ─────────────────────────────────────────────────────────────────────
 	whStock := auth.Group("/wh-stock")
-	whStock.Use(middleware.RoleMiddleware("WH"))
+	whStock.Use(middleware.RoleMiddleware("WH_MANAGER"))
 	{
 		whStock.GET("/mc", controllers.GetWHMachineStock)
 		whStock.POST("/mc/upload", controllers.UploadWHMachineStock)

@@ -745,3 +745,78 @@
     right: 18px;
   }
 }
+/* ─────────────────────────────────────────────────────────────────────────
+   กระดิ่งรวม (WHAlertBell) — panel กว้างขึ้น + แบ่ง 2 ส่วน นำเข้า/ส่งออก
+   ───────────────────────────────────────────────────────────────────────── */
+.lab-panel-wide {
+  width: 430px;
+  max-height: min(72vh, 620px);
+  overflow-y: auto;
+}
+
+.lab-section {
+  border-top: 1px solid var(--card-border);
+}
+.lab-section:first-of-type {
+  border-top: none;
+}
+
+.lab-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--card-border);
+  z-index: 1;
+}
+.lab-section-import .lab-section-head {
+  box-shadow: inset 3px 0 0 #dc2626;
+}
+.lab-section-export .lab-section-head {
+  box-shadow: inset 3px 0 0 #d97706;
+}
+
+.lab-section-kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+.lab-kind-import {
+  background: #dc2626;
+}
+.lab-kind-export {
+  background: #d97706;
+}
+
+.lab-section-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-strong, #0f172a);
+  flex: 1;
+}
+
+.lab-section-count {
+  display: flex;
+  gap: 6px;
+}
+.lab-section-count .lab-sum-chip {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.lab-section-count .lab-sum-num {
+  font-size: 14px;
+}
+.lab-section-count .lab-sum-lbl {
+  font-size: 10.5px;
+}

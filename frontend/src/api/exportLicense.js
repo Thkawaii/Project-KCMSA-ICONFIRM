@@ -43,6 +43,26 @@ export function clearExportLicense() {
   return apiFetch('/export-license', { method: 'DELETE' })
 }
 
+// ลองอ่านหัวตารางก่อนอัปโหลดจริง (ไม่บันทึกอะไร)
+// -> { file, headerFound, headerRow, matched:[...], extra:[...] }
+export async function previewExportLicense(file) {
+  const token = getToken()
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch(`${API_BASE_URL}/export-license/preview`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  })
+
+  const data = await res.json().catch(() => null)
+  if (!res.ok) {
+    throw new Error(data?.message || `Preview failed (${res.status})`)
+  }
+  return data
+}
+
 // ใช้ fetch ตรงแทน apiFetch เพราะเป็น multipart/form-data
 // (apiFetch ใส่ Content-Type: application/json ให้อัตโนมัติ ซึ่งจะทำให้
 // multipart boundary หายไปและ backend parse ไฟล์ไม่ได้)

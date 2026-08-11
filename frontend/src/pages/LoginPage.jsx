@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAppNavigate } from '../lib/nav.jsx'
 import { login } from '../api/auth.js'
+import { homeRouteForRole } from '../lib/roleRoutes.js'
 import { toastSuccess } from '../lib/toast.js'
 import {
   EyeIcon,
@@ -9,17 +10,8 @@ import {
   ShieldCheckIcon,
 } from '../components/icons.jsx'
 
-// role_name ที่ backend ส่งกลับมาคือ "QA" / "WH" / "TSF" (ดู seed.go)
-function resolveRoute(role) {
-  const normalized = (role || '').toUpperCase()
-
-  if (normalized === 'WH') return '/warehouse'
-  if (normalized === 'QA') return '/qa'
-  if (normalized === 'TSF') return '/tsf'
-  if (normalized === 'UPLOAD') return '/master-data'
-
-  return '/dashboard'
-}
+// ใช้ homeRouteForRole ร่วมกับ main.jsx (แหล่งความจริงเดียว ดู lib/roleRoutes.js)
+const resolveRoute = homeRouteForRole
 
 export default function LoginPage() {
   const navigate = useAppNavigate()

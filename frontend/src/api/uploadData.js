@@ -38,6 +38,26 @@ export async function uploadDataFile(dataset, file) {
   return data
 }
 
+// ทดลองอ่านไฟล์ (dry-run) ก่อนอัปโหลดจริง — คืน { matched, missing, extra, headerRow }
+// ใช้ให้ผู้ใช้เห็นว่าไฟล์ที่เปลี่ยน format จะแม็ปคอลัมน์อย่างไร และมีคอลัมน์ใหม่/หายไปไหม
+export async function previewUploadData(dataset, file) {
+  const token = getToken()
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch(`${API_BASE_URL}/upload-data/preview/${dataset}`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  })
+
+  const data = await res.json().catch(() => null)
+  if (!res.ok) {
+    throw new Error(data?.message || `Preview failed (${res.status})`)
+  }
+  return data
+}
+
 export function deleteUploadDataRow(id) {
   return apiFetch(`/upload-data/${id}`, { method: 'DELETE' })
 }
