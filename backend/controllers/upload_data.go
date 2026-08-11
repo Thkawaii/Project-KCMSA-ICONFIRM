@@ -3,6 +3,7 @@ package controllers
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -74,7 +75,7 @@ var udDatasets = map[string]udDataset{
 		Columns: []udColumn{
 			col("Line"),
 			col("LOT NO.", "lotno", "lot"),
-			col("Machine", "machineno"),
+			col("Machine", "machineno", "machinenumber", "machineno1", "mcno", "mcnumber", "machineid"),
 			col("Product Spec 1", "productspec"),
 			col("Product Spec 2", "productspec2"),
 			col("Domestic/Exp", "domesticexp", "domexp"),
@@ -151,7 +152,7 @@ var udDatasets = map[string]udDataset{
 			col("Work order finish", "workorderfinish", "workorderfnish"),
 			col("Stock out No.", "stockoutno"),
 			col("Stock out finish", "stockoutfinish"),
-			col("Parts No", "partsno"),
+			col("Parts No", "partsno", "partno", "partnumber", "pn"),
 			col("Name"),
 			col("Pick"),
 			col("Inst"),
@@ -181,7 +182,7 @@ var udDatasets = map[string]udDataset{
 		Columns: []udColumn{
 			col("Order"),
 			col("ORDER No.", "orderno"),
-			col("Parts No", "partsno"),
+			col("Parts No", "partsno", "partno", "partnumber", "pn"),
 			col("PARTS NAME", "partsname", "partsna"),
 			col("Quantity", "quantity", "quan"),
 			col("#1", "1"),
@@ -204,7 +205,7 @@ var udDatasets = map[string]udDataset{
 		MinHits: 2,
 		Anchors: []string{"machineno", "history", "engine"},
 		Columns: []udColumn{
-			col("Machine No", "machineno"),
+			col("Machine No", "machineno", "machinenumber", "mcno", "mcnumber", "machineid"),
 			col("History", "history"),
 			col("ENGINE", "engine"),
 		},
@@ -252,6 +253,172 @@ func resolveColumn(headerIdx map[string]int, c udColumn, occ int) (int, bool) {
 		}
 	}
 	return -1, false
+}
+
+// withRuntimeAliases คืน dataset สำเนาที่เสริม alias จากตาราง ColumnAlias (ตั้งค่าตอนรัน)
+//
+// นี่คือหัวใจของการ "รองรับการเปลี่ยนชื่อ/สลับหัวคอลัมน์แบบไดนามิก" — เมื่อหน้างานเปลี่ยน
+// ชื่อหัวคอลัมน์ในไฟล์ ผู้ใช้สิทธิ์ UPLOAD เพิ่ม ColumnAlias (source=หัวใหม่, target=Label เดิม)
+// ได้ทันทีผ่านหน้าเว็บ โดยไม่ต้องแก้โค้ด udDatasets แล้ว build/deploy ใหม่
+func withRuntimeAliases(ds udDataset, dataset string) udDataset {
+	extra := loadColumnAliases(dataset)
+	if len(extra) == 0 {
+		return ds
+	}
+	cols := make([]udColumn, len(ds.Columns))
+	copy(cols, ds.Columns)
+	for i := range cols {
+		if adds, ok := extra[cols[i].Label]; ok {
+			merged := append([]string{}, cols[i].Aliases...)
+			merged = append(merged, adds...)
+			cols[i].Aliases = dedupStrings(merged)
+		}
+	}
+	ds.Columns = cols
+	return ds
+}
+
+// extraColumnPrefix นำหน้าคีย์ของ "คอลัมน์นอกสเปก" (คอลัมน์ใหม่ที่ไฟล์เพิ่มมาเอง)
+// เพื่อให้แยกออกจากคอลัมน์มาตรฐานได้ชัดเจนทั้งในตารางและไฟล์ export
+const extraColumnPrefix = "[+] "
+
+// knownAliasSet รวม alias ที่ระบบรู้จักทั้งหมดของ dataset (normalize แล้ว)
+func knownAliasSet(ds udDataset) map[string]bool {
+	known := map[string]bool{}
+	for _, cdef := range ds.Columns {
+		for _, a := range cdef.Aliases {
+			known[a] = true
+		}
+	}
+	return known
+}
+
+// captureExtraColumns เก็บ "คอลัมน์ที่ไฟล์เพิ่มเข้ามาใหม่/ไม่รู้จัก" ลงใน data ด้วย
+// เพื่อไม่ให้ข้อมูลหายเวลาไฟล์เปลี่ยน format (เดิมคอลัมน์นอกสเปกจะถูกทิ้งเงียบ ๆ)
+// คีย์ = extraColumnPrefix + ชื่อหัวคอลัมน์จริง ผู้ใช้จึงเห็นในตาราง/ไฟล์ export ได้เลย
+func captureExtraColumns(ds udDataset, headerRow, raw []string, data map[string]string) {
+	known := knownAliasSet(ds)
+	for j, cell := range headerRow {
+		key := normalizeHeader(cell)
+		if key == "" || known[key] {
+			continue
+		}
+		if j >= len(raw) {
+			continue
+		}
+		val := unwrapExcelText(raw[j])
+		if val == "" {
+			continue
+		}
+		label := extraColumnPrefix + strings.TrimSpace(cell)
+		if _, exists := data[label]; !exists {
+			data[label] = val
+		}
+	}
+}
+
+// collectExtraLabels รวบรวมคีย์ของคอลัมน์นอกสเปกที่โผล่ในชุดแถวที่โหลดมา (เรียงคงที่)
+// ใช้ต่อท้ายรายชื่อคอลัมน์มาตรฐาน เพื่อให้ตาราง/ไฟล์ export แสดงคอลัมน์ใหม่ด้วย
+func collectExtraLabels(rows []models.UploadDataRow, standard []string) []string {
+	std := map[string]bool{}
+	for _, l := range standard {
+		std[l] = true
+	}
+	seen := map[string]bool{}
+	var extras []string
+	for _, r := range rows {
+		var m map[string]string
+		if json.Unmarshal([]byte(r.DataJSON), &m) != nil {
+			continue
+		}
+		for k := range m {
+			if std[k] || seen[k] {
+				continue
+			}
+			seen[k] = true
+			extras = append(extras, k)
+		}
+	}
+	sort.Strings(extras)
+	return extras
+}
+
+// PreviewUploadDataMapping อ่านไฟล์แบบ "ทดลอง" (dry-run) โดยไม่บันทึกลง DB
+// แล้วรายงานว่าหัวคอลัมน์ในไฟล์แม็ปกับคอลัมน์มาตรฐานอย่างไร:
+//
+//	matched  = คอลัมน์มาตรฐานที่จับคู่กับไฟล์ได้ (พร้อมหัวคอลัมน์ต้นทางในไฟล์)
+//	missing  = คอลัมน์มาตรฐานที่ไฟล์นี้ "ไม่มี"
+//	extra    = หัวคอลัมน์ในไฟล์ที่ระบบ "ไม่รู้จัก" (คอลัมน์ใหม่/เปลี่ยนชื่อ)
+//
+// ใช้ก่อนอัปโหลดจริง เพื่อให้ผู้ใช้เห็นผลกระทบของการเปลี่ยน format และตัดสินใจว่า
+// จะเพิ่ม ColumnAlias ก่อนไหม — ตอบโจทย์ข้อ 1 โดยตรง
+func PreviewUploadDataMapping(c *gin.Context) {
+	dataset := strings.ToLower(strings.TrimSpace(c.Param("dataset")))
+	ds, ok := udDatasets[dataset]
+	if !ok {
+		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine)"})
+		return
+	}
+	ds = withRuntimeAliases(ds, dataset)
+
+	rows, fileName, err := readUploadedRowsFromForm(c)
+	if err != nil {
+		c.JSON(400, gin.H{"message": err.Error()})
+		return
+	}
+	if len(rows) < 1 {
+		c.JSON(400, gin.H{"message": "ไฟล์ไม่มีข้อมูล หรืออ่านไม่ได้"})
+		return
+	}
+
+	headerIdx, headerMap := findUploadDataHeader(rows, ds)
+	if headerIdx < 0 {
+		c.JSON(200, gin.H{
+			"file":        fileName,
+			"headerFound": false,
+			"message":     "หาหัวตารางไม่เจอ — ตรวจว่าไฟล์ตรงกับชนิด " + udDatasetLabels[dataset],
+		})
+		return
+	}
+
+	type matchInfo struct {
+		Label  string `json:"label"`
+		Source string `json:"source"`
+	}
+	var matched []matchInfo
+	var missing []string
+
+	occSeen := map[string]int{}
+	for _, cdef := range ds.Columns {
+		occSeen[cdef.Aliases[0]]++
+		occ := occSeen[cdef.Aliases[0]]
+		if j, found := resolveColumn(headerMap, cdef, occ); found && j < len(rows[headerIdx]) {
+			matched = append(matched, matchInfo{Label: cdef.Label, Source: strings.TrimSpace(rows[headerIdx][j])})
+		} else {
+			missing = append(missing, cdef.Label)
+		}
+	}
+
+	// หัวคอลัมน์ในไฟล์ที่ระบบไม่รู้จัก
+	known := knownAliasSet(ds)
+	var extra []string
+	for _, cell := range rows[headerIdx] {
+		key := normalizeHeader(cell)
+		if key == "" || known[key] {
+			continue
+		}
+		extra = append(extra, strings.TrimSpace(cell))
+	}
+
+	c.JSON(200, gin.H{
+		"file":        fileName,
+		"dataset":     dataset,
+		"headerFound": true,
+		"headerRow":   headerIdx + 1,
+		"matched":     matched,
+		"missing":     missing,
+		"extra":       extra,
+	})
 }
 
 // findUploadDataHeader ไล่หาแถวหัวตารางใน 30 แถวแรก (ไฟล์จริงมักมีบรรทัดชื่อเรื่อง/
@@ -364,9 +531,13 @@ func GetUploadData(c *gin.Context) {
 		totalPages = int((total + int64(limit) - 1) / int64(limit))
 	}
 
+	// รายชื่อคอลัมน์ = คอลัมน์มาตรฐาน + คอลัมน์นอกสเปกที่พบในหน้านี้ (ถ้ามี)
+	columns := udDatasetColumnLabels(dataset)
+	columns = append(columns, collectExtraLabels(rows, columns)...)
+
 	c.JSON(200, gin.H{
 		"dataset":    dataset,
-		"columns":    udDatasetColumnLabels(dataset),
+		"columns":    columns,
 		"rows":       rows,
 		"total":      total,
 		"page":       page,
@@ -398,6 +569,8 @@ func UploadDataFile(c *gin.Context) {
 		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine)"})
 		return
 	}
+	// เสริม alias หัวคอลัมน์ที่ตั้งค่าไว้ตอนรัน (รองรับหน้างานเปลี่ยนชื่อ/เพิ่มหัวคอลัมน์)
+	ds = withRuntimeAliases(ds, dataset)
 
 	rows, fileName, err := readUploadedRowsFromForm(c)
 	if err != nil {
@@ -465,6 +638,18 @@ func UploadDataFile(c *gin.Context) {
 			data[cdef.Label] = val
 			if val != "" {
 				anyValue = true
+			}
+		}
+
+		// เก็บคอลัมน์นอกสเปก (คอลัมน์ใหม่ที่ไฟล์เพิ่มมา) ไว้ด้วย ไม่ให้ข้อมูลหาย
+		captureExtraColumns(ds, rows[headerIdx], raw, data)
+		if !anyValue {
+			// เผื่อแถวมีค่าเฉพาะในคอลัมน์นอกสเปกล้วน
+			for _, v := range data {
+				if v != "" {
+					anyValue = true
+					break
+				}
 			}
 		}
 
@@ -601,6 +786,8 @@ func ExportUploadData(c *gin.Context) {
 		Find(&rows)
 
 	labels := udDatasetColumnLabels(dataset)
+	// ต่อท้ายด้วยคอลัมน์นอกสเปก เพื่อไม่ให้คอลัมน์ใหม่หายตอน export
+	labels = append(labels, collectExtraLabels(rows, labels)...)
 
 	xl := excelize.NewFile()
 	sheet := udDatasetLabels[dataset]

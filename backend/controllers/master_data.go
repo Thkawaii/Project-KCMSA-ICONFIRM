@@ -30,22 +30,95 @@ func GetMasterData(c *gin.Context) {
 
 	var masterData []models.MasterData
 
+	componentType := strings.TrimSpace(c.Query("component_type"))
+	code := strings.TrimSpace(c.Query("code"))
+
 	query := config.DB.Order("item_no asc").Order("id asc")
-
-	if ct := strings.TrimSpace(c.Query("component_type")); ct != "" {
-		query = query.Where("component_type = ?", ct)
+	if componentType != "" {
+		query = query.Where("component_type = ?", componentType)
 	}
-
-	if code := strings.TrimSpace(c.Query("code")); code != "" {
+	if code != "" {
 		query = query.Where(
 			"serial_no = ? OR it_controller_no = ? OR imei = ? OR part_no = ?",
 			code, code, code, code,
 		)
 	}
-
 	query.Find(&masterData)
 
+	// เผื่อหน้างานเปลี่ยน format ของ P/N / S/N / Machine No. — ถ้าเทียบตรง ๆ ไม่เจอ
+	// ให้ลองผ่านตาราง CodeAlias (การจับคู่รหัสรูปแบบใหม่ → แถวมาตรฐาน) ก่อนคืนค่าว่าง
+	if code != "" && len(masterData) == 0 {
+		if a := lookupCodeAlias(componentType, code); a != nil {
+			q2 := config.DB.Order("item_no asc").Order("id asc").
+				Where("serial_no = ?", a.ToSerialNo)
+			if componentType != "" {
+				q2 = q2.Where("component_type = ?", componentType)
+			}
+			if strings.TrimSpace(a.ToPartNo) != "" {
+				q2 = q2.Where("part_no = ?", a.ToPartNo)
+			}
+			q2.Find(&masterData)
+		}
+	}
+
 	c.JSON(200, masterData)
+}
+
+// UpdateMasterData แก้ไขทะเบียนกลาง 1 รายการ (PATCH /master-data/:id)
+//
+// ใช้ตอนหน้างานเปลี่ยน format ของ P/N / S/N / Machine No. แล้วต้องการ "แก้ที่ต้นทาง"
+// แทนการลบทิ้งแล้วเพิ่มใหม่ — โหลดของเดิมมาก่อน แล้ว bind เฉพาะฟิลด์ที่ส่งมาทับ
+// (ฟิลด์ที่ไม่ได้ส่งจะคงค่าเดิมไว้) จากนั้น normalize + เขียนกลับแบบระบุคอลัมน์
+func UpdateMasterData(c *gin.Context) {
+
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(400, gin.H{"message": "id ไม่ถูกต้อง"})
+		return
+	}
+
+	var existing models.MasterData
+	if err := config.DB.First(&existing, id).Error; err != nil {
+		c.JSON(404, gin.H{"message": "ไม่พบรายการนี้"})
+		return
+	}
+
+	// bind ทับลงบนของเดิม — ฟิลด์ที่ JSON ไม่ได้ส่งมาจะคงค่าเดิม (PATCH semantics)
+	if err := c.ShouldBindJSON(&existing); err != nil {
+		c.JSON(400, gin.H{"message": err.Error()})
+		return
+	}
+	normalizeMasterData(&existing)
+
+	userID, userName := lookupUserName(c)
+
+	updates := map[string]interface{}{
+		"item_no":          existing.ItemNo,
+		"name":             existing.Name,
+		"component_type":   existing.ComponentType,
+		"model":            existing.Model,
+		"part_no":          existing.PartNo,
+		"serial_no":        existing.SerialNo,
+		"it_controller_no": existing.ITControllerNo,
+		"imei":             existing.IMEI,
+		"spec_code":        existing.SpecCode,
+		"upload_date":      time.Now(),
+		"user_id":          userID,
+	}
+
+	if err := config.DB.Model(&models.MasterData{}).
+		Where("id = ?", id).Updates(updates).Error; err != nil {
+		c.JSON(400, gin.H{
+			"message": "อัปเดตไม่สำเร็จ (อาจมี Serial No. / IT Controller no. / IMEI ซ้ำในระบบ): " + err.Error(),
+		})
+		return
+	}
+
+	CreateAuditLog("MASTER_DATA", uint(id), "update", existing.SerialNo, userID, userName)
+
+	var out models.MasterData
+	config.DB.First(&out, id)
+	c.JSON(200, out)
 }
 
 func CreateMasterData(c *gin.Context) {
@@ -114,22 +187,29 @@ func trimToNil(v *string) *string {
 // หมายเหตุ: ไฟล์ TQ60610 ต้นทางสะกดหัวคอลัมน์ผิดเป็น "Serail No." (สลับ a กับ i)
 // เลยใส่ทั้งคำที่สะกดถูกและสะกดผิดไว้ ไม่งั้นคอลัมน์ S/N จะอ่านไม่เจอทั้งไฟล์
 var masterDataColumns = map[string]func(*models.MasterData, string){
-	"itemno":   func(m *models.MasterData, v string) { m.ItemNo = atoiSafe(v) },
-	"no":       func(m *models.MasterData, v string) { m.ItemNo = atoiSafe(v) },
-	"partname": func(m *models.MasterData, v string) { m.Name = v },
-	"name":     func(m *models.MasterData, v string) { m.Name = v },
-	"model":    func(m *models.MasterData, v string) { m.Model = v },
-	"partno":   func(m *models.MasterData, v string) { m.PartNo = v },
-	"pn":       func(m *models.MasterData, v string) { m.PartNo = v },
+	"itemno":     func(m *models.MasterData, v string) { m.ItemNo = atoiSafe(v) },
+	"no":         func(m *models.MasterData, v string) { m.ItemNo = atoiSafe(v) },
+	"partname":   func(m *models.MasterData, v string) { m.Name = v },
+	"name":       func(m *models.MasterData, v string) { m.Name = v },
+	"model":      func(m *models.MasterData, v string) { m.Model = v },
+	"partno":     func(m *models.MasterData, v string) { m.PartNo = v },
+	"pn":         func(m *models.MasterData, v string) { m.PartNo = v },
+	"partnumber": func(m *models.MasterData, v string) { m.PartNo = v },
+	"partn1":     func(m *models.MasterData, v string) { m.PartNo = v },
 
 	"serialno":     func(m *models.MasterData, v string) { m.SerialNo = v },
 	"serailno":     func(m *models.MasterData, v string) { m.SerialNo = v }, // สะกดผิดในไฟล์ต้นทาง
 	"serialnumber": func(m *models.MasterData, v string) { m.SerialNo = v },
+	"serailnumber": func(m *models.MasterData, v string) { m.SerialNo = v },
 	"sn":           func(m *models.MasterData, v string) { m.SerialNo = v },
+	"snno":         func(m *models.MasterData, v string) { m.SerialNo = v },
 
-	"itcontrollerno": func(m *models.MasterData, v string) { m.ITControllerNo = &v },
-	"itcontroller":   func(m *models.MasterData, v string) { m.ITControllerNo = &v },
-	"itcno":          func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"itcontrollerno":       func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"itcontroller":         func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"itcno":                func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"itcontrollerserialno": func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"itcontrollersn":       func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"itcontrollerserial":   func(m *models.MasterData, v string) { m.ITControllerNo = &v },
 
 	"imei": func(m *models.MasterData, v string) { m.IMEI = &v },
 
@@ -140,15 +220,15 @@ var masterDataColumns = map[string]func(*models.MasterData, string){
 // componentTypeHeaderKeys คือหัวคอลัมน์ที่ถือว่าเป็น "คอลัมน์ชนิดอะไหล่" ในไฟล์
 // (normalize แล้ว — ดู normalizeHeader) รองรับทั้งหัวคอลัมน์ภาษาอังกฤษและไทย
 var componentTypeHeaderKeys = map[string]bool{
-	"type":            true,
-	"parttype":        true,
-	"componenttype":   true,
-	"category":        true,
-	"producttype":     true,
-	"ประเภท":          true,
-	"ประเภทอะไหล่":     true,
-	"ชนิด":            true,
-	"ชนิดอะไหล่":       true,
+	"type":          true,
+	"parttype":      true,
+	"componenttype": true,
+	"category":      true,
+	"producttype":   true,
+	"ประเภท":        true,
+	"ประเภทอะไหล่":  true,
+	"ชนิด":          true,
+	"ชนิดอะไหล่":    true,
 }
 
 // componentTypeValues จับคู่ "ค่าที่เขียนในคอลัมน์ชนิดอะไหล่" (normalize แล้ว)
@@ -298,67 +378,10 @@ func UploadMasterData(c *gin.Context) {
 		return
 	}
 
-	// หาคอลัมน์ชนิดอะไหล่ในไฟล์ (ถ้ามี) — ไฟล์เก่าที่มีอะไหล่ชนิดเดียวทั้งไฟล์จะไม่มี
-	// คอลัมน์นี้ ก็ไม่เป็นไร ทุกแถวจะใช้ fallbackComponentType แทน
-	typeColIdx := findComponentTypeColumn(headers)
-
 	userID, userName := lookupUserName(c)
 	now := time.Now()
 
-	var (
-		parsed   []models.MasterData
-		seen     = map[string]bool{}
-		skipped  int
-		problems []string
-	)
-
-	for i := headerIdx + 1; i < len(rows); i++ {
-
-		row := models.MasterData{
-			ComponentType: fallbackComponentType,
-			UploadDate:    now,
-			UserID:        userID,
-		}
-
-		for col, header := range headers {
-			if col >= len(rows[i]) {
-				break
-			}
-			if setter, ok := masterDataColumns[header]; ok {
-				setter(&row, unwrapExcelText(rows[i][col]))
-			}
-		}
-
-		// แถวนี้อ่านชนิดจากคอลัมน์ในไฟล์ได้ไหม — ถ้าได้ ใช้แทนค่า fallback
-		// ถ้ามีคอลัมน์แต่ค่าที่เขียนมาอ่านไม่รู้เรื่อง ให้ยังคง fallback ไว้
-		// แต่แจ้งเตือนกลับไปด้วย ผู้ใช้จะได้ไปเช็คว่าพิมพ์ชนิดผิดหรือเปล่า
-		if typeColIdx >= 0 && typeColIdx < len(rows[i]) {
-			raw := strings.TrimSpace(rows[i][typeColIdx])
-			if code, ok := resolveComponentType(raw); ok {
-				row.ComponentType = code
-			} else if raw != "" {
-				problems = append(problems, "แถว "+strconv.Itoa(i+1)+": ไม่รู้จักชนิดอะไหล่ '"+raw+"' — ใช้ "+fallbackComponentType+" แทน")
-			}
-		}
-
-		normalizeMasterData(&row)
-
-		// ไม่มี Serial No. = ไม่ใช่แถวข้อมูล (แถวหัวเรื่อง/แถวว่าง/แถวหมายเหตุ)
-		if row.SerialNo == "" {
-			skipped++
-			continue
-		}
-
-		// กันไฟล์ที่มี Serial ซ้ำกันเองในไฟล์เดียว — เอาแถวแรกที่เจอ
-		dupKey := row.ComponentType + "|" + row.SerialNo
-		if seen[dupKey] {
-			problems = append(problems, "แถว "+strconv.Itoa(i+1)+": Serial "+row.SerialNo+" ซ้ำกันเองในไฟล์")
-			continue
-		}
-		seen[dupKey] = true
-
-		parsed = append(parsed, row)
-	}
+	parsed, skipped, problems := parseMasterDataRows(rows, headerIdx, headers, fallbackComponentType, userID, now)
 
 	if len(parsed) == 0 {
 		c.JSON(400, gin.H{"message": "ไม่พบแถวข้อมูลที่นำเข้าได้ในไฟล์นี้"})
@@ -427,6 +450,261 @@ func UploadMasterData(c *gin.Context) {
 		"skipped":  skipped,
 		"problems": problems,
 		"file":     fileHeader.Filename,
+	})
+}
+
+// parseMasterDataRows แปลงแถวจากไฟล์ให้เป็น []MasterData (ใช้ร่วมทั้ง Upload และ Preview)
+// - map คอลัมน์ตามชื่อหัว (masterDataColumns) รองรับสลับลำดับ/เปลี่ยนชื่อผ่าน synonyms
+// - อ่านชนิดอะไหล่จากคอลัมน์ในไฟล์ถ้ามี ไม่งั้นใช้ fallback
+// - ข้ามแถวที่ไม่มี Serial No. (ไม่ใช่แถวข้อมูล) และกัน Serial ซ้ำในไฟล์เดียว
+func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallbackComponentType string, userID uint, now time.Time) ([]models.MasterData, int, []string) {
+	typeColIdx := findComponentTypeColumn(headers)
+
+	var (
+		parsed   []models.MasterData
+		seen     = map[string]bool{}
+		skipped  int
+		problems []string
+	)
+
+	for i := headerIdx + 1; i < len(rows); i++ {
+		row := models.MasterData{
+			ComponentType: fallbackComponentType,
+			UploadDate:    now,
+			UserID:        userID,
+		}
+
+		for col, header := range headers {
+			if col >= len(rows[i]) {
+				break
+			}
+			if setter, ok := masterDataColumns[header]; ok {
+				setter(&row, unwrapExcelText(rows[i][col]))
+			}
+		}
+
+		if typeColIdx >= 0 && typeColIdx < len(rows[i]) {
+			raw := strings.TrimSpace(rows[i][typeColIdx])
+			if code, ok := resolveComponentType(raw); ok {
+				row.ComponentType = code
+			} else if raw != "" {
+				problems = append(problems, "แถว "+strconv.Itoa(i+1)+": ไม่รู้จักชนิดอะไหล่ '"+raw+"' — ใช้ "+fallbackComponentType+" แทน")
+			}
+		}
+
+		normalizeMasterData(&row)
+
+		if row.SerialNo == "" {
+			skipped++
+			continue
+		}
+
+		dupKey := row.ComponentType + "|" + row.SerialNo
+		if seen[dupKey] {
+			problems = append(problems, "แถว "+strconv.Itoa(i+1)+": Serial "+row.SerialNo+" ซ้ำกันเองในไฟล์")
+			continue
+		}
+		seen[dupKey] = true
+
+		parsed = append(parsed, row)
+	}
+
+	return parsed, skipped, problems
+}
+
+// ClearMasterData ลบทะเบียนกลาง — ระบุ ?component_type= เพื่อลบเฉพาะชนิด
+// หรือส่ง ?all=true เพื่อลบทั้งหมด (ต้องระบุอย่างใดอย่างหนึ่ง กันเผลอล้างทั้งตาราง)
+func ClearMasterData(c *gin.Context) {
+	componentType := strings.TrimSpace(c.Query("component_type"))
+	deleteAll := strings.EqualFold(strings.TrimSpace(c.Query("all")), "true")
+
+	if componentType == "" && !deleteAll {
+		c.JSON(400, gin.H{"message": "ต้องระบุ component_type ที่จะลบ หรือส่ง all=true เพื่อลบทั้งหมด"})
+		return
+	}
+
+	tx := config.DB
+	if componentType != "" {
+		tx = tx.Where("component_type = ?", componentType)
+	} else {
+		tx = tx.Where("1 = 1")
+	}
+
+	res := tx.Delete(&models.MasterData{})
+	if res.Error != nil {
+		c.JSON(500, gin.H{"message": res.Error.Error()})
+		return
+	}
+
+	userID, userName := lookupUserName(c)
+	label := componentType
+	if label == "" {
+		label = "ALL"
+	}
+	CreateAuditLog("MASTER_DATA", 0, "clear", label, userID, userName)
+
+	c.JSON(200, gin.H{"deleted": res.RowsAffected})
+}
+
+// PreviewMasterDataChanges = ตรวจไฟล์ก่อนอัปโหลดจริง (dry-run, ไม่เขียน DB)
+// จับคู่กับของเดิมด้วย business key (component_type + serial_no) แล้วจำแนกแต่ละแถวเป็น
+// NEW / UNCHANGED / UPDATED / CHANGED / ERROR พร้อมแสดงค่า old→new ของฟิลด์หลัก
+// (P/N, S/N, IT Controller no., IMEI) เพื่อให้ผู้ใช้ "รับรอง" ก่อนกดอัปโหลด
+func PreviewMasterDataChanges(c *gin.Context) {
+	fallbackComponentType := strings.TrimSpace(c.PostForm("component_type"))
+	if fallbackComponentType == "" {
+		fallbackComponentType = "it_controller"
+	}
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(400, gin.H{"message": "กรุณาแนบไฟล์ Excel หรือ CSV (field name: file)"})
+		return
+	}
+	rows, err := readUploadedRows(fileHeader)
+	if err != nil {
+		c.JSON(400, gin.H{"message": err.Error()})
+		return
+	}
+	if len(rows) < 2 {
+		c.JSON(400, gin.H{"message": "ไฟล์ไม่มีข้อมูล หรืออ่านไม่ได้"})
+		return
+	}
+
+	headerIdx, headers := findMasterDataHeader(rows)
+	if headerIdx < 0 {
+		c.JSON(200, gin.H{
+			"file":        fileHeader.Filename,
+			"headerFound": false,
+			"message":     "หาหัวตารางไม่เจอ — ไฟล์ต้องมีคอลัมน์ Serial No. และ Part No. อย่างน้อย",
+		})
+		return
+	}
+
+	// รายงานคอลัมน์ที่ระบบไม่รู้จัก (คอลัมน์ใหม่) เพื่อให้เห็นควบคู่กับ change detection
+	var matchedCols, extraCols []string
+	seenCol := map[string]bool{}
+	for col, key := range headers {
+		label := ""
+		if col < len(rows[headerIdx]) {
+			label = strings.TrimSpace(rows[headerIdx][col])
+		}
+		if _, ok := masterDataColumns[key]; ok {
+			if !seenCol[key] {
+				matchedCols = append(matchedCols, label)
+				seenCol[key] = true
+			}
+		} else if componentTypeHeaderKeys[key] {
+			// คอลัมน์ชนิดอะไหล่ ถือว่ารู้จัก
+		} else if label != "" {
+			extraCols = append(extraCols, label)
+		}
+	}
+
+	parsed, skipped, problems := parseMasterDataRows(rows, headerIdx, headers, fallbackComponentType, 0, time.Now())
+
+	// ดึงของเดิมทีเดียว แล้วจำแนกในหน่วยความจำ (ไม่เขียน DB)
+	serials := make([]string, 0, len(parsed))
+	for _, r := range parsed {
+		serials = append(serials, r.SerialNo)
+	}
+	var existingRows []models.MasterData
+	if len(serials) > 0 {
+		config.DB.Where("serial_no IN ?", serials).Find(&existingRows)
+	}
+	existing := make(map[string]models.MasterData, len(existingRows))
+	for _, r := range existingRows {
+		existing[r.ComponentType+"|"+r.SerialNo] = r
+	}
+
+	deref := func(p *string) string {
+		if p == nil {
+			return ""
+		}
+		return *p
+	}
+
+	type fieldDiff struct {
+		Field string `json:"field"`
+		Old   string `json:"old"`
+		New   string `json:"new"`
+	}
+	type rowResult struct {
+		Serial        string      `json:"serial"`
+		ComponentType string      `json:"component_type"`
+		Status        string      `json:"status"`
+		Diffs         []fieldDiff `json:"diffs,omitempty"`
+	}
+
+	var results []rowResult
+	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0}
+
+	// ฟิลด์ที่ถือเป็น "identity/core" — ถ้าเปลี่ยนจะจัดเป็น CHANGED (ต้องยืนยันก่อน)
+	for _, r := range parsed {
+		old, ok := existing[r.ComponentType+"|"+r.SerialNo]
+		if !ok {
+			counts["NEW"]++
+			results = append(results, rowResult{Serial: r.SerialNo, ComponentType: r.ComponentType, Status: "NEW"})
+			continue
+		}
+
+		var diffs []fieldDiff
+		coreChanged := false
+		add := func(field, o, n string, core bool) {
+			if o != n {
+				diffs = append(diffs, fieldDiff{Field: field, Old: o, New: n})
+				if core {
+					coreChanged = true
+				}
+			}
+		}
+		add("Part No", old.PartNo, r.PartNo, true)
+		add("IT Controller no.", deref(old.ITControllerNo), deref(r.ITControllerNo), true)
+		add("IMEI", deref(old.IMEI), deref(r.IMEI), true)
+		add("Part Name", old.Name, r.Name, false)
+		add("Model", old.Model, r.Model, false)
+
+		var status string
+		switch {
+		case len(diffs) == 0:
+			status = "UNCHANGED"
+		case coreChanged:
+			status = "CHANGED"
+		default:
+			status = "UPDATED"
+		}
+		counts[status]++
+		results = append(results, rowResult{Serial: r.SerialNo, ComponentType: r.ComponentType, Status: status, Diffs: diffs})
+	}
+
+	// ส่งเฉพาะแถวที่ไม่ใช่ UNCHANGED กลับไปแสดง (กัน payload ใหญ่) จำกัด 300 แถว
+	preview := make([]rowResult, 0, 300)
+	for _, r := range results {
+		if r.Status == "UNCHANGED" {
+			continue
+		}
+		if len(preview) >= 300 {
+			break
+		}
+		preview = append(preview, r)
+	}
+
+	c.JSON(200, gin.H{
+		"file":        fileHeader.Filename,
+		"headerFound": true,
+		"headerRow":   headerIdx + 1,
+		"matched":     matchedCols,
+		"extra":       extraCols,
+		"skipped":     skipped,
+		"problems":    problems,
+		"summary": gin.H{
+			"total":     len(parsed),
+			"new":       counts["NEW"],
+			"updated":   counts["UPDATED"],
+			"changed":   counts["CHANGED"],
+			"unchanged": counts["UNCHANGED"],
+		},
+		"rows": preview,
 	})
 }
 

@@ -78,6 +78,10 @@ type ExportLicenseItem struct {
 
 	Remark string `gorm:"column:remark;size:255"`
 
+	// ExtraJSON = คอลัมน์ในไฟล์ที่ระบบยังไม่รู้จัก (หัวคอลัมน์ใหม่ที่เพิ่มมาทีหลัง)
+	// เก็บเป็น JSON {"<หัวคอลัมน์>":"<ค่า>"} เพื่อไม่ให้ข้อมูลหายตอนอัปโหลด
+	ExtraJSON string `gorm:"type:text" json:"extra_json"`
+
 	// ── ที่มาของข้อมูล ──────────────────────────────────────────────────────
 	FileName   string `gorm:"size:255"`
 	UploadDate time.Time

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"sort"
 	"strconv"
 	"strings"
@@ -154,6 +155,8 @@ func findExportHeaderRow(rows [][]string, known map[string]bool, anchors []strin
 	for _, a := range anchors {
 		anchorSet[a] = true
 	}
+	// ColumnAlias ตอนรัน: หัวคอลัมน์ในไฟล์ที่ถูกเปลี่ยนชื่อ → คีย์มาตรฐาน
+	reverse := loadColumnAliasReverse("export_license")
 	limit := 30
 	if len(rows) < limit {
 		limit = len(rows)
@@ -163,7 +166,7 @@ func findExportHeaderRow(rows [][]string, known map[string]bool, anchors []strin
 		hits := 0
 		hasAnchor := false
 		for j, cell := range rows[i] {
-			key := normalizeHeader(cell)
+			key := aliasHeaderKey(reverse, normalizeHeader(cell))
 			headers[j] = key
 			if known[key] {
 				hits++
@@ -483,12 +486,28 @@ func UploadExportLicense(c *gin.Context) {
 			UploadDate: now,
 			UserID:     userID,
 		}
+		extra := map[string]string{}
 		for col, header := range headers {
 			if col >= len(rows[i]) {
 				break
 			}
+			val := strings.TrimSpace(rows[i][col])
 			if setter, ok := exportLicenseColumns[header]; ok {
-				setter(&row, strings.TrimSpace(rows[i][col]))
+				setter(&row, val)
+				continue
+			}
+			// หัวคอลัมน์ใหม่ที่ระบบไม่รู้จัก → เก็บไว้ไม่ให้หาย (ใช้ชื่อหัวเดิมจากไฟล์)
+			label := ""
+			if headerIdx >= 0 && headerIdx < len(rows) && col < len(rows[headerIdx]) {
+				label = strings.TrimSpace(rows[headerIdx][col])
+			}
+			if label != "" && val != "" {
+				extra["[+] "+label] = val
+			}
+		}
+		if len(extra) > 0 {
+			if b, err := json.Marshal(extra); err == nil {
+				row.ExtraJSON = string(b)
 			}
 		}
 		// ไฟล์รูปแบบเต็ม (B) ไม่มีคอลัมน์ "Serial Number" ตรง ๆ ต้องเลือกคีย์
@@ -551,6 +570,60 @@ func UploadExportLicense(c *gin.Context) {
 //	                  เพราะอายุแค่ 1 เดือน เกณฑ์ 30 วันแบบ Import จะเตือนตลอด)
 //	?only=alert       คืนเฉพาะที่หมดอายุ/ใกล้หมดอายุ (ไว้ป้อน badge กระดิ่ง)
 // ─────────────────────────────────────────────────────────────────────────────
+
+// PreviewExportLicenseMapping = ลองอ่านหัวตารางโดยไม่บันทึก คืนคอลัมน์ที่แม็ปได้/ไม่รู้จัก
+func PreviewExportLicenseMapping(c *gin.Context) {
+	rows, fileName, err := readSheetRows(c, []string{"export", "exportlicense", "serail", "serial", "total"})
+	if err != nil {
+		c.JSON(400, gin.H{"message": err.Error()})
+		return
+	}
+	if len(rows) < 1 {
+		c.JSON(400, gin.H{"message": "ไฟล์ไม่มีข้อมูล หรืออ่านไม่ได้"})
+		return
+	}
+	headerIdx, headers := findExportHeaderRow(
+		rows,
+		exportLicenseKnownHeaders(),
+		[]string{"serialnumber", "serialno", "serial", "itcontrollerserialno", "itcontrollerno", "machineno"},
+		2,
+	)
+	if headerIdx < 0 {
+		c.JSON(200, gin.H{
+			"file":        fileName,
+			"headerFound": false,
+			"message":     "หาหัวตารางไม่เจอ — ต้องมีคอลัมน์คีย์ (Serial Number หรือ IT Controller Serial No.)",
+		})
+		return
+	}
+
+	var matched, extra []string
+	seenTarget := map[string]bool{}
+	for col, key := range headers {
+		label := ""
+		if col < len(rows[headerIdx]) {
+			label = strings.TrimSpace(rows[headerIdx][col])
+		}
+		if _, ok := exportLicenseColumns[key]; ok {
+			if !seenTarget[key] {
+				matched = append(matched, label)
+				seenTarget[key] = true
+			}
+			continue
+		}
+		if label != "" {
+			extra = append(extra, label)
+		}
+	}
+
+	c.JSON(200, gin.H{
+		"file":        fileName,
+		"headerFound": true,
+		"headerRow":   headerIdx + 1,
+		"matched":     matched,
+		"extra":       extra,
+	})
+}
 
 // ExportLicenseValidityMonths = อายุใบอนุญาตส่งออก (เดือน)
 const ExportLicenseValidityMonths = 1

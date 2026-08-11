@@ -1,14 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import AppShell from '../components/AppShell.jsx'
 import SelectField from '../components/Selectfield.jsx'
-import { getMasterData, uploadMasterData, deleteMasterData } from '../api/masterData.js'
+import { getMasterData, uploadMasterData, deleteMasterData, clearMasterData, previewMasterDataChanges } from '../api/masterData.js'
 import {
   getUploadData,
   uploadDataFile,
   deleteUploadDataRow,
   clearUploadData,
   exportUploadData,
+  previewUploadData,
 } from '../api/uploadData.js'
+import {
+  CodeAliasPanel,
+  PreviewResult,
+  ChangePreview,
+  MasterDataEditModal,
+} from '../components/FormatTools.jsx'
 import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js'
 import { CloudArrowUpIcon } from '../components/icons.jsx'
 import {
@@ -101,7 +108,33 @@ export default function MasterDataPage() {
   const [pendingFile, setPendingFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [uploadMsg, setUploadMsg] = useState(null)
+  const [previewData, setPreviewData] = useState(null)
+  const [previewing, setPreviewing] = useState(false)
   const fileInputRef = useRef(null)
+
+  // Preview รองรับทั้งชุดข้อมูลไฟล์ (dry-run แม็ปคอลัมน์) และทะเบียน Master Data
+  // (ตรวจจับการเปลี่ยนข้อมูล NEW/UPDATED/CHANGED/UNCHANGED) — ทั้งคู่ไม่เขียน DB
+  const isMasterType = COMPONENT_TYPE_VALUES.has(uploadType)
+  const canPreview = true
+
+  async function handlePreview() {
+    if (!pendingFile) {
+      setUploadMsg({ error: 'กรุณาเลือกไฟล์ก่อนตรวจสอบ' })
+      return
+    }
+    setPreviewing(true)
+    setPreviewData(null)
+    try {
+      const data = isMasterType
+        ? await previewMasterDataChanges(pendingFile, uploadType)
+        : await previewUploadData(uploadType, pendingFile)
+      setPreviewData({ ...data, _mode: isMasterType ? 'change' : 'map' })
+    } catch (err) {
+      setUploadMsg({ error: err.message || 'ตรวจสอบไฟล์ไม่สำเร็จ' })
+    } finally {
+      setPreviewing(false)
+    }
+  }
 
   // นับรอบโหลดใหม่ เพื่อสั่ง refresh ตารางหลังอัปโหลด/ลบ (ใช้ร่วมทั้ง master-data และ dataset)
   const [reloadKey, setReloadKey] = useState(0)
@@ -109,6 +142,7 @@ export default function MasterDataPage() {
   function handleFileChange(e) {
     setPendingFile(e.target.files?.[0] || null)
     setUploadMsg(null)
+    setPreviewData(null)
   }
 
   async function handleUpload() {
@@ -138,6 +172,7 @@ export default function MasterDataPage() {
       }
 
       setPendingFile(null)
+      setPreviewData(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
 
       // อัปโหลดเสร็จแล้วสลับตารางไปดูประเภทที่เพิ่งอัปโหลด แล้วรีโหลด
@@ -197,16 +232,36 @@ export default function MasterDataPage() {
                 setUploadType(v)
                 setPendingFile(null)
                 setUploadMsg(null)
+                setPreviewData(null)
                 if (fileInputRef.current) fileInputRef.current.value = ''
               }}
               options={UPLOAD_TYPE_OPTIONS.map((t) => ({ value: t.value, label: t.label }))}
             />
           </div>
 
-          <button className="wh-issue-btn upload-panel-btn" disabled={uploading} onClick={handleUpload}>
-            {uploading ? 'กำลังอัปโหลด...' : `อัปโหลด ${typeLabel(uploadType)}`}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {canPreview && (
+              <button
+                className="qa-fail-btn upload-panel-btn"
+                style={{ background: '#eef2ff', color: '#4338ca', borderColor: '#c7d2fe' }}
+                disabled={previewing || uploading}
+                onClick={handlePreview}
+              >
+                {previewing ? 'กำลังตรวจสอบ...' : 'ตรวจสอบก่อนอัปโหลด'}
+              </button>
+            )}
+            <button className="wh-issue-btn upload-panel-btn" disabled={uploading} onClick={handleUpload}>
+              {uploading ? 'กำลังอัปโหลด...' : `อัปโหลด ${typeLabel(uploadType)}`}
+            </button>
+          </div>
         </div>
+
+        {previewData &&
+          (previewData._mode === 'change' ? (
+            <ChangePreview result={previewData} />
+          ) : (
+            <PreviewResult result={previewData} />
+          ))}
 
         {uploadMsg?.success && <p className="upload-card-msg upload-card-msg-ok">{uploadMsg.success}</p>}
         {uploadMsg?.error && <p className="upload-card-msg upload-card-msg-err">{uploadMsg.error}</p>}
@@ -260,9 +315,14 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
   const [loadError, setLoadError] = useState('')
   const [keyword, setKeyword] = useState('')
   const [deletingId, setDeletingId] = useState(0)
+  const [editRow, setEditRow] = useState(null)
 
   // ชื่อคอลัมน์ "หมายเลข" ของตารางนี้ — เปลี่ยนตามตัวกรอง (Filter) ที่เลือก
   const noLabel = NO_LABEL_BY_TYPE[compType] || 'IT Controller no.'
+
+  // ชนิดอะไหล่สำหรับ dropdown ในกล่องแก้ไข + panel จับคู่ค่ารหัส
+  const editComponentOptions = COMPONENT_TYPES.map((t) => ({ value: t.value, label: t.label }))
+  const codeAliasType = compType !== 'all' ? compType : 'it_controller'
 
   useEffect(() => {
     let cancelled = false
@@ -327,6 +387,28 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
       toastError(msg)
     } finally {
       setDeletingId(0)
+    }
+  }
+
+  async function handleClearAll() {
+    const isAll = compType === 'all'
+    const label = isAll ? 'ทะเบียนทั้งหมด' : HEADING_LABEL_BY_TYPE[compType] || compType
+    const ok = await confirmDelete({
+      text: `ลบ ${label} ออกจากทะเบียนทั้งหมด? กู้คืนไม่ได้`,
+      confirmText: 'ลบทั้งหมด',
+    })
+    if (!ok) return
+    setLoadError('')
+    try {
+      const res = isAll
+        ? await clearMasterData({ all: true })
+        : await clearMasterData({ componentType: compType })
+      bumpReload()
+      toastSuccess(`ลบแล้ว ${res.deleted ?? 0} รายการ`)
+    } catch (err) {
+      const msg = err.message || 'ลบไม่สำเร็จ'
+      setLoadError(msg)
+      toastError(msg)
     }
   }
 
@@ -423,6 +505,9 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
           <button className="wh-issue-btn" onClick={handleExportCsv} disabled={filtered.length === 0}>
             <ArrowDownTrayIcon className="size-4" /> Export CSV
           </button>
+          <button className="qa-fail-btn" onClick={handleClearAll} disabled={rows.length === 0}>
+            {compType === 'all' ? 'ลบทั้งหมด' : 'ลบทั้งชนิด'}
+          </button>
         </div>
       </div>
 
@@ -470,13 +555,18 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
                     {row.IMEI || DASH}
                   </td>
                   <td className="wh-cell-action">
-                    <button
-                      className="qa-fail-btn"
-                      disabled={deletingId === row.ID}
-                      onClick={() => handleDelete(row)}
-                    >
-                      {deletingId === row.ID ? 'กำลังลบ...' : 'ลบ'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <button className="wh-issue-btn" onClick={() => setEditRow(row)}>
+                        แก้ไข
+                      </button>
+                      <button
+                        className="qa-fail-btn"
+                        disabled={deletingId === row.ID}
+                        onClick={() => handleDelete(row)}
+                      >
+                        {deletingId === row.ID ? 'กำลังลบ...' : 'ลบ'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -493,6 +583,17 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
           </tbody>
         </table>
       </div>
+
+      <CodeAliasPanel componentType={codeAliasType} />
+
+      {editRow && (
+        <MasterDataEditModal
+          row={editRow}
+          componentOptions={editComponentOptions}
+          onClose={() => setEditRow(null)}
+          onSaved={bumpReload}
+        />
+      )}
     </>
   )
 }

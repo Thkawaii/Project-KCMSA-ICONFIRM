@@ -1,19 +1,30 @@
 import { useAppNavigate, useAppView } from '../lib/nav.jsx'
 import { logout } from '../api/auth.js'
 import { ArrowRightStartOnRectangleIcon } from './icons.jsx'
-import LicenseAlertBell from './LicenseAlertBell.jsx'
-import ExportLicenseAlertBell from './ExportLicenseAlertBell.jsx'
+import WHAlertBell from './WHAlertBell.jsx'
+
+// ป้ายชื่อ role ที่อ่านง่ายบน topbar (เดิมหน้าคลังส่งมาว่า "Warehouse" เหมือนกันหมด
+// จึงแยก WH Manager / WH User ให้ชัดจาก role จริงใน localStorage)
+const ROLE_LABELS = {
+  WH_MANAGER: 'WH Manager',
+  WH: 'WH User',
+}
 
 export default function AppShell({ navItems, roleLabel, children }) {
   const navigate = useAppNavigate()
   const currentView = useAppView()
 
-  const displayName = `${roleLabel} User`
-  const initial = (roleLabel || 'U').trim().charAt(0).toUpperCase() || 'U'
-
-  // กระดิ่งเตือนอายุใบอนุญาตแสดงเฉพาะ role WH (คนเดียวที่เข้าถึง /import-license ได้)
   const role = (localStorage.getItem('iconfirm_role') || '').toUpperCase()
-  const showLicenseBell = role === 'WH'
+
+  // กรองเมนูตามสิทธิ์: เมนูที่ระบุ roles ไว้จะโชว์เฉพาะ role ที่ตรง (ไม่ระบุ = โชว์ทุก role)
+  const visibleNav = (navItems || []).filter((item) => !item.roles || item.roles.includes(role))
+
+  const shownLabel = ROLE_LABELS[role] || roleLabel || 'User'
+  const displayName = shownLabel
+  const initial = (shownLabel || 'U').trim().charAt(0).toUpperCase() || 'U'
+
+  // กระดิ่งเตือนอายุใบอนุญาต (นำเข้า+ส่งออก รวมเป็นอันเดียว) แสดงเฉพาะ WH Manager
+  const showLicenseBell = role === 'WH_MANAGER'
 
   function handleLogout() {
     logout()
@@ -29,13 +40,12 @@ export default function AppShell({ navItems, roleLabel, children }) {
         </div>
 
         <div className="shell-topbar-right">
-          {showLicenseBell && <LicenseAlertBell />}
-          {showLicenseBell && <ExportLicenseAlertBell />}
-          <div className="shell-user" title={roleLabel}>
+          {showLicenseBell && <WHAlertBell />}
+          <div className="shell-user" title={shownLabel}>
             <span className="shell-avatar">{initial}</span>
             <span className="shell-user-info">
               <span className="shell-user-name">{displayName}</span>
-              <span className="shell-user-role">{roleLabel}</span>
+              <span className="shell-user-role">{shownLabel}</span>
             </span>
           </div>
           <button className="shell-logout-btn" onClick={handleLogout}>
@@ -45,9 +55,9 @@ export default function AppShell({ navItems, roleLabel, children }) {
         </div>
       </header>
 
-      {navItems && navItems.length > 1 && (
+      {visibleNav.length > 1 && (
         <nav className="shell-subnav" aria-label="เมนูภายในระบบ">
-          {navItems.map((item) => (
+          {visibleNav.map((item) => (
             <button
               key={item.to}
               type="button"

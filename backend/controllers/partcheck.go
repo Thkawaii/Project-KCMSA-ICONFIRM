@@ -122,6 +122,23 @@ func resolveITControllerMaster(pn, sn string) *models.MasterData {
 		return &m
 	}
 
+	// 4) เผื่อหน้างานเปลี่ยน format ของ S/N (หรือ P/N) — เทียบผ่านตาราง CodeAlias
+	//    ที่ลงทะเบียน "รหัสรูปแบบใหม่ → แถวมาตรฐานในทะเบียน" ไว้ล่วงหน้า
+	for _, raw := range []string{sn, pn} {
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		if a := lookupCodeAlias("it_controller", raw); a != nil && strings.TrimSpace(a.ToSerialNo) != "" {
+			q := config.DB.Where("serial_no = ?", strings.TrimSpace(a.ToSerialNo))
+			if p := strings.TrimSpace(a.ToPartNo); p != "" {
+				q = q.Where("part_no = ?", p)
+			}
+			if err := q.First(&m).Error; err == nil {
+				return &m
+			}
+		}
+	}
+
 	return nil
 }
 

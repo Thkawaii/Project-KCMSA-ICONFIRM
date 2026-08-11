@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"sort"
 	"strconv"
 	"strings"
@@ -275,6 +276,9 @@ func normalizeDigitCell(v string) string {
 // CONTROLLER") กับแถวว่างคั่นอยู่ข้างบน หัวตารางจริงอยู่แถวที่ 3
 func findImportLicenseHeader(rows [][]string) (int, []string) {
 
+	// ColumnAlias ตอนรัน: หัวคอลัมน์ในไฟล์ที่ถูกเปลี่ยนชื่อ → คีย์มาตรฐาน
+	reverse := loadColumnAliasReverse("import_license")
+
 	limit := 30
 	if len(rows) < limit {
 		limit = len(rows)
@@ -287,7 +291,8 @@ func findImportLicenseHeader(rows [][]string) (int, []string) {
 		hasMachineNo := false
 
 		for j, cell := range rows[i] {
-			key := normalizeHeader(cell)
+			// แปลผ่าน alias ก่อน แล้วค่อยเก็บเป็นคีย์มาตรฐานลง headers
+			key := aliasHeaderKey(reverse, normalizeHeader(cell))
 			headers[j] = key
 
 			if _, ok := importLicenseColumns[key]; ok {
@@ -585,12 +590,29 @@ func UploadImportLicenseItems(c *gin.Context) {
 			UserID:        userID,
 		}
 
+		extra := map[string]string{}
 		for col, header := range headers {
 			if col >= len(rows[i]) {
 				break
 			}
+			val := strings.TrimSpace(rows[i][col])
 			if setter, ok := importLicenseColumns[header]; ok {
-				setter(&row, strings.TrimSpace(rows[i][col]))
+				setter(&row, val)
+				continue
+			}
+			// หัวคอลัมน์ที่ระบบไม่รู้จัก = คอลัมน์ใหม่ → เก็บไว้ไม่ให้หาย
+			// ใช้ชื่อหัวเดิมจากไฟล์ (ก่อน normalize) เป็นคีย์ให้อ่านง่าย
+			label := ""
+			if headerIdx >= 0 && headerIdx < len(rows) && col < len(rows[headerIdx]) {
+				label = strings.TrimSpace(rows[headerIdx][col])
+			}
+			if label != "" && val != "" {
+				extra["[+] "+label] = val
+			}
+		}
+		if len(extra) > 0 {
+			if b, err := json.Marshal(extra); err == nil {
+				row.ExtraJSON = string(b)
 			}
 		}
 
@@ -652,6 +674,7 @@ func UploadImportLicenseItems(c *gin.Context) {
 					"remark":         row.Remark,
 					"export_country": row.ExportCountry,
 					"issue_date":     row.IssueDate,
+					"extra_json":     row.ExtraJSON,
 					"file_name":      row.FileName,
 					"upload_date":    now,
 					"user_id":        userID,
@@ -705,8 +728,21 @@ func matchImportLicense(code, invoiceNo, productionNo string) (string, string, *
 		First(&item).Error
 
 	if err != nil {
-		return models.MatchStatusNotFound,
-			"ไม่พบ " + code + " ในบัญชีใบอนุญาตนำเข้า", nil
+		// ── Fallback: ค่ารหัสเปลี่ยน format จน match ตรง ๆ ไม่ได้ ──────────────
+		// ลองเทียบผ่าน CodeAlias (ค่าเก่า/ใหม่ → เลขมาตรฐาน) ที่ผู้ใช้อัปโหลดไว้
+		if alias := lookupCodeAlias("import_license", code); alias != nil && alias.ToSerialNo != "" {
+			if e2 := config.DB.
+				Where("machine_no = ? OR production_no = ?", alias.ToSerialNo, alias.ToSerialNo).
+				First(&item).Error; e2 == nil {
+				code = alias.ToSerialNo // ใช้เลขมาตรฐานต่อในการเช็คอินวอยซ์/สถานะด้านล่าง
+			} else {
+				return models.MatchStatusNotFound,
+					"ไม่พบ " + code + " ในบัญชีใบอนุญาตนำเข้า", nil
+			}
+		} else {
+			return models.MatchStatusNotFound,
+				"ไม่พบ " + code + " ในบัญชีใบอนุญาตนำเข้า", nil
+		}
 	}
 
 	// เจอเลข แต่คนละอินวอยซ์ = หยิบของผิดล็อตมาสแกน
@@ -756,6 +792,62 @@ func VerifyImportLicenseCode(c *gin.Context) {
 	})
 }
 
+// PreviewImportLicenseMapping = ลองอ่านหัวตารางของไฟล์โดยไม่บันทึกอะไร
+// คืนว่าคอลัมน์ไหน "แม็ปได้" คอลัมน์ไหน "ระบบไม่รู้จัก" เพื่อให้ผู้ใช้ตรวจก่อนอัปโหลดจริง
+func PreviewImportLicenseMapping(c *gin.Context) {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(400, gin.H{"message": "กรุณาแนบไฟล์ (field name: file)"})
+		return
+	}
+	rows, err := readUploadedRows(fileHeader)
+	if err != nil {
+		c.JSON(400, gin.H{"message": err.Error()})
+		return
+	}
+	if len(rows) < 1 {
+		c.JSON(400, gin.H{"message": "ไฟล์ไม่มีข้อมูล หรืออ่านไม่ได้"})
+		return
+	}
+
+	headerIdx, headers := findImportLicenseHeader(rows)
+	if headerIdx < 0 {
+		c.JSON(200, gin.H{
+			"file":        fileHeader.Filename,
+			"headerFound": false,
+			"message":     "หาหัวตารางไม่เจอ — ต้องมี 'หมายเลขเครื่อง' และคอลัมน์อื่นอย่างน้อย 2 คอลัมน์",
+		})
+		return
+	}
+
+	var matched, extra []string
+	seenTarget := map[string]bool{}
+	for col, key := range headers {
+		label := ""
+		if col < len(rows[headerIdx]) {
+			label = strings.TrimSpace(rows[headerIdx][col])
+		}
+		if _, ok := importLicenseColumns[key]; ok {
+			if !seenTarget[key] {
+				matched = append(matched, label)
+				seenTarget[key] = true
+			}
+			continue
+		}
+		if label != "" {
+			extra = append(extra, label)
+		}
+	}
+
+	c.JSON(200, gin.H{
+		"file":        fileHeader.Filename,
+		"headerFound": true,
+		"headerRow":   headerIdx + 1,
+		"matched":     matched,
+		"extra":       extra,
+	})
+}
+
 // DeleteImportLicenseItem ลบทีละแถว (เผื่ออัปโหลดผิดไฟล์)
 func DeleteImportLicenseItem(c *gin.Context) {
 
@@ -786,19 +878,50 @@ func DeleteImportLicenseItem(c *gin.Context) {
 func ClearImportLicenseItems(c *gin.Context) {
 
 	licenseNo := strings.TrimSpace(c.Query("license_no"))
-	if licenseNo == "" {
-		c.JSON(400, gin.H{"message": "ต้องระบุ license_no ที่ต้องการลบ"})
+	invoiceNo := strings.TrimSpace(c.Query("invoice_no"))
+	_, hasLicense := c.GetQuery("license_no")
+	_, hasInvoice := c.GetQuery("invoice_no")
+	deleteAll := strings.EqualFold(strings.TrimSpace(c.Query("all")), "true")
+
+	userID, userName := lookupUserName(c)
+
+	// ── ลบทั้งตาราง ── ต้องส่ง all=true มาอย่างชัดเจนเท่านั้น (กันเผลอล้างทั้งหมด)
+	if deleteAll {
+		res := config.DB.Where("1 = 1").Delete(&models.ImportLicenseItem{})
+		if res.Error != nil {
+			c.JSON(500, gin.H{"message": res.Error.Error()})
+			return
+		}
+		CreateAuditLog("IMPORT_LICENSE", 0, "clear_all", "ALL", userID, userName)
+		c.JSON(200, gin.H{"deleted": res.RowsAffected})
 		return
 	}
 
-	res := config.DB.Where("license_no = ?", licenseNo).Delete(&models.ImportLicenseItem{})
+	// ── ลบเจาะจง "ล็อต" = คู่ (เลขใบอนุญาต, อินวอยซ์) ──
+	// ต้องส่ง key อย่างน้อยหนึ่งตัวมา (ค่าจะว่างได้ เพื่อรองรับล็อตที่อัปโหลดจากไฟล์
+	// ที่ไม่มีคอลัมน์เลขใบอนุญาต/อินวอยซ์ ซึ่งเดิมลบไม่ได้เพราะ license_no ว่าง)
+	if !hasLicense && !hasInvoice {
+		c.JSON(400, gin.H{"message": "ต้องระบุล็อตที่จะลบ (license_no และ/หรือ invoice_no) หรือส่ง all=true เพื่อลบทั้งหมด"})
+		return
+	}
+
+	// จับคู่เฉพาะคีย์ที่ส่งมา (รวมค่าว่าง) — เจาะจงล็อตนั้นตรง ๆ ไม่ลบล็อตอื่น
+	tx := config.DB
+	if hasLicense {
+		tx = tx.Where("license_no = ?", licenseNo)
+	}
+	if hasInvoice {
+		tx = tx.Where("invoice_no = ?", invoiceNo)
+	}
+
+	res := tx.Delete(&models.ImportLicenseItem{})
 	if res.Error != nil {
 		c.JSON(500, gin.H{"message": res.Error.Error()})
 		return
 	}
 
-	userID, userName := lookupUserName(c)
-	CreateAuditLog("IMPORT_LICENSE", 0, "clear_license", licenseNo, userID, userName)
+	CreateAuditLog("IMPORT_LICENSE", 0, "clear_license",
+		"license_no="+licenseNo+" invoice_no="+invoiceNo, userID, userName)
 
 	c.JSON(200, gin.H{"deleted": res.RowsAffected})
 }

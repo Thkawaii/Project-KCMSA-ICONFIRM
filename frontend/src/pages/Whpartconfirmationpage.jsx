@@ -119,6 +119,10 @@ const BARCODE_CARDS = [
 ]
 
 export default function WHPartConfirmationPage() {
+  // ตารางเทียบ "บัญชีใบอนุญาตนำเข้า" ให้เห็นเฉพาะ WH Manager — WH User (คนหน้างานจ่าย)
+  // ทำได้แค่สแกนยืนยัน (ตัวเทียบจริงอยู่ฝั่ง backend) ไม่ต้องเห็นตารางอ้างอิงใบอนุญาต
+  const isManager = (localStorage.getItem('iconfirm_role') || '').toUpperCase() === 'WH_MANAGER'
+
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -168,7 +172,11 @@ export default function WHPartConfirmationPage() {
     setLoading(true)
     setLoadError('')
     try {
-      const [checks, items] = await Promise.all([getPartChecks(), getImportLicenseItems()])
+      // WH User ไม่ต้องดึงบัญชีใบอนุญาต (ไม่แสดงตารางเทียบ) — ดึงเฉพาะประวัติสแกน
+      const [checks, items] = await Promise.all([
+        getPartChecks(),
+        isManager ? getImportLicenseItems() : Promise.resolve([]),
+      ])
       setRows(checks || [])
       setLicenseItems(items || [])
     } catch (err) {
@@ -792,13 +800,15 @@ export default function WHPartConfirmationPage() {
         </div>
       )}
 
-      {/* ── ตารางเทียบกับบัญชีใบอนุญาต ─────────────────────────────────── */}
-      {!loading && licenseItems.length === 0 && (
-        <p className="wh-subtitle">
-          ยังไม่มีบัญชีใบอนุญาตนำเข้าในระบบ — ไปที่เมนู <strong>Import License</strong>{' '}
-          เพื่ออัปโหลดไฟล์ Excel ก่อน แล้วค่อยกลับมาสแกน
-        </p>
-      )}
+      {/* ── ตารางเทียบกับบัญชีใบอนุญาต (เห็นเฉพาะ WH Manager) ─────────────── */}
+      {isManager && (
+        <>
+          {!loading && licenseItems.length === 0 && (
+            <p className="wh-subtitle">
+              ยังไม่มีบัญชีใบอนุญาตนำเข้าในระบบ — ไปที่เมนู <strong>Import License</strong>{' '}
+              เพื่ออัปโหลดไฟล์ Excel ก่อน แล้วค่อยกลับมาสแกน
+            </p>
+          )}
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title" style={{ fontSize: 19 }}>
@@ -960,6 +970,8 @@ export default function WHPartConfirmationPage() {
             </button>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* ── ประวัติการสแกน ─────────────────────────────────────────────── */}

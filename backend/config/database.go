@@ -79,9 +79,18 @@ func ConnectDB() {
 
 		// ── MFG Assembly: ผลตรวจตอนประกอบเสร็จ (Machine No + IT Controller No.) ──
 		&models.MFGAssembly{},
+
+		// ── ตั้งค่ารองรับ "การเปลี่ยน format" ตอนรัน (ไม่ต้องแก้โค้ด/รีดีพลอย) ──
+		// ColumnAlias = หัวคอลัมน์ไฟล์เปลี่ยน/เพิ่ม, CodeAlias = ค่า P/N/S/N/Machine No. เปลี่ยน
+		&models.ColumnAlias{},
+		&models.CodeAlias{},
 	)
 
 	SeedData()
+
+	// เติมผู้ใช้ WH_MANAGER (whmanage@kobelco.com) ให้ฐานข้อมูลเดิมที่ติดตั้งไปก่อนแล้ว
+	// (SeedData ข้ามถ้ามี user อยู่แล้ว จึงต้องเติมแยก) — idempotent
+	SeedWHManager()
 
 	// เรียกแยกจาก SeedData() เพราะอันนั้นจะข้ามทั้งหมดถ้ามี user อยู่แล้ว
 	// ส่วนอันนี้ต้องรันทุกครั้งเพื่อเติมทะเบียน IT Controller ที่เพิ่มเข้ามาใหม่
