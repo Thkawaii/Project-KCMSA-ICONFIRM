@@ -55,26 +55,90 @@ func MigratePlaintextPasswords() {
 	}
 }
 
-// SeedWHManager เติมผู้ใช้ระดับหัวหน้าคลัง (WH_MANAGER) ถ้ายังไม่มีในระบบ
+// orgUser = สเปคผู้ใช้สำหรับ seed (idempotent) — ระบุ role/username/password/ชื่อ
+type orgUser struct {
+	Role     string
+	Username string
+	Password string
+	Name     string
+}
+
+// SeedOrgUsers เติมผู้ใช้ทั้งหมดขององค์กร (admin + LOG + พนักงาน WH/MFG รายคน)
+// แบบ idempotent — รันทุกครั้งตอน start เพื่อให้ฐานข้อมูลเดิมที่ติดตั้งไปก่อนแล้ว
+// ได้ผู้ใช้ครบ โดยไม่สร้างซ้ำ (เช็คด้วยคู่ username+name)
 //
-// แยกจาก SeedData() เพราะ SeedData() จะข้ามทั้งหมดถ้ามี user อยู่แล้ว — ฐานข้อมูล
-// ที่ติดตั้งไปก่อนหน้านี้จึงจะไม่มี whmanage ฟังก์ชันนี้จึงรันทุกครั้งตอน start
-// เพื่อเติมให้ (idempotent: ถ้ามีแล้วไม่ทำอะไร ไม่สร้างซ้ำ)
-func SeedWHManager() {
-	var count int64
-	DB.Model(&models.User{}).Where("username = ?", "whmanage@kobelco.com").Count(&count)
-	if count > 0 {
-		return
+// พนักงานในแผนกเดียวใช้ username ร่วมกัน (wh@kobelco.com / mfg@kobelco.com) แต่
+// แยกคนด้วยรหัสผ่านเฉพาะคน — ตอน login ระบบ match password เพื่อรู้ว่าใครสแกน
+func SeedOrgUsers() {
+	// 1) ย้าย role เดิม WH_MANAGER -> LOG (เปลี่ยนชื่อ role เป็นฝั่ง Logistic)
+	//    และแปลงบัญชี whmanage@ เดิมให้เป็น log@ ถ้ายังมีอยู่
+	DB.Model(&models.User{}).Where("role_name = ?", "WH_MANAGER").Update("role_name", "LOG")
+	DB.Model(&models.User{}).
+		Where("username = ?", "whmanage@kobelco.com").
+		Updates(map[string]interface{}{
+			"role_name": "LOG",
+			"username":  "log@kobelco.com",
+			"name":      "LOG User",
+			"password":  hashPassword("log.kobelco"),
+		})
+
+	// 2) รายชื่อผู้ใช้ที่ต้องมี
+	list := []orgUser{
+		{"ADMIN", "admin", "iconfirm", "Administrator"},
+		{"LOG", "log@kobelco.com", "log.kobelco", "LOG User"},
+
+		// ── WH (คลัง / คนหน้างานจ่าย) ──
+		{"WH", "wh@kobelco.com", "wh01.kobelco", "นายวสันต์ มีฤทธิ์"},
+		{"WH", "wh@kobelco.com", "wh02.kobelco", "นายอัมรินทร์ สุขแสวง"},
+		{"WH", "wh@kobelco.com", "wh03.kobelco", "นายบุญมี บุญทาทอง"},
+		{"WH", "wh@kobelco.com", "wh04.kobelco", "นายสุระทิน ชารี"},
+		{"WH", "wh@kobelco.com", "wh05.kobelco", "นายกิตติศักดิ์ ศรีบุญเรือง"},
+		{"WH", "wh@kobelco.com", "wh06.kobelco", "นายอนันตเดช เอี่ยมสะอาด"},
+
+		// ── MFG (ฝ่ายผลิต / ประกอบ) ──
+		{"MFG", "mfg@kobelco.com", "mfg01.kobelco", "นายหนูวิน ใจเรา"},
+		{"MFG", "mfg@kobelco.com", "mfg02.kobelco", "นายวิชัย นิลนามะ"},
+		{"MFG", "mfg@kobelco.com", "mfg03.kobelco", "นายอนุกูล วงแสนสุข"},
+		{"MFG", "mfg@kobelco.com", "mfg04.kobelco", "นายชัยวัฒน์ บัวนาค"},
+		{"MFG", "mfg@kobelco.com", "mfg05.kobelco", "นายวิชา จันทร์เส็ง"},
+		{"MFG", "mfg@kobelco.com", "mfg06.kobelco", "นายเพชร มุนินทร์"},
+		{"MFG", "mfg@kobelco.com", "mfg07.kobelco", "นายวัชรกรณ์ วงเวียน"},
+		{"MFG", "mfg@kobelco.com", "mfg08.kobelco", "นางสาววิชุดา นามจันโท"},
+		{"MFG", "mfg@kobelco.com", "mfg09.kobelco", "นายนครินทร์ พันที"},
+		{"MFG", "mfg@kobelco.com", "mfg10.kobelco", "นายวรภพ มมประโคน"},
+		{"MFG", "mfg@kobelco.com", "mfg11.kobelco", "นายอิทธิเดช คำหอม"},
+		{"MFG", "mfg@kobelco.com", "mfg12.kobelco", "นายสรวิชญ์ เวียงธิเบต"},
+		{"MFG", "mfg@kobelco.com", "mfg13.kobelco", "นายสมบัติ แซ่อึ้ง"},
+		{"MFG", "mfg@kobelco.com", "mfg14.kobelco", "นายธวัฒน์ เสนา"},
+		{"MFG", "mfg@kobelco.com", "mfg15.kobelco", "นายมงคลวัฒน์ จรัญเสริฐ"},
+		{"MFG", "mfg@kobelco.com", "mfg16.kobelco", "นายธงชัย หาญยิ่ง"},
+		{"MFG", "mfg@kobelco.com", "mfg17.kobelco", "นายรุ่งทิวา หาประโคน"},
+		{"MFG", "mfg@kobelco.com", "mfg18.kobelco", "นายอภิสิทธ์ ชะเทียนรัมย์"},
+		{"MFG", "mfg@kobelco.com", "mfg19.kobelco", "นายศักดา เจริญธรรม"},
+		{"MFG", "mfg@kobelco.com", "mfg20.kobelco", "นายณัฐพงษ์ เรืองปะคำ"},
+		{"MFG", "mfg@kobelco.com", "mfg21.kobelco", "นายกิตติศักดิ์ สร้อยเพชร"},
 	}
 
-	DB.Create(&models.User{
-		RoleName: "WH_MANAGER",
-		Username: "whmanage@kobelco.com",
-		Password: hashPassword("whmanage.kobelco"),
-		Status:   "Active",
-		Name:     "WH Manager",
-	})
-	log.Println("Seeded WH_MANAGER user: whmanage@kobelco.com")
+	created := 0
+	for _, u := range list {
+		var cnt int64
+		DB.Model(&models.User{}).Where("username = ? AND name = ?", u.Username, u.Name).Count(&cnt)
+		if cnt > 0 {
+			continue
+		}
+		DB.Create(&models.User{
+			RoleName: u.Role,
+			Username: u.Username,
+			Password: hashPassword(u.Password),
+			Status:   "Active",
+			Name:     u.Name,
+		})
+		created++
+	}
+
+	if created > 0 {
+		log.Printf("[seed] เพิ่มผู้ใช้องค์กรใหม่ %d คน (admin/LOG/WH/MFG)", created)
+	}
 }
 
 func SeedData() {
@@ -103,11 +167,18 @@ func SeedData() {
 			Name:     "Warehouse User",
 		},
 		{
-			RoleName: "WH_MANAGER",
-			Username: "whmanage@kobelco.com",
-			Password: hashPassword("whmanage.kobelco"),
+			RoleName: "LOG",
+			Username: "log@kobelco.com",
+			Password: hashPassword("log.kobelco"),
 			Status:   "Active",
-			Name:     "WH Manager",
+			Name:     "LOG User",
+		},
+		{
+			RoleName: "ADMIN",
+			Username: "admin",
+			Password: hashPassword("iconfirm"),
+			Status:   "Active",
+			Name:     "Administrator",
 		},
 		{
 			RoleName: "TSF",
@@ -134,7 +205,7 @@ func SeedData() {
 	// เหมือนที่เจอ error อยู่ตอนนี้
 	qaUserID := users[0].ID
 	whUserID := users[1].ID
-	tsfUserID := users[2].ID
+	tsfUserID := users[4].ID // ผู้ใช้ role TSF (mfg@kobelco.com) — สำหรับผูก sample tsf ด้านล่าง
 
 	// 2 แถวนี้เป็นข้อมูลตัวอย่างของเดิม ที่ tsf/qa ด้านล่างอ้างถึงอยู่
 	// ถ้าลบออก flow ตัวอย่างจะเสีย — ทะเบียน IT Controller ตัวจริง 36 เครื่อง

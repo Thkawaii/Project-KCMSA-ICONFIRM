@@ -242,11 +242,7 @@ func ScanMFGAssembly(c *gin.Context) {
 	// เช็คซ้ำ "ก่อน" สร้างแถวใหม่ (ถ้าเช็คหลังจะเจอตัวเองเสมอ)
 	duplicate := isMFGDuplicate(itcNo)
 
-	var count int64
-	config.DB.Model(&models.MFGAssembly{}).Count(&count)
-
 	row := models.MFGAssembly{
-		Item:            strconv.FormatInt(count+1, 10),
 		DateAssembly:    &now,
 		MachineNo:       machineNo,
 		ITControllerNo:  itcNo,
@@ -275,6 +271,11 @@ func ScanMFGAssembly(c *gin.Context) {
 		c.JSON(500, gin.H{"message": err.Error()})
 		return
 	}
+
+	// เลขลำดับ Item อิงจาก auto-increment ID ของ DB — ไม่ชนกันแม้หลายคนสแกนพร้อมกัน
+	// (เดิมใช้ COUNT(*)+1 ซึ่งถ้าสแกนพร้อมกันเป๊ะ ๆ อาจได้เลขซ้ำได้)
+	row.Item = strconv.FormatUint(uint64(row.ID), 10)
+	config.DB.Model(&row).Update("item", row.Item)
 
 	CreateAuditLog("MFG_ASSEMBLY", row.ID, "scan_create", machineNo+"/"+row.Status, userID, name)
 

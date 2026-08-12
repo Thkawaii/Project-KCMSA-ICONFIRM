@@ -18,6 +18,7 @@ import AppShell from '../components/AppShell.jsx'
 import SelectField from '../components/Selectfield.jsx'
 import BarcodeScannerModal from '../components/Barcodescannermodal.jsx'
 import { MFG_NAV_ITEMS } from './Tsfoperatorpage.jsx'
+import bcMachine from '../assets/barcodes/Machine_Barcode.gif'
 
 // ป้ายสถานะ — ใช้ชุดคลาส .il-badge เดิม
 const STATUS_META = {
@@ -285,13 +286,34 @@ export default function MFGAssemblyPage() {
         <div>
           <h2 className="wh-title">Matching Assembly</h2>
           <p className="wh-subtitle">
-            สแกน QR ตอนประกอบเสร็จ — ระบบบันทึก Machine No + IT Controller No. แล้วตรวจสถานะให้
+            แตะการ์ดบาร์โค้ดด้านล่างเพื่อสแกนเครื่องที่ประกอบเสร็จ — ระบบบันทึก Machine No + IT Controller No. แล้วตรวจสถานะให้
           </p>
         </div>
-        <button className="wh-issue-btn" onClick={openCombinedScan} disabled={scanBusy}>
-          <QrCodeIcon className="size-4" />
-          {scanBusy ? 'กำลังบันทึก...' : 'สแกน QR ประกอบเสร็จ'}
-        </button>
+      </div>
+
+      {/* ── บาร์โค้ด Machine (Part Confirmation) — แตะเพื่อเริ่มสแกน ── */}
+      <div className="pc-barcode-grid">
+        <div
+          className="pc-barcode-card pc-card-mc"
+          role="button"
+          tabIndex={0}
+          title="สแกนเครื่องที่ประกอบเสร็จ"
+          onClick={() => !scanBusy && openCombinedScan()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              if (!scanBusy) openCombinedScan()
+            }
+          }}
+        >
+          <span className="pc-barcode-kind">Machine No + IT Controller</span>
+          <div className="pc-barcode-title">
+            {scanBusy ? 'กำลังบันทึก...' : 'Machine — Part Confirmation'}
+          </div>
+          <div className="pc-barcode-box">
+            <img className="pc-barcode-img" src={bcMachine} alt="บาร์โค้ด Machine" />
+          </div>
+        </div>
       </div>
 
       {loadError && (
@@ -324,9 +346,6 @@ export default function MFGAssemblyPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <button className="tsf-action-btn" onClick={openAdd}>
-            + เพิ่มรายการ
-          </button>
         </div>
       </div>
 

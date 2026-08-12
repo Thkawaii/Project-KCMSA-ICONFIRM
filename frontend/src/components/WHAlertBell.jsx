@@ -116,13 +116,18 @@ export default function WHAlertBell() {
     }
   }, [expItems, expDismissed])
 
-  const totalVisible = imp.visible + exp.visible
+  // จำนวน "งานค้างจริง" = ใบที่หมดอายุ/ใกล้หมดอายุทั้งหมดจากข้อมูลจริง
+  // ไม่ขึ้นกับการกดอ่านหรือกดซ่อน — ตัวเลขนี้จะลดลงก็ต่อเมื่อใบถูกต่ออายุ/แก้ไข
+  // ข้อมูลในระบบแล้วเท่านั้น (การซ่อนเป็นแค่การพักหน้าจอ ไม่ทำให้งานหายไป)
+  const isAlertStatus = (i) => i.Status === 'EXPIRED' || i.Status === 'EXPIRING'
+  const totalOutstanding =
+    impItems.filter(isAlertStatus).length + expItems.filter(isAlertStatus).length
 
   useEffect(() => {
     if (!loaded) return
     const ack = Number(localStorage.getItem(ACK_KEY) || 0)
-    setHasNew(totalVisible > ack)
-  }, [loaded, totalVisible])
+    setHasNew(totalOutstanding > ack)
+  }, [loaded, totalOutstanding])
 
   useEffect(() => {
     if (!open) return
@@ -144,7 +149,8 @@ export default function WHAlertBell() {
     const next = !open
     setOpen(next)
     if (next) {
-      localStorage.setItem(ACK_KEY, String(totalVisible))
+      // เปิดอ่าน = เคลียร์แค่ป้าย "ใหม่" (pulse) — ตัวเลขงานค้างยังอยู่จนกว่าจะจัดการจริง
+      localStorage.setItem(ACK_KEY, String(totalOutstanding))
       setHasNew(false)
     } else {
       setShowHiddenImp(false)
@@ -157,10 +163,8 @@ export default function WHAlertBell() {
     setOpen(false)
     navigate('/warehouse')
   }
-  const dismissImp = (item) => {
-    setImpDismissed({ ...addDismissed(item) })
-    localStorage.setItem(ACK_KEY, String(Math.max(0, totalVisible - 1)))
-  }
+  // "ซ่อน" = พักรายการออกจากลิสต์ชั่วคราวเท่านั้น ไม่ลดตัวเลขงานค้างบนกระดิ่ง
+  const dismissImp = (item) => setImpDismissed({ ...addDismissed(item) })
   const restoreImp = (item) => setImpDismissed({ ...removeDismissed(item) })
 
   // ── export handlers ──
@@ -168,10 +172,7 @@ export default function WHAlertBell() {
     setOpen(false)
     navigate('/warehouse/export-license')
   }
-  const dismissExp = (item) => {
-    setExpDismissed({ ...addExportDismissed(item) })
-    localStorage.setItem(ACK_KEY, String(Math.max(0, totalVisible - 1)))
-  }
+  const dismissExp = (item) => setExpDismissed({ ...addExportDismissed(item) })
   const restoreExp = (item) => setExpDismissed({ ...removeExportDismissed(item) })
 
   function restoreAll() {
@@ -181,7 +182,7 @@ export default function WHAlertBell() {
     setShowHiddenExp(false)
   }
 
-  const badge = totalVisible
+  const badge = totalOutstanding
   const totalHidden = imp.hidden.length + exp.hidden.length
 
   return (
@@ -274,11 +275,17 @@ export default function WHAlertBell() {
 
           {totalHidden > 0 && (
             <div className="lab-hidden-bar">
-              <span style={{ fontSize: 12, color: '#94a3b8' }}>ซ่อนไว้ {totalHidden} รายการ</span>
-              <button className="lab-hidden-restore" onClick={restoreAll} title="คืนค่าการแจ้งเตือนทั้งหมด">
+              <span style={{ fontSize: 12, color: '#94a3b8' }}>พักไว้ {totalHidden} รายการ (ยังนับรวมในตัวเลข)</span>
+              <button className="lab-hidden-restore" onClick={restoreAll} title="แสดงรายการที่พักไว้ทั้งหมด">
                 <ArrowPathIcon className="size-4" />
-                คืนค่าทั้งหมด
+                แสดงทั้งหมด
               </button>
+            </div>
+          )}
+
+          {badge > 0 && (
+            <div className="lab-resolve-note">
+              ตัวเลขบนกระดิ่งคือจำนวนใบที่ต้อง<strong>ดำเนินการจริง</strong> — จะลดลงเมื่อใบถูก<strong>ต่ออายุหรือแก้ไขข้อมูลในระบบ</strong>แล้วเท่านั้น (การพัก/อ่านไม่ทำให้ตัวเลขหาย)
             </div>
           )}
         </div>
@@ -413,8 +420,8 @@ function Row({ item, hidden = false, onOpen, onDismiss, onRestore, renderMeta, t
           type="button"
           className="lab-item-action lab-item-dismiss"
           onClick={() => onDismiss?.(item)}
-          aria-label="ซ่อนการแจ้งเตือนนี้"
-          title="ซ่อนการแจ้งเตือน (ไม่ลบใบอนุญาต)"
+          aria-label="พักการแจ้งเตือนนี้"
+          title="พักรายการนี้ออกจากลิสต์ชั่วคราว (ไม่ลดตัวเลขงานค้าง ไม่ลบใบอนุญาต)"
         >
           <XMarkIcon className="size-4" />
         </button>

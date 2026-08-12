@@ -25,7 +25,7 @@ func SetupRoutes(r *gin.Engine) {
 
 		// แก้ไขทะเบียนได้เฉพาะ role UPLOAD เหมือนกับฝั่ง machine-spec
 		manage := masterData.Group("")
-		manage.Use(middleware.RoleMiddleware("UPLOAD"))
+		manage.Use(middleware.RoleMiddleware("UPLOAD", "ADMIN"))
 		{
 			manage.POST("/upload", controllers.UploadMasterData)
 			manage.POST("/preview", controllers.PreviewMasterDataChanges)
@@ -46,7 +46,7 @@ func SetupRoutes(r *gin.Engine) {
 		machineSpec.GET("/export", controllers.ExportMachineSpecs)
 
 		upload := machineSpec.Group("")
-		upload.Use(middleware.RoleMiddleware("UPLOAD"))
+		upload.Use(middleware.RoleMiddleware("UPLOAD", "ADMIN"))
 		{
 			upload.POST("/upload/:type", controllers.UploadMachineSpec)
 			upload.DELETE("/:id", controllers.DeleteMachineSpec)
@@ -64,7 +64,7 @@ func SetupRoutes(r *gin.Engine) {
 		uploadData.GET("/export", controllers.ExportUploadData)
 
 		manage := uploadData.Group("")
-		manage.Use(middleware.RoleMiddleware("UPLOAD"))
+		manage.Use(middleware.RoleMiddleware("UPLOAD", "ADMIN"))
 		{
 			manage.POST("/upload/:dataset", controllers.UploadDataFile)
 			// ทดลองอ่านไฟล์ (dry-run) เพื่อดูผลการแม็ปคอลัมน์ก่อนอัปโหลดจริง
@@ -86,7 +86,7 @@ func SetupRoutes(r *gin.Engine) {
 		formatConfig.GET("/code-alias", controllers.GetCodeAliases)
 
 		manage := formatConfig.Group("")
-		manage.Use(middleware.RoleMiddleware("UPLOAD"))
+		manage.Use(middleware.RoleMiddleware("UPLOAD", "ADMIN"))
 		{
 			manage.POST("/column-alias", controllers.CreateColumnAlias)
 			manage.DELETE("/column-alias/:id", controllers.DeleteColumnAlias)
@@ -99,7 +99,7 @@ func SetupRoutes(r *gin.Engine) {
 
 	// Part Confirmation — สแกน tag แล้วบันทึกทันที (MC/ITC/CV/SM/MP/PH)
 	partCheck := auth.Group("/part-check")
-	partCheck.Use(middleware.RoleMiddleware("WH", "WH_MANAGER"))
+	partCheck.Use(middleware.RoleMiddleware("WH", "LOG"))
 	{
 		partCheck.GET("", controllers.GetPartChecks)
 		partCheck.POST("", controllers.ScanPartCheck)
@@ -120,14 +120,14 @@ func SetupRoutes(r *gin.Engine) {
 	// อ่านบัญชี (GET) เปิดให้ทั้ง WH (หน้า Part Confirmation ต้องดึงบัญชีมาเทียบ) และ
 	// WH_MANAGER — ส่วนการแก้ไข (อัปโหลด/ลบ/verify) จำกัดเฉพาะ WH_MANAGER
 	importLicense := auth.Group("/import-license")
-	importLicense.Use(middleware.RoleMiddleware("WH", "WH_MANAGER"))
+	importLicense.Use(middleware.RoleMiddleware("WH", "LOG"))
 	{
 		importLicense.GET("", controllers.GetImportLicenseItems)
 		importLicense.GET("/summary", controllers.GetImportLicenseSummary)
 		importLicense.GET("/alerts", controllers.GetImportLicenseAlerts)
 
 		manage := importLicense.Group("")
-		manage.Use(middleware.RoleMiddleware("WH_MANAGER"))
+		manage.Use(middleware.RoleMiddleware("LOG"))
 		{
 			manage.POST("/upload", controllers.UploadImportLicenseItems)
 			manage.POST("/preview", controllers.PreviewImportLicenseMapping)
@@ -145,7 +145,7 @@ func SetupRoutes(r *gin.Engine) {
 	// สิทธิ์เดียวกับ import-license (role WH)
 	// ─────────────────────────────────────────────────────────────────────
 	exportLicense := auth.Group("/export-license")
-	exportLicense.Use(middleware.RoleMiddleware("WH_MANAGER"))
+	exportLicense.Use(middleware.RoleMiddleware("LOG"))
 	{
 		exportLicense.GET("", controllers.GetExportLicense)
 		exportLicense.GET("/alerts", controllers.GetExportLicenseAlerts)
@@ -163,7 +163,7 @@ func SetupRoutes(r *gin.Engine) {
 	// สิทธิ์เดียวกับ import-license (role WH)
 	// ─────────────────────────────────────────────────────────────────────
 	whStock := auth.Group("/wh-stock")
-	whStock.Use(middleware.RoleMiddleware("WH_MANAGER"))
+	whStock.Use(middleware.RoleMiddleware("LOG"))
 	{
 		whStock.GET("/mc", controllers.GetWHMachineStock)
 		whStock.POST("/mc/upload", controllers.UploadWHMachineStock)
@@ -185,6 +185,16 @@ func SetupRoutes(r *gin.Engine) {
 	// no password ever included.
 	auth.GET("/users", controllers.GetUsers)
 
+	// Admin — จัดการผู้ใช้ (เพิ่ม/แก้/ลบ/ดูรายชื่อ) เฉพาะ role ADMIN
+	admin := auth.Group("/admin/users")
+	admin.Use(middleware.RoleMiddleware("ADMIN"))
+	{
+		admin.GET("", controllers.GetAdminUsers)
+		admin.POST("", controllers.CreateUser)
+		admin.PATCH("/:id", controllers.UpdateUser)
+		admin.DELETE("/:id", controllers.DeleteUser)
+	}
+
 	// TSF Operator
 	tsf := auth.Group("/tsf")
 	tsf.Use(middleware.RoleMiddleware("TSF"))
@@ -203,7 +213,7 @@ func SetupRoutes(r *gin.Engine) {
 	// เพิ่มเองได้ (สิทธิ์เดียวกับ tsf คือ role TSF)
 	// ─────────────────────────────────────────────────────────────────────
 	mfgAssembly := auth.Group("/mfg-assembly")
-	mfgAssembly.Use(middleware.RoleMiddleware("TSF"))
+	mfgAssembly.Use(middleware.RoleMiddleware("TSF", "MFG"))
 	{
 		mfgAssembly.GET("", controllers.GetMFGAssemblies)
 		mfgAssembly.POST("/scan", controllers.ScanMFGAssembly)

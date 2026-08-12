@@ -820,3 +820,117 @@
 .lab-section-count .lab-sum-lbl {
   font-size: 10.5px;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   LicenseAlertBanner — แถบสถานะอายุใบอนุญาตแบบถาวรบนหน้า License
+   ───────────────────────────────────────────────────────────────────────── */
+.lab-banner {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  margin: 4px 0 18px;
+  background: #fff;
+}
+.lab-banner-icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.lab-banner-body { flex: 1; min-width: 0; }
+.lab-banner-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.lab-banner-head strong { font-size: 14.5px; color: #0f172a; }
+.lab-banner-sub { color: #64748b; font-size: 13px; }
+.lab-banner-body > strong { font-size: 14.5px; color: #0f172a; }
+
+.lab-banner-chips { display: flex; gap: 6px; }
+.lab-banner-chip {
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.lab-banner-chip-expired { background: #fee2e2; color: #991b1b; }
+.lab-banner-chip-expiring { background: #fef3c7; color: #92400e; }
+
+.lab-banner-list { display: flex; flex-direction: column; gap: 4px; }
+.lab-banner-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.lab-banner-item:hover { background: rgba(15, 23, 42, 0.04); }
+.lab-banner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.lab-banner-dot.is-expired { background: #dc2626; }
+.lab-banner-dot.is-expiring { background: #d97706; }
+.lab-banner-item-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #0f172a;
+  font-family: ui-monospace, Menlo, monospace;
+  white-space: nowrap;
+}
+.lab-banner-item-meta {
+  font-size: 12.5px;
+  color: #64748b;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lab-banner-item-days { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.lab-banner-item-days.is-expired { color: #b91c1c; }
+.lab-banner-item-days.is-expiring { color: #b45309; }
+.lab-banner-more { font-size: 12.5px; color: #94a3b8; padding: 2px 8px; }
+
+/* โทนสีของแถบตามความรุนแรง */
+.lab-banner-danger { border-color: #fecaca; background: linear-gradient(0deg, #fff, #fef2f2); }
+.lab-banner-danger .lab-banner-icon { background: #dc2626; }
+.lab-banner-warn { border-color: #fde68a; background: linear-gradient(0deg, #fff, #fffbeb); }
+.lab-banner-warn .lab-banner-icon { background: #d97706; }
+.lab-banner-ok { border-color: #bbf7d0; background: linear-gradient(0deg, #fff, #f0fdf4); }
+.lab-banner-ok .lab-banner-icon { background: #16a34a; }
+
+@media (max-width: 640px) {
+  .lab-banner-item { flex-wrap: wrap; }
+  .lab-banner-item-meta { flex-basis: 100%; }
+}
+
+/* หมายเหตุท้าย panel กระดิ่ง — อธิบายว่า badge ลดเมื่อจัดการจริงเท่านั้น */
+.lab-resolve-note {
+  margin: 8px 12px 12px;
+  padding: 9px 11px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 9px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #64748b;
+}
+.lab-resolve-note strong { color: #0f172a; font-weight: 700; }

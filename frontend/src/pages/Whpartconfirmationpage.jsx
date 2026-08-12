@@ -119,9 +119,9 @@ const BARCODE_CARDS = [
 ]
 
 export default function WHPartConfirmationPage() {
-  // ตารางเทียบ "บัญชีใบอนุญาตนำเข้า" ให้เห็นเฉพาะ WH Manager — WH User (คนหน้างานจ่าย)
+  // ตารางเทียบ "บัญชีใบอนุญาตนำเข้า" ให้เห็นเฉพาะ LOG (Logistic) — WH User (คนหน้างานจ่าย)
   // ทำได้แค่สแกนยืนยัน (ตัวเทียบจริงอยู่ฝั่ง backend) ไม่ต้องเห็นตารางอ้างอิงใบอนุญาต
-  const isManager = (localStorage.getItem('iconfirm_role') || '').toUpperCase() === 'WH_MANAGER'
+  const isManager = (localStorage.getItem('iconfirm_role') || '').toUpperCase() === 'LOG'
 
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -694,44 +694,47 @@ export default function WHPartConfirmationPage() {
         </p>
       )}
 
-      <div className="pc-barcode-grid">
-        {BARCODE_CARDS.map((card) => (
-          <div
-            className={
-              'pc-barcode-card pc-card-' +
-              card.partType.toLowerCase() +
-              (armedPart === card.partType ? ' pc-barcode-card-armed' : '')
-            }
-            key={card.partType}
-            role="button"
-            tabIndex={0}
-            title={`เริ่มสแกน ${card.title}`}
-            onClick={() => runScanFlow(card.partType)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                runScanFlow(card.partType)
-              }
-            }}
-          >
-            {armedPart === card.partType && (
-              <span className="pc-barcode-armed-tag">โหมดสแกน</span>
-            )}
-            <span className="pc-barcode-kind">{card.kind}</span>
-            <div className="pc-barcode-title">{card.title}</div>
-            <div className="pc-barcode-box">
-              <img className="pc-barcode-img" src={card.img} alt={`บาร์โค้ด ${card.caption}`} />
-            </div>
+      {/* ── ส่วนสแกน (เฉพาะ WH User — LOG เห็นแค่ตารางเทียบใบอนุญาต) ── */}
+      {!isManager && (
+        <>
+          <div className="pc-barcode-grid">
+            {BARCODE_CARDS.map((card) => (
+              <div
+                className={
+                  'pc-barcode-card pc-card-' +
+                  card.partType.toLowerCase() +
+                  (armedPart === card.partType ? ' pc-barcode-card-armed' : '')
+                }
+                key={card.partType}
+                role="button"
+                tabIndex={0}
+                title={`เริ่มสแกน ${card.title}`}
+                onClick={() => runScanFlow(card.partType)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    runScanFlow(card.partType)
+                  }
+                }}
+              >
+                {armedPart === card.partType && (
+                  <span className="pc-barcode-armed-tag">โหมดสแกน</span>
+                )}
+                <span className="pc-barcode-kind">{card.kind}</span>
+                <div className="pc-barcode-title">{card.title}</div>
+                <div className="pc-barcode-box">
+                  <img className="pc-barcode-img" src={card.img} alt={`บาร์โค้ด ${card.caption}`} />
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {armedPart && (
-        <p className="pc-scan-mode-hint">
-          กำลังสแกนในโหมด <b>{tagLabel(armedPart)}</b> — ยิงบาร์โค้ดที่ระบุชนิดไม่ได้
-          (เช่น P/N, S/N ที่เป็นเลขล้วน) จะเข้าโหมดนี้ให้เอง ถ้าจะเปลี่ยนชนิดให้แตะการ์ดอื่น
-        </p>
-      )}
+          {armedPart && (
+            <p className="pc-scan-mode-hint">
+              กำลังสแกนในโหมด <b>{tagLabel(armedPart)}</b> — ยิงบาร์โค้ดที่ระบุชนิดไม่ได้
+              (เช่น P/N, S/N ที่เป็นเลขล้วน) จะเข้าโหมดนี้ให้เอง ถ้าจะเปลี่ยนชนิดให้แตะการ์ดอื่น
+            </p>
+          )}
 
       {/* ── ผลสแกนล่าสุด ────────────────────────────────────────────────── */}
       {lastScan && (
@@ -776,16 +779,18 @@ export default function WHPartConfirmationPage() {
               {photoMatchBadge(lastScan.photoMatchStatus)} {lastScan.photoMatchMessage}
             </div>
           ) : null}
-          {lastScan.id && lastScan.photoMatchStatus ? (
+          {lastScan.id ? (
             <div className="pc-photo-edit">
-              <span className="pc-photo-edit-label">ถ่ายภาพไม่ชัด?</span>
+              <span className="pc-photo-edit-label">
+                {lastScan.photoMatchStatus ? 'ถ่ายภาพไม่ชัด?' : 'ยังไม่ได้ถ่ายรูปป้าย'}
+              </span>
               <button
                 type="button"
                 className="pc-photo-edit-btn"
                 onClick={() => handleRetakePhoto({ ID: lastScan.id, PN: lastScan.pn, SN: lastScan.sn })}
                 disabled={photoUpdating}
               >
-                <CameraIcon className="size-4" /> ถ่ายใหม่
+                <CameraIcon className="size-4" /> {lastScan.photoMatchStatus ? 'ถ่ายใหม่' : 'ถ่ายรูป'}
               </button>
               <button
                 type="button"
@@ -793,14 +798,16 @@ export default function WHPartConfirmationPage() {
                 onClick={() => handleUploadPhotoClick({ ID: lastScan.id })}
                 disabled={photoUpdating}
               >
-                <ArrowUpTrayIcon className="size-4" /> อัปโหลดแทน
+                <ArrowUpTrayIcon className="size-4" /> {lastScan.photoMatchStatus ? 'อัปโหลดแทน' : 'อัปโหลดรูป'}
               </button>
             </div>
           ) : null}
         </div>
       )}
+        </>
+      )}
 
-      {/* ── ตารางเทียบกับบัญชีใบอนุญาต (เห็นเฉพาะ WH Manager) ─────────────── */}
+      {/* ── ตารางเทียบกับบัญชีใบอนุญาต (เห็นเฉพาะ LOG) ─────────────── */}
       {isManager && (
         <>
           {!loading && licenseItems.length === 0 && (
@@ -974,7 +981,9 @@ export default function WHPartConfirmationPage() {
         </>
       )}
 
-      {/* ── ประวัติการสแกน ─────────────────────────────────────────────── */}
+      {/* ── ประวัติการสแกน (เฉพาะ WH User) ─────────────────────────────── */}
+      {!isManager && (
+        <>
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title" style={{ fontSize: 19 }}>
@@ -1106,15 +1115,13 @@ export default function WHPartConfirmationPage() {
                     <button className="tsf-action-btn" onClick={() => setDetailRow(r)}>
                       รายละเอียด
                     </button>
-                    {r.PhotoURL && (
-                      <button
-                        className="tsf-action-btn tsf-action-btn-warn"
-                        onClick={() => setPhotoEditRow(r)}
-                        disabled={photoUpdating}
-                      >
-                        แก้ไขรูป
-                      </button>
-                    )}
+                    <button
+                      className="tsf-action-btn tsf-action-btn-warn"
+                      onClick={() => setPhotoEditRow(r)}
+                      disabled={photoUpdating}
+                    >
+                      {r.PhotoURL ? 'แก้ไขรูป' : 'เพิ่มรูป'}
+                    </button>
                     {['NOT_FOUND', 'NOT_REQUIRED', 'DUPLICATE'].includes(r.MatchStatus) && (
                       <button
                         className="tsf-action-btn tsf-action-btn-danger"
@@ -1169,6 +1176,8 @@ export default function WHPartConfirmationPage() {
             </button>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {detailRow && (
@@ -1317,12 +1326,16 @@ export default function WHPartConfirmationPage() {
       {photoEditRow && (
         <div className="wh-modal-overlay" onClick={() => setPhotoEditRow(null)}>
           <div className="wh-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="wh-modal-title">แก้ไขรูปถ่ายป้าย</h3>
+            <h3 className="wh-modal-title">
+              {photoEditRow.PhotoURL ? 'แก้ไขรูปถ่ายป้าย' : 'เพิ่มรูปถ่ายป้าย'}
+            </h3>
             <p className="wh-modal-line">
               {tagLabel(photoEditRow.PartType)} — S/N {photoEditRow.SN || photoEditRow.PN || '—'}
             </p>
             <p className="wh-modal-line" style={{ color: '#64748b' }}>
-              ถ่ายภาพไม่ชัด สามารถถ่ายใหม่หรืออัปโหลดรูปแทนได้ ระบบจะอัปเดตทับรูปเดิม
+              {photoEditRow.PhotoURL
+                ? 'ถ่ายภาพไม่ชัด สามารถถ่ายใหม่หรืออัปโหลดรูปแทนได้ ระบบจะอัปเดตทับรูปเดิม'
+                : 'รายการนี้ยังไม่มีรูปถ่ายป้าย — ถ่ายใหม่หรืออัปโหลดรูปเพื่อบันทึกเพิ่มได้'}
             </p>
             <div className="pc-photo-edit" style={{ borderTop: 'none', paddingTop: 4 }}>
               <button

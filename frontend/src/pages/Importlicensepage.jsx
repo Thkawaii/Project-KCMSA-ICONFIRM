@@ -16,6 +16,7 @@ import {
   clearExportLicense,
 } from '../api/exportLicense.js'
 import { PreviewResult, ExtraColumnsCell } from '../components/FormatTools.jsx'
+import LicenseAlertBanner from '../components/LicenseAlertBanner.jsx'
 import AppShell from '../components/AppShell.jsx'
 import FileDropZone from '../components/Filedropzone.jsx'
 import SelectField from '../components/Selectfield.jsx'
@@ -47,19 +48,19 @@ export const WH_NAV_ITEMS = [
     to: '/warehouse',
     label: 'Import License',
     icon: <DocumentTextIcon className="size-4" />,
-    roles: ['WH_MANAGER'],
+    roles: ['LOG'],
   },
   {
     to: '/warehouse/export-license',
     label: 'Export License',
     icon: <ReceiptPercentIcon className="size-4" />,
-    roles: ['WH_MANAGER'],
+    roles: ['LOG'],
   },
   {
     to: '/warehouse/confirm',
     label: 'Part Confirmation',
     icon: <ClipboardDocumentCheckIcon className="size-4" />,
-    roles: ['WH', 'WH_MANAGER'],
+    roles: ['WH', 'LOG'],
   },
 ]
 
@@ -375,6 +376,9 @@ export default function ImportLicensePage() {
           </ul>
         )}
       </div>
+
+      {/* แถบสถานะอายุใบอนุญาตแบบถาวร — ผูกกับข้อมูลจริง ไม่หายแม้อ่านกระดิ่งแล้ว */}
+      <LicenseAlertBanner kind="import" />
 
       {/* ── สรุปตัวเลข ────────────────────────────────────────────────────── */}
       <div className="dash-stats-row wh-stats-row">
@@ -918,6 +922,9 @@ export function WHExportLicensePanel() {
         {msg?.success && <p className="upload-card-msg upload-card-msg-ok wh-upload-msg">{msg.success}</p>}
         {msg?.error && <p className="upload-card-msg upload-card-msg-err wh-upload-msg">{msg.error}</p>}
       </div>
+
+      {/* แถบสถานะอายุใบอนุญาตส่งออกแบบถาวร */}
+      <LicenseAlertBanner kind="export" />
 
       <div className="tsf-history-toolbar">
         <div className="tsf-history-pagesize">
