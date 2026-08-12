@@ -14,6 +14,7 @@ import { API_BASE_URL } from '../../api/client.js'
 import { jsPDF } from 'jspdf'
 import { autoTable } from 'jspdf-autotable'
 import { SARABUN_REGULAR_BASE64, SARABUN_BOLD_BASE64 } from '../../lib/sarabunFont.js'
+import { sheetToXlsxBlob, downloadBlob } from '../../lib/xlsx.js'
 
 const navItems = [{ to: '/qa', label: 'ตรวจสอบ QA', icon: <CheckCircleIcon className="size-4" /> }]
 
@@ -135,6 +136,7 @@ export default function QAMachineList() {
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
   const [exportingPDF, setExportingPDF] = useState(false)
+  const [exportingExcel, setExportingExcel] = useState(false)
 
   // ตัวกรองวันที่ (วันที่ WH ยืนยัน) — เลือกได้ตามใจ ไม่บังคับ
   // ว่าง = ออก Check Sheet ของทุกวันรวมกัน / เลือกวัน = เฉพาะวันนั้น
@@ -377,6 +379,58 @@ export default function QAMachineList() {
     }
   }
 
+  // Export เป็น Excel (.xlsx) — ตารางข้อมูลล้วน (ไม่มีรูป) เปิดใน Excel/Sheets แก้ต่อได้
+  // ใช้ตัวสร้าง .xlsx แบบไม่มี dependency (ดู lib/xlsx.js)
+  function handleExportExcel() {
+    const list = filtered // ส่งออกตามที่กรอง/ค้นหา/วันที่เลือกอยู่ (ทุกหน้า)
+    if (!list.length || exportingExcel) return
+
+    setExportingExcel(true)
+    try {
+      const header = [
+        'ITEM',
+        'Part Name',
+        'Model',
+        'Machine No',
+        'Part No.',
+        'Serial No.',
+        'IT Controller No.',
+        'IMEI',
+        'ใบอนุญาตนำเข้า',
+        'อินวอยซ์',
+        'ส่งออกไปประเทศ',
+        'ผลเทียบใบอนุญาต',
+        'วันที่ยืนยัน',
+        'Status',
+      ]
+      const body = list.map((r, i) => [
+        i + 1,
+        dash(r.partName),
+        dash(r.model),
+        dash(r.machineNo),
+        dash(r.partNo),
+        dash(r.serialNo),
+        dash(r.itControllerNo),
+        dash(r.imei),
+        dash(r.licenseNo),
+        dash(r.invoiceNo),
+        dash(r.exportCountry),
+        licenseMatchMeta(r.matchStatus).label,
+        r.confirmedAt ? thaiDateLabel(toYMD(new Date(r.confirmedAt))) : '—',
+        'Matched',
+      ])
+
+      const blob = sheetToXlsxBlob('QA Check Sheet', [header, ...body])
+      const fileDate = selectedDate || 'ทั้งหมด'
+      downloadBlob(blob, `QA-CheckSheet-${fileDate}.xlsx`)
+    } catch (err) {
+      console.error(err)
+      alert('สร้าง Excel ไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setExportingExcel(false)
+    }
+  }
+
   return (
     <AppShell navItems={navItems} roleLabel="QA">
       <div className="wh-heading-row">
@@ -415,6 +469,21 @@ export default function QAMachineList() {
         >
           <ArrowDownTrayIcon className="size-4" />
           {exportingPDF ? 'กำลังสร้าง PDF...' : 'Export PDF (Check Sheet)'}
+        </button>
+        <button
+          className="qa-download-btn qa-export-btn qa-export-btn-excel"
+          onClick={handleExportExcel}
+          disabled={loading || filtered.length === 0 || exportingExcel}
+          title={
+            filtered.length === 0
+              ? 'ไม่มีรายการให้ออก Excel'
+              : selectedDate
+                ? `ดาวน์โหลด Excel ของวันที่ ${thaiDateLabel(selectedDate)}`
+                : 'ดาวน์โหลด Excel ของรายการทั้งหมด'
+          }
+        >
+          <ArrowDownTrayIcon className="size-4" />
+          {exportingExcel ? 'กำลังสร้าง Excel...' : 'Export Excel'}
         </button>
       </div>
       <p className="qa-stat-sub" style={{ marginTop: -8, marginBottom: 16 }}>

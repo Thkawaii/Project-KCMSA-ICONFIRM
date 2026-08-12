@@ -132,6 +132,7 @@ func SetupRoutes(r *gin.Engine) {
 			manage.POST("/upload", controllers.UploadImportLicenseItems)
 			manage.POST("/preview", controllers.PreviewImportLicenseMapping)
 			manage.POST("/verify", controllers.VerifyImportLicenseCode)
+			manage.POST("/renew", controllers.RenewImportLicense)
 			manage.DELETE("/:id", controllers.DeleteImportLicenseItem)
 			manage.DELETE("", controllers.ClearImportLicenseItems)
 		}

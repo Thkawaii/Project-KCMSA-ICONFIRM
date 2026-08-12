@@ -449,6 +449,7 @@ export default function TSFOperatorPage() {
               <th>IT Controller No.</th>
               <th>Country</th>
               <th>Check Date</th>
+              <th>Check By</th>
               <th>Status</th>
               <th></th>
             </tr>
@@ -456,7 +457,7 @@ export default function TSFOperatorPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={8} className="wh-empty-cell">
+                <td colSpan={9} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -476,6 +477,7 @@ export default function TSFOperatorPage() {
                   </td>
                   <td data-label="Country">{a.Country || '—'}</td>
                   <td data-label="Check Date">{fmtDate(a.CheckDate)}</td>
+                  <td data-label="Check By">{a.CreatedBy || '—'}</td>
                   <td data-label="Status">
                     {(() => {
                       const meta = STATUS_META[a.Status] || {
@@ -497,7 +499,7 @@ export default function TSFOperatorPage() {
               ))}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={8} className="wh-empty-cell">
+                <td colSpan={9} className="wh-empty-cell">
                   {rows.length === 0
                     ? 'ยังไม่มีรายการ — คลิกการ์ดด้านบนแล้วยิง/กรอก Machine No'
                     : 'ไม่พบรายการที่ค้นหา'}

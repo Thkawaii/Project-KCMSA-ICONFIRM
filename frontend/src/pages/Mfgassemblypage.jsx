@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   getMFGAssemblies,
   scanMFGAssembly,
@@ -8,6 +8,13 @@ import {
 } from '../api/mfgAssembly.js'
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js'
 import {
+  scanStep,
+  scanLoading,
+  scanClose,
+  scanSuccessToast,
+  scanErrorAlert,
+} from '../lib/scanPopup.js'
+import {
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
   ChevronLeftIcon,
@@ -16,7 +23,6 @@ import {
 } from '../components/icons.jsx'
 import AppShell from '../components/AppShell.jsx'
 import SelectField from '../components/Selectfield.jsx'
-import BarcodeScannerModal from '../components/Barcodescannermodal.jsx'
 import { MFG_NAV_ITEMS } from './Tsfoperatorpage.jsx'
 import bcMachine from '../assets/barcodes/Machine_Barcode.gif'
 
@@ -95,12 +101,12 @@ export default function MFGAssemblyPage() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
 
-  // ── สแกนเนอร์ ──────────────────────────────────────────────────────────
-  // scanTarget: 'combined' = สแกน QR ประกอบเสร็จ (ได้ทั้งสองค่า)
-  //             'machineNo' / 'itControllerNo' = สแกนเติมทีละช่องในโมดัล
-  const [showScanner, setShowScanner] = useState(false)
-  const [scanTarget, setScanTarget] = useState('combined')
+  // ── สแกน/กรอก ──────────────────────────────────────────────────────────
+  // ใช้ popup "ยิงบาร์โค้ด หรือพิมพ์เอง" (scanStep) เหมือนหน้า WH/TSF ทุกประการ
+  // -> ผู้ใช้ MFG ทุกคนกรอกหรือสแกนได้เท่ากัน ไม่บังคับเปิดกล้อง/ถ่ายรูป
   const [scanBusy, setScanBusy] = useState(false)
+  const busyRef = useRef(false) // กันเปิด popup ซ้อน (จากคลิกการ์ด + เครื่องสแกนยิงพร้อมกัน)
+  const fireRef = useRef(() => {}) // ตัวรับสัญญาณเครื่องสแกนยิงตรงเข้าหน้าเว็บ
 
   // 404/405 = backend ยังไม่มี endpoint (มักเพราะยังไม่ได้ rebuild/restart)
   function friendlyError(err, fallback) {
@@ -131,61 +137,119 @@ export default function MFGAssemblyPage() {
     setPage(1)
   }, [search, pageSize])
 
-  // ── สแกน ───────────────────────────────────────────────────────────────
-  function openCombinedScan() {
-    setScanTarget('combined')
-    setShowScanner(true)
+  // ── ดักเครื่องสแกน (keyboard-wedge) ที่ยิงบาร์โค้ดตรงเข้าหน้าเว็บ ───────────
+  // เครื่องสแกนพิมพ์อักขระรัว ๆ ปิดท้ายด้วย Enter — ถ้าเจอ burst แบบนี้ให้เปิด
+  // flow บันทึกอัตโนมัติ (ไม่ต้องคลิกการ์ดก่อน) เหมือนหน้า WH/TSF
+  useEffect(() => {
+    let buffer = ''
+    let flushTimer = null
+
+    function fireBuffered() {
+      const code = buffer.trim()
+      buffer = ''
+      if (code.length >= 2 && !busyRef.current) fireRef.current(code)
+    }
+
+    function onKeydown(e) {
+      if (busyRef.current) return
+      // ไม่ดักตอนกำลังพิมพ์ในช่อง input/textarea (เช่น ช่องค้นหา/ช่องในโมดัล)
+      const tag = (e.target?.tagName || '').toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+
+      if (e.key === 'Enter') {
+        if (flushTimer) clearTimeout(flushTimer)
+        fireBuffered()
+        return
+      }
+      if (e.key && e.key.length === 1) {
+        buffer += e.key
+        if (buffer.length >= 2) e.preventDefault()
+        if (flushTimer) clearTimeout(flushTimer)
+        flushTimer = setTimeout(fireBuffered, 120)
+      }
+    }
+
+    window.addEventListener('keydown', onKeydown)
+    return () => {
+      window.removeEventListener('keydown', onKeydown)
+      if (flushTimer) clearTimeout(flushTimer)
+    }
+  }, [])
+
+  // ── สแกน/กรอก ───────────────────────────────────────────────────────────
+  // เปิด popup ว่าง ให้ "ยิงบาร์โค้ด หรือพิมพ์เอง" Machine No (+IT Controller) แล้วกดบันทึก
+  // — เหมือนหน้า WH/TSF ทุกประการ ไม่มีการเปิดกล้อง/บังคับถ่ายรูป
+  async function runScanFlow() {
+    if (busyRef.current) return
+    busyRef.current = true
+    try {
+      const code = await scanStep({
+        title: 'Machine Part Confirmation',
+        placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ Machine No แล้วกดปุ่ม',
+        confirmText: 'บันทึก',
+      })
+      if (!code) return
+      const { machineNo, itControllerNo } = parseAssemblyCode(code)
+      if (machineNo && itControllerNo) {
+        await submitScan(machineNo, itControllerNo)
+      } else if (machineNo) {
+        // มีแค่ Machine No — บันทึกได้เลย (backend จะดึง IT Controller/Country ให้ถ้ามี)
+        await submitScan(machineNo, itControllerNo || '')
+      } else {
+        // แยกไม่ได้ — เปิดโมดัลให้เติม/แก้เอง
+        setEditId(null)
+        setForm({ ...EMPTY_FORM, machineNo, itControllerNo })
+        setModalOpen(true)
+        toastError('อ่านค่าไม่ได้ — กรุณาตรวจ/เติมข้อมูลก่อนบันทึก')
+      }
+    } finally {
+      busyRef.current = false
+    }
   }
 
-  function openFieldScan(field) {
-    setScanTarget(field)
-    setShowScanner(true)
+  // เครื่องสแกนยิงบาร์โค้ดเข้าหน้าเว็บโดยตรง (ไม่ต้องคลิกการ์ดก่อน) -> เปิด flow เดียวกัน
+  function handleScannerFire() {
+    if (busyRef.current) return
+    runScanFlow()
   }
+  fireRef.current = handleScannerFire
 
   async function submitScan(machineNo, itControllerNo) {
     setScanBusy(true)
+    scanLoading('กำลังบันทึก...')
     try {
       const res = await scanMFGAssembly({ machineNo, itControllerNo })
-      if (res?.matched) {
-        toastSuccess(res?.message || 'บันทึกสำเร็จ')
+      scanClose()
+      const msg = res?.message || 'บันทึกแล้ว'
+      if (res?.matched || res?.status === 'MATCHED') {
+        scanSuccessToast(msg)
       } else {
-        // ยังบันทึกแล้ว แต่ต้อง flag ให้เห็น
-        toastError(res?.message || 'บันทึกแล้ว — มีข้อควรตรวจสอบ')
+        // DUPLICATE/NOT_MATCHED — ยังบันทึกแล้ว แต่ต้อง flag ให้เห็น
+        toastError(msg)
       }
       await loadRows()
     } catch (err) {
-      toastError(friendlyError(err, 'บันทึกไม่สำเร็จ'))
+      scanClose()
+      await scanErrorAlert(friendlyError(err, 'บันทึกไม่สำเร็จ'))
     } finally {
       setScanBusy(false)
     }
   }
 
-  async function handleScanDetected(text) {
-    const target = scanTarget
-    setShowScanner(false)
-
-    if (target === 'machineNo' || target === 'itControllerNo') {
-      const parsed = parseAssemblyCode(text)
-      // ถ้าช่องนั้นเป็น IT Controller ใช้ค่าเลขล้วน ถ้าเป็น Machine ใช้ตัวที่เหลือ
-      const val =
-        target === 'itControllerNo'
-          ? parsed.itControllerNo || text.trim()
-          : parsed.machineNo || text.trim()
-      setForm((f) => ({ ...f, [target]: val }))
-      return
-    }
-
-    // combined
-    const { machineNo, itControllerNo } = parseAssemblyCode(text)
-    if (machineNo && itControllerNo) {
-      await submitScan(machineNo, itControllerNo)
-    } else {
-      // แยกไม่ครบ — เปิดโมดัลให้เติม/แก้เอง
-      setEditId(null)
-      setForm({ ...EMPTY_FORM, machineNo, itControllerNo })
-      setModalOpen(true)
-      toastError('อ่านได้ไม่ครบทั้งสองค่า — กรุณาตรวจ/เติมข้อมูลก่อนบันทึก')
-    }
+  // สแกน/กรอกเติมทีละช่องในโมดัล (Machine No / IT Controller No.) — ยิงหรือพิมพ์ก็ได้
+  async function runFieldScan(field) {
+    const code = await scanStep({
+      title: field === 'itControllerNo' ? 'IT Controller No.' : 'Machine No',
+      placeholder: 'ยิงบาร์โค้ด หรือพิมพ์เอง แล้วกดปุ่ม',
+      confirmText: 'ใช้ค่านี้',
+    })
+    if (!code) return
+    const parsed = parseAssemblyCode(code)
+    const val =
+      field === 'itControllerNo'
+        ? parsed.itControllerNo || code.trim()
+        : parsed.machineNo || code.trim()
+    setForm((f) => ({ ...f, [field]: val }))
   }
 
   // ── โมดัล เพิ่ม/แก้ไข ────────────────────────────────────────────────────
@@ -273,36 +337,29 @@ export default function MFGAssemblyPage() {
     setPage(Math.min(Math.max(1, p), totalPages))
   }
 
-  const scannerTitle =
-    scanTarget === 'machineNo'
-      ? 'สแกน Machine No'
-      : scanTarget === 'itControllerNo'
-        ? 'สแกน IT Controller No.'
-        : 'สแกน QR เครื่องที่ประกอบเสร็จ'
-
   return (
     <AppShell navItems={MFG_NAV_ITEMS} roleLabel="MFG">
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">Matching Assembly</h2>
           <p className="wh-subtitle">
-            แตะการ์ดบาร์โค้ดด้านล่างเพื่อสแกนเครื่องที่ประกอบเสร็จ — ระบบบันทึก Machine No + IT Controller No. แล้วตรวจสถานะให้
+            แตะการ์ดด้านล่างเพื่อยิงบาร์โค้ด หรือพิมพ์ Machine No เอง — ระบบบันทึก Machine No + IT Controller No. แล้วตรวจสถานะให้
           </p>
         </div>
       </div>
 
-      {/* ── บาร์โค้ด Machine (Part Confirmation) — แตะเพื่อเริ่มสแกน ── */}
-      <div className="pc-barcode-grid">
+      {/* ── บาร์โค้ด Machine (Part Confirmation) — แตะเพื่อยิง/พิมพ์ (การ์ดเดียว จัดกึ่งกลาง) ── */}
+      <div className="pc-barcode-grid pc-barcode-grid--single">
         <div
           className="pc-barcode-card pc-card-mc"
           role="button"
           tabIndex={0}
-          title="สแกนเครื่องที่ประกอบเสร็จ"
-          onClick={() => !scanBusy && openCombinedScan()}
+          title="ยิงบาร์โค้ด หรือพิมพ์ Machine No"
+          onClick={() => !scanBusy && runScanFlow()}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault()
-              if (!scanBusy) openCombinedScan()
+              if (!scanBusy) runScanFlow()
             }
           }}
         >
@@ -359,6 +416,7 @@ export default function MFGAssemblyPage() {
               <th>IT Controller No.</th>
               <th>Country</th>
               <th>Check Date</th>
+              <th>Check By</th>
               <th>Status</th>
               <th></th>
             </tr>
@@ -366,7 +424,7 @@ export default function MFGAssemblyPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={8} className="wh-empty-cell">
+                <td colSpan={9} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -391,13 +449,11 @@ export default function MFGAssemblyPage() {
                     </td>
                     <td data-label="Country">{a.Country || '—'}</td>
                     <td data-label="Check Date">{fmtDate(a.CheckDate)}</td>
+                    <td data-label="Check By">{a.CreatedBy || '—'}</td>
                     <td data-label="Status">
                       <span className={meta.cls}>{meta.label}</span>
                     </td>
                     <td className="wh-cell-action">
-                      <button className="tsf-action-btn" onClick={() => openEdit(a)}>
-                        แก้ไข
-                      </button>
                       <button
                         className="tsf-action-btn tsf-action-btn-danger"
                         onClick={() => handleDelete(a)}
@@ -410,7 +466,7 @@ export default function MFGAssemblyPage() {
               })}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={8} className="wh-empty-cell">
+                <td colSpan={9} className="wh-empty-cell">
                   {rows.length === 0
                     ? 'ยังไม่มีรายการ — สแกน QR เครื่องที่ประกอบเสร็จแล้วข้อมูลจะขึ้นที่นี่'
                     : 'ไม่พบรายการที่ค้นหา'}
@@ -489,7 +545,7 @@ export default function MFGAssemblyPage() {
               <button
                 type="button"
                 className="tsf-action-btn"
-                onClick={() => openFieldScan('machineNo')}
+                onClick={() => runFieldScan('machineNo')}
               >
                 <QrCodeIcon className="size-4" /> สแกน
               </button>
@@ -507,7 +563,7 @@ export default function MFGAssemblyPage() {
               <button
                 type="button"
                 className="tsf-action-btn"
-                onClick={() => openFieldScan('itControllerNo')}
+                onClick={() => runFieldScan('itControllerNo')}
               >
                 <QrCodeIcon className="size-4" /> สแกน
               </button>
@@ -546,15 +602,6 @@ export default function MFGAssemblyPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* ── สแกนเนอร์ ───────────────────────────────────────────────────── */}
-      {showScanner && (
-        <BarcodeScannerModal
-          title={scannerTitle}
-          onDetected={handleScanDetected}
-          onClose={() => setShowScanner(false)}
-        />
       )}
     </AppShell>
   )
