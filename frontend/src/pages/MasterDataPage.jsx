@@ -95,16 +95,21 @@ const uploadNavItems = [
   { to: '/master-data', label: 'ทะเบียน Master Data', icon: <RectangleStackIcon className="size-4" /> },
 ]
 
-// ถ้าเข้าจาก role ADMIN ให้ใช้เมนู Admin (User Management + Upload Master Data)
-// ถ้าเป็น role UPLOAD (uploadview) ใช้เมนูเดิม
-const IS_ADMIN = (localStorage.getItem('iconfirm_role') || '').toUpperCase() === 'ADMIN'
-const navItems = IS_ADMIN ? ADMIN_NAV_ITEMS : uploadNavItems
-const SHELL_ROLE_LABEL = IS_ADMIN ? 'Admin' : 'Upload View'
-
 // ค่าที่แสดงแทนช่องว่าง — อะไหล่ชนิดอื่นไม่มี IT Controller no./IMEI
 const DASH = '—'
 
 export default function MasterDataPage() {
+  // ถ้าเข้าจาก role ADMIN ให้ใช้เมนู Admin (User Management + Upload Master Data)
+  // ถ้าเป็น role UPLOAD (uploadview) ใช้เมนูเดิม
+  // หมายเหตุ: เดิมค่านี้ถูกคำนวณครั้งเดียวตอน module โหลด (นอก component) ซึ่งเกิดขึ้น
+  // ก่อน login เสร็จ ทำให้ localStorage['iconfirm_role'] ยังว่างอยู่ -> IS_ADMIN เป็น false
+  // ค้างไปตลอด session และ AppShell ซ่อนแถบแท็บเพราะเหลือแค่ 1 เมนู (ทะเบียน Master Data)
+  // ต้อง refresh ทั้งหน้าให้ module โหลดใหม่ถึงจะอ่าน role ที่ถูกต้อง — ย้ายมาคำนวณในนี้
+  // เพื่อให้อ่าน role สดใหม่ทุกครั้งที่ component render เหมือนที่ AppShell.jsx ทำ
+  const isAdmin = (localStorage.getItem('iconfirm_role') || '').toUpperCase() === 'ADMIN'
+  const navItems = isAdmin ? ADMIN_NAV_ITEMS : uploadNavItems
+  const shellRoleLabel = isAdmin ? 'Admin' : 'Upload View'
+
   // ประเภทที่จะอัปโหลด (เลือกก่อนอัปโหลด) และประเภทที่กำลังดูในตาราง
   const [uploadType, setUploadType] = useState('it_controller')
   const [viewType, setViewType] = useState('it_controller')
@@ -199,7 +204,7 @@ export default function MasterDataPage() {
   }
 
   return (
-    <AppShell navItems={navItems} roleLabel={SHELL_ROLE_LABEL}>
+    <AppShell navItems={navItems} roleLabel={shellRoleLabel}>
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">Upload Master Data</h2>
@@ -245,7 +250,11 @@ export default function MasterDataPage() {
             />
           </div>
 
-          <div style={{ display: 'flex', gap: 8 }}>
+          {/* flexWrap: ปุ่มทั้งสองมี class upload-panel-btn (width:100%) — ถ้าไม่ wrap
+              บนมือถือปุ่มจะพยายามยืดเต็มแถวพร้อมกันสองปุ่ม ข้อความยาวดันความกว้างรวม
+              เกินจอ ทำให้กล่องอัปโหลดล้นออกนอกจอ (ถูก .shell overflow-x:hidden ตัดทิ้ง
+              มองไม่เห็นเนื้อหาส่วนที่ล้น) — ให้ wrap แล้วแต่ละปุ่มขึ้นบรรทัดของตัวเองแทน */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {canPreview && (
               <button
                 className="qa-fail-btn upload-panel-btn"

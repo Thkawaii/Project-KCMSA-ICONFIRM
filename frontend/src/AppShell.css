@@ -351,7 +351,13 @@
   align-items: stretch;
 }
 
-.upload-panel-wide .upload-panel-dropzone {
+/* grid item ทั้งสองต้องมี min-width: 0 — ค่าเริ่มต้นของ grid item คือ min-width: auto
+   ซึ่งหมายความว่าถ้าเนื้อหาข้างในหด/wrap ไม่ได้ (เช่นปุ่มสองปุ่มในแถวเดียวที่ข้อความยาว)
+   ตัว grid track จะยอมขยายกว้างเกิน 1fr ที่ตั้งไว้ ดันทั้งการ์ดล้นขวาจอ โดยเฉพาะบนมือถือ
+   ที่พับเป็น 1 คอลัมน์แล้วก็ยังล้นได้ถ้าไม่ตั้งค่านี้ */
+.upload-panel-wide .upload-panel-dropzone,
+.upload-panel-wide .upload-panel-side {
+  min-width: 0;
   margin-bottom: 0;
   height: 100%;
 }
