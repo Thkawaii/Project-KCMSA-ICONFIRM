@@ -63,8 +63,11 @@ export default function LicenseAlertBanner({ kind = 'import', onOpenItem }) {
       ? `Invoice ${it.InvoiceNo || '—'}${it.Model ? ` · ${it.Model}` : ''}`
       : `Exception ${it.ExceptionLicense || '—'}`
 
-  // ไม่มีอะไรใกล้หมด/หมดอายุ → แถบเขียวยืนยันความเรียบร้อย (ยังคงแสดงให้เห็นสถานะ)
+  // ไม่มีอะไรใกล้หมด/หมดอายุ
+  //   • ฝั่งส่งออก (export): ไม่แสดงแถบเขียว "ทั้งหมดอยู่ในอายุ" เลย (ตามที่ขอให้เอาออก)
+  //   • ฝั่งนำเข้า (import): ยังแสดงแถบเขียวยืนยันความเรียบร้อยเหมือนเดิม
   if (total === 0) {
+    if (!isImport) return null
     return (
       <div className="lab-banner lab-banner-ok" role="status">
         <span className="lab-banner-icon">

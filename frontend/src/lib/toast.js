@@ -51,3 +51,36 @@ export async function confirmDelete({
   })
   return res.isConfirmed
 }
+
+/**
+ * กล่องกรอก "จำนวนวันที่ต่ออายุ" ใบอนุญาต
+ * คืนค่า: จำนวนวัน (number > 0) เมื่อกดยืนยัน, หรือ null เมื่อยกเลิก/กรอกไม่ถูก
+ *
+ * @param {object}  opts
+ * @param {string} [opts.title]  หัวข้อ
+ * @param {string} [opts.html]   คำอธิบาย/บริบท (HTML) เช่น เลขใบอนุญาต + วันหมดอายุปัจจุบัน
+ * @param {number} [opts.defaultDays] ค่าเริ่มต้นในช่อง (เช่น 180 = 6 เดือน)
+ */
+export async function promptRenewDays({ title = 'ต่ออายุใบอนุญาต', html = '', defaultDays = 180 } = {}) {
+  const res = await Swal.fire({
+    title,
+    html,
+    input: 'number',
+    inputValue: String(defaultDays),
+    inputLabel: 'จำนวนวันที่ต่อ',
+    inputPlaceholder: 'เช่น 180',
+    inputAttributes: { min: '1', max: '3650', step: '1' },
+    showCancelButton: true,
+    confirmButtonText: 'ต่ออายุ',
+    cancelButtonText: 'ยกเลิก',
+    inputValidator: (v) => {
+      const n = Number(v)
+      if (!v || !Number.isFinite(n) || n <= 0) return 'กรุณากรอกจำนวนวันมากกว่า 0'
+      if (n > 3650) return 'จำนวนวันมากเกินไป (สูงสุด 3650 วัน)'
+      if (!Number.isInteger(n)) return 'กรุณากรอกจำนวนวันเป็นจำนวนเต็ม'
+      return undefined
+    },
+  })
+  if (res.isConfirmed && res.value) return Number(res.value)
+  return null
+}

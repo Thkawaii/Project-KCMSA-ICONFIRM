@@ -146,8 +146,7 @@ export default function AdminDashboardPage() {
     <AppShell navItems={ADMIN_NAV_ITEMS} roleLabel="Admin">
       <div className="wh-heading-row" style={{ marginBottom: 4 }}>
         <div>
-          <h1 className="wh-title" style={{ fontSize: 24 }}>จัดการผู้ใช้งาน</h1>
-          <p className="wh-subtitle">เพิ่ม / แก้ไข / ลบ พนักงาน และกำหนดแผนก — ใช้ระบุ “Checked By” ตอนสแกน</p>
+          <h1 className="wh-title" style={{ fontSize: 24 }}>User Management</h1>
         </div>
         <button className="wh-issue-btn" onClick={() => setEditUser({})}>
           + เพิ่มผู้ใช้

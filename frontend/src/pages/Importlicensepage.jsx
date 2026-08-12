@@ -6,6 +6,7 @@ import {
   previewImportLicense,
   deleteImportLicenseItem,
   clearImportLicense,
+  renewImportLicense,
 } from '../api/importLicense.js'
 import {
   getExportLicense,
@@ -16,11 +17,10 @@ import {
   clearExportLicense,
 } from '../api/exportLicense.js'
 import { PreviewResult, ExtraColumnsCell } from '../components/FormatTools.jsx'
-import LicenseAlertBanner from '../components/LicenseAlertBanner.jsx'
 import AppShell from '../components/AppShell.jsx'
 import FileDropZone from '../components/Filedropzone.jsx'
 import SelectField from '../components/Selectfield.jsx'
-import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js'
+import { confirmDelete, toastError, toastSuccess, promptRenewDays } from '../lib/toast.js'
 import {
   computeLicenseExpiry,
   formatThaiDate,
@@ -234,6 +234,45 @@ export default function ImportLicensePage() {
     }
   }
 
+  // ── ต่ออายุใบอนุญาตทั้งล็อต ────────────────────────────────────────────────
+  // เปิด popup ให้กรอกจำนวนวันที่ต่อ -> เลื่อนวันหมดอายุออกไป -> โหลดใหม่ (คำนวณ realtime)
+  async function handleRenewLicense(lot) {
+    const licenseNo = lot?.LicenseNo ?? ''
+    const invoiceNo = lot?.InvoiceNo ?? ''
+    const label =
+      licenseNo || (invoiceNo ? `Invoice ${invoiceNo}` : 'ล็อตนี้ (ไม่มีเลขใบอนุญาต)')
+
+    // วันหมดอายุปัจจุบันของล็อต (อ้างอิงจากเครื่องแรกในล็อตที่มีวันที่ออก)
+    const lotRows = items.filter(
+      (r) => (r.LicenseNo || '') === licenseNo && (r.InvoiceNo || '') === invoiceNo
+    )
+    const sample = lotRows.find((r) => r.IssueDate) || lotRows[0]
+    const curExp = sample ? computeLicenseExpiry(sample.IssueDate) : null
+    const curLine = curExp?.hasDate
+      ? `<div class="scan-popup-hint">วันหมดอายุปัจจุบัน: <b>${formatThaiDate(curExp.expiryDate)}</b> (${daysLeftLabel(curExp.daysLeft)})</div>`
+      : '<div class="scan-popup-hint">ยังไม่ได้ระบุวันที่ออกใบอนุญาต — ต่ออายุจะนับวันหมดอายุใหม่จากวันนี้</div>'
+
+    const days = await promptRenewDays({
+      title: `ต่ออายุ ${label}`,
+      html: `${curLine}<div class="scan-popup-hint">ระบบจะเลื่อนวันหมดอายุออกไปตามจำนวนวันที่กรอก</div>`,
+      defaultDays: 180,
+    })
+    if (!days) return
+
+    try {
+      const res = await renewImportLicense(licenseNo, invoiceNo, days)
+      await loadAll() // โหลดใหม่ -> ตาราง/ป้ายสถานะ/กระดิ่ง คำนวณวันหมดอายุใหม่ทันที
+      const newExp = res?.newExpiry ? formatThaiDate(new Date(res.newExpiry)) : ''
+      toastSuccess(
+        `ต่ออายุ ${label} อีก ${days} วันแล้ว${newExp ? ` — หมดอายุ ${newExp}` : ''}`
+      )
+    } catch (err) {
+      const msg = err.message || 'ต่ออายุไม่สำเร็จ'
+      setLoadError(msg)
+      toastError(msg)
+    }
+  }
+
   const filtered = useMemo(() => {
     let rows = items
 
@@ -377,9 +416,6 @@ export default function ImportLicensePage() {
         )}
       </div>
 
-      {/* แถบสถานะอายุใบอนุญาตแบบถาวร — ผูกกับข้อมูลจริง ไม่หายแม้อ่านกระดิ่งแล้ว */}
-      <LicenseAlertBanner kind="import" />
-
       {/* ── สรุปตัวเลข ────────────────────────────────────────────────────── */}
       <div className="dash-stats-row wh-stats-row">
         <div className="dash-stat-card">
@@ -440,9 +476,14 @@ export default function ImportLicensePage() {
               {currentLot.Model || '—'} · {currentLot.Total} เครื่อง
             </span>
           </div>
-          <button className="wh-modal-cancel" onClick={() => handleClearLicense(currentLot)}>
-            ลบทั้งใบ
-          </button>
+          <div className="il-lot-actions">
+            <button className="wh-issue-btn il-renew-btn" onClick={() => handleRenewLicense(currentLot)}>
+              ต่ออายุ
+            </button>
+            <button className="wh-modal-cancel" onClick={() => handleClearLicense(currentLot)}>
+              ลบทั้งใบ
+            </button>
+          </div>
         </div>
       )}
 
@@ -478,7 +519,7 @@ export default function ImportLicensePage() {
             onChange={(e) => setSearch(e.target.value)}
           />
           {items.length > 0 && (
-            <button className="wh-modal-cancel" onClick={handleClearAllImport}>
+            <button className="wh-btn-danger" onClick={handleClearAllImport}>
               ลบทุกใบอนุญาต
             </button>
           )}
@@ -542,7 +583,7 @@ export default function ImportLicensePage() {
                     <ExtraColumnsCell json={row.extra_json} />
                   </td>
                   <td className="wh-cell-action">
-                    <button className="wh-modal-cancel" onClick={() => handleDeleteRow(row)}>
+                    <button className="wh-btn-danger wh-btn-danger-sm" onClick={() => handleDeleteRow(row)}>
                       ลบ
                     </button>
                   </td>
@@ -923,9 +964,6 @@ export function WHExportLicensePanel() {
         {msg?.error && <p className="upload-card-msg upload-card-msg-err wh-upload-msg">{msg.error}</p>}
       </div>
 
-      {/* แถบสถานะอายุใบอนุญาตส่งออกแบบถาวร */}
-      <LicenseAlertBanner kind="export" />
-
       <div className="tsf-history-toolbar">
         <div className="tsf-history-pagesize">
           <div className="wh-pagesize-select">
@@ -954,7 +992,7 @@ export function WHExportLicensePanel() {
             onChange={(e) => setSearch(e.target.value)}
           />
           {rows.length > 0 && (
-            <button className="wh-modal-cancel" onClick={handleClearAll}>
+            <button className="wh-btn-danger" onClick={handleClearAll}>
               ลบทุกใบอนุญาต
             </button>
           )}
@@ -1024,7 +1062,7 @@ export function WHExportLicensePanel() {
                     <button className="wh-modal-cancel" onClick={() => setTraceRow(row)}>
                       รายละเอียด
                     </button>
-                    <button className="wh-modal-cancel" onClick={() => handleDelete(row)}>
+                    <button className="wh-btn-danger wh-btn-danger-sm" onClick={() => handleDelete(row)}>
                       ลบ
                     </button>
                   </td>

@@ -3,28 +3,12 @@ import { getImportLicenseAlerts } from '../api/importLicense.js'
 import { getExportLicenseAlerts } from '../api/exportLicense.js'
 import { useAppNavigate } from '../lib/nav.jsx'
 import { formatThaiDate, daysLeftLabel } from '../lib/licenseExpiry.js'
-import {
-  addDismissed,
-  clearDismissed,
-  dismissKey,
-  pruneDismissed,
-  readDismissed,
-  removeDismissed,
-} from '../lib/licenseDismiss.js'
-import {
-  addExportDismissed,
-  clearExportDismissed,
-  exportDismissKey,
-  pruneExportDismissed,
-  readExportDismissed,
-  removeExportDismissed,
-} from '../lib/exportLicenseDismiss.js'
+import { dismissKey } from '../lib/licenseDismiss.js'
+import { exportDismissKey } from '../lib/exportLicenseDismiss.js'
 import {
   BellAlertIcon,
   XMarkIcon,
   ClockIcon,
-  EyeSlashIcon,
-  ArrowPathIcon,
   ArrowDownTrayIcon,
   ArrowUpTrayIcon,
 } from './icons.jsx'
@@ -32,17 +16,51 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 // WHAlertBell — กระดิ่งแจ้งเตือนอายุใบอนุญาต "รวมนำเข้า + ส่งออก" ไว้ในอันเดียว
 //
-// เดิมมี 2 กระดิ่งแยกกัน (นำเข้า/ส่งออก) วางข้างกันบน topbar — รวมเป็นอันเดียว:
-//   • badge = จำนวนที่ต้องจัดการรวมทั้งสองฝั่ง (ที่ยังไม่ถูกซ่อน)
-//   • เปิด panel เดียว แบ่งเป็น 2 ส่วน: นำเข้า (6 เดือน) / ส่งออก (1 เดือน)
-//   • ซ่อน/คืนค่ารายการได้ทั้งสองฝั่ง (ใช้คลัง dismiss เดิมของแต่ละฝั่ง)
-//   • คลิกรายการ → เด้งไปหน้าที่เกี่ยวข้อง (Import / Export License)
+// พฤติกรรมตัวเลข badge (ปรับใหม่):
+//   • badge = จำนวนแจ้งเตือน "ที่ยังไม่ได้เปิดดู" (unseen) รวมสองฝั่ง
+//   • พอกดเปิดกระดิ่ง = รับรู้แล้ว -> badge หายเป็น 0 ทันที
+//   • แต่ "รายการ" ในลิสต์ยังอยู่ครบตามข้อมูลจริงใน DB — ไม่ได้ถูกซ่อน
+//     รายการจะหายก็ต่อเมื่อใบถูก "ต่ออายุ/แก้ไขข้อมูล" จนไม่เข้าเกณฑ์เตือนแล้วเท่านั้น
+//   • ถ้ามีใบใหม่เข้าเกณฑ์เตือนเพิ่ม (key ใหม่ที่ยังไม่เคยเห็น) badge จะเด้งขึ้นใหม่
 //
-// แสดงเฉพาะ WH Manager (คนเดียวที่เข้าถึงบัญชีใบอนุญาต) — role อื่นไม่เห็นและไม่ยิง API
+// จำ "ที่เคยเห็นแล้ว" ผ่าน localStorage (ผูกกับ key = สถานะ+วันหมดอายุ ของแต่ละใบ)
+// -> พอสถานะเปลี่ยน (ใกล้หมด -> หมดอายุ) หรือวันหมดอายุเปลี่ยน (ต่ออายุ) key เปลี่ยน
+//    ระบบจะถือเป็นของใหม่และเด้งเตือนอีกครั้งเอง
+//
+// แสดงเฉพาะ role LOG (คนเดียวที่เข้าถึงบัญชีใบอนุญาต) — role อื่นไม่เห็นและไม่ยิง API
 // ─────────────────────────────────────────────────────────────────────────────
 
 const POLL_MS = 60_000
-const ACK_KEY = 'iconfirm_wh_alert_ack' // จำนวน alert รวมที่ผู้ใช้เห็นล่าสุด (เฉพาะที่ยังไม่ซ่อน)
+const SEEN_KEY = 'iconfirm_wh_alert_seen' // { [prefixedKey]: seenAtISO } รายการที่ผู้ใช้เปิดดูแล้ว
+
+// ── คลังจำ "รายการที่เปิดดูแล้ว" (seen) บน localStorage ──────────────────────
+function readSeen() {
+  try {
+    const raw = localStorage.getItem(SEEN_KEY)
+    const obj = raw ? JSON.parse(raw) : {}
+    return obj && typeof obj === 'object' ? obj : {}
+  } catch {
+    return {}
+  }
+}
+function writeSeen(map) {
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify(map))
+  } catch {
+    /* localStorage เต็ม/ปิด — ปล่อยผ่าน ไม่ให้กระดิ่งพัง */
+  }
+}
+// key ที่ prefix ฝั่งไว้ กันชนกันระหว่างนำเข้า/ส่งออก
+const impKey = (it) => 'imp:' + dismissKey(it)
+const expKey = (it) => 'exp:' + exportDismissKey(it)
+
+// ตัวเลือก filter จำนวนรายการล่าสุดที่แสดง
+const LIMIT_OPTIONS = [
+  { value: 2, label: '2' },
+  { value: 5, label: '5' },
+  { value: 10, label: '10' },
+  { value: 'all', label: 'ทั้งหมด' },
+]
 
 export default function WHAlertBell() {
   const navigate = useAppNavigate()
@@ -54,11 +72,12 @@ export default function WHAlertBell() {
   const [expNoDate, setExpNoDate] = useState(0)
   const [loaded, setLoaded] = useState(false)
   const [hasNew, setHasNew] = useState(false)
+  const [seen, setSeen] = useState(() => readSeen())
 
-  const [impDismissed, setImpDismissed] = useState(() => readDismissed())
-  const [expDismissed, setExpDismissed] = useState(() => readExportDismissed())
-  const [showHiddenImp, setShowHiddenImp] = useState(false)
-  const [showHiddenExp, setShowHiddenExp] = useState(false)
+  // filter "แสดงล่าสุดกี่รายการ" ของแต่ละฝั่ง (ค่าเริ่มต้น = 5)
+  const [impLimit, setImpLimit] = useState(5)
+  const [expLimit, setExpLimit] = useState(5)
+
   const rootRef = useRef(null)
 
   const load = useCallback(async () => {
@@ -67,18 +86,32 @@ export default function WHAlertBell() {
       getImportLicenseAlerts({ onlyAlert: true }),
       getExportLicenseAlerts({ onlyAlert: true }),
     ])
+    let impList = []
+    let expList = []
     if (imp.status === 'fulfilled') {
-      const list = imp.value?.items || []
-      setImpItems(list)
+      impList = imp.value?.items || []
+      setImpItems(impList)
       setImpNoDate(imp.value?.counts?.noDate || 0)
-      setImpDismissed(pruneDismissed(list))
     }
     if (exp.status === 'fulfilled') {
-      const list = exp.value?.items || []
-      setExpItems(list)
+      expList = exp.value?.items || []
+      setExpItems(expList)
       setExpNoDate(exp.value?.counts?.noDate || 0)
-      setExpDismissed(pruneExportDismissed(list))
     }
+
+    // เก็บกวาด seen: เก็บเฉพาะ key ที่ยังมีอยู่จริง (ใบที่ต่ออายุ/ลบ key เก่าหลุดไปเอง)
+    setSeen((prev) => {
+      const live = new Set([...impList.map(impKey), ...expList.map(expKey)])
+      let changed = false
+      const next = {}
+      for (const [k, v] of Object.entries(prev)) {
+        if (live.has(k)) next[k] = v
+        else changed = true
+      }
+      if (changed) writeSeen(next)
+      return changed ? next : prev
+    })
+
     setLoaded(true)
   }, [])
 
@@ -93,41 +126,37 @@ export default function WHAlertBell() {
     }
   }, [load])
 
-  // แยก visible/hidden ของแต่ละฝั่ง
-  const imp = useMemo(() => {
-    const isHidden = (it) => Object.prototype.hasOwnProperty.call(impDismissed, dismissKey(it))
-    const vis = impItems.filter((it) => !isHidden(it))
-    return {
-      hidden: impItems.filter(isHidden),
-      expired: vis.filter((it) => it.Status === 'EXPIRED'),
-      expiring: vis.filter((it) => it.Status === 'EXPIRING'),
-      visible: vis.length,
-    }
-  }, [impItems, impDismissed])
-
-  const exp = useMemo(() => {
-    const isHidden = (it) => Object.prototype.hasOwnProperty.call(expDismissed, exportDismissKey(it))
-    const vis = expItems.filter((it) => !isHidden(it))
-    return {
-      hidden: expItems.filter(isHidden),
-      expired: vis.filter((it) => it.Status === 'EXPIRED'),
-      expiring: vis.filter((it) => it.Status === 'EXPIRING'),
-      visible: vis.length,
-    }
-  }, [expItems, expDismissed])
-
-  // จำนวน "งานค้างจริง" = ใบที่หมดอายุ/ใกล้หมดอายุทั้งหมดจากข้อมูลจริง
-  // ไม่ขึ้นกับการกดอ่านหรือกดซ่อน — ตัวเลขนี้จะลดลงก็ต่อเมื่อใบถูกต่ออายุ/แก้ไข
-  // ข้อมูลในระบบแล้วเท่านั้น (การซ่อนเป็นแค่การพักหน้าจอ ไม่ทำให้งานหายไป)
+  // แยกกลุ่ม หมดอายุ/ใกล้หมดอายุ ของแต่ละฝั่ง (แสดง "ทุกรายการจริง" ไม่มีการซ่อน)
   const isAlertStatus = (i) => i.Status === 'EXPIRED' || i.Status === 'EXPIRING'
-  const totalOutstanding =
-    impItems.filter(isAlertStatus).length + expItems.filter(isAlertStatus).length
+  const imp = useMemo(() => {
+    const list = impItems.filter(isAlertStatus)
+    return {
+      all: list,
+      expired: list.filter((it) => it.Status === 'EXPIRED'),
+      expiring: list.filter((it) => it.Status === 'EXPIRING'),
+    }
+  }, [impItems])
+  const exp = useMemo(() => {
+    const list = expItems.filter(isAlertStatus)
+    return {
+      all: list,
+      expired: list.filter((it) => it.Status === 'EXPIRED'),
+      expiring: list.filter((it) => it.Status === 'EXPIRING'),
+    }
+  }, [expItems])
+
+  // ── ตัวเลข badge = จำนวนแจ้งเตือน "ที่ยังไม่ได้เปิดดู" (unseen) รวมสองฝั่ง ──
+  const unseenCount = useMemo(() => {
+    let n = 0
+    for (const it of imp.all) if (!Object.prototype.hasOwnProperty.call(seen, impKey(it))) n++
+    for (const it of exp.all) if (!Object.prototype.hasOwnProperty.call(seen, expKey(it))) n++
+    return n
+  }, [imp.all, exp.all, seen])
 
   useEffect(() => {
     if (!loaded) return
-    const ack = Number(localStorage.getItem(ACK_KEY) || 0)
-    setHasNew(totalOutstanding > ack)
-  }, [loaded, totalOutstanding])
+    setHasNew(unseenCount > 0)
+  }, [loaded, unseenCount])
 
   useEffect(() => {
     if (!open) return
@@ -145,45 +174,34 @@ export default function WHAlertBell() {
     }
   }, [open])
 
+  // เปิดกระดิ่ง = รับรู้แจ้งเตือนทั้งหมด -> mark seen ทุก key ปัจจุบัน -> badge เป็น 0
+  function markAllSeen() {
+    const next = { ...readSeen() }
+    const nowISO = new Date().toISOString()
+    for (const it of imp.all) next[impKey(it)] = nowISO
+    for (const it of exp.all) next[expKey(it)] = nowISO
+    writeSeen(next)
+    setSeen(next)
+    setHasNew(false)
+  }
+
   function toggle() {
     const next = !open
     setOpen(next)
-    if (next) {
-      // เปิดอ่าน = เคลียร์แค่ป้าย "ใหม่" (pulse) — ตัวเลขงานค้างยังอยู่จนกว่าจะจัดการจริง
-      localStorage.setItem(ACK_KEY, String(totalOutstanding))
-      setHasNew(false)
-    } else {
-      setShowHiddenImp(false)
-      setShowHiddenExp(false)
-    }
+    if (next) markAllSeen()
   }
 
-  // ── import handlers ──
   const goImport = () => {
     setOpen(false)
     navigate('/warehouse')
   }
-  // "ซ่อน" = พักรายการออกจากลิสต์ชั่วคราวเท่านั้น ไม่ลดตัวเลขงานค้างบนกระดิ่ง
-  const dismissImp = (item) => setImpDismissed({ ...addDismissed(item) })
-  const restoreImp = (item) => setImpDismissed({ ...removeDismissed(item) })
-
-  // ── export handlers ──
   const goExport = () => {
     setOpen(false)
     navigate('/warehouse/export-license')
   }
-  const dismissExp = (item) => setExpDismissed({ ...addExportDismissed(item) })
-  const restoreExp = (item) => setExpDismissed({ ...removeExportDismissed(item) })
 
-  function restoreAll() {
-    setImpDismissed(clearDismissed())
-    setExpDismissed(clearExportDismissed())
-    setShowHiddenImp(false)
-    setShowHiddenExp(false)
-  }
-
-  const badge = totalOutstanding
-  const totalHidden = imp.hidden.length + exp.hidden.length
+  const badge = unseenCount
+  const totalOutstanding = imp.all.length + exp.all.length
 
   return (
     <div className="lab-root" ref={rootRef}>
@@ -212,7 +230,7 @@ export default function WHAlertBell() {
             </button>
           </div>
 
-          {loaded && badge === 0 && totalHidden === 0 && (
+          {loaded && totalOutstanding === 0 && (
             <div className="lab-empty lab-empty-ok" style={{ margin: 12 }}>
               <span className="lab-empty-dot" />
               ทุกใบอนุญาต (นำเข้า/ส่งออก) ยังอยู่ในอายุ ไม่มีรายการต้องจัดการ
@@ -227,16 +245,13 @@ export default function WHAlertBell() {
             loaded={loaded}
             expired={imp.expired}
             expiring={imp.expiring}
-            hidden={imp.hidden}
-            showHidden={showHiddenImp}
-            onToggleHidden={() => setShowHiddenImp((v) => !v)}
+            limit={impLimit}
+            onLimitChange={setImpLimit}
             noDate={impNoDate}
             noDateLabel="ยังไม่ได้ระบุวันที่ออกใบอนุญาต"
             expiringLabel="ใกล้หมดอายุ (ภายใน 30 วัน)"
             onOpen={goImport}
-            onDismiss={dismissImp}
-            onRestore={restoreImp}
-            getKey={dismissKey}
+            getKey={impKey}
             renderMeta={(it) => (
               <>
                 Invoice {it.InvoiceNo || '—'}
@@ -254,16 +269,13 @@ export default function WHAlertBell() {
             loaded={loaded}
             expired={exp.expired}
             expiring={exp.expiring}
-            hidden={exp.hidden}
-            showHidden={showHiddenExp}
-            onToggleHidden={() => setShowHiddenExp((v) => !v)}
+            limit={expLimit}
+            onLimitChange={setExpLimit}
             noDate={expNoDate}
             noDateLabel="ยังไม่ได้ระบุวันหมดอายุ/ใบขน"
             expiringLabel="ใกล้หมดอายุ (ภายใน 7 วัน)"
             onOpen={goExport}
-            onDismiss={dismissExp}
-            onRestore={restoreExp}
-            getKey={exportDismissKey}
+            getKey={expKey}
             renderMeta={(it) => (
               <>
                 Exception License {it.ExceptionLicense || '—'}
@@ -273,19 +285,10 @@ export default function WHAlertBell() {
             titleField={(it) => it.SerialNumber || '—'}
           />
 
-          {totalHidden > 0 && (
-            <div className="lab-hidden-bar">
-              <span style={{ fontSize: 12, color: '#94a3b8' }}>พักไว้ {totalHidden} รายการ (ยังนับรวมในตัวเลข)</span>
-              <button className="lab-hidden-restore" onClick={restoreAll} title="แสดงรายการที่พักไว้ทั้งหมด">
-                <ArrowPathIcon className="size-4" />
-                แสดงทั้งหมด
-              </button>
-            </div>
-          )}
-
-          {badge > 0 && (
+          {totalOutstanding > 0 && (
             <div className="lab-resolve-note">
-              ตัวเลขบนกระดิ่งคือจำนวนใบที่ต้อง<strong>ดำเนินการจริง</strong> — จะลดลงเมื่อใบถูก<strong>ต่ออายุหรือแก้ไขข้อมูลในระบบ</strong>แล้วเท่านั้น (การพัก/อ่านไม่ทำให้ตัวเลขหาย)
+              ตัวเลขบนกระดิ่งคือจำนวนที่<strong>ยังไม่ได้เปิดดู</strong> — พอเปิดดูแล้วจะหายไป
+              ส่วน<strong>รายการด้านบน</strong>จะยังอยู่จนกว่าใบจะถูก<strong>ต่ออายุ/แก้ไขข้อมูล</strong>จนพ้นเกณฑ์เตือน
             </div>
           )}
         </div>
@@ -301,21 +304,27 @@ function AlertSection({
   loaded,
   expired,
   expiring,
-  hidden,
-  showHidden,
-  onToggleHidden,
+  limit,
+  onLimitChange,
   noDate,
   noDateLabel,
   expiringLabel,
   onOpen,
-  onDismiss,
-  onRestore,
   getKey,
   renderMeta,
   titleField,
 }) {
-  const visible = expired.length + expiring.length
+  const total = expired.length + expiring.length
   const themeClass = theme === 'export' ? ' lab-section-export' : ' lab-section-import'
+
+  // เรียงด่วนสุดก่อน (DaysLeft น้อย/ติดลบมากขึ้นก่อน) แล้วตัดตาม filter "ล่าสุด N รายการ"
+  const sortByUrgent = (a, b) => (a.DaysLeft ?? 0) - (b.DaysLeft ?? 0)
+  const limitNum = limit === 'all' ? Infinity : Number(limit)
+  const expiredShown = [...expired].sort(sortByUrgent).slice(0, limitNum)
+  const remain = Math.max(0, limitNum - expiredShown.length)
+  const expiringShown = [...expiring].sort(sortByUrgent).slice(0, remain)
+  const shownCount = expiredShown.length + expiringShown.length
+  const hiddenByLimit = total - shownCount
 
   return (
     <div className={'lab-section' + themeClass}>
@@ -334,39 +343,53 @@ function AlertSection({
         </span>
       </div>
 
+      {/* filter จำนวนรายการล่าสุดที่แสดง (2 / 5 / 10 / ทั้งหมด) */}
+      {total > 0 && (
+        <div className="lab-limit-filter" role="group" aria-label={`แสดงล่าสุดกี่รายการ (${title})`}>
+          <span className="lab-limit-label">ล่าสุด</span>
+          {LIMIT_OPTIONS.map((o) => (
+            <button
+              key={String(o.value)}
+              type="button"
+              className={'lab-limit-btn' + (limit === o.value ? ' is-active' : '')}
+              onClick={() => onLimitChange(o.value)}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="lab-list">
-        {loaded && visible === 0 && (
+        {loaded && total === 0 && (
           <div className="lab-empty lab-empty-ok">
             <span className="lab-empty-dot" />
             ไม่มีรายการต้องจัดการ
           </div>
         )}
 
-        {expired.length > 0 && (
+        {expiredShown.length > 0 && (
           <>
             <div className="lab-group-label lab-group-expired">หมดอายุแล้ว</div>
-            {expired.map((it) => (
-              <Row key={getKey(it)} item={it} onOpen={onOpen} onDismiss={onDismiss} renderMeta={renderMeta} titleField={titleField} />
+            {expiredShown.map((it) => (
+              <Row key={getKey(it)} item={it} onOpen={onOpen} renderMeta={renderMeta} titleField={titleField} />
             ))}
           </>
         )}
 
-        {expiring.length > 0 && (
+        {expiringShown.length > 0 && (
           <>
             <div className="lab-group-label lab-group-expiring">{expiringLabel}</div>
-            {expiring.map((it) => (
-              <Row key={getKey(it)} item={it} onOpen={onOpen} onDismiss={onDismiss} renderMeta={renderMeta} titleField={titleField} />
+            {expiringShown.map((it) => (
+              <Row key={getKey(it)} item={it} onOpen={onOpen} renderMeta={renderMeta} titleField={titleField} />
             ))}
           </>
         )}
 
-        {showHidden && hidden.length > 0 && (
-          <>
-            <div className="lab-group-label lab-group-hidden">ซ่อนไว้</div>
-            {hidden.map((it) => (
-              <Row key={getKey(it)} item={it} hidden onOpen={onOpen} onRestore={onRestore} renderMeta={renderMeta} titleField={titleField} />
-            ))}
-          </>
+        {hiddenByLimit > 0 && (
+          <button type="button" className="lab-more-btn" onClick={() => onLimitChange('all')}>
+            + ดูอีก {hiddenByLimit} รายการ
+          </button>
         )}
       </div>
 
@@ -376,21 +399,14 @@ function AlertSection({
           มี {noDate} ใบที่{noDateLabel} — เติมวันที่เพื่อให้ระบบเตือนอายุได้
         </div>
       )}
-
-      {hidden.length > 0 && (
-        <button className="lab-hidden-toggle" onClick={onToggleHidden} style={{ margin: '2px 12px 10px' }}>
-          <EyeSlashIcon className="size-4" />
-          {showHidden ? 'ซ่อนรายการที่ซ่อนไว้' : `ดูที่ซ่อนไว้ ${hidden.length} รายการ`}
-        </button>
-      )}
     </div>
   )
 }
 
-function Row({ item, hidden = false, onOpen, onDismiss, onRestore, renderMeta, titleField }) {
+function Row({ item, onOpen, renderMeta, titleField }) {
   const isExpired = item.Status === 'EXPIRED'
   return (
-    <div className={'lab-item' + (hidden ? ' lab-item-hidden' : '')}>
+    <div className="lab-item">
       <button className="lab-item-main" onClick={() => onOpen?.(item)}>
         <span className={'lab-item-bar ' + (isExpired ? 'lab-bar-expired' : 'lab-bar-expiring')} />
         <span className="lab-item-body">
@@ -404,28 +420,6 @@ function Row({ item, hidden = false, onOpen, onDismiss, onRestore, renderMeta, t
           <span className="lab-item-expiry">หมดอายุ {formatThaiDate(item.ExpiryDate)}</span>
         </span>
       </button>
-
-      {hidden ? (
-        <button
-          type="button"
-          className="lab-item-action lab-item-restore"
-          onClick={() => onRestore?.(item)}
-          aria-label="คืนค่าการแจ้งเตือนนี้"
-          title="คืนค่าการแจ้งเตือน"
-        >
-          <ArrowPathIcon className="size-4" />
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="lab-item-action lab-item-dismiss"
-          onClick={() => onDismiss?.(item)}
-          aria-label="พักการแจ้งเตือนนี้"
-          title="พักรายการนี้ออกจากลิสต์ชั่วคราว (ไม่ลดตัวเลขงานค้าง ไม่ลบใบอนุญาต)"
-        >
-          <XMarkIcon className="size-4" />
-        </button>
-      )}
     </div>
   )
 }

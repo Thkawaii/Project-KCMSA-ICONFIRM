@@ -925,3 +925,85 @@ func ClearImportLicenseItems(c *gin.Context) {
 
 	c.JSON(200, gin.H{"deleted": res.RowsAffected})
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RenewImportLicense — "ต่ออายุ" ใบอนุญาตนำเข้าทั้งล็อต (คู่ เลขใบอนุญาต+อินวอยซ์)
+//
+// วันหมดอายุ = IssueDate + 6 เดือน (คำนวณสดตอน query ไม่เก็บซ้ำ) เพราะฉะนั้นการ
+// "ต่ออายุ N วัน" = เลื่อน IssueDate ไปข้างหน้า N วัน -> วันหมดอายุเลื่อนตาม N วัน
+// พอ client โหลดใหม่ สถานะ/วันคงเหลือจะคำนวณใหม่ทันที (realtime)
+//
+//   - แถวที่มี IssueDate อยู่แล้ว: IssueDate += N วัน (วันหมดอายุเดิม + N วัน)
+//   - แถวที่ยังไม่มี IssueDate (NO_DATE): ถือว่าหมดอายุวันนี้เป็นฐาน แล้วบวก N วัน
+//     -> วันหมดอายุใหม่ = วันนี้ + N วัน (ใบใหม่มีอายุ N วันนับจากวันนี้)
+// ─────────────────────────────────────────────────────────────────────────────
+func RenewImportLicense(c *gin.Context) {
+	var req struct {
+		LicenseNo string `json:"licenseNo"`
+		InvoiceNo string `json:"invoiceNo"`
+		Days      int    `json:"days"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"message": "ข้อมูลไม่ถูกต้อง"})
+		return
+	}
+
+	licenseNo := strings.TrimSpace(req.LicenseNo)
+	invoiceNo := strings.TrimSpace(req.InvoiceNo)
+	if req.Days <= 0 {
+		c.JSON(400, gin.H{"message": "จำนวนวันที่ต่อต้องมากกว่า 0"})
+		return
+	}
+	if req.Days > 3650 {
+		c.JSON(400, gin.H{"message": "จำนวนวันที่ต่อมากเกินไป (สูงสุด 3650 วัน)"})
+		return
+	}
+
+	// ต้องเจาะจงล็อต — กันเผลอต่ออายุทั้งตาราง (จับคู่เฉพาะคีย์ที่ส่งมา รวมค่าว่าง)
+	var rows []models.ImportLicenseItem
+	if err := config.DB.
+		Where("license_no = ? AND invoice_no = ?", licenseNo, invoiceNo).
+		Find(&rows).Error; err != nil {
+		c.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+	if len(rows) == 0 {
+		c.JSON(404, gin.H{"message": "ไม่พบล็อตใบอนุญาตนี้"})
+		return
+	}
+
+	// ฐานสำหรับแถวที่ยังไม่มี IssueDate = "หมดอายุวันนี้" -> IssueDate = วันนี้ - 6 เดือน
+	now := time.Now()
+	noDateBase := now.AddDate(0, -LicenseValidityMonths, 0)
+
+	updated := 0
+	for i := range rows {
+		base := noDateBase
+		if rows[i].IssueDate != nil {
+			base = *rows[i].IssueDate
+		}
+		newIssue := base.AddDate(0, 0, req.Days)
+		rows[i].IssueDate = &newIssue
+		if err := config.DB.Model(&models.ImportLicenseItem{}).
+			Where("id = ?", rows[i].ID).
+			Update("issue_date", newIssue).Error; err != nil {
+			c.JSON(500, gin.H{"message": err.Error()})
+			return
+		}
+		updated++
+	}
+
+	// วันหมดอายุใหม่ (อ้างอิงจากแถวแรก) ส่งกลับให้ UI โชว์ผลได้ทันที
+	newExpiry := rows[0].IssueDate.AddDate(0, LicenseValidityMonths, 0)
+
+	userID, userName := lookupUserName(c)
+	CreateAuditLog("IMPORT_LICENSE", 0, "renew",
+		"license_no="+licenseNo+" invoice_no="+invoiceNo+" days="+strconv.Itoa(req.Days),
+		userID, userName)
+
+	c.JSON(200, gin.H{
+		"renewed":   updated,
+		"days":      req.Days,
+		"newExpiry": newExpiry,
+	})
+}

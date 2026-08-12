@@ -50,6 +50,17 @@ export function deleteImportLicenseItem(id) {
   return apiFetch(`/import-license/${id}`, { method: 'DELETE' })
 }
 
+// ต่ออายุใบอนุญาตทั้งล็อต (คู่ เลขใบอนุญาต+อินวอยซ์) — เลื่อนวันหมดอายุออกไป N วัน
+// backend จะบวก N วันเข้า IssueDate ของทุกเครื่องในล็อต -> วันหมดอายุ (IssueDate+6เดือน)
+// เลื่อนตาม N วัน คำนวณใหม่แบบ realtime พอ client โหลดข้อมูลใหม่
+//   คืน { renewed, days, newExpiry }
+export function renewImportLicense(licenseNo = '', invoiceNo = '', days = 0) {
+  return apiFetch('/import-license/renew', {
+    method: 'POST',
+    body: JSON.stringify({ licenseNo: licenseNo ?? '', invoiceNo: invoiceNo ?? '', days }),
+  })
+}
+
 // ลบ "ล็อต" ออกทั้งใบ — เจาะจงด้วยคู่ (เลขใบอนุญาต, อินวอยซ์) ตามที่ UI จัดกลุ่มไว้
 // ส่งทั้งสอง key เสมอ (แม้ค่าว่าง) เพื่อรองรับล็อตที่ไม่มีเลขใบอนุญาต/อินวอยซ์
 //   clearImportLicense('E0503...', 'TQ60610')  -> ลบเฉพาะล็อตนั้น

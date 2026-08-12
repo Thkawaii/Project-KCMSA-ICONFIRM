@@ -934,3 +934,59 @@
   color: #64748b;
 }
 .lab-resolve-note strong { color: #0f172a; font-weight: 700; }
+
+/* ── filter "แสดงล่าสุด N รายการ" ในกระดิ่ง (2/5/10/ทั้งหมด) ────────────────── */
+.lab-limit-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 4px;
+  flex-wrap: wrap;
+}
+.lab-limit-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+  margin-right: 2px;
+}
+.lab-limit-btn {
+  min-width: 30px;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.lab-limit-btn:hover {
+  background: #e2e8f0;
+}
+.lab-limit-btn.is-active {
+  color: #0f766e;
+  background: #ffffff;
+  border-color: #99f6e4;
+  box-shadow: 0 1px 2px rgba(15, 118, 110, 0.12);
+}
+
+/* ปุ่ม "+ ดูอีก N รายการ" เมื่อ filter ตัดรายการบางส่วนออก */
+.lab-more-btn {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 6px 12px 4px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.lab-more-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
