@@ -170,7 +170,22 @@ export default function AdminDashboardPage() {
 
       {/* ── filter + search ── */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ display: 'inline-flex', background: '#f1f5f9', borderRadius: 10, padding: 3 }}>
+        {/* ปุ่มกรอง 6 ปุ่มในกล่องเดียว (inline-flex, ไม่ wrap) — บนจอมือถือความกว้างรวม
+            ของปุ่มทั้งหมดเกินความกว้างจอ ทำให้ล้นออกนอกจอ (เดิมไม่มี overflowX/minWidth:0
+            มากำกับ) ใส่ overflowX: 'auto' ให้เลื่อนแนวนอนแทนล้น + minWidth:0 ให้กล่องนี้
+            หดได้เมื่ออยู่ในแถว flex ด้านนอกที่ wrap อยู่แล้ว */}
+        <div
+          style={{
+            display: 'flex',
+            background: '#f1f5f9',
+            borderRadius: 10,
+            padding: 3,
+            minWidth: 0,
+            maxWidth: '100%',
+            overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
           {[
             { v: 'ALL', label: 'ทั้งหมด' },
             { v: 'ADMIN', label: 'Admin' },
@@ -189,6 +204,8 @@ export default function AdminDashboardPage() {
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
                 background: filter === t.v ? '#ffffff' : 'transparent',
                 color: filter === t.v ? '#0f172a' : '#64748b',
                 boxShadow: filter === t.v ? '0 1px 2px rgba(15,23,42,0.08)' : 'none',
@@ -241,11 +258,13 @@ export default function AdminDashboardPage() {
               {!loading &&
                 filtered.map((u, i) => (
                   <tr key={u.id}>
-                    <td>{i + 1}</td>
-                    <td style={{ fontWeight: 600 }}>{u.name}</td>
-                    <td style={{ fontFamily: 'ui-monospace, Menlo, monospace', color: '#475569' }}>{u.username}</td>
-                    <td><RoleBadge role={u.role_name} /></td>
-                    <td>
+                    <td className="wh-cell-head" data-label="#">
+                      <strong>{i + 1}</strong>
+                    </td>
+                    <td data-label="ชื่อ - นามสกุล" style={{ fontWeight: 600 }}>{u.name}</td>
+                    <td data-label="Username" style={{ fontFamily: 'ui-monospace, Menlo, monospace', color: '#475569' }}>{u.username}</td>
+                    <td data-label="แผนก / Role"><RoleBadge role={u.role_name} /></td>
+                    <td data-label="สถานะ">
                       <span
                         style={{
                           fontSize: 12,
@@ -256,7 +275,7 @@ export default function AdminDashboardPage() {
                         {u.status === 'Active' ? '● ใช้งาน' : '● ปิดใช้งาน'}
                       </span>
                     </td>
-                    <td>
+                    <td className="wh-cell-action">
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                         <button className="wh-issue-btn" onClick={() => setEditUser(u)}>
                           <PencilSquareIcon className="size-4" /> แก้ไข

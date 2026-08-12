@@ -1161,6 +1161,26 @@
     white-space: nowrap;
   }
 
+  /* หลายหน้า (เช่น User Management, Master Data) ห่อปุ่มด้วย <div> เพิ่มอีกชั้น
+     เพื่อจัดชิดขวาบน desktop (justifyContent: 'flex-end') — ตัวเลือกด้านบนจับได้แค่
+     ปุ่มที่เป็นลูกตรงของ .wh-cell-action เท่านั้น พอมี div คั่น ปุ่มเลยไม่โดน flex:1 1 0
+     ผลคือบนมือถือปุ่มเล็กชิดขวา ไม่ใช่แบ่งครึ่งซ้าย-ขวาเต็มการ์ดเหมือนที่อื่น
+     กฎนี้ทำให้ div ห่อนั้นกางเต็มความกว้าง แล้วแบ่งปุ่มข้างในเท่า ๆ กัน (ซ้าย/ขวา) แทน */
+  .wh-table tbody td.wh-cell-action > div {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .wh-table tbody td.wh-cell-action > div > button {
+    flex: 1 1 0;
+    width: auto;
+    padding: 10px 10px;
+    font-size: 13px;
+    white-space: nowrap;
+    justify-content: center;
+  }
+
   /* Two-button decision cells (QA PASS / FAIL) */
   .wh-table tbody td.qa-action-cell {
     justify-content: stretch;
