@@ -6,8 +6,10 @@
 export function homeRouteForRole(role) {
   const normalized = (role || '').toUpperCase()
 
-  if (normalized === 'WH_MANAGER') return '/warehouse'
+  if (normalized === 'ADMIN') return '/admin'
+  if (normalized === 'LOG') return '/warehouse'
   if (normalized === 'WH') return '/warehouse/confirm'
+  if (normalized === 'MFG') return '/mfg-assembly'
   if (normalized === 'QA') return '/qa'
   if (normalized === 'TSF') return '/tsf'
   if (normalized === 'UPLOAD') return '/master-data'

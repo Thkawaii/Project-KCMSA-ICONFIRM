@@ -88,9 +88,12 @@ func ConnectDB() {
 
 	SeedData()
 
-	// เติมผู้ใช้ WH_MANAGER (whmanage@kobelco.com) ให้ฐานข้อมูลเดิมที่ติดตั้งไปก่อนแล้ว
-	// (SeedData ข้ามถ้ามี user อยู่แล้ว จึงต้องเติมแยก) — idempotent
-	SeedWHManager()
+	// เติมผู้ใช้องค์กรทั้งหมด (admin + LOG + พนักงาน WH/MFG รายคน) แบบ idempotent
+	// รวมถึงย้าย role เดิม WH_MANAGER -> LOG ให้ DB ที่ติดตั้งไปก่อนแล้ว
+	SeedOrgUsers()
+
+	// เผื่อ DB เก่ามี plaintext password ค้าง แปลงเป็น bcrypt ให้ครบ
+	MigratePlaintextPasswords()
 
 	// เรียกแยกจาก SeedData() เพราะอันนั้นจะข้ามทั้งหมดถ้ามี user อยู่แล้ว
 	// ส่วนอันนี้ต้องรันทุกครั้งเพื่อเติมทะเบียน IT Controller ที่เพิ่มเข้ามาใหม่

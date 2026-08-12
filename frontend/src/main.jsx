@@ -8,6 +8,8 @@ import DashboardPage from './pages/Dashboardpage.jsx'
 import TSFOperatorPage from './pages/Tsfoperatorpage.jsx'
 import UploadViewPage from './pages/UploadViewpage.jsx'
 import MasterDataPage from './pages/MasterDataPage.jsx'
+import MFGAssemblyPage from './pages/Mfgassemblypage.jsx'
+import AdminDashboardPage from './pages/AdminDashboardpage.jsx'
 import QAMachineList from './pages/qa/Qamachinelist.jsx'
 import QAMachineDetail from './pages/qa/Qamachinedetail.jsx'
 import UiKitPage from './pages/UiKitPage.jsx'
@@ -33,12 +35,15 @@ const resolveHomeRoute = homeRouteForRole
 // ไม่ใช่ path จริงของ browser แล้ว — address bar จะไม่เปลี่ยนตามค่านี้อีกต่อไป
 const ROUTE_CONFIG = {
   '/login': { component: LoginPage, public: true },
-  '/warehouse': { component: ImportLicensePage, roles: ['WH_MANAGER'] },
-  '/warehouse/export-license': { component: ExportLicensePage, roles: ['WH_MANAGER'] },
-  '/warehouse/confirm': { component: WHPartConfirmationPage, roles: ['WH', 'WH_MANAGER'] },
+  '/warehouse': { component: ImportLicensePage, roles: ['LOG'] },
+  '/warehouse/export-license': { component: ExportLicensePage, roles: ['LOG'] },
+  '/warehouse/confirm': { component: WHPartConfirmationPage, roles: ['WH', 'LOG'] },
+  '/mfg-assembly': { component: MFGAssemblyPage, roles: ['MFG', 'TSF'] },
+  '/admin': { component: AdminDashboardPage, roles: ['ADMIN'] },
   '/tsf': { component: TSFOperatorPage, roles: ['TSF'] },
   '/upload': { component: UploadViewPage, roles: ['UPLOAD'] },
   '/master-data': { component: MasterDataPage, roles: ['UPLOAD'] },
+  '/admin/master-data': { component: MasterDataPage, roles: ['ADMIN'] },
   '/dashboard': { component: DashboardPage, roles: null },
   '/qa': { component: QAMachineList, roles: ['QA'] },
   '/qa/machine': { component: QAMachineDetail, roles: ['QA'] },

@@ -403,16 +403,44 @@ export function ExtraColumnsCell({ json }) {
   const entries = obj ? Object.entries(obj) : []
   if (entries.length === 0) return <span style={{ color: '#cbd5e1' }}>—</span>
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-      {entries.map(([k, v]) => (
-        <span
-          key={k}
-          title={`${k}: ${v}`}
-          style={{ background: '#dbeafe', color: '#1e40af', borderRadius: 6, padding: '1px 6px', fontSize: 11, ...codeStyle }}
-        >
-          {k.replace(/^\[\+\]\s*/, '')}: {String(v)}
-        </span>
-      ))}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 160 }}>
+      {entries.map(([k, v]) => {
+        const label = k.replace(/^\[\+\]\s*/, '')
+        return (
+          <div
+            key={k}
+            title={`${label}: ${v}`}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+              padding: '5px 9px',
+              background: '#f8fafc',
+              border: '1px solid #e5e9f0',
+              borderLeft: '3px solid #60a5fa',
+              borderRadius: 7,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: 0.3,
+                color: '#64748b',
+                textTransform: 'uppercase',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {label}
+            </span>
+            <span style={{ fontSize: 12.5, color: '#0f172a', fontWeight: 500, ...codeStyle }}>
+              {String(v) || '—'}
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }

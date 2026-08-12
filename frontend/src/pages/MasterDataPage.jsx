@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import AppShell from '../components/AppShell.jsx'
+import { ADMIN_NAV_ITEMS } from './AdminDashboardpage.jsx'
 import SelectField from '../components/Selectfield.jsx'
 import { getMasterData, uploadMasterData, deleteMasterData, clearMasterData, previewMasterDataChanges } from '../api/masterData.js'
 import {
@@ -11,7 +12,6 @@ import {
   previewUploadData,
 } from '../api/uploadData.js'
 import {
-  CodeAliasPanel,
   PreviewResult,
   ChangePreview,
   MasterDataEditModal,
@@ -91,9 +91,15 @@ const HEADING_LABEL_BY_TYPE = {
   ...Object.fromEntries(COMPONENT_TYPES.map((t) => [t.value, t.label])),
 }
 
-const navItems = [
+const uploadNavItems = [
   { to: '/master-data', label: 'ทะเบียน Master Data', icon: <RectangleStackIcon className="size-4" /> },
 ]
+
+// ถ้าเข้าจาก role ADMIN ให้ใช้เมนู Admin (User Management + Upload Master Data)
+// ถ้าเป็น role UPLOAD (uploadview) ใช้เมนูเดิม
+const IS_ADMIN = (localStorage.getItem('iconfirm_role') || '').toUpperCase() === 'ADMIN'
+const navItems = IS_ADMIN ? ADMIN_NAV_ITEMS : uploadNavItems
+const SHELL_ROLE_LABEL = IS_ADMIN ? 'Admin' : 'Upload View'
 
 // ค่าที่แสดงแทนช่องว่าง — อะไหล่ชนิดอื่นไม่มี IT Controller no./IMEI
 const DASH = '—'
@@ -193,7 +199,7 @@ export default function MasterDataPage() {
   }
 
   return (
-    <AppShell navItems={navItems} roleLabel="Upload View">
+    <AppShell navItems={navItems} roleLabel={SHELL_ROLE_LABEL}>
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">Upload Master Data</h2>
@@ -322,7 +328,6 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
 
   // ชนิดอะไหล่สำหรับ dropdown ในกล่องแก้ไข + panel จับคู่ค่ารหัส
   const editComponentOptions = COMPONENT_TYPES.map((t) => ({ value: t.value, label: t.label }))
-  const codeAliasType = compType !== 'all' ? compType : 'it_controller'
 
   useEffect(() => {
     let cancelled = false
@@ -583,8 +588,6 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
           </tbody>
         </table>
       </div>
-
-      <CodeAliasPanel componentType={codeAliasType} />
 
       {editRow && (
         <MasterDataEditModal

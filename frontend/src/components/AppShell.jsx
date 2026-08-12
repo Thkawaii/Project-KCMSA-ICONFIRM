@@ -6,8 +6,13 @@ import WHAlertBell from './WHAlertBell.jsx'
 // ป้ายชื่อ role ที่อ่านง่ายบน topbar (เดิมหน้าคลังส่งมาว่า "Warehouse" เหมือนกันหมด
 // จึงแยก WH Manager / WH User ให้ชัดจาก role จริงใน localStorage)
 const ROLE_LABELS = {
-  WH_MANAGER: 'WH Manager',
+  ADMIN: 'Admin',
+  LOG: 'LOG User',
   WH: 'WH User',
+  MFG: 'MFG User',
+  QA: 'QA User',
+  TSF: 'TSF User',
+  UPLOAD: 'Upload',
 }
 
 export default function AppShell({ navItems, roleLabel, children }) {
@@ -20,11 +25,13 @@ export default function AppShell({ navItems, roleLabel, children }) {
   const visibleNav = (navItems || []).filter((item) => !item.roles || item.roles.includes(role))
 
   const shownLabel = ROLE_LABELS[role] || roleLabel || 'User'
-  const displayName = shownLabel
-  const initial = (shownLabel || 'U').trim().charAt(0).toUpperCase() || 'U'
+  // ชื่อพนักงานจริงที่ล็อกอิน (จาก login) — ถ้าไม่มีก็ใช้ป้าย role แทน
+  const personName = (localStorage.getItem('iconfirm_name') || '').trim()
+  const displayName = personName || shownLabel
+  const initial = (displayName || 'U').trim().charAt(0).toUpperCase() || 'U'
 
-  // กระดิ่งเตือนอายุใบอนุญาต (นำเข้า+ส่งออก รวมเป็นอันเดียว) แสดงเฉพาะ WH Manager
-  const showLicenseBell = role === 'WH_MANAGER'
+  // กระดิ่งเตือนอายุใบอนุญาต (นำเข้า+ส่งออก รวมเป็นอันเดียว) แสดงเฉพาะ LOG (Logistic)
+  const showLicenseBell = role === 'LOG'
 
   function handleLogout() {
     logout()

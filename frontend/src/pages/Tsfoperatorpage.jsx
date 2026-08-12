@@ -20,7 +20,8 @@ import {
 
 // MFG มีหน้าเดียว — AppShell จะซ่อนแถบเมนูย่อยให้เองเมื่อมีรายการเดียว
 export const MFG_NAV_ITEMS = [
-  { to: '/tsf', label: 'Scan & Validate', icon: <ArrowsRightLeftIcon className="size-4" /> },
+  { to: '/mfg-assembly', label: 'MFG Assembly', icon: <ArrowsRightLeftIcon className="size-4" />, roles: ['MFG'] },
+  { to: '/tsf', label: 'Scan & Validate', icon: <ArrowsRightLeftIcon className="size-4" />, roles: ['TSF'] },
 ]
 
 // ป้ายสถานะ — เหลือ 3 แบบ: Matched / Not Matched / Duplicate (ซ้ำ)

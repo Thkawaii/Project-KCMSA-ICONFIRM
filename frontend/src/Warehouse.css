@@ -1279,6 +1279,7 @@
 .pc-card-ph  { --pc-accent: #d97706; } /* Pump Assy HYD — amber */
 .pc-card-mp  { --pc-accent: #7c3aed; } /* Motor Propel — violet */
 .pc-card-cv  { --pc-accent: #e11d48; } /* Control Valve — rose */
+.pc-card-mc  { --pc-accent: #0891b2; } /* Machine — cyan */
 
 /* ป้ายชนิดโค้ดที่ต้องยิง (S/N หรือ P/N + S/N) มุมขวาบน */
 .pc-barcode-kind {
