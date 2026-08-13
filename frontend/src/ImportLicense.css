@@ -261,6 +261,19 @@
   color: #94a3b8;
 }
 
+/* รุ่นรถที่เชื่อมโยงจากทะเบียน Assembly (แสดงในตาราง MFG) */
+.mfg-model-link {
+  display: inline-block;
+  font-weight: 600;
+  color: #0f8580;
+  background: #eafcfb;
+  border: 1px solid #c5efec;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
 /* ── ไฮไลต์แถวที่เพิ่งสแกนโดน ────────────────────────────────────────── */
 .il-row-hit {
   animation: il-hit-flash 6s ease-out;

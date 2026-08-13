@@ -6,6 +6,7 @@ export const DATASETS = [
   { key: 'wh1', label: 'WH1' },
   { key: 'wh2', label: 'WH2' },
   { key: 'engine', label: 'Engine' },
+  { key: 'assembly', label: 'Assembly' },
 ]
 
 // คืน { dataset, columns, rows, total, page, limit, totalPages } — แบ่งหน้าแล้ว

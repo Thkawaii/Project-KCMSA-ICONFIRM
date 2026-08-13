@@ -812,8 +812,41 @@ export function WHExportLicensePanel() {
   const [page, setPage] = useState(1)
   const [exportingXlsx, setExportingXlsx] = useState(false)
 
+  // แผนที่ IT Controller No. -> ประเทศปลายทาง (ดึงจากบัญชีใบอนุญาตนำเข้า ExportCountry)
+  // ใช้ทั้งแสดงคอลัมน์ Country ในตาราง และตอน Export แยกประเทศ
+  const [countryByITC, setCountryByITC] = useState({})
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadCountryMap() {
+      try {
+        const imports = await getImportLicenseItems()
+        const map = {}
+        ;(Array.isArray(imports) ? imports : []).forEach((it) => {
+          const key = String(it.MachineNo || '').trim()
+          const country = String(it.ExportCountry || '').trim()
+          if (key && country) map[key] = country
+        })
+        if (!cancelled) setCountryByITC(map)
+      } catch {
+        // ดึงบัญชีนำเข้าไม่ได้ — คอลัมน์ Country จะเป็น "—" (ไม่ทำให้หน้าอื่นพัง)
+      }
+    }
+    loadCountryMap()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // ประเทศปลายทางของ 1 แถวใบอนุญาตส่งออก (เชื่อมผ่าน IT Controller No. / Serial Number)
+  function countryOf(r) {
+    const a = String(r.ITControllerNo || '').trim()
+    const b = String(r.SerialNumber || '').trim()
+    return countryByITC[a] || countryByITC[b] || ''
+  }
+
   // Export Excel แยกเป็นชีตต่อประเทศ — จัด Format เหมือนฝั่ง QA (Freeze Header, Header สี Theme
-  // ตัวหนากึ่งกลาง, Filter ทุกคอลัมน์, แถบสีสลับแถว, ปรับความกว้างอัตโนมัติ, Border,
+  // ตัวหนากึ่งกลาง, Filter ทุกคอลัมน์, แถบสีสลับแถว, ปรับความกว้างอัตโนมัติ,
   // จัด Alignment ตามชนิดข้อมูล, Format วันที่รูปแบบเดียวกัน)
   //
   // ประเทศไม่มีในบัญชีใบอนุญาตส่งออกโดยตรง — ดึงมาจากบัญชีใบอนุญาตนำเข้า (ExportCountry)
@@ -822,29 +855,10 @@ export function WHExportLicensePanel() {
     if (exportingXlsx) return
     setExportingXlsx(true)
     try {
-      // สร้างแผนที่ IT Controller No. -> ประเทศปลายทาง จากบัญชีใบอนุญาตนำเข้า
-      let countryByITC = {}
-      try {
-        const imports = await getImportLicenseItems()
-        ;(Array.isArray(imports) ? imports : []).forEach((it) => {
-          const key = String(it.MachineNo || '').trim()
-          const country = String(it.ExportCountry || '').trim()
-          if (key && country) countryByITC[key] = country
-        })
-      } catch {
-        // ถ้าดึงบัญชีนำเข้าไม่ได้ ยัง export ได้ แต่ประเทศจะเป็น "ไม่ระบุ" ทั้งหมด
-      }
-
       const list = filtered // ส่งออกตามที่กรอง/ค้นหาอยู่ (ทุกหน้า)
       if (!list.length) {
         toastError('ไม่มีรายการให้ Export')
         return
-      }
-
-      const countryOf = (r) => {
-        const a = String(r.ITControllerNo || '').trim()
-        const b = String(r.SerialNumber || '').trim()
-        return countryByITC[a] || countryByITC[b] || ''
       }
 
       // จัดกลุ่มตามประเทศ (คงลำดับที่พบ) — ไม่มีประเทศ -> "ไม่ระบุประเทศ"
@@ -1114,6 +1128,7 @@ export function WHExportLicensePanel() {
               <th>Date Ass'y</th>
               <th>Machine No</th>
               <th>IT Controller S/N</th>
+              <th>Country</th>
               <th>Invoice</th>
               <th>Export Entry</th>
               <th>Import License</th>
@@ -1126,7 +1141,7 @@ export function WHExportLicensePanel() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={11} className="wh-empty-cell">
+                <td colSpan={12} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -1144,6 +1159,7 @@ export function WHExportLicensePanel() {
                   <td className="il-mono" data-label="IT Controller S/N">
                     {row.ITControllerNo || row.SerialNumber || '—'}
                   </td>
+                  <td data-label="Country">{countryOf(row) || '—'}</td>
                   <td data-label="Invoice">
                     <div className="il-mono">{row.InvoiceNo || '—'}</div>
                     {row.InvoiceDate && (
@@ -1177,7 +1193,7 @@ export function WHExportLicensePanel() {
               ))}
             {!loading && paged.length === 0 && (
               <tr>
-                <td colSpan={11} className="wh-empty-cell">
+                <td colSpan={12} className="wh-empty-cell">
                   ยังไม่มีข้อมูลใบอนุญาตส่งออก — อัปโหลดไฟล์ Excel หรือ CSV ด้านบนก่อน
                 </td>
               </tr>

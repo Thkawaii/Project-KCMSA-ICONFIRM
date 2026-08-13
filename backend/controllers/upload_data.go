@@ -210,6 +210,23 @@ var udDatasets = map[string]udDataset{
 			col("ENGINE", "engine"),
 		},
 	},
+
+	// Assembly — บัญชีการประกอบ: จับคู่ Machine No + IT Controller เข้ากับรุ่น/สเปกรถ
+	// ใช้ฝั่ง MFG เพื่อบอกว่า IT Controller ตัวนี้ประกอบกับ Machine No นี้ = รถรุ่นไหน
+	models.DatasetAssembly: {
+		MinHits: 2,
+		Anchors: []string{"machineno", "itcontroller", "speccode", "assemblypartsname"},
+		Columns: []udColumn{
+			col("Machine No", "machineno", "machinenumber", "mcno", "mcnumber", "machineid"),
+			col("Spec Code", "speccode", "specificationcode"),
+			col("Specification Detail", "specificationdetail", "specdetail", "specification"),
+			col("Country Name", "countryname", "country"),
+			col("IT device", "itdevice", "device"),
+			col("IT Controller", "itcontroller", "itcontrollerno", "itcontrollernumber", "controller"),
+			col("Assembly_Parts_Number", "assemblypartsnumber", "assemblypartsno", "partsnumber", "assemblyparts"),
+			col("Assembly_Parts_Name", "assemblypartsname", "partsname", "model", "modelname"),
+		},
+	},
 }
 
 // udDatasetLabels — ป้ายแสดงผลของแต่ละ dataset (ใช้ในไฟล์ export + audit)
@@ -218,6 +235,7 @@ var udDatasetLabels = map[string]string{
 	models.DatasetWH1:      "WH1",
 	models.DatasetWH2:      "WH2",
 	models.DatasetEngine:   "Engine",
+	models.DatasetAssembly: "Assembly",
 }
 
 // buildHeaderIndex map หัวตารางไฟล์ (normalize แล้ว) -> เลข column
@@ -356,7 +374,7 @@ func PreviewUploadDataMapping(c *gin.Context) {
 	dataset := strings.ToLower(strings.TrimSpace(c.Param("dataset")))
 	ds, ok := udDatasets[dataset]
 	if !ok {
-		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine)"})
+		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine | assembly)"})
 		return
 	}
 	ds = withRuntimeAliases(ds, dataset)
@@ -484,7 +502,7 @@ func GetUploadData(c *gin.Context) {
 
 	dataset := strings.ToLower(strings.TrimSpace(c.Query("dataset")))
 	if _, ok := udDatasets[dataset]; !ok {
-		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine)"})
+		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine | assembly)"})
 		return
 	}
 
@@ -566,7 +584,7 @@ func UploadDataFile(c *gin.Context) {
 	dataset := strings.ToLower(strings.TrimSpace(c.Param("dataset")))
 	ds, ok := udDatasets[dataset]
 	if !ok {
-		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine)"})
+		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine | assembly)"})
 		return
 	}
 	// เสริม alias หัวคอลัมน์ที่ตั้งค่าไว้ตอนรัน (รองรับหน้างานเปลี่ยนชื่อ/เพิ่มหัวคอลัมน์)
@@ -721,6 +739,8 @@ func fillUploadDataKeys(row *models.UploadDataRow, dataset string, data map[stri
 		row.PartsNo = data["Parts No"]
 	case models.DatasetEngine:
 		row.MachineNo = normalizeDigitCell(data["Machine No"])
+	case models.DatasetAssembly:
+		row.MachineNo = normalizeDigitCell(data["Machine No"])
 	}
 }
 
@@ -755,7 +775,7 @@ func ClearUploadData(c *gin.Context) {
 
 	dataset := strings.ToLower(strings.TrimSpace(c.Query("dataset")))
 	if _, ok := udDatasets[dataset]; !ok {
-		c.JSON(400, gin.H{"message": "ต้องระบุ dataset ที่ต้องการลบ (planning | wh1 | wh2 | engine)"})
+		c.JSON(400, gin.H{"message": "ต้องระบุ dataset ที่ต้องการลบ (planning | wh1 | wh2 | engine | assembly)"})
 		return
 	}
 
@@ -776,7 +796,7 @@ func ExportUploadData(c *gin.Context) {
 
 	dataset := strings.ToLower(strings.TrimSpace(c.Query("dataset")))
 	if _, ok := udDatasets[dataset]; !ok {
-		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine)"})
+		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine | assembly)"})
 		return
 	}
 
