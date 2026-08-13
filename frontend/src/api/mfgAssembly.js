@@ -1,4 +1,4 @@
-import { apiFetch } from './client.js'
+import { apiFetch, API_BASE_URL, getToken } from './client.js'
 
 // รายการ MFG Assembly ทั้งหมด (ใหม่สุดอยู่บน)
 export function getMFGAssemblies() {
@@ -34,4 +34,27 @@ export function updateMFGAssembly(id, payload) {
 // ลบ 1 แถว
 export function deleteMFGAssembly(id) {
   return apiFetch(`/mfg-assembly/${id}`, { method: 'DELETE' })
+}
+
+// อัปโหลดรูปถ่ายป้ายยืนยัน ผูกกับแถว MFG id (ย้ายมาจากฝั่ง WH)
+// เก็บรูปเป็นหลักฐานเฉย ๆ — คืน { row, saved, message } โดย row.PhotoURL อัปเดตแล้ว
+//
+// ใช้ fetch ตรง (ไม่ใช่ apiFetch) เพราะเป็น multipart/form-data — apiFetch จะยัด
+// Content-Type: application/json ทำให้ multipart boundary หาย backend parse ไฟล์ไม่ได้
+export async function uploadMFGAssemblyPhoto(id, fileOrBlob) {
+  const token = getToken()
+  const formData = new FormData()
+  formData.append('file', fileOrBlob, 'mfg-photo.jpg')
+
+  const res = await fetch(`${API_BASE_URL}/mfg-assembly/${id}/photo`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  })
+
+  const data = await res.json().catch(() => null)
+  if (!res.ok) {
+    throw new Error(data?.message || `Upload failed (${res.status})`)
+  }
+  return data
 }

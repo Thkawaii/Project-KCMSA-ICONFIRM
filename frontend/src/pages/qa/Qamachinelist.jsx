@@ -66,6 +66,30 @@ async function fetchImageAsDataURL(url) {
   }
 }
 
+// ดึงรูปมาเป็น bytes (Uint8Array) + ชนิด (jpeg/png) เพื่อฝังลง .xlsx ผ่าน DrawingML
+// รองรับเฉพาะ jpeg/png (ชนิดอื่นคืน null เพื่อข้ามไป ไม่ให้ไฟล์เสีย) — ล้มเหลวได้เงียบ ๆ
+async function fetchImageForXlsx(url) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const blob = await res.blob()
+    let ext = ''
+    const t = (blob.type || '').toLowerCase()
+    if (t.includes('png')) ext = 'png'
+    else if (t.includes('jpeg') || t.includes('jpg')) ext = 'jpeg'
+    if (!ext) {
+      // เผื่อ server ไม่ส่ง Content-Type — เดาจากนามสกุลใน URL
+      if (/\.png(\?|$)/i.test(url)) ext = 'png'
+      else if (/\.jpe?g(\?|$)/i.test(url)) ext = 'jpeg'
+    }
+    if (ext !== 'png' && ext !== 'jpeg') return null
+    const buf = await blob.arrayBuffer()
+    return { bytes: new Uint8Array(buf), ext }
+  } catch {
+    return null
+  }
+}
+
 // หา format รูปจาก data URL (jsPDF ต้องระบุ format ให้ตรงตอน addImage)
 // jsPDF ฝังได้เฉพาะ JPEG/PNG — ถ้าเป็นชนิดอื่น (webp, gif ฯลฯ) คืน null เพื่อให้ข้ามไป
 // จะได้ไม่เสี่ยงทำให้ไฟล์ PDF พัง
@@ -379,17 +403,22 @@ export default function QAMachineList() {
     }
   }
 
-  // Export เป็น Excel (.xlsx) — ตารางข้อมูลล้วน (ไม่มีรูป) เปิดใน Excel/Sheets แก้ต่อได้
+  // Export เป็น Excel (.xlsx) — ตารางข้อมูล + รูปถ่ายฝังในเซลล์จริง เปิดใน Excel/Sheets แก้ต่อได้
   // ใช้ตัวสร้าง .xlsx แบบไม่มี dependency (ดู lib/xlsx.js)
-  function handleExportExcel() {
+  async function handleExportExcel() {
     const list = filtered // ส่งออกตามที่กรอง/ค้นหา/วันที่เลือกอยู่ (ทุกหน้า)
     if (!list.length || exportingExcel) return
 
     setExportingExcel(true)
     try {
+      // ดึงรูปถ่ายทั้งหมดมาเป็น bytes ก่อน (โหลดไม่สำเร็จก็ข้ามรูปนั้นไป ไม่ทำให้ทั้งไฟล์พัง)
+      const photos = await Promise.all(
+        list.map((r) => (r.photoURL ? fetchImageForXlsx(`${API_BASE_URL}${r.photoURL}`) : Promise.resolve(null)))
+      )
+
       // columns กำหนด type ให้ตรงกับข้อมูลจริง เพื่อให้ xlsx.js จัด Alignment/Number
       // Format ให้เหมาะสมอัตโนมัติ (number = ตัวเลขจริงกึ่งกลาง, center = ข้อความสั้น
-      // จัดกึ่งกลาง เช่น สถานะ/วันที่, text = ข้อความทั่วไปจัดชิดซ้าย)
+      // จัดกึ่งกลาง เช่น สถานะ/วันที่, text = ข้อความทั่วไปจัดชิดซ้าย, image = รูปในเซลล์)
       const columns = [
         { key: 'item', header: 'ITEM', type: 'number', width: 8 },
         { key: 'partName', header: 'Part Name', type: 'text' },
@@ -404,6 +433,7 @@ export default function QAMachineList() {
         { key: 'exportCountry', header: 'ส่งออกไปประเทศ', type: 'center', width: 16 },
         { key: 'matchStatus', header: 'ผลเทียบใบอนุญาต', type: 'center', width: 16 },
         { key: 'confirmedAt', header: 'วันที่ยืนยัน', type: 'center', width: 14 },
+        { key: 'photo', header: 'รูปถ่าย', type: 'image', width: 14 },
         { key: 'status', header: 'Status', type: 'center', width: 12 },
       ]
       const rows = list.map((r, i) => ({
@@ -421,6 +451,7 @@ export default function QAMachineList() {
         matchStatus: licenseMatchMeta(r.matchStatus).label,
         // Format วันที่ให้เป็นรูปแบบเดียวกันทุกแถว (ใช้ฟังก์ชันเดียวกับที่หน้าจอแสดงผล)
         confirmedAt: r.confirmedAt ? thaiDateLabel(toYMD(new Date(r.confirmedAt))) : '—',
+        photo: photos[i] || null,
         status: 'Matched',
       }))
 

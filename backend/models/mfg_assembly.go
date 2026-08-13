@@ -67,6 +67,10 @@ type MFGAssembly struct {
 	CreatedDatetime time.Time `gorm:"column:created_datetime"`
 	UpdatedDatetime time.Time `gorm:"column:updated_datetime"`
 
+	// PhotoURL — รูปถ่ายป้ายยืนยันตอนสแกน (เก็บเป็นหลักฐาน เหมือนฝั่ง WH เดิม)
+	// path ที่ serve แบบ static เช่น /uploads/mfg_12_1699999999.jpg
+	PhotoURL string `gorm:"column:photo_url;size:255"`
+
 	UserID uint
 	User   User
 }

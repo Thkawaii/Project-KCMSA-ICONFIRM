@@ -163,6 +163,104 @@
   cursor: not-allowed;
 }
 
+/* ── โมดัลแก้ไข/เพิ่มรูป ฝั่ง MFG (เลือกถ่ายใหม่ / อัปโหลด) ─────────────── */
+.mfg-photo-modal {
+  max-width: 380px;
+}
+
+.mfg-photo-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: #f8fafc;
+  border: 1px solid #eef2f6;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.mfg-photo-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.mfg-photo-info-label {
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.mfg-photo-info-value {
+  color: #0f172a;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: right;
+  word-break: break-all;
+}
+
+.mfg-photo-hint {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+
+.mfg-photo-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mfg-photo-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color .12s ease, background .12s ease, box-shadow .12s ease;
+}
+
+.mfg-photo-choice:hover:not(:disabled) {
+  border-color: var(--color-brand-500, #00cec8);
+  background: #f0fdfc;
+  box-shadow: 0 2px 10px rgba(0, 163, 157, 0.10);
+}
+
+.mfg-photo-choice:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.mfg-photo-choice > svg {
+  flex: none;
+  color: var(--color-brand-600, #00a39d);
+}
+
+.mfg-photo-choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mfg-photo-choice-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.mfg-photo-choice-sub {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
 /* ── ไฮไลต์แถวที่เพิ่งสแกนโดน ────────────────────────────────────────── */
 .il-row-hit {
   animation: il-hit-flash 6s ease-out;

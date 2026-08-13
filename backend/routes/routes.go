@@ -261,6 +261,9 @@ func SetupRoutes(r *gin.Engine) {
 		mfgAssembly.POST("", controllers.CreateMFGAssembly)
 		mfgAssembly.PATCH("/:id", controllers.UpdateMFGAssembly)
 		mfgAssembly.DELETE("/:id", controllers.DeleteMFGAssembly)
+
+		// ถ่ายรูปป้ายยืนยันหลังสแกน (ย้ายมาจากฝั่ง WH) — เก็บรูปเป็นหลักฐานเฉย ๆ
+		mfgAssembly.POST("/:id/photo", controllers.UploadMFGAssemblyPhoto)
 	}
 
 	// TSF confirm — QA also needs to read/confirm these, so it's

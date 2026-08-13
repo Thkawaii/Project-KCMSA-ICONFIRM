@@ -29,6 +29,7 @@ import {
   EXPIRY_STATUS,
 } from '../lib/licenseExpiry.js'
 import { useDailyTick } from '../lib/useDailyTick.js'
+import { buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js'
 import {
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
@@ -809,6 +810,104 @@ export function WHExportLicensePanel() {
   const [previewing, setPreviewing] = useState(false)
   const [pageSize, setPageSize] = useState(25)
   const [page, setPage] = useState(1)
+  const [exportingXlsx, setExportingXlsx] = useState(false)
+
+  // Export Excel แยกเป็นชีตต่อประเทศ — จัด Format เหมือนฝั่ง QA (Freeze Header, Header สี Theme
+  // ตัวหนากึ่งกลาง, Filter ทุกคอลัมน์, แถบสีสลับแถว, ปรับความกว้างอัตโนมัติ, Border,
+  // จัด Alignment ตามชนิดข้อมูล, Format วันที่รูปแบบเดียวกัน)
+  //
+  // ประเทศไม่มีในบัญชีใบอนุญาตส่งออกโดยตรง — ดึงมาจากบัญชีใบอนุญาตนำเข้า (ExportCountry)
+  // โดยเชื่อมผ่าน IT Controller No. 12 หลัก (ExportLicense.ITControllerNo == ImportLicense.MachineNo)
+  async function handleExportByCountry() {
+    if (exportingXlsx) return
+    setExportingXlsx(true)
+    try {
+      // สร้างแผนที่ IT Controller No. -> ประเทศปลายทาง จากบัญชีใบอนุญาตนำเข้า
+      let countryByITC = {}
+      try {
+        const imports = await getImportLicenseItems()
+        ;(Array.isArray(imports) ? imports : []).forEach((it) => {
+          const key = String(it.MachineNo || '').trim()
+          const country = String(it.ExportCountry || '').trim()
+          if (key && country) countryByITC[key] = country
+        })
+      } catch {
+        // ถ้าดึงบัญชีนำเข้าไม่ได้ ยัง export ได้ แต่ประเทศจะเป็น "ไม่ระบุ" ทั้งหมด
+      }
+
+      const list = filtered // ส่งออกตามที่กรอง/ค้นหาอยู่ (ทุกหน้า)
+      if (!list.length) {
+        toastError('ไม่มีรายการให้ Export')
+        return
+      }
+
+      const countryOf = (r) => {
+        const a = String(r.ITControllerNo || '').trim()
+        const b = String(r.SerialNumber || '').trim()
+        return countryByITC[a] || countryByITC[b] || ''
+      }
+
+      // จัดกลุ่มตามประเทศ (คงลำดับที่พบ) — ไม่มีประเทศ -> "ไม่ระบุประเทศ"
+      const UNKNOWN = 'ไม่ระบุประเทศ'
+      const groups = new Map()
+      list.forEach((r) => {
+        const key = countryOf(r) || UNKNOWN
+        if (!groups.has(key)) groups.set(key, [])
+        groups.get(key).push(r)
+      })
+
+      // เรียงชื่อประเทศ A→Z แต่ให้ "ไม่ระบุประเทศ" อยู่ท้ายสุด
+      const countryNames = Array.from(groups.keys()).sort((a, b) => {
+        if (a === UNKNOWN) return 1
+        if (b === UNKNOWN) return -1
+        return a.localeCompare(b)
+      })
+
+      const columns = [
+        { key: 'item', header: 'Item', type: 'number', width: 6 },
+        { key: 'assemblyDate', header: "Date Ass'y", type: 'center', width: 14 },
+        { key: 'machineNo', header: 'Machine No', type: 'text' },
+        { key: 'itControllerNo', header: 'IT Controller S/N', type: 'text' },
+        { key: 'invoiceNo', header: 'Invoice', type: 'text' },
+        { key: 'invoiceDate', header: 'Invoice Date', type: 'center', width: 14 },
+        { key: 'exportEntry', header: 'Export Entry', type: 'text' },
+        { key: 'importLicenseNo', header: 'Import License', type: 'text' },
+        { key: 'exportLicenseNo', header: 'Export License', type: 'text' },
+        { key: 'country', header: 'Country', type: 'center', width: 14 },
+        { key: 'remark', header: 'Remark', type: 'text' },
+      ]
+
+      const dash2 = (v) => (v && String(v).trim() !== '' ? String(v) : '—')
+
+      const sheets = countryNames.map((country) => ({
+        // ชื่อชีตต้องไม่เกิน 31 ตัว/ไม่มีอักขระต้องห้าม (lib ตัดให้อยู่แล้ว)
+        sheetName: country,
+        columns,
+        rows: groups.get(country).map((r, i) => ({
+          item: i + 1,
+          assemblyDate: r.AssemblyDate ? formatThaiDate(r.AssemblyDate) : '—',
+          machineNo: dash2(r.MachineNo),
+          itControllerNo: dash2(r.ITControllerNo || r.SerialNumber),
+          invoiceNo: dash2(r.InvoiceNo),
+          invoiceDate: r.InvoiceDate ? formatThaiDate(r.InvoiceDate) : '—',
+          exportEntry: dash2(r.ExportEntry),
+          importLicenseNo: dash2(r.ImportLicenseNo),
+          exportLicenseNo: dash2(r.ExportLicenseNo || r.ExceptionLicense),
+          country: country === UNKNOWN ? '—' : country,
+          remark: dash2(r.Remark),
+        })),
+      }))
+
+      const blob = buildStyledXlsxWorkbookBlob({ sheets })
+      const stamp = new Date().toISOString().slice(0, 10)
+      downloadBlob(blob, `ExportLicense-by-country-${stamp}.xlsx`)
+      toastSuccess(`Export สำเร็จ — ${countryNames.length} ประเทศ (${list.length} รายการ)`)
+    } catch (err) {
+      toastError(err.message || 'Export ไม่สำเร็จ')
+    } finally {
+      setExportingXlsx(false)
+    }
+  }
 
   async function handlePreview() {
     if (!file) {
@@ -991,6 +1090,14 @@ export function WHExportLicensePanel() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          <button
+            className="wh-issue-btn"
+            onClick={handleExportByCountry}
+            disabled={exportingXlsx || rows.length === 0}
+            title="ดาวน์โหลด Excel แยกชีตตามประเทศปลายทาง"
+          >
+            {exportingXlsx ? 'กำลัง Export...' : 'Export Excel (แยกประเทศ)'}
+          </button>
           {rows.length > 0 && (
             <button className="wh-btn-danger" onClick={handleClearAll}>
               ลบทุกใบอนุญาต

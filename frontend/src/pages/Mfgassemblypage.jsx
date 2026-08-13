@@ -5,7 +5,9 @@ import {
   createMFGAssembly,
   updateMFGAssembly,
   deleteMFGAssembly,
+  uploadMFGAssemblyPhoto,
 } from '../api/mfgAssembly.js'
+import { API_BASE_URL } from '../api/client.js'
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js'
 import {
   scanStep,
@@ -13,6 +15,7 @@ import {
   scanClose,
   scanSuccessToast,
   scanErrorAlert,
+  scanPhotoCapture,
 } from '../lib/scanPopup.js'
 import {
   ChevronDoubleLeftIcon,
@@ -20,6 +23,8 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   QrCodeIcon,
+  CameraIcon,
+  ArrowUpTrayIcon,
 } from '../components/icons.jsx'
 import AppShell from '../components/AppShell.jsx'
 import SelectField from '../components/Selectfield.jsx'
@@ -27,19 +32,27 @@ import { MFG_NAV_ITEMS } from './Tsfoperatorpage.jsx'
 import bcMachine from '../assets/barcodes/Machine_Barcode.gif'
 
 // ป้ายสถานะ — ใช้ชุดคลาส .il-badge เดิม
+// backend คืนค่าจริงเป็น MATCHED / NOT_MATCHED / DUPLICATE (ดู models.MFGStatus*)
+// เดิม map ไว้แค่ OK/UNKNOWN/REUSED ทำให้ MATCHED/NOT_MATCHED ตกไปที่ badge สีเทา (สีหาย)
 const STATUS_META = {
+  MATCHED: { label: 'MATCHED', cls: 'il-badge il-badge-ok' },
+  NOT_MATCHED: { label: 'NOT_MATCHED', cls: 'il-badge il-badge-bad' },
+  DUPLICATE: { label: 'DUPLICATE', cls: 'il-badge il-badge-warn' },
+  // ── ค่าเดิม (เผื่อข้อมูลเก่า) ──
   OK: { label: 'ตรงกัน', cls: 'il-badge il-badge-ok' },
   UNKNOWN: { label: 'ไม่พบในทะเบียน', cls: 'il-badge il-badge-warn' },
   REUSED: { label: 'ผูกกับเครื่องอื่น', cls: 'il-badge il-badge-bad' },
-  DUPLICATE: { label: 'ซ้ำ', cls: 'il-badge il-badge-warn' },
 }
 
+// ตัวเลือกสถานะ (ใช้ทั้งใน modal แก้ไข และตัวกรองในตาราง)
 const STATUS_OPTIONS = [
-  { value: 'OK', label: 'OK — ตรงกัน' },
-  { value: 'UNKNOWN', label: 'UNKNOWN — ไม่พบในทะเบียน' },
-  { value: 'REUSED', label: 'REUSED — ผูกกับเครื่องอื่น' },
+  { value: 'MATCHED', label: 'MATCHED — ตรงกับใบอนุญาต' },
+  { value: 'NOT_MATCHED', label: 'NOT_MATCHED — ยังไม่ตรง/ยังไม่ยืนยัน' },
   { value: 'DUPLICATE', label: 'DUPLICATE — ซ้ำ' },
 ]
+
+// ตัวเลือกสำหรับตัวกรอง Status ในตาราง (มี "ทุกสถานะ" นำหน้า)
+const STATUS_FILTER_OPTIONS = [{ value: 'all', label: 'ทุกสถานะ' }, ...STATUS_OPTIONS]
 
 const EMPTY_FORM = {
   item: '',
@@ -92,6 +105,7 @@ export default function MFGAssemblyPage() {
   const [loadError, setLoadError] = useState('')
 
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
 
@@ -100,6 +114,13 @@ export default function MFGAssemblyPage() {
   const [editId, setEditId] = useState(null) // null = เพิ่มใหม่
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+
+  // ── รูปถ่ายป้าย (ย้ายมาจากฝั่ง WH) ───────────────────────────────────────
+  const [photoView, setPhotoView] = useState(null) // URL รูปที่กำลังเปิดดู
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const [photoEditRow, setPhotoEditRow] = useState(null) // แถวที่เปิดเมนู "แก้ไข" อยู่ (เลือกถ่ายใหม่/อัปโหลด)
+  const photoFileInputRef = useRef(null)
+  const pendingPhotoRowIdRef = useRef(null) // แถวเป้าหมายที่กำลังจะอัปโหลดไฟล์แทน
 
   // ── สแกน/กรอก ──────────────────────────────────────────────────────────
   // ใช้ popup "ยิงบาร์โค้ด หรือพิมพ์เอง" (scanStep) เหมือนหน้า WH/TSF ทุกประการ
@@ -135,7 +156,7 @@ export default function MFGAssemblyPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, pageSize])
+  }, [search, pageSize, statusFilter])
 
   // ── ดักเครื่องสแกน (keyboard-wedge) ที่ยิงบาร์โค้ดตรงเข้าหน้าเว็บ ───────────
   // เครื่องสแกนพิมพ์อักขระรัว ๆ ปิดท้ายด้วย Enter — ถ้าเจอ burst แบบนี้ให้เปิด
@@ -217,16 +238,39 @@ export default function MFGAssemblyPage() {
   async function submitScan(machineNo, itControllerNo) {
     setScanBusy(true)
     scanLoading('กำลังบันทึก...')
+    let successMsg = ''
     try {
       const res = await scanMFGAssembly({ machineNo, itControllerNo })
-      scanClose()
+      const row = res?.row || {}
       const msg = res?.message || 'บันทึกแล้ว'
-      if (res?.matched || res?.status === 'MATCHED') {
-        scanSuccessToast(msg)
-      } else {
-        // DUPLICATE/NOT_MATCHED — ยังบันทึกแล้ว แต่ต้อง flag ให้เห็น
-        toastError(msg)
+      const ok = res?.matched || res?.status === 'MATCHED'
+
+      // ── ถ่ายรูปยืนยันต่อเนื่องหลังสแกน (ย้ายมาจากฝั่ง WH) ──────────────────
+      // หลังบันทึกผลสแกนแล้ว เปิดกล้องให้ถ่ายรูปป้ายเครื่องจริงทันที เป็นขั้นตอน
+      // ต่อเนื่องกับการสแกน (ถ้ากล้องใช้ไม่ได้ helper จะมีปุ่มปิดให้ข้ามได้เอง)
+      if (row?.ID) {
+        scanClose() // ปิด popup loading ก่อนเปิดกล้อง กันซ้อนกัน
+        const photoBlob = await scanPhotoCapture({
+          title: 'ถ่ายรูปป้ายเครื่อง',
+          html: `<div class="scan-popup-hint">Machine No: <b>${machineNo || '-'}</b>${
+            itControllerNo ? ` / IT Controller: <b>${itControllerNo}</b>` : ''
+          }</div>`,
+        })
+        if (photoBlob) {
+          scanLoading('กำลังบันทึกรูป...')
+          try {
+            await uploadMFGAssemblyPhoto(row.ID, photoBlob)
+          } catch (e) {
+            scanClose()
+            await scanErrorAlert('บันทึกรูปไม่สำเร็จ: ' + (e.message || ''))
+          }
+        }
       }
+      scanClose()
+
+      if (ok) successMsg = msg
+      else toastError(msg) // DUPLICATE/NOT_MATCHED — บันทึกแล้ว แต่ flag ให้เห็น
+
       await loadRows()
     } catch (err) {
       scanClose()
@@ -234,6 +278,56 @@ export default function MFGAssemblyPage() {
     } finally {
       setScanBusy(false)
     }
+    if (successMsg) scanSuccessToast(successMsg)
+  }
+
+  // ── ถ่าย/เปลี่ยนรูปของแถวที่มีอยู่แล้ว (ถ่ายตอนสแกนไม่ชัด หรือแถวที่เพิ่มเอง) ──
+  // ใช้ endpoint เดียว (uploadMFGAssemblyPhoto) — อัปโหลดซ้ำจะทับรูปเดิมของแถวนั้น
+  // รับได้ทั้ง Blob (จากกล้อง) และ File (จากการเลือกไฟล์)
+  async function applyPhotoUpload(id, fileOrBlob) {
+    if (!id || photoBusy) return
+    setPhotoBusy(true)
+    scanLoading('กำลังบันทึกรูป...')
+    try {
+      await uploadMFGAssemblyPhoto(id, fileOrBlob)
+      scanClose()
+      await scanSuccessToast('บันทึกรูปถ่ายแล้ว')
+      await loadRows()
+    } catch (err) {
+      scanClose()
+      await scanErrorAlert('บันทึกรูปไม่สำเร็จ: ' + (err.message || ''))
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
+  // ถ่ายรูปใหม่ด้วยกล้อง แล้วอัปโหลดทับ
+  async function handleRetakePhoto(row) {
+    if (!row?.ID || photoBusy) return
+    const photoBlob = await scanPhotoCapture({
+      title: row.PhotoURL ? 'ถ่ายรูปป้ายใหม่' : 'ถ่ายรูปป้ายเครื่อง',
+      html: `<div class="scan-popup-hint">Machine No: <b>${row.MachineNo || '-'}</b>${
+        row.ITControllerNo ? ` / IT Controller: <b>${row.ITControllerNo}</b>` : ''
+      }</div>`,
+    })
+    if (!photoBlob) return
+    await applyPhotoUpload(row.ID, photoBlob)
+  }
+
+  // เปิดหน้าต่างเลือกไฟล์รูปจากเครื่อง แล้วอัปโหลดแทนรูปเดิม (กรณีถ่ายกล้องไม่ได้)
+  function handleUploadPhotoClick(row) {
+    if (!row?.ID || photoBusy) return
+    pendingPhotoRowIdRef.current = row.ID
+    photoFileInputRef.current?.click()
+  }
+
+  async function handleUploadPhotoChange(e) {
+    const file = e.target.files?.[0]
+    const targetId = pendingPhotoRowIdRef.current
+    e.target.value = '' // เคลียร์ค่า ให้เลือกไฟล์เดิมซ้ำได้อีกครั้งถ้าต้องการ
+    pendingPhotoRowIdRef.current = null
+    if (!file || !targetId) return
+    await applyPhotoUpload(targetId, file)
   }
 
   // สแกน/กรอกเติมทีละช่องในโมดัล (Machine No / IT Controller No.) — ยิงหรือพิมพ์ก็ได้
@@ -319,9 +413,13 @@ export default function MFGAssemblyPage() {
   }
 
   const filtered = useMemo(() => {
+    let list = rows
+    if (statusFilter !== 'all') {
+      list = list.filter((r) => (r.Status || '') === statusFilter)
+    }
     const term = search.trim().toLowerCase()
-    if (!term) return rows
-    return rows.filter(
+    if (!term) return list
+    return list.filter(
       (r) =>
         (r.Item || '').toLowerCase().includes(term) ||
         (r.MachineNo || '').toLowerCase().includes(term) ||
@@ -329,7 +427,7 @@ export default function MFGAssemblyPage() {
         (r.Country || '').toLowerCase().includes(term) ||
         (r.Status || '').toLowerCase().includes(term)
     )
-  }, [rows, search])
+  }, [rows, search, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize)
@@ -396,6 +494,13 @@ export default function MFGAssemblyPage() {
           entries per page
         </div>
         <div className="mfg-search-actions">
+          <div className="wh-pagesize-select" style={{ minWidth: 190 }}>
+            <SelectField
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={STATUS_FILTER_OPTIONS}
+            />
+          </div>
           <input
             className="wh-search"
             type="text"
@@ -417,6 +522,7 @@ export default function MFGAssemblyPage() {
               <th>Country</th>
               <th>Check Date</th>
               <th>Check By</th>
+              <th>รูปถ่าย</th>
               <th>Status</th>
               <th></th>
             </tr>
@@ -424,7 +530,7 @@ export default function MFGAssemblyPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={9} className="wh-empty-cell">
+                <td colSpan={10} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -450,23 +556,50 @@ export default function MFGAssemblyPage() {
                     <td data-label="Country">{a.Country || '—'}</td>
                     <td data-label="Check Date">{fmtDate(a.CheckDate)}</td>
                     <td data-label="Check By">{a.CreatedBy || '—'}</td>
+                    <td data-label="รูปถ่าย">
+                      {a.PhotoURL ? (
+                        <button
+                          type="button"
+                          className="wh-photo-thumb"
+                          onClick={() => setPhotoView(a.PhotoURL)}
+                          title="คลิกเพื่อขยาย"
+                        >
+                          <img
+                            src={`${API_BASE_URL}${a.PhotoURL}`}
+                            alt="รูปถ่ายป้าย"
+                            loading="lazy"
+                          />
+                        </button>
+                      ) : (
+                        <span className="il-badge il-badge-muted">ไม่มีรูป</span>
+                      )}
+                    </td>
                     <td data-label="Status">
                       <span className={meta.cls}>{meta.label}</span>
                     </td>
                     <td className="wh-cell-action">
                       <button
-                        className="tsf-action-btn tsf-action-btn-danger"
-                        onClick={() => handleDelete(a)}
+                        className="tsf-action-btn tsf-action-btn-warn"
+                        onClick={() => setPhotoEditRow(a)}
+                        disabled={photoBusy}
                       >
-                        ลบ
+                        แก้ไข
                       </button>
+                      {a.Status !== 'MATCHED' && (
+                        <button
+                          className="tsf-action-btn tsf-action-btn-danger"
+                          onClick={() => handleDelete(a)}
+                        >
+                          ลบ
+                        </button>
+                      )}
                     </td>
                   </tr>
                 )
               })}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={9} className="wh-empty-cell">
+                <td colSpan={10} className="wh-empty-cell">
                   {rows.length === 0
                     ? 'ยังไม่มีรายการ — สแกน QR เครื่องที่ประกอบเสร็จแล้วข้อมูลจะขึ้นที่นี่'
                     : 'ไม่พบรายการที่ค้นหา'}
@@ -603,6 +736,100 @@ export default function MFGAssemblyPage() {
           </div>
         </div>
       )}
+
+      {photoEditRow && (
+        <div className="wh-modal-overlay" onClick={() => setPhotoEditRow(null)}>
+          <div className="wh-modal mfg-photo-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="wh-modal-title">
+              {photoEditRow.PhotoURL ? 'แก้ไขรูป' : 'เพิ่มรูป'}
+            </h3>
+
+            <div className="mfg-photo-info">
+              <div className="mfg-photo-info-row">
+                <span className="mfg-photo-info-label">Machine No</span>
+                <span className="mfg-photo-info-value">{photoEditRow.MachineNo || '—'}</span>
+              </div>
+              {photoEditRow.ITControllerNo ? (
+                <div className="mfg-photo-info-row">
+                  <span className="mfg-photo-info-label">IT Controller</span>
+                  <span className="mfg-photo-info-value">{photoEditRow.ITControllerNo}</span>
+                </div>
+              ) : null}
+            </div>
+
+            <p className="mfg-photo-hint">
+              {photoEditRow.PhotoURL
+                ? 'ถ่ายภาพไม่ชัด? ถ่ายใหม่หรืออัปโหลดรูปแทนได้ ระบบจะอัปเดตทับรูปเดิม'
+                : 'รายการนี้ยังไม่มีรูป — ถ่ายใหม่หรืออัปโหลดรูปเพื่อบันทึกได้'}
+            </p>
+
+            <div className="mfg-photo-choices">
+              <button
+                type="button"
+                className="mfg-photo-choice"
+                disabled={photoBusy}
+                onClick={async () => {
+                  const row = photoEditRow
+                  setPhotoEditRow(null)
+                  await handleRetakePhoto(row)
+                }}
+              >
+                <CameraIcon className="size-5" />
+                <span className="mfg-photo-choice-text">
+                  <span className="mfg-photo-choice-title">ถ่ายรูปใหม่</span>
+                  <span className="mfg-photo-choice-sub">เปิดกล้องถ่ายป้ายเครื่อง</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="mfg-photo-choice"
+                disabled={photoBusy}
+                onClick={() => {
+                  const row = photoEditRow
+                  setPhotoEditRow(null)
+                  handleUploadPhotoClick(row)
+                }}
+              >
+                <ArrowUpTrayIcon className="size-5" />
+                <span className="mfg-photo-choice-text">
+                  <span className="mfg-photo-choice-title">อัปโหลดรูป</span>
+                  <span className="mfg-photo-choice-sub">เลือกไฟล์รูปจากเครื่อง</span>
+                </span>
+              </button>
+            </div>
+
+            <div className="wh-modal-actions">
+              <button className="wh-modal-cancel" onClick={() => setPhotoEditRow(null)}>
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {photoView && (
+        <div className="wh-modal-overlay" onClick={() => setPhotoView(null)}>
+          <div className="wh-modal wh-photo-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="wh-modal-title">รูปถ่ายป้าย</h3>
+            <div className="wh-photo-modal-img">
+              <img src={`${API_BASE_URL}${photoView}`} alt="รูปถ่ายป้าย" />
+            </div>
+            <div className="wh-modal-actions">
+              <button className="wh-modal-cancel" onClick={() => setPhotoView(null)}>
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <input
+        ref={photoFileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleUploadPhotoChange}
+      />
     </AppShell>
   )
 }

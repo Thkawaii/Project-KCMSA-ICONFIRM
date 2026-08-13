@@ -8,7 +8,6 @@ import {
   uploadDataFile,
   deleteUploadDataRow,
   clearUploadData,
-  exportUploadData,
   previewUploadData,
 } from '../api/uploadData.js'
 import {
@@ -17,6 +16,7 @@ import {
   MasterDataEditModal,
 } from '../components/FormatTools.jsx'
 import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js'
+import { buildStyledXlsxBlob, downloadBlob } from '../lib/xlsx.js'
 import { CloudArrowUpIcon } from '../components/icons.jsx'
 import {
   ArrowDownTrayIcon,
@@ -93,7 +93,7 @@ const HEADING_LABEL_BY_TYPE = {
 
 const uploadNavItems = [
   { to: '/master-data', label: 'ทะเบียน Master Data', icon: <RectangleStackIcon className="size-4" /> },
-  { to: '/format-settings', label: 'ตั้งค่า Format', icon: <RectangleStackIcon className="size-4" /> },
+  { to: '/format-settings', label: 'Setting', icon: <RectangleStackIcon className="size-4" /> },
 ]
 
 // ใช้ร่วมกับหน้า Format Settings (role UPLOAD) — export เพื่อไม่ให้ต้องประกาศเมนูซ้ำ
@@ -708,10 +708,87 @@ function DatasetView({ dataset }) {
     }
   }
 
+  // Export เป็น Excel (.xlsx) แบบจัด Format ให้เหมือนฝั่ง QA — Freeze Header, Header สี Theme
+  // ตัวหนากึ่งกลาง, Filter ทุกคอลัมน์ (Excel Table), แถบสีสลับแถว, ปรับความกว้างอัตโนมัติ,
+  // Border, จัด Alignment ตามชนิดข้อมูล และ Format ตัวเลขเป็น number จริง
+  // (สร้างฝั่ง client ด้วย lib/xlsx.js — ตัวเดียวกับ QA — จึงได้หน้าตาตรงกันแน่นอน)
   async function handleExport() {
     setExporting(true)
+    setLoadError('')
     try {
-      await exportUploadData(dataset)
+      // ดึงข้อมูล "ทั้งหมด" ของ dataset (ไล่ทีละหน้า หน้าละ 500) — export ครบทุกแถวไม่ตัดตามหน้าจอ
+      const PAGE = 500
+      let all = []
+      let cols = []
+      let p = 1
+      // กันลูปไม่รู้จบ: จำกัดจำนวนหน้าไว้ที่ 2000 หน้า (1,000,000 แถว)
+      for (let guard = 0; guard < 2000; guard++) {
+        const data = await getUploadData(dataset, undefined, p, PAGE)
+        if (p === 1) cols = data?.columns || []
+        const batch = data?.rows || []
+        all = all.concat(batch)
+        const totalPages = data?.totalPages || 1
+        if (p >= totalPages || batch.length === 0) break
+        p += 1
+      }
+
+      if (all.length === 0) {
+        setLoadError('ยังไม่มีข้อมูลให้ Export')
+        return
+      }
+
+      // parse DataJSON ของแต่ละแถวเป็น object ล่วงหน้า
+      const parsed = all.map((row) => {
+        try {
+          return JSON.parse(row.DataJSON || '{}')
+        } catch {
+          return {}
+        }
+      })
+
+      // ตรวจว่าคอลัมน์ไหน "เป็นตัวเลขล้วน" เพื่อจัดเป็น number (Format ตามชนิดข้อมูล)
+      // เงื่อนไข: ทุกค่าที่ไม่ว่างต้องเป็นตัวเลข และไม่ใช่รหัสที่ต้องคงเลข 0 นำหน้า/ยาวเกิน 15 หลัก
+      const numericByCol = cols.map((label) => {
+        let sawValue = false
+        for (const obj of parsed) {
+          const raw = obj[label]
+          if (raw == null || String(raw).trim() === '') continue
+          sawValue = true
+          const s = String(raw).trim().replace(/,/g, '')
+          if (!/^-?\d+(\.\d+)?$/.test(s)) return false
+          // เลขยาว (เช่น IMEI/Serial 12–15 หลัก) หรือมี 0 นำหน้า ให้คงเป็นข้อความ กัน Excel แปลงเพี้ยน
+          if (s.length > 11 || /^0\d/.test(s)) return false
+        }
+        return sawValue
+      })
+
+      const columns = [
+        { key: '_no', header: '#', type: 'number', width: 6 },
+        ...cols.map((label, i) => ({
+          key: `c${i}`,
+          header: label,
+          type: numericByCol[i] ? 'number' : 'text',
+        })),
+      ]
+
+      const rows = parsed.map((obj, idx) => {
+        const out = { _no: all[idx]?.RowNo || idx + 1 }
+        cols.forEach((label, i) => {
+          const raw = obj[label]
+          if (numericByCol[i]) {
+            const s = raw == null ? '' : String(raw).trim().replace(/,/g, '')
+            out[`c${i}`] = s === '' ? null : Number(s)
+          } else {
+            out[`c${i}`] = raw == null || String(raw).trim() === '' ? '' : String(raw)
+          }
+        })
+        return out
+      })
+
+      const sheetName = (label || 'Data').slice(0, 31)
+      const blob = buildStyledXlsxBlob({ sheetName, columns, rows })
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      downloadBlob(blob, `${dataset}-export-${stamp}.xlsx`)
     } catch (err) {
       setLoadError(err.message || 'Export ไม่สำเร็จ')
     } finally {
