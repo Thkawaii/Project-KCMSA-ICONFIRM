@@ -14,7 +14,7 @@ import { API_BASE_URL } from '../../api/client.js'
 import { jsPDF } from 'jspdf'
 import { autoTable } from 'jspdf-autotable'
 import { SARABUN_REGULAR_BASE64, SARABUN_BOLD_BASE64 } from '../../lib/sarabunFont.js'
-import { sheetToXlsxBlob, downloadBlob } from '../../lib/xlsx.js'
+import { buildStyledXlsxBlob, downloadBlob } from '../../lib/xlsx.js'
 
 const navItems = [{ to: '/qa', label: 'ตรวจสอบ QA', icon: <CheckCircleIcon className="size-4" /> }]
 
@@ -387,40 +387,44 @@ export default function QAMachineList() {
 
     setExportingExcel(true)
     try {
-      const header = [
-        'ITEM',
-        'Part Name',
-        'Model',
-        'Machine No',
-        'Part No.',
-        'Serial No.',
-        'IT Controller No.',
-        'IMEI',
-        'ใบอนุญาตนำเข้า',
-        'อินวอยซ์',
-        'ส่งออกไปประเทศ',
-        'ผลเทียบใบอนุญาต',
-        'วันที่ยืนยัน',
-        'Status',
+      // columns กำหนด type ให้ตรงกับข้อมูลจริง เพื่อให้ xlsx.js จัด Alignment/Number
+      // Format ให้เหมาะสมอัตโนมัติ (number = ตัวเลขจริงกึ่งกลาง, center = ข้อความสั้น
+      // จัดกึ่งกลาง เช่น สถานะ/วันที่, text = ข้อความทั่วไปจัดชิดซ้าย)
+      const columns = [
+        { key: 'item', header: 'ITEM', type: 'number', width: 8 },
+        { key: 'partName', header: 'Part Name', type: 'text' },
+        { key: 'model', header: 'Model', type: 'center', width: 12 },
+        { key: 'machineNo', header: 'Machine No', type: 'text' },
+        { key: 'partNo', header: 'Part No.', type: 'text' },
+        { key: 'serialNo', header: 'Serial No.', type: 'text' },
+        { key: 'itControllerNo', header: 'IT Controller No.', type: 'text' },
+        { key: 'imei', header: 'IMEI', type: 'text' },
+        { key: 'licenseNo', header: 'ใบอนุญาตนำเข้า', type: 'text' },
+        { key: 'invoiceNo', header: 'อินวอยซ์', type: 'text' },
+        { key: 'exportCountry', header: 'ส่งออกไปประเทศ', type: 'center', width: 16 },
+        { key: 'matchStatus', header: 'ผลเทียบใบอนุญาต', type: 'center', width: 16 },
+        { key: 'confirmedAt', header: 'วันที่ยืนยัน', type: 'center', width: 14 },
+        { key: 'status', header: 'Status', type: 'center', width: 12 },
       ]
-      const body = list.map((r, i) => [
-        i + 1,
-        dash(r.partName),
-        dash(r.model),
-        dash(r.machineNo),
-        dash(r.partNo),
-        dash(r.serialNo),
-        dash(r.itControllerNo),
-        dash(r.imei),
-        dash(r.licenseNo),
-        dash(r.invoiceNo),
-        dash(r.exportCountry),
-        licenseMatchMeta(r.matchStatus).label,
-        r.confirmedAt ? thaiDateLabel(toYMD(new Date(r.confirmedAt))) : '—',
-        'Matched',
-      ])
+      const rows = list.map((r, i) => ({
+        item: i + 1,
+        partName: dash(r.partName),
+        model: dash(r.model),
+        machineNo: dash(r.machineNo),
+        partNo: dash(r.partNo),
+        serialNo: dash(r.serialNo),
+        itControllerNo: dash(r.itControllerNo),
+        imei: dash(r.imei),
+        licenseNo: dash(r.licenseNo),
+        invoiceNo: dash(r.invoiceNo),
+        exportCountry: dash(r.exportCountry),
+        matchStatus: licenseMatchMeta(r.matchStatus).label,
+        // Format วันที่ให้เป็นรูปแบบเดียวกันทุกแถว (ใช้ฟังก์ชันเดียวกับที่หน้าจอแสดงผล)
+        confirmedAt: r.confirmedAt ? thaiDateLabel(toYMD(new Date(r.confirmedAt))) : '—',
+        status: 'Matched',
+      }))
 
-      const blob = sheetToXlsxBlob('QA Check Sheet', [header, ...body])
+      const blob = buildStyledXlsxBlob({ sheetName: 'QA Check Sheet', columns, rows })
       const fileDate = selectedDate || 'ทั้งหมด'
       downloadBlob(blob, `QA-CheckSheet-${fileDate}.xlsx`)
     } catch (err) {

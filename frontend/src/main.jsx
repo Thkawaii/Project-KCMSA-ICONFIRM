@@ -9,7 +9,6 @@ import TSFOperatorPage from './pages/Tsfoperatorpage.jsx'
 import UploadViewPage from './pages/UploadViewpage.jsx'
 import MasterDataPage from './pages/MasterDataPage.jsx'
 import MFGAssemblyPage from './pages/Mfgassemblypage.jsx'
-import ITControllerPage from './pages/Itcontrollerpage.jsx'
 import FormatSettingsPage from './pages/Formatsettingspage.jsx'
 import AdminDashboardPage from './pages/AdminDashboardpage.jsx'
 import QAMachineList from './pages/qa/Qamachinelist.jsx'
@@ -39,7 +38,6 @@ const ROUTE_CONFIG = {
   '/login': { component: LoginPage, public: true },
   '/warehouse': { component: ImportLicensePage, roles: ['LOG'] },
   '/warehouse/export-license': { component: ExportLicensePage, roles: ['LOG'] },
-  '/warehouse/it-controller': { component: ITControllerPage, roles: ['WH', 'LOG'] },
   '/warehouse/confirm': { component: WHPartConfirmationPage, roles: ['WH', 'LOG'] },
   '/mfg-assembly': { component: MFGAssemblyPage, roles: ['MFG', 'TSF'] },
   '/admin': { component: AdminDashboardPage, roles: ['ADMIN'] },
