@@ -93,7 +93,11 @@ const HEADING_LABEL_BY_TYPE = {
 
 const uploadNavItems = [
   { to: '/master-data', label: 'ทะเบียน Master Data', icon: <RectangleStackIcon className="size-4" /> },
+  { to: '/format-settings', label: 'ตั้งค่า Format', icon: <RectangleStackIcon className="size-4" /> },
 ]
+
+// ใช้ร่วมกับหน้า Format Settings (role UPLOAD) — export เพื่อไม่ให้ต้องประกาศเมนูซ้ำ
+export const FORMAT_NAV_ITEMS = uploadNavItems
 
 // ค่าที่แสดงแทนช่องว่าง — อะไหล่ชนิดอื่นไม่มี IT Controller no./IMEI
 const DASH = '—'

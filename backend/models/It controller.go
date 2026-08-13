@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // หลักการออกแบบของไฟล์นี้ (ตามมติที่ประชุม)
@@ -32,6 +35,45 @@ const (
 	IssuePurposeAssembly = "ASSEMBLY" // จ่ายให้ TSF ประกอบเข้าเครื่องจักร
 	IssuePurposeExport   = "EXPORT"   // ส่งออกไปต่างประเทศ (CKD)
 )
+
+// ชนิดการเชื่อมต่อของ IT Controller ตาม flow (IT controller on I-confirmation)
+const (
+	ConnMobile4GNormal = "MOBILE_4G_NORMAL"  // IT(Mobile4G, normal speed)
+	ConnMobile4GHigh   = "MOBILE_4G_HIGH"    // IT(Mobile4G, high speed)
+	ConnSatelliteIrid  = "SATELLITE_IRIDIUM" // IT(Satellite, iridium)
+)
+
+// ClassifyConnectivity เดาชนิดการเชื่อมต่อจากข้อความ Part Name/Model เมื่อไฟล์ไม่มี
+// คอลัมน์ระบุมาตรง ๆ — คืน "" ถ้าเดาไม่ได้ (จะได้ไม่ยัดค่ามั่ว)
+func ClassifyConnectivity(partName, model string) string {
+	s := strings.ToUpper(partName + " " + model)
+	has := func(sub string) bool { return strings.Contains(s, sub) }
+
+	switch {
+	case has("IRIDIUM") || has("SATELLITE") || has("SAT"):
+		return ConnSatelliteIrid
+	case has("HIGH") || has("HS") || has("HIGHSPEED"):
+		return ConnMobile4GHigh
+	case has("4G") || has("MOBILE") || has("LTE") || has("NORMAL"):
+		return ConnMobile4GNormal
+	default:
+		return ""
+	}
+}
+
+// NormalizeConnectivity รับค่าที่ผู้ใช้กรอกในคอลัมน์ (เช่น "Satellite", "4G High")
+// แล้ว map เป็นรหัสมาตรฐาน — คืน "" ถ้าไม่รู้จัก
+func NormalizeConnectivity(raw string) string {
+	if v := ClassifyConnectivity(raw, ""); v != "" {
+		return v
+	}
+	up := strings.ToUpper(strings.TrimSpace(raw))
+	switch up {
+	case ConnMobile4GNormal, ConnMobile4GHigh, ConnSatelliteIrid:
+		return up
+	}
+	return ""
+}
 
 // ประเภทเอกสาร PDF ที่ WH อัปโหลด
 const (
@@ -160,6 +202,10 @@ type ITControllerUnit struct {
 	Model    string `gorm:"size:50"`  // JRN-260K
 	PartNo   string `gorm:"size:100;index"`
 	SerialNo string `gorm:"size:100;index"` // serial ของ JRC เช่น KQ3000045093
+
+	// ชนิดการเชื่อมต่อ (ตาม flow): MOBILE_4G_NORMAL | MOBILE_4G_HIGH | SATELLITE_IRIDIUM
+	// อ่านจากคอลัมน์ในไฟล์ได้ หรือถ้าไม่มีระบบเดาจาก PartName/Model ให้ (ดู ClassifyConnectivity)
+	ConnectivityType string `gorm:"column:connectivity_type;size:30;index"`
 
 	// ── ขาเข้า ──────────────────────────────────────────────────────────────
 	InvoiceNo       string `gorm:"size:50;index"`

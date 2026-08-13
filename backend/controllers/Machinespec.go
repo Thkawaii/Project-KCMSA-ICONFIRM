@@ -51,6 +51,35 @@ var machineSpecColumns = map[string]func(*models.MachineSpec, string){
 	"HYD oil":          func(m *models.MachineSpec, v string) { m.HydOil = v },
 }
 
+// machineSpecAliases: หัวคอลัมน์รูปแบบอื่นที่พบหน้างาน (normalize แล้ว) → คีย์
+// มาตรฐาน (= normalizeHeader ของ label ใน machineSpecColumns)
+// ทำให้ไม่ต้องแก้โค้ดเมื่อไฟล์ใช้ชื่อหัวต่างออกไป — และยังตั้งเพิ่มได้อีกตอนรัน
+// ผ่าน ColumnAlias (scope=machine_spec) ที่หน้า Format Config
+var machineSpecAliases = map[string]string{
+	"machinenumber":            "machineno",
+	"mcno":                     "machineno",
+	"mcnumber":                 "machineno",
+	"machineid":                "machineno",
+	"spec":                     "spec1",
+	"productspec":              "spec1",
+	"productspec1":             "spec1",
+	"productspec2":             "spec2",
+	"country":                  "countryname",
+	"counterweight":            "cwno",
+	"cwpartno":                 "cwno",
+	"enginepartno":             "enginehistory",
+	"itcontrollerpartno":       "itcontroller",
+	"itcontrollerpn":           "itcontroller",
+	"itcontrollerserialno":     "itcontrollersn",
+	"itcontrollerserialnumber": "itcontrollersn",
+	"itcontrollerserial":       "itcontrollersn",
+	"itcserialno":              "itcontrollersn",
+	"swingmotor":               "swname",
+	"swmotor":                  "swname",
+	"pumpassy":                 "pumpassyhyd",
+	"pump":                     "pumpassyhyd",
+}
+
 var validComponentTypes = map[string]bool{
 	"it_controller": true,
 	"control_valve": true,
@@ -95,11 +124,64 @@ func UploadMachineSpec(c *gin.Context) {
 		return
 	}
 
-	headers := rows[0]
+	// ── header matching แบบยืดหยุ่น (เท่า uploader ตัวอื่น) ──────────────────
+	// 1) ColumnAlias ตอนรัน (scope=machine_spec) — เปลี่ยนชื่อหัวได้โดยไม่แก้โค้ด
+	// 2) normalize หัวคอลัมน์ (ไม่แคร์ตัวพิมพ์/ช่องว่าง/จุด/วงเล็บ)
+	// 3) alias ที่พบบ่อย (machineSpecAliases)
+	reverse := loadColumnAliasReverse("machine_spec")
+
+	// สร้าง lookup แบบ normalize จาก machineSpecColumns (label เป๊ะ → setter)
+	normSetter := make(map[string]func(*models.MachineSpec, string), len(machineSpecColumns)*2)
+	for label, setter := range machineSpecColumns {
+		normSetter[normalizeHeader(label)] = setter
+	}
+	// เติม alias ที่ชี้ไป setter เดิม
+	for alias, canon := range machineSpecAliases {
+		if s, ok := normSetter[canon]; ok {
+			normSetter[alias] = s
+		}
+	}
+
+	// resolveKey: หัวคอลัมน์ดิบ → คีย์ normalize (ผ่าน ColumnAlias ก่อน)
+	resolveKey := func(raw string) string {
+		return aliasHeaderKey(reverse, normalizeHeader(raw))
+	}
+
+	// หาแถวหัวตารางเอง (ไม่ fix ว่าเป็นแถวแรก) — เลือกแถวที่ match คอลัมน์ที่รู้จัก
+	// มากสุดและต้องเจอ Machine No เพื่อกันแถว title/หมายเหตุด้านบน
+	scanMax := len(rows)
+	if scanMax > 15 {
+		scanMax = 15
+	}
+	headerIdx := -1
+	bestHits := 0
+	for i := 0; i < scanMax; i++ {
+		hits := 0
+		hasMachine := false
+		for _, cell := range rows[i] {
+			k := resolveKey(cell)
+			if _, ok := normSetter[k]; ok {
+				hits++
+				if k == "machineno" {
+					hasMachine = true
+				}
+			}
+		}
+		if hasMachine && hits > bestHits {
+			bestHits = hits
+			headerIdx = i
+		}
+	}
+	if headerIdx < 0 {
+		c.JSON(400, gin.H{"message": "หาหัวตารางไม่เจอ — ไฟล์ต้องมีคอลัมน์ Machine No อย่างน้อย"})
+		return
+	}
+
+	headers := rows[headerIdx]
 	userID, _ := lookupUserName(c)
 
 	var created []models.MachineSpec
-	for _, row := range rows[1:] {
+	for _, row := range rows[headerIdx+1:] {
 		// แถวว่างล้วนข้ามไป
 		empty := true
 		for _, cell := range row {
@@ -129,7 +211,7 @@ func UploadMachineSpec(c *gin.Context) {
 			if i >= len(row) {
 				break
 			}
-			if setter, ok := machineSpecColumns[header]; ok {
+			if setter, ok := normSetter[resolveKey(header)]; ok {
 				setter(&spec, row[i])
 			}
 		}

@@ -359,6 +359,13 @@ var serialListHeaderAliases = map[string]string{
 	"จำนวน":     "qty",
 	"issuedate": "issue_date",
 	"วันที่ออกใบอนุญาต": "issue_date",
+	// ชนิดการเชื่อมต่อ (Mobile4G/Satellite)
+	"connectivity":     "connectivity_type",
+	"connectivitytype": "connectivity_type",
+	"network":          "connectivity_type",
+	"networktype":      "connectivity_type",
+	"ittype":           "connectivity_type",
+	"ชนิดการเชื่อมต่อ":  "connectivity_type",
 }
 
 type serialImportResult struct {
@@ -380,6 +387,58 @@ func parseQty(s string) int {
 		return int(f)
 	}
 	return 0
+}
+
+// syncMasterFromUnit ซิงก์ IT Controller 1 เครื่องจาก ITControllerUnit เข้า
+// ตาราง MasterData (ทะเบียนกลาง) ที่หน้าสแกนใช้เทียบ
+//
+// เหตุผล: partcheck (WH) และ mfg_assembly (MFG) resolve "หมายเลขเครื่อง 12 หลัก"
+// จาก MasterData ด้วย P/N + S/N ที่สแกน — ไม่ได้อ่านจาก ITControllerUnit
+// ดังนั้นทุกครั้งที่อัปโหลด Serial List ต้องเติม MasterData ไปพร้อมกัน ไม่งั้น
+// เมื่อ DB ถูกลบแล้วโหลดกลับผ่าน Serial List อย่างเดียว การสแกนจะ "ไม่พบข้อมูล"
+func syncMasterFromUnit(u models.ITControllerUnit, userID uint, userName string) {
+	itc := strings.TrimSpace(u.ITControllerNo)
+	if itc == "" {
+		return
+	}
+
+	var m models.MasterData
+	// หาแถวเดิมจากหมายเลขเครื่อง (unique) ก่อน ไม่เจอค่อยสร้างใหม่
+	_ = config.DB.Where("it_controller_no = ?", itc).First(&m).Error
+
+	m.ComponentType = "it_controller"
+	m.ITControllerNo = &itc
+
+	if imei := strings.TrimSpace(u.IMEI); imei != "" {
+		m.IMEI = &imei
+	}
+	if u.PartName != "" {
+		m.Name = u.PartName
+	}
+	if u.Model != "" {
+		m.Model = u.Model
+	}
+	if u.PartNo != "" {
+		m.PartNo = u.PartNo
+	}
+	if u.SerialNo != "" {
+		m.SerialNo = u.SerialNo
+	}
+
+	// ชนิดการเชื่อมต่อ — ใช้จาก unit ถ้ามี ไม่มีก็เดาจาก Part Name/Model
+	conn := u.ConnectivityType
+	if conn == "" {
+		conn = models.ClassifyConnectivity(u.PartName, u.Model)
+	}
+	if conn != "" {
+		m.ConnectivityType = conn
+	}
+	m.UploadDate = time.Now()
+	if m.UserID == 0 {
+		m.UserID = userID
+	}
+
+	config.DB.Save(&m)
 }
 
 func UploadSerialList(c *gin.Context) {
@@ -419,10 +478,39 @@ func UploadSerialList(c *gin.Context) {
 	headerRow := -1
 	colOf := map[string]int{}
 
+	// ColumnAlias ตอนรัน (scope=serial_list): หัวคอลัมน์ที่ถูกเปลี่ยนชื่อ/เพิ่มใหม่
+	// → ตั้ง Target เป็นชื่อ field ตรงๆ (เช่น it_controller_no) หรือชื่อหัวที่ระบบรู้จัก
+	// ก็ได้ ปรับได้หน้า Format Config โดยไม่ต้องแก้โค้ด
+	reverseSerial := loadColumnAliasReverse("serial_list")
+	serialFields := map[string]bool{
+		"it_controller_no": true, "imei": true, "part_name": true, "model": true,
+		"brand": true, "part_no": true, "serial_no": true, "import_license_no": true,
+		"invoice_no": true, "declaration_no": true, "po_no": true, "qty": true, "issue_date": true,
+		"connectivity_type": true,
+	}
+	// aliasField: แปลงหัวคอลัมน์ดิบ → ชื่อ field ของ serial list (รองรับ ColumnAlias)
+	aliasField := func(cell string) (string, bool) {
+		if field, ok := serialListHeaderAliases[normHeader(cell)]; ok {
+			return field, true
+		}
+		if tgt, ok := reverseSerial[normalizeHeader(cell)]; ok && tgt != "" {
+			// Target อาจเป็นชื่อ field ตรงๆ หรือหัวคอลัมน์มาตรฐาน
+			for f := range serialFields {
+				if normalizeHeader(f) == tgt {
+					return f, true
+				}
+			}
+			if field, ok := serialListHeaderAliases[tgt]; ok {
+				return field, true
+			}
+		}
+		return "", false
+	}
+
 	for i, row := range rows {
 		tmp := map[string]int{}
 		for j, cell := range row {
-			if field, ok := serialListHeaderAliases[normHeader(cell)]; ok {
+			if field, ok := aliasField(cell); ok {
 				if _, dup := tmp[field]; !dup {
 					tmp[field] = j
 				}
@@ -560,6 +648,14 @@ func UploadSerialList(c *gin.Context) {
 			unit.SerialNo = v
 		}
 
+		// ชนิดการเชื่อมต่อ: อ่านจากคอลัมน์ถ้ามี ไม่มีก็เดาจาก Part Name/Model
+		if v := getText(row, "connectivity_type"); v != "" {
+			unit.ConnectivityType = models.NormalizeConnectivity(v)
+		}
+		if unit.ConnectivityType == "" {
+			unit.ConnectivityType = models.ClassifyConnectivity(unit.PartName, unit.Model)
+		}
+
 		unit.InvoiceNo = firstNonEmpty(getText(row, "invoice_no"), formInvoiceNo, lic.InvoiceNo)
 		unit.PONo = firstNonEmpty(getText(row, "po_no"), formPONo, lic.PONo)
 		unit.ImportLicenseNo = licenseNo
@@ -586,6 +682,10 @@ func UploadSerialList(c *gin.Context) {
 			result.Warnings = append(result.Warnings, fmt.Sprintf("%s บันทึกไม่สำเร็จ: %s", itcNo, err.Error()))
 			continue
 		}
+
+		// ซิงก์เข้าทะเบียนกลาง (MasterData) ให้หน้าสแกนเทียบเจอ — ดูเหตุผลใน
+		// syncMasterFromUnit (สำคัญกับกรณี DB ว่าง/ถูกลบแล้วโหลดกลับ)
+		syncMasterFromUnit(unit, userID, userName)
 
 		if isNew {
 			result.Created++
@@ -637,6 +737,7 @@ func GetITCUnits(c *gin.Context) {
 		"po_no":             "po_no",
 		"import_license_no": "import_license_no",
 		"export_license_no": "export_license_no",
+		"connectivity_type": "connectivity_type",
 	} {
 		if v := c.Query(param); v != "" {
 			q = q.Where(column+" = ?", v)
@@ -1530,6 +1631,7 @@ func GetITCWeeklyReport(c *gin.Context) {
 
 	byInvoice := map[string]*invoiceSummary{}
 	byCountry := map[string]int{}
+	byConnectivity := map[string]int{}
 
 	for _, u := range units {
 
@@ -1559,6 +1661,13 @@ func GetITCWeeklyReport(c *gin.Context) {
 		if u.Country != "" {
 			byCountry[u.Country]++
 		}
+
+		// สรุปจำนวนตามชนิดการเชื่อมต่อ (Mobile4G/Satellite)
+		conn := u.ConnectivityType
+		if conn == "" {
+			conn = "UNKNOWN"
+		}
+		byConnectivity[conn]++
 	}
 
 	summaries := make([]invoiceSummary, 0, len(byInvoice))
@@ -1577,6 +1686,7 @@ func GetITCWeeklyReport(c *gin.Context) {
 		"since":              since.Format("2006-01-02"),
 		"by_invoice":         summaries,
 		"by_country":         byCountry,
+		"by_connectivity":    byConnectivity,
 		"received_this_week": receivedThisWeek,
 		"exported_this_week": exportedThisWeek,
 	})

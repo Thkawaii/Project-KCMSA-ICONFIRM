@@ -70,6 +70,15 @@ func ConnectDB() {
 		// ── บัญชีใบอนุญาตส่งออก (คู่กับ Import License) ──
 		&models.ExportLicenseItem{},
 
+		// ── ระบบ IT Controller unit-centric (Phase 4: part ใหม่) ────────────
+		// unit 1 แถว = IT Controller 1 เครื่อง เดินสถานะ IMPORTED→RECEIVED→
+		// ALLOCATED→LICENSED→EXPORTED/INSTALLED พร้อมใบอนุญาต กสทช. + ไฟล์ PDF
+		// เดิม 4 โมเดลนี้ประกาศไว้แต่ไม่ถูก migrate ตารางเลยไม่เกิด — เปิดใช้ที่นี่
+		&models.DocumentFile{},
+		&models.ImportLicense{},
+		&models.ExportLicense{},
+		&models.ITControllerUnit{},
+
 		// ── ไฟล์อัปโหลด Planning / WH1 / WH2 / Engine (หน้า Upload Data) ──
 		&models.UploadDataRow{},
 
@@ -95,9 +104,14 @@ func ConnectDB() {
 	// เผื่อ DB เก่ามี plaintext password ค้าง แปลงเป็น bcrypt ให้ครบ
 	MigratePlaintextPasswords()
 
-	// เรียกแยกจาก SeedData() เพราะอันนั้นจะข้ามทั้งหมดถ้ามี user อยู่แล้ว
-	// ส่วนอันนี้ต้องรันทุกครั้งเพื่อเติมทะเบียน IT Controller ที่เพิ่มเข้ามาใหม่
-	SeedMasterITController()
+	// ── ทะเบียน IT Controller ตัวอย่าง (ปิดเป็นค่าเริ่มต้น) ──────────────────
+	// ตามข้อกำหนด: ตอนเริ่มต้นระบบ Master Data ต้องว่างเปล่า และถ้าลบ DB ข้อมูล
+	// จะหายไป (ให้โหลดกลับผ่านการอัปโหลด Serial List / Master Data เท่านั้น)
+	// จึงไม่ฝังข้อมูลตัวอย่างลง production — จะรันก็ต่อเมื่อ SEED_SAMPLE_ITC=1
+	// (ไว้ใช้ตอน dev/ทดสอบเท่านั้น)
+	if os.Getenv("SEED_SAMPLE_ITC") == "1" {
+		SeedMasterITController()
+	}
 
 	log.Println("Database Connected")
 }

@@ -195,6 +195,7 @@ export function CodeAliasPanel({ componentType = 'it_controller' }) {
   const [fromCode, setFromCode] = useState('')
   const [toSerial, setToSerial] = useState('')
   const [toPart, setToPart] = useState('')
+  const [kind, setKind] = useState('machine')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -228,6 +229,7 @@ export function CodeAliasPanel({ componentType = 'it_controller' }) {
         to_serial_no: toSerial.trim(),
         to_part_no: toPart.trim(),
         component_type: componentType,
+        kind,
         note: note.trim(),
       })
       setFromCode('')
@@ -278,12 +280,20 @@ export function CodeAliasPanel({ componentType = 'it_controller' }) {
     >
       <div style={rowFormStyle}>
         <div style={fieldStyle}>
-          <label style={labelStyle}>ค่าที่หน้างานยิงมา (รูปแบบใหม่)</label>
-          <input style={inputStyle} value={fromCode} onChange={(e) => setFromCode(e.target.value)} placeholder="เช่น KQ-3000/NEW" />
+          <label style={labelStyle}>ชนิดรหัส</label>
+          <select style={inputStyle} value={kind} onChange={(e) => setKind(e.target.value)}>
+            <option value="machine">Machine No.</option>
+            <option value="sn">S/N</option>
+            <option value="pn">P/N</option>
+          </select>
         </div>
         <div style={fieldStyle}>
-          <label style={labelStyle}>S/N มาตรฐานในทะเบียน</label>
-          <input style={inputStyle} value={toSerial} onChange={(e) => setToSerial(e.target.value)} placeholder="เช่น KQ3000045093" />
+          <label style={labelStyle}>ค่าที่หน้างานยิงมา (รูปแบบใหม่)</label>
+          <input style={inputStyle} value={fromCode} onChange={(e) => setFromCode(e.target.value)} placeholder="เช่น TNN-YN23993 / KQ-3000/NEW" />
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>ค่ามาตรฐานในทะเบียน (S/N หรือ Machine No.)</label>
+          <input style={inputStyle} value={toSerial} onChange={(e) => setToSerial(e.target.value)} placeholder="เช่น KQ3000045093 / YN23993" />
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>P/N มาตรฐาน (ไม่บังคับ)</label>
