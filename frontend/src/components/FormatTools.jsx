@@ -282,11 +282,15 @@ export function CodeAliasPanel({ componentType = 'it_controller' }) {
       <div style={rowFormStyle}>
         <div style={fieldStyle}>
           <label style={labelStyle}>ชนิดรหัส</label>
-          <select style={inputStyle} value={kind} onChange={(e) => setKind(e.target.value)}>
-            <option value="machine">Machine No.</option>
-            <option value="sn">S/N</option>
-            <option value="pn">P/N</option>
-          </select>
+          <SelectField
+            value={kind}
+            onChange={setKind}
+            options={[
+              { value: 'machine', label: 'Machine No.' },
+              { value: 'sn', label: 'S/N' },
+              { value: 'pn', label: 'P/N' },
+            ]}
+          />
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>ค่าที่หน้างานยิงมา (รูปแบบใหม่)</label>

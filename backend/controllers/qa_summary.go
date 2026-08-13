@@ -91,6 +91,13 @@ func GetQAConfirmedTable(c *gin.Context) {
 		}
 
 		// ── ประกอบแถว: ค่าหลักจาก WH/MFG ก่อน แล้วเติมจาก Master Data / บัญชีใบอนุญาต ──
+		// รูปถ่าย: ย้ายมาถ่ายฝั่ง MFG ตอนสแกนแล้ว จึงใช้ของ MFG เป็นหลัก
+		// (fallback เป็นของ WH เดิมเพื่อรองรับข้อมูลเก่าที่ยังถ่ายฝั่ง WH ไว้)
+		photoURL := strings.TrimSpace(m.PhotoURL)
+		if photoURL == "" {
+			photoURL = pc.PhotoURL
+		}
+
 		row := QAConfirmedRow{
 			MachineNo:      strings.TrimSpace(m.MachineNo),
 			ITControllerNo: itc,
@@ -101,7 +108,7 @@ func GetQAConfirmedTable(c *gin.Context) {
 			InvoiceNo:      strings.TrimSpace(pc.InvoiceNo),
 			MatchStatus:    pc.MatchStatus,
 			MatchMessage:   pc.MatchMessage,
-			PhotoURL:       pc.PhotoURL,
+			PhotoURL:       photoURL,
 			Status:         models.MFGStatusMatched,
 			ConfirmedAt:    pc.CheckedDatetime.Format(time.RFC3339),
 		}

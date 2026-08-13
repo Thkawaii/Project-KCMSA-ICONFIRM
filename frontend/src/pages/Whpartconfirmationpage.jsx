@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getPartChecks, scanPartCheck, deletePartCheck, uploadPartCheckPhoto } from '../api/partcheck.js'
+import { getPartChecks, scanPartCheck, deletePartCheck } from '../api/partcheck.js'
 import { getImportLicenseItems } from '../api/importLicense.js'
 import { API_BASE_URL } from '../api/client.js'
 import {
@@ -9,12 +9,9 @@ import {
   scanSuccessToast,
   scanErrorAlert,
   scanClose,
-  scanPhotoCapture,
 } from '../lib/scanPopup.js'
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js'
 import {
-  ArrowUpTrayIcon,
-  CameraIcon,
   CheckIcon,
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
@@ -23,7 +20,6 @@ import {
   ClockIcon,
   DocumentTextIcon,
   ExclamationTriangleIcon,
-  EyeIcon,
   MinusIcon,
   PART_ICONS_BY_CODE,
   ShieldCheckIcon,
@@ -90,25 +86,6 @@ function matchBadge(status) {
   )
 }
 
-// ป้ายผลเทียบ "รูปถ่าย" กับค่าที่สแกน (เฉพาะ ITC — เทียบด้วย Claude Vision OCR)
-const PHOTO_MATCH_LABELS = {
-  MATCH: { Icon: CheckIcon, text: 'รูปตรงกับที่สแกน', cls: 'il-badge-ok' },
-  MISMATCH: { Icon: ExclamationTriangleIcon, text: 'รูปไม่ตรงกับที่สแกน', cls: 'il-badge-bad' },
-  UNREADABLE: { Icon: ExclamationTriangleIcon, text: 'อ่านรูปไม่สำเร็จ', cls: 'il-badge-warn' },
-  SAVED: { Icon: CheckIcon, text: 'ถ่ายรูปแล้ว', cls: 'il-badge-ok' },
-}
-
-function photoMatchBadge(status) {
-  if (!status) return <span className="il-badge il-badge-muted">ยังไม่ถ่ายรูป</span>
-  const m = PHOTO_MATCH_LABELS[status]
-  if (!m) return <span className="il-badge il-badge-muted">—</span>
-  return (
-    <span className={'il-badge ' + m.cls}>
-      <m.Icon className="inline size-3.5 align-text-bottom" /> {m.text}
-    </span>
-  )
-}
-
 // การ์ดบาร์โค้ดที่โชว์บนหน้า Part Confirmation (ตามรูป label จริง)
 const BARCODE_CARDS = [
   { partType: 'ITC', title: 'IT Controller', caption: 'IT Controller', img: bcItc, kind: 'P/N + S/N' },
@@ -145,8 +122,6 @@ export default function WHPartConfirmationPage() {
   const [page, setPage] = useState(1)
 
   const [detailRow, setDetailRow] = useState(null)
-  const [photoView, setPhotoView] = useState(null) // URL รูปที่กำลังเปิดดูใน viewer
-  const [photoEditRow, setPhotoEditRow] = useState(null) // แถวที่กำลังจะแก้ไขรูปถ่าย (เลือกถ่ายใหม่/อัปโหลด)
 
   // busyRef = true ระหว่างที่ flow สแกนกำลังทำงาน (กันตัวดักสแกนเนอร์ยิงซ้อน)
   const busyRef = useRef(false)
@@ -161,12 +136,6 @@ export default function WHPartConfirmationPage() {
   // "บางทีสแกนแล้วขึ้นให้เลือกประเภท") การจับชนิดจากคำในบาร์โค้ดยังมาก่อนเสมอ
   const armedPartRef = useRef(null)
   const [armedPart, setArmedPart] = useState(null)
-
-  // ── แก้ไขรูปถ่ายป้าย (ถ่ายใหม่ / อัปโหลดแทน) หลังตรงกับใบอนุญาตแล้ว ──────
-  // ใช้ได้ทั้งจากแถบ "ผลสแกนล่าสุด" และปุ่ม "แก้ไข" ในตารางประวัติ (ทุกแถวที่ตรงกับใบอนุญาต)
-  const [photoUpdating, setPhotoUpdating] = useState(false)
-  const photoFileInputRef = useRef(null)
-  const pendingPhotoRowIdRef = useRef(null) // แถวเป้าหมายที่กำลังจะอัปโหลดไฟล์แทน
 
   async function loadRows() {
     setLoading(true)
@@ -304,8 +273,6 @@ export default function WHPartConfirmationPage() {
             productionNo: check.ProductionNo || '',
             matchStatus: check.MatchStatus,
             message: check.MatchMessage || res.message,
-            photoMatchStatus: check.PhotoMatchStatus || '',
-            photoMatchMessage: check.PhotoMatchMessage || '',
             at: check.CheckedDatetime || new Date().toISOString(),
           })
 
@@ -317,39 +284,8 @@ export default function WHPartConfirmationPage() {
           setTimeout(() => setHighlightId(null), 6000)
         }
 
-        // ── ถ่ายรูปยืนยัน (ทุกชนิดพาร์ท) ─────────────────────────────────
-        // หลังบันทึกผลสแกนแล้ว เปิดกล้องให้ถ่ายรูปป้ายพาร์ทจริงทันที เป็นขั้นตอน
-        // ต่อเนื่องกับการสแกนแบบเดียวกับ IT Controller — ต่างกันแค่ ITC สแกน P/N + S/N
-        // ส่วน Swing Motor / Pump Assy HYD / Motor Propel / Control Valve สแกนแค่ S/N
-        // (backend เก็บรูปเป็นหลักฐานแบบ generic รองรับทุกชนิดพาร์ทอยู่แล้ว)
-        // เป็นขั้นตอนบังคับต่อเนื่องกับการสแกน (ไม่มีปุ่มข้าม — flow เดียว)
-        // ถ้าถ่ายรูปไม่ชัด แก้ไขทีหลังได้จากแถบ "ผลสแกนล่าสุด" ด้านล่าง
-        if (check?.ID) {
-          scanClose() // ปิด popup loading ก่อนเปิดกล้อง กันซ้อนกัน
-          const photoBlob = await scanPhotoCapture({
-            title: `ถ่ายรูปป้าย ${partLabel}`,
-            html: `<div class="scan-popup-hint">ค่าที่สแกน — ${
-              needsPN ? `P/N: <b>${pn || '-'}</b> / ` : ''
-            }S/N: <b>${sn}</b></div>`,
-          })
-
-          if (photoBlob) {
-            scanLoading('กำลังบันทึกรูป...')
-            try {
-              const photoRes = await uploadPartCheckPhoto(check.ID, photoBlob)
-              check.PhotoURL = photoRes.check?.PhotoURL
-              check.PhotoMatchStatus = photoRes.check?.PhotoMatchStatus
-              check.PhotoMatchMessage = photoRes.check?.PhotoMatchMessage
-              buildLastScan() // อัปเดตแถบสรุปผลสแกนล่าสุดให้โชว์ว่าถ่ายรูปแล้ว
-
-              scanClose()
-              await scanSuccessToast('บันทึกรูปถ่ายแล้ว')
-            } catch (err) {
-              scanClose()
-              await scanErrorAlert('บันทึกรูปไม่สำเร็จ: ' + (err.message || ''))
-            }
-          }
-        }
+        // หมายเหตุ: การถ่ายรูปป้ายยืนยันถูกย้ายไปทำที่ฝั่ง MFG (ตอนสแกนประกอบเสร็จ)
+        // ฝั่ง WH จึงไม่มีขั้นตอนเปิดกล้อง/ถ่ายรูปอีกต่อไป
 
         if (res.matched) {
           // toast แจ้งสำเร็จ — เก็บไว้เด้งหลังปลด busy (ห้าม await ใต้ busy)
@@ -374,63 +310,6 @@ export default function WHPartConfirmationPage() {
     // เด้ง toast แจ้งสำเร็จ "หลัง" ปลด busy แล้ว — ตอนนี้ตัวดักสแกนพร้อมรับบาร์โค้ด
     // พาร์ทถัดไปแบบเต็มตั้งแต่ตัวอักษรแรก ไม่โดน 3 วินาทีของ toast กันไว้อีก
     if (successToast) scanSuccessToast(successToast)
-  }
-
-  // ── แก้ไขรูปถ่ายของรายการ (ถ่ายรูปตอนสแกนไม่ชัด) ────────────────────────
-  // ใช้ endpoint เดิม (uploadPartCheckPhoto) — อัปโหลดซ้ำจะทับรูป/สถานะเดิมของ
-  // รายการนั้นไปเลย ไม่ต้องสแกน P/N + S/N ใหม่ ใช้ได้ทั้งแถวในตารางประวัติ
-  // และแถบ "ผลสแกนล่าสุด" (id ตรงกัน)
-  async function applyPhotoUpdate(id, fileOrBlob) {
-    if (!id || photoUpdating) return
-    setPhotoUpdating(true)
-    scanLoading('กำลังอัปเดตรูปถ่าย...')
-    try {
-      const res = await uploadPartCheckPhoto(id, fileOrBlob)
-      const updated = res.check || {}
-      setLastScan((prev) =>
-        prev && prev.id === id
-          ? {
-              ...prev,
-              photoMatchStatus: updated.PhotoMatchStatus || prev.photoMatchStatus,
-              photoMatchMessage: updated.PhotoMatchMessage || prev.photoMatchMessage,
-            }
-          : prev,
-      )
-      scanClose()
-      await scanSuccessToast('อัปเดตรูปถ่ายแล้ว')
-      await loadRows()
-    } catch (err) {
-      scanClose()
-      await scanErrorAlert('อัปเดตรูปไม่สำเร็จ: ' + (err.message || ''))
-    } finally {
-      setPhotoUpdating(false)
-    }
-  }
-
-  // เปิดกล้องถ่ายรูปใหม่ทับของเดิม — ใช้กับรายการใดก็ได้ (ผ่าน id)
-  async function handleRetakePhoto(row) {
-    if (!row?.ID || photoUpdating) return
-    const photoBlob = await scanPhotoCapture({
-      title: 'ถ่ายรูปป้ายใหม่',
-      html: `<div class="scan-popup-hint">ค่าที่สแกน — P/N: <b>${row.PN || '-'}</b> / S/N: <b>${row.SN || '-'}</b></div>`,
-    })
-    if (photoBlob) await applyPhotoUpdate(row.ID, photoBlob)
-  }
-
-  // เปิดหน้าต่างเลือกไฟล์รูปจากเครื่อง แล้วอัปโหลดแทนรูปเดิม ของรายการที่ระบุ
-  function handleUploadPhotoClick(row) {
-    if (!row?.ID || photoUpdating) return
-    pendingPhotoRowIdRef.current = row.ID
-    photoFileInputRef.current?.click()
-  }
-
-  async function handleUploadPhotoChange(e) {
-    const file = e.target.files?.[0]
-    const targetId = pendingPhotoRowIdRef.current
-    e.target.value = '' // เคลียร์ค่า ให้เลือกไฟล์เดิมซ้ำได้อีกครั้งถ้าต้องการ
-    pendingPhotoRowIdRef.current = null
-    if (!file || !targetId) return
-    await applyPhotoUpdate(targetId, file)
   }
 
   // ระบุชนิดพาร์ทจากข้อความบาร์โค้ดที่ยิงมา — คืน code พาร์ท ถ้าดูออก, หรือ null ถ้าดูไม่ออก
@@ -774,34 +653,6 @@ export default function WHPartConfirmationPage() {
           <div className="il-result-msg">
             {matchBadge(lastScan.matchStatus)} {lastScan.message}
           </div>
-          {lastScan.photoMatchStatus ? (
-            <div className="il-result-msg">
-              {photoMatchBadge(lastScan.photoMatchStatus)} {lastScan.photoMatchMessage}
-            </div>
-          ) : null}
-          {lastScan.id ? (
-            <div className="pc-photo-edit">
-              <span className="pc-photo-edit-label">
-                {lastScan.photoMatchStatus ? 'ถ่ายภาพไม่ชัด?' : 'ยังไม่ได้ถ่ายรูปป้าย'}
-              </span>
-              <button
-                type="button"
-                className="pc-photo-edit-btn"
-                onClick={() => handleRetakePhoto({ ID: lastScan.id, PN: lastScan.pn, SN: lastScan.sn })}
-                disabled={photoUpdating}
-              >
-                <CameraIcon className="size-4" /> {lastScan.photoMatchStatus ? 'ถ่ายใหม่' : 'ถ่ายรูป'}
-              </button>
-              <button
-                type="button"
-                className="pc-photo-edit-btn"
-                onClick={() => handleUploadPhotoClick({ ID: lastScan.id })}
-                disabled={photoUpdating}
-              >
-                <ArrowUpTrayIcon className="size-4" /> {lastScan.photoMatchStatus ? 'อัปโหลดแทน' : 'อัปโหลดรูป'}
-              </button>
-            </div>
-          ) : null}
         </div>
       )}
         </>
@@ -1064,7 +915,6 @@ export default function WHPartConfirmationPage() {
               <th>S/N</th>
               <th>หมายเลขเครื่อง (IT Controller)</th>
               <th>ผลเทียบใบอนุญาต</th>
-              <th>รูปถ่าย</th>
               <th>Checked By</th>
               <th>วันที่</th>
               <th></th>
@@ -1095,32 +945,11 @@ export default function WHPartConfirmationPage() {
                     {r.MachineNo || '—'}
                   </td>
                   <td data-label="ผลเทียบใบอนุญาต">{matchBadge(r.MatchStatus)}</td>
-                  <td data-label="รูปถ่าย">
-                    {r.PhotoURL ? (
-                      <button
-                        type="button"
-                        className="wh-photo-thumb"
-                        onClick={() => setPhotoView(r.PhotoURL)}
-                        title="คลิกเพื่อขยาย"
-                      >
-                        <img src={`${API_BASE_URL}${r.PhotoURL}`} alt="รูปถ่ายป้าย" loading="lazy" />
-                      </button>
-                    ) : (
-                      <span className="il-badge il-badge-muted">ไม่มีรูป</span>
-                    )}
-                  </td>
                   <td data-label="Checked By">{r.CheckedBy}</td>
                   <td data-label="วันที่">{new Date(r.CheckedDatetime).toLocaleString('th-TH')}</td>
                   <td className="wh-cell-action">
                     <button className="tsf-action-btn" onClick={() => setDetailRow(r)}>
                       รายละเอียด
-                    </button>
-                    <button
-                      className="tsf-action-btn tsf-action-btn-warn"
-                      onClick={() => setPhotoEditRow(r)}
-                      disabled={photoUpdating}
-                    >
-                      {r.PhotoURL ? 'แก้ไขรูป' : 'เพิ่มรูป'}
                     </button>
                     {['NOT_FOUND', 'NOT_REQUIRED', 'DUPLICATE'].includes(r.MatchStatus) && (
                       <button
@@ -1259,33 +1088,6 @@ export default function WHPartConfirmationPage() {
               </div>
             </div>
 
-            <div className="wh-detail-divider" />
-
-            <div className="wh-detail-section">
-              <span className="wh-detail-section-title">
-                <CameraIcon className="size-4" /> รูปถ่าย
-              </span>
-              <div className="wh-detail-result">
-                {photoMatchBadge(detailRow.PhotoMatchStatus)}
-                {detailRow.PhotoMatchMessage ? (
-                  <span className="wh-detail-result-msg">{detailRow.PhotoMatchMessage}</span>
-                ) : null}
-              </div>
-              {detailRow.PhotoURL ? (
-                <button
-                  type="button"
-                  className="wh-detail-photo"
-                  onClick={() => setPhotoView(detailRow.PhotoURL)}
-                  title="คลิกเพื่อขยาย"
-                >
-                  <img src={`${API_BASE_URL}${detailRow.PhotoURL}`} alt="รูปถ่ายป้าย" />
-                  <span className="wh-detail-photo-hint">
-                    <EyeIcon className="size-3.5" /> ขยาย
-                  </span>
-                </button>
-              ) : null}
-            </div>
-
             <div className="wh-detail-meta">
               <span>
                 <TagIcon className="size-3.5" /> ตรวจสอบโดย {detailRow.CheckedBy}
@@ -1304,81 +1106,6 @@ export default function WHPartConfirmationPage() {
           </div>
         </div>
       )}
-      {photoView && (
-        <div className="wh-modal-overlay" onClick={() => setPhotoView(null)}>
-          <div
-            className="wh-modal wh-photo-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="wh-modal-title">รูปถ่ายป้าย</h3>
-            <div className="wh-photo-modal-img">
-              <img src={`${API_BASE_URL}${photoView}`} alt="รูปถ่ายป้าย" />
-            </div>
-            <div className="wh-modal-actions">
-              <button className="wh-modal-cancel" onClick={() => setPhotoView(null)}>
-                ปิด
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {photoEditRow && (
-        <div className="wh-modal-overlay" onClick={() => setPhotoEditRow(null)}>
-          <div className="wh-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="wh-modal-title">
-              {photoEditRow.PhotoURL ? 'แก้ไขรูปถ่ายป้าย' : 'เพิ่มรูปถ่ายป้าย'}
-            </h3>
-            <p className="wh-modal-line">
-              {tagLabel(photoEditRow.PartType)} — S/N {photoEditRow.SN || photoEditRow.PN || '—'}
-            </p>
-            <p className="wh-modal-line" style={{ color: '#64748b' }}>
-              {photoEditRow.PhotoURL
-                ? 'ถ่ายภาพไม่ชัด สามารถถ่ายใหม่หรืออัปโหลดรูปแทนได้ ระบบจะอัปเดตทับรูปเดิม'
-                : 'รายการนี้ยังไม่มีรูปถ่ายป้าย — ถ่ายใหม่หรืออัปโหลดรูปเพื่อบันทึกเพิ่มได้'}
-            </p>
-            <div className="pc-photo-edit" style={{ borderTop: 'none', paddingTop: 4 }}>
-              <button
-                type="button"
-                className="pc-photo-edit-btn"
-                disabled={photoUpdating}
-                onClick={async () => {
-                  const row = photoEditRow
-                  setPhotoEditRow(null)
-                  await handleRetakePhoto(row)
-                }}
-              >
-                <CameraIcon className="size-4" /> ถ่ายใหม่
-              </button>
-              <button
-                type="button"
-                className="pc-photo-edit-btn"
-                disabled={photoUpdating}
-                onClick={() => {
-                  const row = photoEditRow
-                  setPhotoEditRow(null)
-                  handleUploadPhotoClick(row)
-                }}
-              >
-                <ArrowUpTrayIcon className="size-4" /> อัปโหลดแทน
-              </button>
-            </div>
-            <div className="wh-modal-actions">
-              <button className="wh-modal-cancel" onClick={() => setPhotoEditRow(null)}>
-                ยกเลิก
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <input
-        ref={photoFileInputRef}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={handleUploadPhotoChange}
-      />
     </AppShell>
   )
 }

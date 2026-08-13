@@ -16,18 +16,33 @@
 //   • Border บาง ๆ รอบทุกเซลล์ในตาราง
 //   • จัด Alignment ตามชนิดข้อมูล (number = กึ่งกลาง, text = ซ้าย, center = กึ่งกลาง)
 //   • เซลล์ตัวเลขเก็บเป็น number จริง (ไม่ใช่ string) เพื่อให้ Format/SUM ใน Excel ใช้ได้
+//   • รูปถ่าย (type:'image') ฝังลงในเซลล์ได้จริง (ผ่าน DrawingML) — ใช้กับ Check Sheet ของ QA
 //
-// วิธีใช้ (API ใหม่ — แนะนำ):
+// วิธีใช้ (API — ชีตเดียว):
 //   const blob = buildStyledXlsxBlob({
 //     sheetName: 'QA Check Sheet',
 //     columns: [
 //       { key: 'item', header: 'ITEM', type: 'number', width: 8 },
 //       { key: 'partName', header: 'Part Name', type: 'text' },
+//       { key: 'photo', header: 'รูปถ่าย', type: 'image', width: 16 },
 //       { key: 'status', header: 'Status', type: 'center' },
 //     ],
-//     rows: [{ item: 1, partName: 'ABC', status: 'Matched' }, ...],
+//     rows: [{ item: 1, partName: 'ABC', photo: { bytes, ext: 'jpeg' }, status: 'Matched' }, ...],
 //   })
 //   downloadBlob(blob, 'qa-check-sheet.xlsx')
+//
+// วิธีใช้ (API — หลายชีต เช่น "แยกประเทศ"):
+//   const blob = buildStyledXlsxWorkbookBlob({
+//     sheets: [
+//       { sheetName: 'JAPAN', columns, rows },
+//       { sheetName: 'CHINA', columns, rows },
+//     ],
+//   })
+//
+// ค่าเซลล์ชนิด image รับได้ 2 แบบ:
+//   • { bytes: Uint8Array, ext: 'jpeg'|'png', wpx?, hpx? }
+//   • { dataUrl: 'data:image/jpeg;base64,...', wpx?, hpx? }
+//   (ถ้าไม่มีรูป ให้ใส่ค่า null/'' ได้ — เซลล์จะว่างไว้เฉย ๆ)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── CRC-32 (สำหรับ ZIP) ─────────────────────────────────────────────────────
@@ -75,11 +90,16 @@ function colLetter(n) {
   return s
 }
 
+// px -> EMU (English Metric Unit) — DrawingML วัดขนาด/ตำแหน่งเป็น EMU (1px = 9525 EMU)
+const EMU_PER_PX = 9525
+
 // ── ZIP แบบ store (ไม่บีบอัด) จากรายการไฟล์ ─────────────────────────────────
+// รองรับทั้งไฟล์ข้อความ (f.content = string) และไฟล์ไบนารี (f.bytes = Uint8Array)
+// เช่น รูปถ่ายใน xl/media/*
 function makeZip(files) {
   const encoded = files.map((f) => {
     const nameBytes = utf8(f.name)
-    const dataBytes = utf8(f.content)
+    const dataBytes = f.bytes ? f.bytes : utf8(f.content || '')
     return { nameBytes, dataBytes, crc: crc32(dataBytes) }
   })
 
@@ -213,7 +233,7 @@ function buildStylesXml() {
 // เลือก style index ของเซลล์ข้อมูล ตามชนิดคอลัมน์ + ว่าเป็นแถวแถบสีหรือไม่
 function dataXf(type, banded) {
   if (type === 'number') return banded ? XF.NUMBER_BAND : XF.NUMBER
-  if (type === 'center') return banded ? XF.CENTER_BAND : XF.CENTER
+  if (type === 'center' || type === 'image') return banded ? XF.CENTER_BAND : XF.CENTER
   return banded ? XF.TEXT_BAND : XF.TEXT
 }
 
@@ -227,7 +247,42 @@ function estimateWidth(text) {
   return w
 }
 
-function buildSheetXml({ columns, rows, freezeHeader }) {
+// ขนาดรูปในเซลล์ (px) — ค่าเริ่มต้นถ้าไม่ได้ระบุมากับข้อมูล
+const IMAGE_CELL_PX = 88
+// ความกว้างคอลัมน์รูป (หน่วย Excel char) ให้พอดีกับรูป ~88px + ระยะขอบ
+const IMAGE_COL_WIDTH = 14
+// ความสูงแถวที่มีรูป (points) — 88px ≈ 66pt
+const IMAGE_ROW_HEIGHT_PT = 70
+
+// อ่านค่าเซลล์รูป -> { bytes, ext } (คืน null ถ้าไม่มี/ไม่รองรับ)
+function normalizeImage(val) {
+  if (!val) return null
+  if (val.bytes && val.bytes.length) {
+    const ext = (val.ext || 'jpeg').toLowerCase() === 'png' ? 'png' : 'jpeg'
+    return { bytes: val.bytes, ext, wpx: val.wpx, hpx: val.hpx }
+  }
+  if (val.dataUrl) {
+    const parsed = dataUrlToBytes(val.dataUrl)
+    if (!parsed) return null
+    return { bytes: parsed.bytes, ext: parsed.ext, wpx: val.wpx, hpx: val.hpx }
+  }
+  return null
+}
+
+// data:image/xxx;base64,.... -> { bytes, ext } (รองรับเฉพาะ jpeg/png)
+export function dataUrlToBytes(dataUrl) {
+  const m = /^data:image\/([a-zA-Z0-9+.-]+);base64,(.*)$/.exec(dataUrl || '')
+  if (!m) return null
+  let ext = m[1].toLowerCase()
+  if (ext === 'jpg') ext = 'jpeg'
+  if (ext !== 'jpeg' && ext !== 'png') return null // ชนิดอื่นฝังใน xlsx ไม่ได้ตรง ๆ
+  const bin = atob(m[2])
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return { bytes, ext }
+}
+
+function buildSheetXml({ columns, rows, freezeHeader, hasImages, imageRowPx }) {
   const colCount = columns.length
   const rowCount = rows.length
 
@@ -235,11 +290,15 @@ function buildSheetXml({ columns, rows, freezeHeader }) {
   columns.forEach((col, i) => {
     let width = col.width
     if (!width) {
-      let maxLen = estimateWidth(col.header)
-      rows.forEach((r) => {
-        maxLen = Math.max(maxLen, estimateWidth(r[col.key]))
-      })
-      width = Math.min(Math.max(maxLen + 3, 10), 42)
+      if (col.type === 'image') {
+        width = IMAGE_COL_WIDTH
+      } else {
+        let maxLen = estimateWidth(col.header)
+        rows.forEach((r) => {
+          maxLen = Math.max(maxLen, estimateWidth(r[col.key]))
+        })
+        width = Math.min(Math.max(maxLen + 3, 10), 42)
+      }
     }
     colsXml += `<col min="${i + 1}" max="${i + 1}" width="${width.toFixed(2)}" customWidth="1"/>`
   })
@@ -257,6 +316,9 @@ function buildSheetXml({ columns, rows, freezeHeader }) {
   })
   let body = `<row r="1" ht="22" customHeight="1">${headerCells}</row>`
 
+  const rowHeightPx = imageRowPx || IMAGE_CELL_PX
+  const rowHtAttr = hasImages ? ` ht="${(rowHeightPx * 0.75).toFixed(2)}" customHeight="1"` : ''
+
   rows.forEach((row, r) => {
     const rowNum = r + 2
     const banded = r % 2 === 1
@@ -265,7 +327,10 @@ function buildSheetXml({ columns, rows, freezeHeader }) {
       const ref = colLetter(c + 1) + rowNum
       const val = row[col.key]
       const s = dataXf(col.type, banded)
-      if (val == null || val === '') {
+      if (col.type === 'image') {
+        // เซลล์รูปเว้นค่าไว้ (รูปวาดผ่าน DrawingML) — คงพื้น/ขอบของเซลล์ไว้
+        cells += `<c r="${ref}" s="${s}"/>`
+      } else if (val == null || val === '') {
         cells += `<c r="${ref}" s="${s}"/>`
       } else if (col.type === 'number' && typeof val === 'number' && Number.isFinite(val)) {
         cells += `<c r="${ref}" s="${s}"><v>${val}</v></c>`
@@ -273,11 +338,12 @@ function buildSheetXml({ columns, rows, freezeHeader }) {
         cells += `<c r="${ref}" t="inlineStr" s="${s}"><is><t xml:space="preserve">${xmlEscape(val)}</t></is></c>`
       }
     })
-    body += `<row r="${rowNum}">${cells}</row>`
+    body += `<row r="${rowNum}"${rowHtAttr}>${cells}</row>`
   })
 
   const dim = `A1:${colLetter(colCount)}${rowCount + 1}`
 
+  // ลำดับ element ใน worksheet ต้องถูกตาม schema: ... sheetData ... drawing ... tableParts
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
@@ -285,13 +351,14 @@ function buildSheetXml({ columns, rows, freezeHeader }) {
     sheetViewsXml +
     colsXml +
     `<sheetData>${body}</sheetData>` +
-    (rowCount > 0 ? '<tableParts count="1"><tablePart r:id="rId1"/></tableParts>' : '') +
+    (hasImages ? '<drawing r:id="rIdDrawing"/>' : '') +
+    (rowCount > 0 ? '<tableParts count="1"><tablePart r:id="rIdTable"/></tableParts>' : '') +
     '</worksheet>'
   )
 }
 
 // ── Excel Table (ListObject) — ให้ Filter ทุกคอลัมน์ + แถบสีสลับแถวจริงจาก Excel ─
-function buildTableXml({ columns, tableRef, tableName }) {
+function buildTableXml({ columns, tableRef, tableId, tableName }) {
   let tableColumns = '<tableColumns count="' + columns.length + '">'
   columns.forEach((col, i) => {
     tableColumns += `<tableColumn id="${i + 1}" name="${xmlEscape(col.header)}"/>`
@@ -301,7 +368,7 @@ function buildTableXml({ columns, tableRef, tableName }) {
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
-    `id="1" name="${xmlEscape(tableName)}" displayName="${xmlEscape(tableName)}" ref="${tableRef}" totalsRowShown="0">` +
+    `id="${tableId}" name="${xmlEscape(tableName)}" displayName="${xmlEscape(tableName)}" ref="${tableRef}" totalsRowShown="0">` +
     `<autoFilter ref="${tableRef}"/>` +
     tableColumns +
     // showRowStripes="0" เพราะแถบสีสลับแถวคุมเองผ่าน cellXfs แล้ว (สีตรง Theme แน่นอน
@@ -311,93 +378,274 @@ function buildTableXml({ columns, tableRef, tableName }) {
   )
 }
 
-function buildParts({ sheetName, columns, rows }) {
-  const safeName = (sheetName || 'Sheet1').slice(0, 31).replace(/[\\/?*[\]:]/g, ' ')
-  const colCount = columns.length
-  const rowCount = rows.length
-  const tableRef = `A1:${colLetter(colCount)}${rowCount + 1}`
-  const tableName = 'Table1'
+// ── DrawingML — วางรูปแต่ละรูปลงในเซลล์ (oneCellAnchor, ขนาดคงที่ + ระยะขอบ) ──
+// picList: [{ col, row, blipRel, wpx, hpx }]  (col,row = 0-based ของเซลล์เป้าหมาย)
+function buildDrawingXml(picList) {
+  const NS =
+    'xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" ' +
+    'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" ' +
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
 
-  const parts = [
-    {
-      name: '[Content_Types].xml',
-      content:
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
-        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
-        '<Default Extension="xml" ContentType="application/xml"/>' +
-        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
-        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
-        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
-        (rowCount > 0
-          ? '<Override PartName="/xl/tables/table1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>'
-          : '') +
-        '</Types>',
-    },
-    {
-      name: '_rels/.rels',
-      content:
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
-        '</Relationships>',
-    },
-    {
-      name: 'xl/workbook.xml',
-      content:
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-        `<sheets><sheet name="${xmlEscape(safeName)}" sheetId="1" r:id="rId1"/></sheets>` +
-        '</workbook>',
-    },
-    {
-      name: 'xl/_rels/workbook.xml.rels',
-      content:
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
-        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
-        '</Relationships>',
-    },
-    {
-      name: 'xl/styles.xml',
-      content: buildStylesXml(),
-    },
-    {
-      name: 'xl/worksheets/sheet1.xml',
-      content: buildSheetXml({ columns, rows, freezeHeader: true }),
-    },
-  ]
+  let anchors = ''
+  picList.forEach((p, i) => {
+    const wpx = p.wpx || IMAGE_CELL_PX
+    const hpx = p.hpx || IMAGE_CELL_PX
+    const padPx = 3
+    const cx = Math.round(wpx * EMU_PER_PX)
+    const cy = Math.round(hpx * EMU_PER_PX)
+    const off = Math.round(padPx * EMU_PER_PX)
+    const picId = i + 2 // เริ่มที่ 2 กันชนกับ id ที่บางโปรแกรมสงวน
+    anchors +=
+      '<xdr:oneCellAnchor>' +
+      `<xdr:from><xdr:col>${p.col}</xdr:col><xdr:colOff>${off}</xdr:colOff>` +
+      `<xdr:row>${p.row}</xdr:row><xdr:rowOff>${off}</xdr:rowOff></xdr:from>` +
+      `<xdr:ext cx="${cx}" cy="${cy}"/>` +
+      '<xdr:pic>' +
+      '<xdr:nvPicPr>' +
+      `<xdr:cNvPr id="${picId}" name="Picture ${picId}"/>` +
+      '<xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr>' +
+      '</xdr:nvPicPr>' +
+      `<xdr:blipFill><a:blip r:embed="${p.blipRel}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>` +
+      '<xdr:spPr>' +
+      '<a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>' +
+      '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>' +
+      '</xdr:spPr>' +
+      '</xdr:pic>' +
+      '<xdr:clientData/>' +
+      '</xdr:oneCellAnchor>'
+  })
 
-  if (rowCount > 0) {
+  return (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    `<xdr:wsDr ${NS}>` +
+    anchors +
+    '</xdr:wsDr>'
+  )
+}
+
+// ── ประกอบ 1 workbook (หลายชีต) เป็นรายการไฟล์ .xlsx ──────────────────────────
+function buildWorkbookParts(sheets) {
+  // สะสมสื่อ (รูป) ระดับ workbook เพื่อให้ชื่อไฟล์ไม่ชนกันข้ามชีต
+  const media = [] // { name, bytes }  (name = imageN.ext)
+  let mediaSeq = 0
+  const usedExts = new Set() // สำหรับประกาศ Default Extension ใน content types
+
+  // เตรียมข้อมูลต่อชีต
+  const prepared = sheets.map((raw, idx) => {
+    const sheetIdx = idx + 1
+    const safeName = (raw.sheetName || `Sheet${sheetIdx}`)
+      .slice(0, 31)
+      .replace(/[\\/?*[\]:]/g, ' ')
+    const columns = (raw.columns || []).map((c) => ({
+      key: c.key,
+      header: c.header ?? c.key,
+      type: c.type || 'text',
+      width: c.width,
+    }))
+    const rows = raw.rows || []
+    const colCount = columns.length
+    const rowCount = rows.length
+
+    // รวบรวมรูปจากคอลัมน์ชนิด image
+    const imageCols = columns
+      .map((c, ci) => ({ c, ci }))
+      .filter((x) => x.c.type === 'image')
+
+    const picList = []
+    let maxImgPx = 0
+    if (imageCols.length) {
+      rows.forEach((row, ri) => {
+        imageCols.forEach(({ c, ci }) => {
+          const img = normalizeImage(row[c.key])
+          if (!img) return
+          mediaSeq += 1
+          const name = `image${mediaSeq}.${img.ext}`
+          media.push({ name, bytes: img.bytes })
+          usedExts.add(img.ext)
+          const wpx = img.wpx || IMAGE_CELL_PX
+          const hpx = img.hpx || IMAGE_CELL_PX
+          maxImgPx = Math.max(maxImgPx, hpx)
+          picList.push({
+            col: ci,
+            row: ri + 1, // +1 ข้ามแถว header
+            mediaName: name,
+            wpx,
+            hpx,
+          })
+        })
+      })
+    }
+    const hasImages = picList.length > 0
+
+    return {
+      sheetIdx,
+      safeName,
+      columns,
+      rows,
+      colCount,
+      rowCount,
+      picList,
+      hasImages,
+      imageRowPx: maxImgPx || IMAGE_CELL_PX,
+    }
+  })
+
+  const parts = []
+
+  // workbook.xml — ลิสต์ชีตทั้งหมด
+  let sheetsXml = '<sheets>'
+  prepared.forEach((s) => {
+    sheetsXml += `<sheet name="${xmlEscape(s.safeName)}" sheetId="${s.sheetIdx}" r:id="rIdSheet${s.sheetIdx}"/>`
+  })
+  sheetsXml += '</sheets>'
+  parts.push({
+    name: 'xl/workbook.xml',
+    content:
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      sheetsXml +
+      '</workbook>',
+  })
+
+  // workbook rels — worksheet ทุกตัว + styles
+  let wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+  prepared.forEach((s) => {
+    wbRels += `<Relationship Id="rIdSheet${s.sheetIdx}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${s.sheetIdx}.xml"/>`
+  })
+  wbRels += '<Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+  wbRels += '</Relationships>'
+  parts.push({ name: 'xl/_rels/workbook.xml.rels', content: wbRels })
+
+  parts.push({ name: 'xl/styles.xml', content: buildStylesXml() })
+
+  // ต่อชีต: worksheet + rels + table + drawing
+  const contentOverrides = []
+  prepared.forEach((s) => {
     parts.push({
-      name: 'xl/worksheets/_rels/sheet1.xml.rels',
-      content:
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table1.xml"/>' +
-        '</Relationships>',
+      name: `xl/worksheets/sheet${s.sheetIdx}.xml`,
+      content: buildSheetXml({
+        columns: s.columns,
+        rows: s.rows,
+        freezeHeader: true,
+        hasImages: s.hasImages,
+        imageRowPx: s.imageRowPx,
+      }),
     })
-    parts.push({
-      name: 'xl/tables/table1.xml',
-      content: buildTableXml({ columns, tableRef, tableName }),
-    })
-  }
+    contentOverrides.push(
+      `<Override PartName="/xl/worksheets/sheet${s.sheetIdx}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`,
+    )
+
+    // rels ของ worksheet (table + drawing ถ้ามี)
+    const needSheetRels = s.rowCount > 0 || s.hasImages
+    if (needSheetRels) {
+      let rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      if (s.rowCount > 0) {
+        rels += `<Relationship Id="rIdTable" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table${s.sheetIdx}.xml"/>`
+      }
+      if (s.hasImages) {
+        rels += `<Relationship Id="rIdDrawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing${s.sheetIdx}.xml"/>`
+      }
+      rels += '</Relationships>'
+      parts.push({ name: `xl/worksheets/_rels/sheet${s.sheetIdx}.xml.rels`, content: rels })
+    }
+
+    if (s.rowCount > 0) {
+      const tableRef = `A1:${colLetter(s.colCount)}${s.rowCount + 1}`
+      parts.push({
+        name: `xl/tables/table${s.sheetIdx}.xml`,
+        content: buildTableXml({
+          columns: s.columns,
+          tableRef,
+          tableId: s.sheetIdx,
+          tableName: `Table${s.sheetIdx}`,
+        }),
+      })
+      contentOverrides.push(
+        `<Override PartName="/xl/tables/table${s.sheetIdx}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`,
+      )
+    }
+
+    if (s.hasImages) {
+      // drawing rels: blip แต่ละรูป -> media
+      let drawRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      const picWithRel = s.picList.map((p, i) => {
+        const blipRel = `rIdImg${i + 1}`
+        drawRels += `<Relationship Id="${blipRel}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${p.mediaName}"/>`
+        return { ...p, blipRel }
+      })
+      drawRels += '</Relationships>'
+
+      parts.push({
+        name: `xl/drawings/drawing${s.sheetIdx}.xml`,
+        content: buildDrawingXml(picWithRel),
+      })
+      parts.push({
+        name: `xl/drawings/_rels/drawing${s.sheetIdx}.xml.rels`,
+        content: drawRels,
+      })
+      contentOverrides.push(
+        `<Override PartName="/xl/drawings/drawing${s.sheetIdx}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`,
+      )
+    }
+  })
+
+  // media (รูป) — ไฟล์ไบนารี
+  media.forEach((m) => {
+    parts.push({ name: `xl/media/${m.name}`, bytes: m.bytes })
+  })
+
+  // [Content_Types].xml
+  let defaults =
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>'
+  if (usedExts.has('png')) defaults += '<Default Extension="png" ContentType="image/png"/>'
+  if (usedExts.has('jpeg')) defaults += '<Default Extension="jpeg" ContentType="image/jpeg"/>'
+  const contentTypes =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    defaults +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+    contentOverrides.join('') +
+    '</Types>'
+  parts.push({ name: '[Content_Types].xml', content: contentTypes })
+
+  // _rels/.rels
+  parts.push({
+    name: '_rels/.rels',
+    content:
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+      '</Relationships>',
+  })
 
   return parts
 }
 
-// ── API หลัก ─────────────────────────────────────────────────────────────
-// columns: [{ key, header, type: 'text' | 'number' | 'center', width? }]
+// ── API หลัก (ชีตเดียว) ─────────────────────────────────────────────────────
+// columns: [{ key, header, type: 'text' | 'number' | 'center' | 'image', width? }]
 // rows:    [{ [key]: value }, ...]
 export function buildStyledXlsxBlob({ sheetName, columns, rows }) {
-  const safeColumns = (columns || []).map((c) => ({
-    key: c.key,
-    header: c.header ?? c.key,
-    type: c.type || 'text',
-    width: c.width,
-  }))
-  return makeZip(buildParts({ sheetName, columns: safeColumns, rows: rows || [] }))
+  return buildStyledXlsxWorkbookBlob({
+    sheets: [{ sheetName, columns, rows: rows || [] }],
+  })
+}
+
+// ── API หลัก (หลายชีต) ──────────────────────────────────────────────────────
+// sheets: [{ sheetName, columns, rows }]
+export function buildStyledXlsxWorkbookBlob({ sheets }) {
+  const list = (sheets && sheets.length ? sheets : [{ sheetName: 'Sheet1', columns: [], rows: [] }]).map(
+    (s) => ({
+      sheetName: s.sheetName,
+      columns: s.columns || [],
+      rows: s.rows || [],
+    }),
+  )
+  return makeZip(buildWorkbookParts(list))
 }
 
 // ── รูปแบบเดิม (ยังคงไว้เพื่อความเข้ากันได้) ─────────────────────────────────

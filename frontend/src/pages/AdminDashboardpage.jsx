@@ -22,7 +22,7 @@ import {
 export const ADMIN_NAV_ITEMS = [
   { to: '/admin', label: 'User Management', icon: <Squares2X2Icon className="size-4" /> },
   { to: '/admin/master-data', label: 'Upload Master Data', icon: <CubeIcon className="size-4" /> },
-  { to: '/format-settings', label: 'ตั้งค่า Format', icon: <Squares2X2Icon className="size-4" /> },
+  { to: '/format-settings', label: 'Setting', icon: <Squares2X2Icon className="size-4" /> },
 ]
 
 // role ที่เลือกได้ตอนเพิ่ม/แก้ผู้ใช้

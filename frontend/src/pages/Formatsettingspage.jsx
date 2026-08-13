@@ -86,7 +86,7 @@ export default function FormatSettingsPage() {
     <AppShell navItems={navItems} roleLabel={shellRoleLabel}>
       <div style={{ padding: 16, maxWidth: 960 }}>
         <h2 style={{ fontWeight: 700, marginBottom: 4, fontSize: 20, color: 'var(--color-brand-ink, #06312f)' }}>
-          ตั้งค่า Format
+          Setting
         </h2>
         <p style={{ color: '#64748b', marginBottom: 20, fontSize: 14 }}>
           ตั้งค่าที่นี่มีผลทันทีตอนอัปโหลดครั้งถัดไป ไม่ต้องแก้โค้ดหรือรีสตาร์ทระบบ

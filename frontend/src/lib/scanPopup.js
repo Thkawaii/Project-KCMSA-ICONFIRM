@@ -181,9 +181,10 @@ export async function scanPhotoCapture({ title, html = '' }) {
     `,
     customClass: { popup: 'scan-popup' },
     confirmButtonText: 'ถ่ายรูป',
-    showCancelButton: false,
+    showCancelButton: true,
+    cancelButtonText: 'ปิด',
     allowOutsideClick: false,
-    allowEscapeKey: false,
+    allowEscapeKey: true,
     didOpen: async () => {
       const video = document.getElementById('scan-photo-video')
       try {
