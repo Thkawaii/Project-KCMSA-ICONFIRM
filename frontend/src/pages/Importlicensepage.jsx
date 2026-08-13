@@ -57,12 +57,6 @@ export const WH_NAV_ITEMS = [
     roles: ['LOG'],
   },
   {
-    to: '/warehouse/it-controller',
-    label: 'IT Controller',
-    icon: <Squares2X2Icon className="size-4" />,
-    roles: ['WH', 'LOG'],
-  },
-  {
     to: '/warehouse/confirm',
     label: 'Part Confirmation',
     icon: <ClipboardDocumentCheckIcon className="size-4" />,

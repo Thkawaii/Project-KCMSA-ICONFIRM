@@ -69,7 +69,7 @@ function Collapsible({ title, hint, children, defaultOpen = false }) {
 
 // ── A) Column Alias ────────────────────────────────────────────────────────
 // scope = ชื่อ dataset (planning | wh1 | wh2 | engine) หรือ import_license | export_license
-export function ColumnAliasPanel({ scope, targetHint = '' }) {
+export function ColumnAliasPanel({ scope, targetHint = '', defaultOpen = false }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [source, setSource] = useState('')
@@ -130,6 +130,7 @@ export function ColumnAliasPanel({ scope, targetHint = '' }) {
     <Collapsible
       title="จับคู่หัวคอลัมน์ (เมื่อไฟล์เปลี่ยนชื่อหัวคอลัมน์)"
       hint="ใส่ชื่อหัวคอลัมน์ใหม่ในไฟล์ แล้วชี้ว่าให้ลงคอลัมน์มาตรฐานไหน"
+      defaultOpen={defaultOpen}
     >
       <div style={rowFormStyle}>
         <div style={fieldStyle}>
