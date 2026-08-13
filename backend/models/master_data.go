@@ -38,6 +38,11 @@ type MasterData struct {
 
 	SpecCode string `gorm:"size:50"`
 
+	// ชนิดการเชื่อมต่อของ IT Controller (ตาม flow): แยก Mobile4G/Satellite ให้ค้น/รายงานได้
+	// ค่าคงที่: MOBILE_4G_NORMAL | MOBILE_4G_HIGH | SATELLITE_IRIDIUM | "" (ไม่ทราบ/ไม่ใช่ ITC)
+	// อ่านจากคอลัมน์ในไฟล์ได้ตรงๆ หรือถ้าไม่มี ระบบเดาจาก Part Name/Model ให้
+	ConnectivityType string `gorm:"column:connectivity_type;size:30;index"`
+
 	UploadDate time.Time
 
 	UserID uint

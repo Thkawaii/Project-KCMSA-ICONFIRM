@@ -111,6 +111,29 @@ func lookupCodeAlias(componentType, rawCode string) *models.CodeAlias {
 	return nil
 }
 
+// lookupCodeAliasKind เหมือน lookupCodeAlias แต่กรองตาม kind (sn|pn|machine) เพิ่ม
+// ใช้ตอนต้องการเจาะจงว่าเป็นการ map ของ Machine No. เท่านั้น (กันไปชนกับ alias ของ S/N)
+func lookupCodeAliasKind(componentType, kind, rawCode string) *models.CodeAlias {
+	norm := NormalizeCodeValue(rawCode)
+	if norm == "" {
+		return nil
+	}
+
+	q := config.DB.Where("from_norm = ?", norm)
+	if strings.TrimSpace(kind) != "" {
+		q = q.Where("kind = ?", kind)
+	}
+	if strings.TrimSpace(componentType) != "" {
+		q = q.Where("component_type = ? OR component_type = ''", componentType)
+	}
+
+	var a models.CodeAlias
+	if err := q.First(&a).Error; err == nil {
+		return &a
+	}
+	return nil
+}
+
 // ===================== A) Column Alias =====================
 
 // GetColumnAliases คืนรายการ column alias ทั้งหมด กรองด้วย ?scope= ได้

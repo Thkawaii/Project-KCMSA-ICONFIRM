@@ -37,6 +37,9 @@ func GetMasterData(c *gin.Context) {
 	if componentType != "" {
 		query = query.Where("component_type = ?", componentType)
 	}
+	if conn := strings.TrimSpace(c.Query("connectivity_type")); conn != "" {
+		query = query.Where("connectivity_type = ?", conn)
+	}
 	if code != "" {
 		query = query.Where(
 			"serial_no = ? OR it_controller_no = ? OR imei = ? OR part_no = ?",
@@ -102,6 +105,7 @@ func UpdateMasterData(c *gin.Context) {
 		"it_controller_no": existing.ITControllerNo,
 		"imei":             existing.IMEI,
 		"spec_code":        existing.SpecCode,
+		"connectivity_type": existing.ConnectivityType,
 		"upload_date":      time.Now(),
 		"user_id":          userID,
 	}
@@ -164,6 +168,12 @@ func normalizeMasterData(m *models.MasterData) {
 	m.SpecCode = strings.TrimSpace(m.SpecCode)
 	m.ITControllerNo = trimToNil(m.ITControllerNo)
 	m.IMEI = trimToNil(m.IMEI)
+
+	// ถ้าไฟล์ไม่ได้ระบุชนิดการเชื่อมต่อมา ให้เดาจาก Part Name/Model (เฉพาะ IT Controller)
+	m.ConnectivityType = strings.TrimSpace(m.ConnectivityType)
+	if m.ConnectivityType == "" && m.ComponentType == "it_controller" {
+		m.ConnectivityType = models.ClassifyConnectivity(m.Name, m.Model)
+	}
 }
 
 func trimToNil(v *string) *string {
@@ -215,6 +225,15 @@ var masterDataColumns = map[string]func(*models.MasterData, string){
 
 	"speccode": func(m *models.MasterData, v string) { m.SpecCode = v },
 	"spec":     func(m *models.MasterData, v string) { m.SpecCode = v },
+
+	"connectivity":     func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
+	"connectivitytype": func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
+	"connection":       func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
+	"connectiontype":   func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
+	"network":          func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
+	"networktype":      func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
+	"ittype":           func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
+	"ชนิดการเชื่อมต่อ":  func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
 }
 
 // componentTypeHeaderKeys คือหัวคอลัมน์ที่ถือว่าเป็น "คอลัมน์ชนิดอะไหล่" ในไฟล์
@@ -421,6 +440,7 @@ func UploadMasterData(c *gin.Context) {
 					"part_no":          row.PartNo,
 					"it_controller_no": row.ITControllerNo,
 					"imei":             row.IMEI,
+					"connectivity_type": row.ConnectivityType,
 					"upload_date":      now,
 					"user_id":          userID,
 				}).Error
@@ -745,6 +765,10 @@ func findMasterDataHeader(rows [][]string) (int, []string) {
 		limit = len(rows)
 	}
 
+	// ColumnAlias ตอนรัน (scope=master_data): หัวคอลัมน์ที่ถูกเปลี่ยนชื่อ/เพิ่มใหม่
+	// → คีย์มาตรฐาน โดยไม่ต้องแก้โค้ด (ตั้งค่าหน้า Format Config)
+	reverse := loadColumnAliasReverse("master_data")
+
 	for i := 0; i < limit; i++ {
 
 		headers := make([]string, len(rows[i]))
@@ -752,7 +776,7 @@ func findMasterDataHeader(rows [][]string) (int, []string) {
 		hasSerial := false
 
 		for j, cell := range rows[i] {
-			key := normalizeHeader(cell)
+			key := aliasHeaderKey(reverse, normalizeHeader(cell))
 			headers[j] = key
 
 			if _, ok := masterDataColumns[key]; ok {

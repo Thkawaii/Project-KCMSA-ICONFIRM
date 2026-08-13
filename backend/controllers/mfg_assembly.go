@@ -208,6 +208,80 @@ type MFGScanRequest struct {
 }
 
 // ScanMFGAssembly บันทึกผลสแกนตอนประกอบเสร็จ 1 แถว + คำนวณ Status/Country ให้อัตโนมัติ
+// plannedITCForMachine ตรวจว่า IT Controller ที่สแกน ตรงกับที่ "แผน" (MachineSpec)
+// กำหนดไว้ให้รถคันนี้หรือไม่
+//
+// สำคัญ (ข้อกำหนด Phase 4): IT Controller เป็น "ออปชัน" ไม่ได้ผูกกับ
+// specification code แบบ CounterWeight จึงเทียบไม่ได้ด้วย spec code — ต้องเทียบ
+// ผ่าน ITControllerSN ที่วางแผนไว้ใน MachineSpec แล้ว map เป็นหมายเลขเครื่อง
+// 12 หลักผ่านทะเบียนกลาง (MasterData)
+//
+// คืน (plannedITCNo, state) โดย state ∈:
+//
+//	NO_OPTION — คันนี้ไม่ได้สั่งติด IT Controller (แผนเป็น "-"/ว่าง) → ไม่ต้องเทียบ
+//	MATCH     — หมายเลขที่สแกน = หมายเลขที่แผนกำหนด
+//	MISMATCH  — สแกนได้คนละตัวกับแผน (ประกอบผิดคัน)
+//	NO_PLAN   — แผนระบุ S/N ไว้ แต่ยัง map ในทะเบียนกลางไม่เจอ
+func plannedITCForMachine(machineNo, scannedITC string) (plannedITCNo, state string) {
+	machineNo = strings.TrimSpace(machineNo)
+	scannedITC = strings.TrimSpace(scannedITC)
+	if machineNo == "" {
+		return "", "NO_PLAN"
+	}
+
+	var specs []models.MachineSpec
+	config.DB.Where("machine_no = ?", machineNo).Order("upload_date desc").Find(&specs)
+
+	var plannedPN, plannedSN string
+	for _, s := range specs {
+		if plannedPN == "" && strings.TrimSpace(s.ITController) != "" {
+			plannedPN = strings.TrimSpace(s.ITController)
+		}
+		if plannedSN == "" && strings.TrimSpace(s.ITControllerSN) != "" {
+			plannedSN = strings.TrimSpace(s.ITControllerSN)
+		}
+	}
+
+	isBlank := func(v string) bool { return v == "" || v == "-" }
+
+	// คันนี้ไม่ได้สั่งติด IT Controller — ไม่ต้องเทียบ
+	if isBlank(plannedPN) && isBlank(plannedSN) {
+		return "", "NO_OPTION"
+	}
+
+	// แผนมี S/N → map เป็นหมายเลขเครื่อง 12 หลักจากทะเบียนกลาง
+	if !isBlank(plannedSN) {
+		var m models.MasterData
+		if err := config.DB.Where("serial_no = ?", plannedSN).First(&m).Error; err == nil && m.ITControllerNo != nil {
+			plannedITCNo = strings.TrimSpace(*m.ITControllerNo)
+		}
+	}
+
+	if plannedITCNo == "" {
+		return "", "NO_PLAN"
+	}
+	if scannedITC != "" && scannedITC == plannedITCNo {
+		return plannedITCNo, "MATCH"
+	}
+	return plannedITCNo, "MISMATCH"
+}
+
+// resolveMachineNo แปลงเลขเครื่องที่หน้างานยิงมา (รูปแบบที่อาจต่างจากทะเบียน เช่น
+// TNN-YN23993 / YN-2322#2) ให้เป็นเลขเครื่องมาตรฐาน ผ่าน CodeAlias (kind=machine)
+// ที่ตั้งค่าไว้ในหน้า Format Settings — ถ้าไม่มี alias ตรง คืนค่าเดิม (พฤติกรรมไม่เปลี่ยน)
+func resolveMachineNo(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return raw
+	}
+	if a := lookupCodeAliasKind("", "machine", raw); a != nil {
+		if v := strings.TrimSpace(a.ToSerialNo); v != "" {
+			return v
+		}
+	}
+	return raw
+}
+
 func ScanMFGAssembly(c *gin.Context) {
 	var req MFGScanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -221,6 +295,9 @@ func ScanMFGAssembly(c *gin.Context) {
 		c.JSON(400, gin.H{"message": "ต้องมี Machine No"})
 		return
 	}
+
+	// เลขเครื่องหน้างานอาจต่าง format จากทะเบียน — map ผ่าน CodeAlias ก่อนใช้เทียบ
+	machineNo = resolveMachineNo(machineNo)
 
 	// ระบบดึง IT Controller No. + Country จากหมายเลขเครื่องให้ (ถ้าสแกนได้แค่เครื่อง)
 	derivedCountry := ""
@@ -281,12 +358,23 @@ func ScanMFGAssembly(c *gin.Context) {
 
 	message := mfgStatusMessage(row.Status, itcNo, row.WHLicenseNo)
 
+	// ── เทียบกับแผน: IT Controller ตัวนี้เป็นของคันนี้จริงไหม (ออปชัน) ──────
+	plannedITCNo, plannedState := plannedITCForMachine(machineNo, itcNo)
+	if plannedState == "MISMATCH" {
+		message = "IT Controller ไม่ตรงกับที่แผนกำหนดให้เครื่องนี้ (แผน: " + plannedITCNo + ")"
+	} else if plannedState == "NO_OPTION" {
+		message = "เครื่องนี้ไม่ได้สั่งติด IT Controller ตามแผน — " + message
+	}
+
 	c.JSON(201, gin.H{
-		"row":       row,
-		"status":    row.Status,
-		"matched":   row.Status == models.MFGStatusMatched,
-		"whMatched": row.WHMatched,
-		"message":   message,
+		"row":                   row,
+		"status":                row.Status,
+		"matched":               row.Status == models.MFGStatusMatched,
+		"whMatched":             row.WHMatched,
+		"message":               message,
+		"plannedITControllerNo": plannedITCNo,
+		"plannedState":          plannedState,
+		"plannedMatch":          plannedState == "MATCH",
 	})
 }
 
@@ -329,6 +417,9 @@ func CreateMFGAssembly(c *gin.Context) {
 
 	machineNo := strings.TrimSpace(req.MachineNo)
 	itcNo := strings.TrimSpace(req.ITControllerNo)
+
+	// map เลขเครื่องผ่าน CodeAlias เช่นเดียวกับตอนสแกน
+	machineNo = resolveMachineNo(machineNo)
 
 	country := strings.TrimSpace(req.Country)
 	if country == "" {

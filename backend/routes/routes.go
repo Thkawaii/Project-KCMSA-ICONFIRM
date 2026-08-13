@@ -177,6 +177,46 @@ func SetupRoutes(r *gin.Engine) {
 		whStock.DELETE("/inv", controllers.ClearWHInvoice)
 	}
 
+	// ─────────────────────────────────────────────────────────────────────
+	// IT Controller (Phase 4: part ใหม่) — ระบบ unit-centric เต็มเส้นทาง
+	//
+	// เดิม controller/model ชุดนี้เขียนไว้ครบแต่ไม่เคย register route เลย
+	// (เรียกจาก frontend api/Itcontroller.js ไม่ได้) — เปิดใช้ที่นี่
+	//
+	// สิทธิ์: LOG (Logistics) ดูแลนำเข้า/จัดสรร/ส่งออก/อัปโหลด Serial List,
+	// WH สแกนรับเข้าคลัง — ให้ทั้งสอง role เข้าถึงกลุ่มนี้ได้ (เหมือน import-license)
+	// ─────────────────────────────────────────────────────────────────────
+	itc := auth.Group("/it-controller")
+	itc.Use(middleware.RoleMiddleware("WH", "LOG"))
+	{
+		// เอกสาร PDF (Invoice / PO / Import / Export License)
+		itc.GET("/documents", controllers.GetITCDocuments)
+		itc.POST("/documents", controllers.UploadITCDocument)
+
+		// ใบอนุญาตนำเข้า (กสทช.)
+		itc.GET("/import-licenses", controllers.GetImportLicenses)
+		itc.POST("/import-licenses", controllers.UpsertImportLicense)
+
+		// ใบอนุญาตส่งออก
+		itc.GET("/export-licenses", controllers.GetExportLicenses)
+		itc.POST("/export-licenses", controllers.CreateExportLicense)
+		itc.GET("/export-licenses/:licenseNo/attachment", controllers.DownloadExportAttachment)
+
+		// unit lifecycle: อัปโหลด Serial List → รับเข้า → จัดสรรประเทศ → จ่าย/ส่งออก
+		itc.POST("/units/upload", controllers.UploadSerialList)
+		itc.GET("/units", controllers.GetITCUnits)
+		itc.POST("/units/receive", controllers.ReceiveITCUnit)
+		itc.POST("/units/allocate", controllers.AllocateITCUnits)
+		itc.POST("/units/allocate-split", controllers.AllocateITCSplit)
+		itc.POST("/units/issue", controllers.IssueITCUnit)
+		itc.POST("/units/export", controllers.ExportITCUnit)
+
+		// แจ้งเตือนใบอนุญาตใกล้หมดอายุ + รายงานรายสัปดาห์ + trace ราย unit
+		itc.GET("/alerts", controllers.GetITCAlerts)
+		itc.GET("/report/weekly", controllers.GetITCWeeklyReport)
+		itc.GET("/trace/:itControllerNo", controllers.TraceITCUnit)
+	}
+
 	// Generic photo upload — any authenticated role can upload (WH/TSF/QA
 	// all attach photos at various steps). Returns a URL to store on the
 	// record (e.g. TSFOperator.PhotoURL).
