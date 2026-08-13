@@ -26,6 +26,7 @@ const COLUMN_SCOPES = [
   { scope: 'wh1', label: 'Warehouse 1', hint: 'Parts No, Order No …' },
   { scope: 'wh2', label: 'Warehouse 2', hint: 'Parts No, Order No …' },
   { scope: 'engine', label: 'Engine', hint: 'Machine No, History, ENGINE' },
+  { scope: 'assembly', label: 'Assembly', hint: 'Machine No, Spec Code, IT Controller, Assembly_Parts_Name …' },
   { scope: 'master_data', label: 'Master Data (ทะเบียนกลาง)', hint: 'Part No, Serial No, IT Controller No, IMEI, Type' },
   { scope: 'machine_spec', label: 'Machine Spec', hint: 'Machine No, IT Controller S/N, CW no, Engine …' },
   { scope: 'serial_list', label: 'Serial List (IT Controller)', hint: 'IT Controller No, IMEI, Serial No, Part No …' },
@@ -39,7 +40,7 @@ const CATEGORIES = [
     id: 'upload',
     label: 'ไฟล์อัปโหลดประจำวัน',
     desc: 'ไฟล์ Planning / Warehouse / Engine ที่อัปโหลดเข้าเป็นประจำ',
-    scopes: ['planning', 'wh1', 'wh2', 'engine'],
+    scopes: ['planning', 'wh1', 'wh2', 'engine', 'assembly'],
   },
   {
     id: 'master',

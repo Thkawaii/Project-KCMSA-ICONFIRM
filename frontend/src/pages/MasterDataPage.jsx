@@ -49,6 +49,7 @@ const DATASET_TYPES = [
   { value: 'wh1', label: 'WH1' },
   { value: 'wh2', label: 'WH2' },
   { value: 'engine', label: 'Engine' },
+  { value: 'assembly', label: 'Assembly' },
 ]
 
 // dropdown "ประเภทที่อัปโหลด" = อะไหล่ทุกชนิด + ชุดข้อมูลไฟล์

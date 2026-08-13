@@ -8,6 +8,7 @@ import {
   uploadMFGAssemblyPhoto,
 } from '../api/mfgAssembly.js'
 import { API_BASE_URL } from '../api/client.js'
+import { getUploadData } from '../api/uploadData.js'
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js'
 import {
   scanStep,
@@ -122,6 +123,12 @@ export default function MFGAssemblyPage() {
   const photoFileInputRef = useRef(null)
   const pendingPhotoRowIdRef = useRef(null) // แถวเป้าหมายที่กำลังจะอัปโหลดไฟล์แทน
 
+  // ── ทะเบียนการประกอบ (Assembly) — จับคู่ Machine No + IT Controller → รุ่น/สเปกรถ ──
+  // โหลดจาก Upload Master Data (dataset = assembly) มาทำ lookup เพื่อบอกว่า
+  // IT Controller + Machine No ที่สแกน = ประกอบเป็นรถรุ่นไหน
+  const [assemblyByPair, setAssemblyByPair] = useState({}) // "MACHINE|ITC" -> info
+  const [assemblyByMachine, setAssemblyByMachine] = useState({}) // "MACHINE" -> info
+
   // ── สแกน/กรอก ──────────────────────────────────────────────────────────
   // ใช้ popup "ยิงบาร์โค้ด หรือพิมพ์เอง" (scanStep) เหมือนหน้า WH/TSF ทุกประการ
   // -> ผู้ใช้ MFG ทุกคนกรอกหรือสแกนได้เท่ากัน ไม่บังคับเปิดกล้อง/ถ่ายรูป
@@ -153,6 +160,65 @@ export default function MFGAssemblyPage() {
   useEffect(() => {
     loadRows()
   }, [])
+
+  // โหลดทะเบียนการประกอบ (Assembly) มาทำ lookup — ไม่บล็อกการแสดงตารางหลัก
+  useEffect(() => {
+    let cancelled = false
+    async function loadAssembly() {
+      const norm = (v) => String(v || '').trim().toUpperCase()
+      const byPair = {}
+      const byMachine = {}
+      try {
+        const PAGE = 500
+        let p = 1
+        for (let guard = 0; guard < 200; guard++) {
+          const data = await getUploadData('assembly', undefined, p, PAGE)
+          const batch = data?.rows || []
+          for (const r of batch) {
+            let obj = {}
+            try {
+              obj = JSON.parse(r.DataJSON || '{}')
+            } catch {
+              obj = {}
+            }
+            const machine = norm(obj['Machine No'])
+            const itc = norm(obj['IT Controller'])
+            const info = {
+              model: obj['Assembly_Parts_Name'] || '',
+              partsNumber: obj['Assembly_Parts_Number'] || '',
+              specCode: obj['Spec Code'] || '',
+              specDetail: obj['Specification Detail'] || '',
+              country: obj['Country Name'] || '',
+              itDevice: obj['IT device'] || '',
+            }
+            if (machine && itc) byPair[`${machine}|${itc}`] = info
+            if (machine && !byMachine[machine]) byMachine[machine] = info
+          }
+          const totalPages = data?.totalPages || 1
+          if (p >= totalPages || batch.length === 0) break
+          p += 1
+        }
+        if (!cancelled) {
+          setAssemblyByPair(byPair)
+          setAssemblyByMachine(byMachine)
+        }
+      } catch {
+        // ยังไม่ได้อัปโหลด Assembly หรือโหลดไม่ได้ — ปล่อยว่างไว้ (คอลัมน์ Model จะเป็น —)
+      }
+    }
+    loadAssembly()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // คืนข้อมูลการประกอบของแถว MFG (จับคู่ Machine No + IT Controller ก่อน, ถ้าไม่เจอใช้ Machine No)
+  function assemblyFor(row) {
+    const norm = (v) => String(v || '').trim().toUpperCase()
+    const machine = norm(row.MachineNo)
+    const itc = norm(row.ITControllerNo)
+    return assemblyByPair[`${machine}|${itc}`] || assemblyByMachine[machine] || null
+  }
 
   useEffect(() => {
     setPage(1)
@@ -519,6 +585,7 @@ export default function MFGAssemblyPage() {
               <th>Date Ass'y</th>
               <th>Machine No</th>
               <th>IT Controller No.</th>
+              <th>Model</th>
               <th>Country</th>
               <th>Check Date</th>
               <th>Check By</th>
@@ -530,7 +597,7 @@ export default function MFGAssemblyPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={10} className="wh-empty-cell">
+                <td colSpan={11} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -541,6 +608,18 @@ export default function MFGAssemblyPage() {
                   label: a.Status || '—',
                   cls: 'il-badge il-badge-muted',
                 }
+                const asm = assemblyFor(a)
+                const asmTitle = asm
+                  ? [
+                      asm.specCode && `Spec Code: ${asm.specCode}`,
+                      asm.specDetail && `Specification: ${asm.specDetail}`,
+                      asm.partsNumber && `Assembly Parts No.: ${asm.partsNumber}`,
+                      asm.itDevice && `IT device: ${asm.itDevice}`,
+                      asm.country && `ประเทศ: ${asm.country}`,
+                    ]
+                      .filter(Boolean)
+                      .join('\n')
+                  : ''
                 return (
                   <tr key={a.ID}>
                     <td className="wh-cell-head" data-label="Item">
@@ -553,7 +632,14 @@ export default function MFGAssemblyPage() {
                     <td className="il-mono" data-label="IT Controller No.">
                       {a.ITControllerNo || '—'}
                     </td>
-                    <td data-label="Country">{a.Country || '—'}</td>
+                    <td data-label="Model" title={asmTitle}>
+                      {asm && asm.model ? (
+                        <span className="mfg-model-link">{asm.model}</span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td data-label="Country">{a.Country || (asm && asm.country) || '—'}</td>
                     <td data-label="Check Date">{fmtDate(a.CheckDate)}</td>
                     <td data-label="Check By">{a.CreatedBy || '—'}</td>
                     <td data-label="รูปถ่าย">
@@ -599,7 +685,7 @@ export default function MFGAssemblyPage() {
               })}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={10} className="wh-empty-cell">
+                <td colSpan={11} className="wh-empty-cell">
                   {rows.length === 0
                     ? 'ยังไม่มีรายการ — สแกน QR เครื่องที่ประกอบเสร็จแล้วข้อมูลจะขึ้นที่นี่'
                     : 'ไม่พบรายการที่ค้นหา'}

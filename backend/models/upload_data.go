@@ -29,6 +29,7 @@ const (
 	DatasetWH1      = "wh1"
 	DatasetWH2      = "wh2"
 	DatasetEngine   = "engine"
+	DatasetAssembly = "assembly"
 )
 
 type UploadDataRow struct {
