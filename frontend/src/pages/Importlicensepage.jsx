@@ -683,17 +683,22 @@ function ExportExpiryCell({ expireDate }) {
   )
 }
 
-// วันหมดอายุใบอนุญาตส่งออก = Expire date ที่ระบุมา ถ้าไม่มีก็คิดจาก
-// "วันที่นำออกใบอนุญาต" (ใบขน/Declaration date) + 1 เดือน (อายุใบอนุญาตส่งออก)
+// วันหมดอายุใบอนุญาตส่งออก = "วันที่นำออกใบอนุญาต" (Declaration date) + 1 เดือน เสมอ
+// (อายุใบอนุญาตส่งออก 1 เดือน) — อ้างอิงคอลัมน์ "วันที่นำออกใบอนุญาต" ที่แสดงในตาราง
+// โดยตรง เพื่อให้วันหมดอายุตรงกับวันที่ที่ผู้ใช้เห็น ไม่สลับไปใช้ Expire date จากไฟล์
+// (ตกไปใช้ Expire date เฉพาะกรณีไม่มีวันที่นำออกเลย จะได้ไม่ขึ้น "ยังไม่ระบุวันที่")
 // ใช้เกณฑ์ใกล้หมดอายุ 7 วัน (อายุแค่เดือนเดียว เกณฑ์ 30 วันจะเตือนตลอด)
 function computeExportExpiry(row, withinDays = 7) {
-  let expireRaw = row.ExpireDate || null
-  if (!expireRaw && row.DeclarationDate) {
+  let expireRaw = null
+  if (row.DeclarationDate) {
     const d = new Date(row.DeclarationDate)
     if (!Number.isNaN(d.getTime())) {
       d.setMonth(d.getMonth() + 1)
       expireRaw = d
     }
+  }
+  if (!expireRaw && row.ExpireDate) {
+    expireRaw = row.ExpireDate
   }
   return computeExpireStatus(expireRaw, withinDays)
 }

@@ -152,6 +152,98 @@ func deriveMFGFromMachine(machineNo string) (itcNo, country string) {
 	return itcNo, country
 }
 
+// looks12Digit เช็คว่า string เป็นเลขล้วน 12 หลัก (รูปแบบเลข IT Controller No.)
+func looks12Digit(s string) bool {
+	s = strings.TrimSpace(s)
+	if len(s) < 10 || len(s) > 15 {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// resolveITControllerNo หา "เลข IT Controller No. 12 หลัก" ของหมายเลขเครื่อง (frame
+// serial) โดยไล่หลายแหล่งตามลำดับความน่าเชื่อถือ แล้วคืน "ค่าแรกที่หาเจอและถูกต้อง"
+//
+// จุดประสงค์: แก้ปัญหาคอลัมน์ IT Controller ในตาราง Assembly ขึ้นว่าง เพราะเดิม
+// พึ่งพาแค่ลูกโซ่ MachineSpec(S/N) → MasterData เส้นเดียว ถ้าขาดข้อต่อใดข้อต่อหนึ่ง
+// ก็ว่างทั้งแถว ตอนนี้เสริมแหล่งสำรองให้ครบ:
+//
+//	1) MFG Assembly (machine_no)         → ITControllerNo   (ลิงก์จริงตอนประกอบ, น่าเชื่อถือสุด)
+//	2) MachineSpec(S/N) → MasterData      → ITControllerNo   (deriveMFGFromMachine เดิม)
+//	3) Export License (machine_no)        → ITControllerNo   (ไฟล์ส่งออกมี frame + เลข 12 หลักในแถวเดียว)
+//	4) MachineSpec.ITControllerSN         → ถ้าตัวมันเองเป็นเลข 12 หลัก ใช้ตรง ๆ
+//
+// พารามิเตอร์ preferred = ค่าที่ผู้เรียกมีอยู่แล้ว (เช่นจากไฟล์ Assembly/Planning ที่
+// อัปโหลดมาพร้อมเลข IT Controller) — ถ้ามีและเป็นเลข 12 หลัก จะถือเป็นอันดับแรกสุด
+func resolveITControllerNo(machineNo, preferred string) (itcNo, country string) {
+	machineNo = strings.TrimSpace(machineNo)
+
+	// 0) ค่าที่ผู้เรียกส่งมา (มาจากไฟล์โดยตรง) ถ้าเป็นเลข 12 หลัก เชื่อได้เลย
+	if p := strings.TrimSpace(preferred); looks12Digit(p) {
+		itcNo = p
+	}
+
+	// 1) MFG Assembly — ลิงก์จริงตอนพนักงานสแกนผูกเครื่อง ↔ IT Controller
+	if machineNo != "" {
+		var mfgRow models.MFGAssembly
+		if err := config.DB.Where("machine_no = ?", machineNo).Order("id desc").
+			First(&mfgRow).Error; err == nil {
+			if v := strings.TrimSpace(mfgRow.ITControllerNo); v != "" {
+				itcNo = v
+			}
+			if country == "" {
+				country = strings.TrimSpace(mfgRow.Country)
+			}
+		}
+	}
+
+	// 2) MachineSpec(S/N) → MasterData → เลข 12 หลัก (เส้นทางเดิม) + ประเทศจาก MachineSpec
+	if derived, dc := deriveMFGFromMachine(machineNo); derived != "" || dc != "" {
+		if itcNo == "" && derived != "" {
+			itcNo = derived
+		}
+		if country == "" && dc != "" {
+			country = dc
+		}
+	}
+
+	// 3) Export License — มี Machine No (frame) กับ IT Controller No. 12 หลัก อยู่แถวเดียวกัน
+	//    จับคู่ตรงด้วยหมายเลขเครื่องได้เลย (ไม่ต้องพึ่งลูกโซ่ S/N)
+	if itcNo == "" && machineNo != "" {
+		var exp models.ExportLicenseItem
+		if err := config.DB.Where("machine_no = ?", machineNo).
+			Order("id desc").First(&exp).Error; err == nil {
+			if v := strings.TrimSpace(exp.ITControllerNo); v != "" {
+				itcNo = v
+			}
+			if country == "" && strings.TrimSpace(exp.Country) != "" {
+				country = strings.TrimSpace(exp.Country)
+			}
+		}
+	}
+
+	// 4) MachineSpec.ITControllerSN — ถ้าตัว S/N เองบันทึกมาเป็นเลข 12 หลัก (บางไฟล์
+	//    หน้างานใส่เลข IT Controller ตรงช่อง S/N) ก็ใช้เป็นเลข IT Controller ได้เลย
+	if itcNo == "" && machineNo != "" {
+		var specs []models.MachineSpec
+		config.DB.Where("machine_no = ?", machineNo).Order("upload_date desc").Find(&specs)
+		for _, s := range specs {
+			sn := strings.TrimSpace(s.ITControllerSN)
+			if looks12Digit(sn) {
+				itcNo = sn
+				break
+			}
+		}
+	}
+
+	return itcNo, country
+}
+
 // enrichMFGWithWH เอา IT Controller No. ของแถวนี้ไปเทียบกับผลยืนยันฝั่ง WH
 // (PartCheck: PartType = ITC, MatchStatus = MATCH) ถ้า WH ยืนยันว่า "ตรงกับ
 // ใบอนุญาตนำเข้า" แล้ว จะดึงข้อมูลใบอนุญาต (เลขใบอนุญาต/อินวอยซ์/หมายเลขการผลิต/

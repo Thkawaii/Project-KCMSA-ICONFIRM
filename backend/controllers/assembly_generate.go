@@ -170,19 +170,17 @@ func GenerateAssembly(c *gin.Context) {
 
 		// IT Controller (เลข 12 หลัก เช่น 878250022802) + Country
 		//
-		// ลำดับความน่าเชื่อถือของ "เลข IT Controller":
-		//   1) MFG Assembly — ลิงก์จริงตอนประกอบ (พนักงาน MFG สแกนผูกเครื่อง↔IT Controller)
-		//   2) MachineSpec(S/N) → MasterData(serial) → เลข 12 หลัก (deriveMFGFromMachine)
-		itcNo, deriveCountry := deriveMFGFromMachine(mc)
-		mfgCountry := ""
-		var mfgRow models.MFGAssembly
-		if err := config.DB.Where("machine_no = ?", mc).Order("id desc").
-			First(&mfgRow).Error; err == nil {
-			if v := strings.TrimSpace(mfgRow.ITControllerNo); v != "" {
-				itcNo = v // MFG ลิงก์จริง → ใช้ทับค่าที่ derive มา
-			}
-			mfgCountry = strings.TrimSpace(mfgRow.Country)
+		// ใช้ resolveITControllerNo ที่ไล่หาหลายแหล่งให้ครบ (MFG Assembly →
+		// MachineSpec/MasterData → Export License → S/N ที่เป็นเลข 12 หลัก) เพื่อ
+		// แก้ปัญหาคอลัมน์ IT Controller ในตาราง Assembly ขึ้นว่าง
+		//
+		// preferred = เลข IT Controller ที่อาจมากับไฟล์ Assembly ที่อัปโหลดไว้ก่อน
+		// (ถ้ามีอยู่ในแถวเดิม จะถูกใช้เป็นตัวตั้งต้นถ้าเป็นเลข 12 หลัก)
+		preferredITC := ""
+		if p != nil {
+			preferredITC = strings.TrimSpace(p["IT Controller"])
 		}
+		itcNo, deriveCountry := resolveITControllerNo(mc, preferredITC)
 
 		if itDevice == "" {
 			// fallback IT device จาก MachineSpec
@@ -197,15 +195,11 @@ func GenerateAssembly(c *gin.Context) {
 		}
 
 		// Country: ให้ Import License (เทียบด้วยเลข IT Controller) เป็นหลักตามสเปก
-		// แล้วค่อย fallback ไป Planning → MFG → MachineSpec
+		// แล้วค่อย fallback ไป Planning → (MFG/Export/MachineSpec ที่ resolve มาให้)
 		if licCountry := lookupMFGCountry(itcNo); licCountry != "" {
 			countryName = licCountry
-		} else if countryName == "" {
-			if mfgCountry != "" {
-				countryName = mfgCountry
-			} else {
-				countryName = deriveCountry
-			}
+		} else if countryName == "" && deriveCountry != "" {
+			countryName = deriveCountry
 		}
 
 		parts := wh1ByMachine[mc]
