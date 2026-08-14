@@ -1174,3 +1174,38 @@ body:not(.swal2-toast-shown) .swal2-container.swal2-backdrop-show {
     font-size: 13px !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   แก้บั๊ก: ปุ่มในคอลัมน์ดำเนินการ (.wh-cell-action) "ลอย" หลุดจากแถวเมื่อ
+   ตารางกว้างเกินจอแล้วเลื่อนแนวนอน (overflow-x) — เกิดจากการตั้ง td เป็น
+   display:flex ซึ่งทำให้เซลล์หลุดจาก table layout พอ container เลื่อน
+   วิธีแก้ (เฉพาะเดสก์ท็อป ≥721px): คืน td เป็น table-cell ปกติ จัดปุ่มบรรทัด
+   เดียวชิดขวา + กึ่งกลางแนวตั้ง (มือถือ ≤720px ยังใช้การ์ดเต็มความกว้างเหมือนเดิม)
+   ───────────────────────────────────────────────────────────────────────── */
+@media (min-width: 721px) {
+  .wh-table tbody td.wh-cell-action {
+    display: table-cell !important;
+    white-space: nowrap !important;
+    text-align: right !important;
+    vertical-align: middle !important;
+  }
+  .wh-table tbody td.wh-cell-action > button,
+  .wh-table tbody td.wh-cell-action > a,
+  .wh-table tbody td.wh-cell-action > .tsf-action-btn,
+  .wh-table tbody td.wh-cell-action > .wh-issue-btn {
+    display: inline-flex !important;
+    vertical-align: middle;
+    width: auto !important;
+  }
+  .wh-table tbody td.wh-cell-action > div {
+    display: inline-flex !important;
+    gap: 8px;
+    vertical-align: middle;
+  }
+  .wh-table tbody td.wh-cell-action > * + * {
+    margin-left: 8px;
+  }
+  .wh-table tbody td.wh-cell-action > div > * + * {
+    margin-left: 0;
+  }
+}

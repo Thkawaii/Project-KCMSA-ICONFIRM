@@ -63,6 +63,12 @@ export function deleteUploadDataRow(id) {
   return apiFetch(`/upload-data/${id}`, { method: 'DELETE' })
 }
 
+// ปั๊มตาราง Assembly อัตโนมัติจาก Planning / WH1 / Engine + ทะเบียนกลาง
+// (จับคู่ด้วยหมายเลขเครื่อง) — คืน { created, updated, skipped, machines }
+export function generateAssembly() {
+  return apiFetch('/upload-data/assembly/generate', { method: 'POST' })
+}
+
 export function clearUploadData(dataset) {
   return apiFetch(`/upload-data?dataset=${encodeURIComponent(dataset)}`, { method: 'DELETE' })
 }

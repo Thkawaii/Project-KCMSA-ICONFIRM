@@ -142,6 +142,39 @@ export function scanClose() {
   Swal.close()
 }
 
+/**
+ * ปิด popup ปัจจุบันแล้ว "รอจนปิดสนิท" ก่อน resolve
+ *
+ * ใช้ก่อนจะเปิด popup ตัวใหม่ที่มี didOpen (เช่น เปิดกล้องถ่ายรูป) — กันสองปัญหา
+ * ของ SweetAlert2 พร้อมกัน:
+ *   1) ถ้าเรียก Swal.fire() ทับ popup เดิมที่ยัง "เปิดอยู่" SweetAlert จะไม่รัน
+ *      didOpen ของตัวใหม่ (เพราะถือว่า popup เปิดอยู่แล้ว) => กล้องไม่เริ่มทำงาน /
+ *      หน้าถ่ายรูปไม่ขึ้น
+ *   2) ถ้าเรียก Swal.close() แล้ว fire() ต่อทันที อนิเมชันปิดที่ค้างอยู่จะวิ่งไปลบ
+ *      popup ตัวใหม่ => หน้าถ่ายรูป "หาย"
+ * วิธีที่ชัวร์คือรอให้ตัวเดิมปิดจนจบ animation แล้วค่อยเปิดตัวใหม่เป็น popup สดใหม่
+ */
+export function scanCloseWait() {
+  return new Promise((resolve) => {
+    const popup = Swal.getPopup()
+    if (!popup) {
+      resolve()
+      return
+    }
+    let done = false
+    const finish = () => {
+      if (done) return
+      done = true
+      resolve()
+    }
+    popup.addEventListener('animationend', finish, { once: true })
+    popup.addEventListener('transitionend', finish, { once: true })
+    Swal.close()
+    // fallback: บาง config ไม่มี animation ปิด — กันค้างไม่ให้ resolve ไม่มา
+    setTimeout(finish, 320)
+  })
+}
+
 /** toast แจ้งเตือนสำเร็จ มุมขวาบน — ใช้ตัวเดียวกับที่อื่นทั้งระบบ */
 export function scanSuccessToast(title) {
   return toastSuccess(title)

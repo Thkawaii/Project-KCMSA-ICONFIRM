@@ -70,6 +70,10 @@ type ExportLicenseItem struct {
 	// Export Entry — เลขใบขนสินค้าขาออก (เช่น A010-1-681016894)
 	ExportEntry string `gorm:"column:export_entry;size:60;index"`
 
+	// Country — ประเทศปลายทาง (มากับไฟล์อัปโหลดโดยตรง เช่น Indonesia / Malaysia)
+	// เดิมไม่รู้จักคอลัมน์นี้เลยตกไปอยู่ ExtraJSON — ตอนนี้แม็ปเข้าฟิลด์นี้ให้แสดงในคอลัมน์ Country
+	Country string `gorm:"column:country;size:100;index"`
+
 	// IMPORT License (in Invoice) — เลขคำร้องนำเข้าตามที่ระบุใน Invoice (DFT)
 	ImportLicenseNo string `gorm:"column:import_license_no;size:60;index"`
 

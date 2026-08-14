@@ -261,6 +261,22 @@
   color: #94a3b8;
 }
 
+/* วันที่อินวอยซ์ในส่วน LOG (Export License) — ชิปสีเขียวอมฟ้า (brand teal)
+   ให้เด่นและเข้าธีมแอป (เดิมเป็นเทาจาง มองข้ามง่าย / เคยลองสีเหลืองอำพันแล้วไม่เข้ากับธีม) */
+.il-invoice-date {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-brand-700, #0f8580);
+  background: var(--color-brand-50, #eafcfb);
+  border: 1px solid var(--color-brand-200, #9deeea);
+  border-radius: 999px;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+}
+
 /* รุ่นรถที่เชื่อมโยงจากทะเบียน Assembly (แสดงในตาราง MFG) */
 .mfg-model-link {
   display: inline-block;
@@ -272,6 +288,27 @@
   padding: 2px 8px;
   font-size: 12.5px;
   white-space: nowrap;
+}
+
+/* Model เป็นปุ่มกดดูรายละเอียดได้ (รีเซ็ตสไตล์ปุ่มให้เหมือนชิปเดิม) */
+.mfg-model-link-btn {
+  cursor: pointer;
+  font: inherit;
+  line-height: 1.4;
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.mfg-model-link-btn:hover {
+  background: #d6f7f4;
+  border-color: var(--color-brand-500, #00cec8);
+  box-shadow: 0 1px 4px rgba(0, 163, 157, 0.18);
+}
+
+/* โมดัลรายละเอียดการประกอบฝั่ง MFG */
+.mfg-detail-modal {
+  max-width: 440px;
+}
+.mfg-detail-modal .mfg-photo-info-row {
+  gap: 16px;
 }
 
 /* ── ไฮไลต์แถวที่เพิ่งสแกนโดน ────────────────────────────────────────── */

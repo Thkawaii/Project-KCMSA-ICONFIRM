@@ -415,7 +415,24 @@ export function ExtraColumnsCell({ json }) {
   } catch {
     obj = null
   }
-  const entries = obj ? Object.entries(obj) : []
+  // คีย์ที่ตอนนี้ระบบรู้จักเป็นคอลัมน์จริงแล้ว (เช่น Country) — ไม่ต้องโชว์เป็น "คอลัมน์เพิ่ม"
+  // ซ้ำอีก (รองรับข้อมูลเก่าที่อัปโหลดไว้ก่อนจะรู้จักคอลัมน์นี้ ยังค้างใน extra_json)
+  const HIDDEN_EXTRA = new Set([
+    'country',
+    'countryname',
+    'exportcountry',
+    'ประเทศ',
+    'ปลายทาง',
+    'ส่งออกไปประเทศ',
+  ])
+  const normKey = (k) =>
+    String(k)
+      .replace(/^\[\+\]\s*/, '')
+      .toLowerCase()
+      .replace(/[\s_./-]/g, '')
+  const entries = obj
+    ? Object.entries(obj).filter(([k]) => !HIDDEN_EXTRA.has(normKey(k)))
+    : []
   if (entries.length === 0) return <span style={{ color: '#cbd5e1' }}>—</span>
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 160 }}>
