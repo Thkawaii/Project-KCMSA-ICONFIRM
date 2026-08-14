@@ -659,6 +659,31 @@ function DatasetView({ dataset }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keyword])
 
+  // ── ปั๊มตาราง Assembly อัตโนมัติตอนเปิดหน้า (ไม่ต้องกดปุ่ม) ─────────────────
+  // เมื่อผู้ใช้เปิดตาราง Assembly ระบบจะดึงข้อมูลจาก Planning / WH1 / Engine +
+  // ทะเบียนกลาง มาปั๊มให้เองก่อน แล้วค่อยโหลดตารางมาแสดง (คอลัมน์ IT Controller
+  // จึงขึ้นค่าอัตโนมัติทันที ไม่ต้องรอผู้ใช้กดปุ่ม "สร้าง Assembly อัตโนมัติ")
+  // ทำครั้งเดียวต่อการเปิดหน้า (เงียบ ๆ ไม่เด้ง toast กวน) — ปุ่มยังกดสร้างซ้ำได้
+  const autoGenDone = useRef(false)
+  useEffect(() => {
+    if (dataset !== 'assembly' || autoGenDone.current) return
+    autoGenDone.current = true
+    let cancelled = false
+    ;(async () => {
+      try {
+        await generateAssembly()
+      } catch {
+        // ปั๊มอัตโนมัติล้มเหลว (เช่นยังไม่มีข้อมูลต้นทาง) — ไม่รบกวนผู้ใช้
+        // ตารางจะโหลดข้อมูลเดิมที่มีอยู่ตามปกติ และยังกดปุ่มสร้างเองได้
+      }
+      if (!cancelled) setLocalReload((n) => n + 1)
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataset])
+
   useEffect(() => {
     let cancelled = false
     async function load() {
@@ -862,9 +887,9 @@ function DatasetView({ dataset }) {
               className="wh-modal-confirm"
               onClick={handleGenerate}
               disabled={generating}
-              title="ดึงข้อมูลจาก Planning / WH1 / Engine + ทะเบียนกลาง มาปั๊มตาราง Assembly อัตโนมัติ (จับคู่ด้วยหมายเลขเครื่อง)"
+              title="ระบบปั๊มตาราง Assembly ให้อัตโนมัติตอนเปิดหน้าอยู่แล้ว — กดปุ่มนี้เพื่อดึงข้อมูลล่าสุดซ้ำ (จาก Planning / WH1 / Engine + ทะเบียนกลาง จับคู่ด้วยหมายเลขเครื่อง)"
             >
-              {generating ? 'กำลังปั๊ม...' : 'สร้าง Assembly อัตโนมัติ'}
+              {generating ? 'กำลังปั๊ม...' : 'รีเฟรช Assembly'}
             </button>
           )}
           <button className="qa-fail-btn" onClick={handleClear} disabled={total === 0}>

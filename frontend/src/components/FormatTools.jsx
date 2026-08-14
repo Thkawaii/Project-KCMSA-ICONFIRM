@@ -69,13 +69,17 @@ function Collapsible({ title, hint, children, defaultOpen = false }) {
 
 // ── A) Column Alias ────────────────────────────────────────────────────────
 // scope = ชื่อ dataset (planning | wh1 | wh2 | engine) หรือ import_license | export_license
-export function ColumnAliasPanel({ scope, targetHint = '', defaultOpen = false }) {
+//
+// targetOptions = รายชื่อ "คอลัมน์มาตรฐาน" ที่ถูกต้องของ scope นี้ (ให้เลือกจาก dropdown
+// แทนการพิมพ์เอง) — แก้ปัญหา "ตั้งแล้วไม่เปลี่ยน" ที่เกิดจากพิมพ์ชื่อคอลัมน์ไม่ตรงเป๊ะ
+export function ColumnAliasPanel({ scope, targetOptions = [], embedded = false }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [source, setSource] = useState('')
   const [target, setTarget] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
+  const hasTargets = Array.isArray(targetOptions) && targetOptions.length > 0
 
   async function load() {
     setLoading(true)
@@ -91,12 +95,15 @@ export function ColumnAliasPanel({ scope, targetHint = '', defaultOpen = false }
 
   useEffect(() => {
     load()
+    setSource('')
+    setTarget('')
+    setNote('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope])
 
   async function handleAdd() {
     if (!source.trim() || !target.trim()) {
-      toastError('กรอกทั้ง "หัวคอลัมน์ในไฟล์" และ "คอลัมน์มาตรฐาน"')
+      toastError('กรอกทั้ง "หัวคอลัมน์ในไฟล์" และเลือก "คอลัมน์มาตรฐาน"')
       return
     }
     setSaving(true)
@@ -126,20 +133,35 @@ export function ColumnAliasPanel({ scope, targetHint = '', defaultOpen = false }
     }
   }
 
-  return (
-    <Collapsible
-      title="จับคู่หัวคอลัมน์ (เมื่อไฟล์เปลี่ยนชื่อหัวคอลัมน์)"
-      hint="ใส่ชื่อหัวคอลัมน์ใหม่ในไฟล์ แล้วชี้ว่าให้ลงคอลัมน์มาตรฐานไหน"
-      defaultOpen={defaultOpen}
-    >
+  const body = (
+    <>
       <div style={rowFormStyle}>
         <div style={fieldStyle}>
-          <label style={labelStyle}>หัวคอลัมน์ในไฟล์ (ที่เปลี่ยนมา)</label>
-          <input style={inputStyle} value={source} onChange={(e) => setSource(e.target.value)} placeholder="เช่น หมายเลขเครื่อง (ใหม่)" />
+          <label style={labelStyle}>หัวคอลัมน์ในไฟล์ (ตามที่พิมพ์มา)</label>
+          <input
+            style={inputStyle}
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            placeholder="เช่น หมายเลขเครื่อง (ใหม่)"
+          />
         </div>
         <div style={fieldStyle}>
-          <label style={labelStyle}>คอลัมน์มาตรฐาน{targetHint ? ` (${targetHint})` : ''}</label>
-          <input style={inputStyle} value={target} onChange={(e) => setTarget(e.target.value)} placeholder="เช่น machineno / Machine" />
+          <label style={labelStyle}>ให้ลงคอลัมน์มาตรฐาน</label>
+          {hasTargets ? (
+            <SelectField
+              value={target}
+              onChange={setTarget}
+              options={targetOptions.map((t) => ({ value: t, label: t }))}
+              placeholder="— เลือกคอลัมน์ —"
+            />
+          ) : (
+            <input
+              style={inputStyle}
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              placeholder="เช่น Machine"
+            />
+          )}
         </div>
         <div style={fieldStyle}>
           <label style={labelStyle}>หมายเหตุ (ไม่บังคับ)</label>
@@ -185,12 +207,21 @@ export function ColumnAliasPanel({ scope, targetHint = '', defaultOpen = false }
           </tbody>
         </table>
       </div>
+    </>
+  )
+
+  // embedded = ฝังตรง ๆ ในการ์ด (ไม่ต้องมีหัวพับ) — ใช้ในหน้า Setting ที่จัด layout เอง
+  if (embedded) return body
+
+  return (
+    <Collapsible title="จับคู่หัวคอลัมน์ (เมื่อไฟล์เปลี่ยนชื่อหัวคอลัมน์)" defaultOpen>
+      {body}
     </Collapsible>
   )
 }
 
 // ── B) Code Alias ──────────────────────────────────────────────────────────
-export function CodeAliasPanel({ componentType = 'it_controller' }) {
+export function CodeAliasPanel({ componentType = 'it_controller', embedded = false }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [fromCode, setFromCode] = useState('')
@@ -274,11 +305,8 @@ export function CodeAliasPanel({ componentType = 'it_controller' }) {
     }
   }
 
-  return (
-    <Collapsible
-      title="จับคู่ค่ารหัส (เมื่อ P/N · S/N · Machine No. เปลี่ยน format)"
-      hint="ค่าที่ต่างแค่เว้นวรรค/ขีด/จุด ระบบเทียบให้เองอยู่แล้ว — ตรงนี้ไว้ผูกค่าที่ 'เปลี่ยนไปจริง'"
-    >
+  const body = (
+    <>
       <div style={rowFormStyle}>
         <div style={fieldStyle}>
           <label style={labelStyle}>ชนิดรหัส</label>
@@ -360,6 +388,14 @@ export function CodeAliasPanel({ componentType = 'it_controller' }) {
           </tbody>
         </table>
       </div>
+    </>
+  )
+
+  if (embedded) return body
+
+  return (
+    <Collapsible title="จับคู่ค่ารหัส (เมื่อ P/N · S/N · Machine No. เปลี่ยน format)" defaultOpen>
+      {body}
     </Collapsible>
   )
 }

@@ -675,13 +675,15 @@ func GetExportLicenseAlerts(c *gin.Context) {
 			DeclarationDate:  r.DeclarationDate,
 		}
 
-		// วันหมดอายุ = Expire date ที่ระบุมา ถ้าไม่มีก็ ใบขน (Date) + 1 เดือน
+		// วันหมดอายุ = "วันที่นำออกใบอนุญาต" (Declaration date) + 1 เดือน เสมอ
+		// อ้างอิงวันที่นำออกโดยตรงเพื่อให้ตรงกับคอลัมน์ที่แสดงในตาราง (ตกไปใช้
+		// Expire date จากไฟล์เฉพาะกรณีไม่มีวันที่นำออกเลย)
 		var expiry *time.Time
-		if r.ExpireDate != nil {
-			expiry = r.ExpireDate
-		} else if r.DeclarationDate != nil {
+		if r.DeclarationDate != nil {
 			e := r.DeclarationDate.AddDate(0, ExportLicenseValidityMonths, 0)
 			expiry = &e
+		} else if r.ExpireDate != nil {
+			expiry = r.ExpireDate
 		}
 
 		if expiry == nil {

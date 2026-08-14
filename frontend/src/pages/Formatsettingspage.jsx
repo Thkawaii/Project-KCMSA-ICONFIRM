@@ -4,156 +4,143 @@ import SelectField from '../components/Selectfield.jsx'
 import { ColumnAliasPanel, CodeAliasPanel } from '../components/FormatTools.jsx'
 import { ADMIN_NAV_ITEMS } from './AdminDashboardpage.jsx'
 import { FORMAT_NAV_ITEMS } from './MasterDataPage.jsx'
-import { TagIcon, ArrowsRightLeftIcon } from '../components/icons.jsx'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// หน้า "ตั้งค่า Format" — ให้หน้างาน/แอดมินรองรับการเปลี่ยน format ของไฟล์อัปโหลด
-// และรหัส P/N / S/N / Machine No. ได้เองตอนรัน โดยไม่ต้องแก้โค้ด/รีดีพลอย
+// หน้า "ตั้งค่า Format" (Setting) — ปรับให้เรียบง่าย ใช้งานง่าย
 //
-//  • Column Alias  = หัวคอลัมน์ในไฟล์เปลี่ยนชื่อ/เพิ่มใหม่/สลับตำแหน่ง → คอลัมน์มาตรฐาน
-//    (ผูกกับ scope ของแต่ละ importer — backend รองรับทุก scope ด้านล่างแล้ว)
-//  • Code Alias    = ค่า P/N / S/N / Machine No. รูปแบบใหม่หน้างาน → ค่ามาตรฐานในทะเบียน
-//
-// ปรับให้ใช้งานง่ายขึ้น (จากเดิมที่ต้องกดปุ่มเลือก 1 ใน 9 ปุ่มรวมกันแถวเดียว):
-//   1) เลือก "หมวด" ก่อน (3 หมวดใหญ่ อ่านง่าย ไม่ต้องรู้ชื่อ importer ฝั่งระบบ)
-//   2) แล้วค่อยเลือก "ไฟล์/งาน" ที่ต้องการตั้งค่าจาก dropdown ในหมวดนั้น
-//   3) สีของหน้าใช้สี Theme เดียวกับทั้งระบบ (teal) แทนสีน้ำเงินเดิมที่ไม่ตรงธีม
+//  • เลือก "ไฟล์/งาน" ที่จะตั้งค่า → ตั้งค่า Column Alias ได้ทันที
+//  • ช่อง "คอลัมน์มาตรฐาน" เปลี่ยนเป็น dropdown ให้เลือกจากรายการที่ถูกต้อง
+//    (เดิมพิมพ์เองแล้วมักไม่ตรงชื่อคอลัมน์เป๊ะ ๆ จึง "ตั้งแล้วไม่เปลี่ยน")
+//  • ลบคำอธิบายยาว ๆ ที่รกออก เหลือหมายเหตุสั้น ๆ ที่จำเป็น
 // ─────────────────────────────────────────────────────────────────────────────
 
-// scope = ชื่อ importer ฝั่ง backend (ต้องตรงกับที่ controller เรียก loadColumnAlias*)
-const COLUMN_SCOPES = [
-  { scope: 'planning', label: 'Planning', hint: 'Machine, Product Spec 1, KCM Order …' },
-  { scope: 'wh1', label: 'Warehouse 1', hint: 'Parts No, Order No …' },
-  { scope: 'wh2', label: 'Warehouse 2', hint: 'Parts No, Order No …' },
-  { scope: 'engine', label: 'Engine', hint: 'Machine No, History, ENGINE' },
-  { scope: 'assembly', label: 'Assembly', hint: 'Machine No, Spec Code, IT Controller, Assembly_Parts_Name …' },
-  { scope: 'master_data', label: 'Master Data (ทะเบียนกลาง)', hint: 'Part No, Serial No, IT Controller No, IMEI, Type' },
-  { scope: 'machine_spec', label: 'Machine Spec', hint: 'Machine No, IT Controller S/N, CW no, Engine …' },
-  { scope: 'serial_list', label: 'Serial List (IT Controller)', hint: 'IT Controller No, IMEI, Serial No, Part No …' },
-  { scope: 'import_license', label: 'Import License', hint: 'Import License No, Invoice No, IT Controller No …' },
-  { scope: 'export_license', label: 'Export License', hint: 'Export License, Serial Number, Machine No …' },
+// TARGET_COLUMNS = "คอลัมน์มาตรฐาน" ที่ถูกต้องของแต่ละ scope (ให้เลือกจาก dropdown)
+//   • กลุ่มอัปโหลด (planning/wh1/wh2/engine/assembly) ต้องตรงกับ "Label" เป๊ะ ๆ
+//   • กลุ่มทะเบียน/ใบอนุญาต ระบบจะ normalize ก่อนเทียบ จึงใช้ชื่อหัวมาตรฐานได้
+const TARGET_COLUMNS = {
+  planning: [
+    'Line', 'LOT NO.', 'Machine', 'Product Spec 1', 'Product Spec 2', 'Domestic/Exp',
+    'Assembly Status', 'Shipping Status', 'KCM Order', 'Country', 'Country Name', 'Brand',
+    'Destination', 'IT device', 'Front ATT', 'Engine start key', 'Note1', 'Note2', 'Note3',
+  ],
+  wh1: [
+    'Warehouse', 'Order No', 'Work order', 'Parts No', 'Name',
+    'Assembly Parts Number', 'Assembly Parts Name', 'Note', 'Final Color',
+  ],
+  wh2: ['Order', 'ORDER No.', 'Parts No', 'PARTS NAME', 'Quantity', 'LOCATION', 'Note'],
+  engine: ['Machine No', 'History', 'ENGINE'],
+  assembly: [
+    'Machine No', 'Spec Code', 'Specification Detail', 'Country Name', 'IT device',
+    'IT Controller', 'Assembly_Parts_Number', 'Assembly_Parts_Name',
+  ],
+  master_data: [
+    'Item No', 'Part Name', 'Model', 'Part No', 'Serial No',
+    'IT Controller no.', 'IMEI', 'Spec Code', 'Connectivity Type',
+  ],
+  machine_spec: [
+    'Machine No', 'Spec(1)', 'Spec(2)', 'KCM Order', 'Country Name', 'IT device',
+    'IT Controller', 'IT Controller S/N', 'Engine', 'CW no', 'CW name', 'Shoe', 'Seat',
+  ],
+  serial_list: [
+    'IT Controller no.', 'IMEI', 'Part Name', 'Model', 'Brand', 'Part No', 'Serial No',
+    'Import License No', 'Invoice No', 'Declaration No', 'Qty', 'Issue Date', 'Connectivity Type',
+  ],
+  import_license: [
+    'ลำดับ', 'ตราอักษร', 'รุ่น', 'เลขใบอนุญาตนำเข้า', 'เลขอินวอยซ์นำเข้า',
+    'เลขใบขนสินค้าขาเข้า', 'จำนวน', 'หมายเลขเครื่อง', 'หมายเลขการผลิต', 'หมายเหตุ',
+    'ประเทศ', 'วันที่ออกใบอนุญาต',
+  ],
+  export_license: [
+    'Item', "Date Ass'y", 'Machine No', 'IT Controller Serial No.', 'Serial Number',
+    'Invoice no.', 'Invoice date', 'Export Entry', 'Import License', 'Export License',
+    'Expire date', 'ใบขน (Date)',
+  ],
+}
+
+// รายการ "ไฟล์/งาน" ทั้งหมด แยกเป็น 3 หมวดให้เลือกง่าย
+const SCOPES = [
+  { scope: 'planning', label: 'Planning', group: 'ไฟล์อัปโหลดประจำวัน' },
+  { scope: 'wh1', label: 'Warehouse 1', group: 'ไฟล์อัปโหลดประจำวัน' },
+  { scope: 'wh2', label: 'Warehouse 2', group: 'ไฟล์อัปโหลดประจำวัน' },
+  { scope: 'engine', label: 'Engine', group: 'ไฟล์อัปโหลดประจำวัน' },
+  { scope: 'assembly', label: 'Assembly', group: 'ไฟล์อัปโหลดประจำวัน' },
+  { scope: 'master_data', label: 'Master Data (ทะเบียนกลาง)', group: 'ทะเบียนกลาง' },
+  { scope: 'machine_spec', label: 'Machine Spec', group: 'ทะเบียนกลาง' },
+  { scope: 'serial_list', label: 'Serial List (IT Controller)', group: 'ทะเบียนกลาง' },
+  { scope: 'import_license', label: 'Import License', group: 'ใบอนุญาต' },
+  { scope: 'export_license', label: 'Export License', group: 'ใบอนุญาต' },
 ]
 
-// หมวดหมู่ — จัดกลุ่ม scope ให้เลือกง่ายเป็นขั้นตอน แทนปุ่ม 9 ปุ่มเรียงแถวเดียว
-const CATEGORIES = [
-  {
-    id: 'upload',
-    label: 'ไฟล์อัปโหลดประจำวัน',
-    desc: 'ไฟล์ Planning / Warehouse / Engine ที่อัปโหลดเข้าเป็นประจำ',
-    scopes: ['planning', 'wh1', 'wh2', 'engine', 'assembly'],
-  },
-  {
-    id: 'master',
-    label: 'ทะเบียนกลาง',
-    desc: 'Master Data, Machine Spec, Serial List (IT Controller)',
-    scopes: ['master_data', 'machine_spec', 'serial_list'],
-  },
-  {
-    id: 'license',
-    label: 'ใบอนุญาต',
-    desc: 'ใบอนุญาตนำเข้า / ส่งออก',
-    scopes: ['import_license', 'export_license'],
-  },
-]
+const GROUPS = ['ไฟล์อัปโหลดประจำวัน', 'ทะเบียนกลาง', 'ใบอนุญาต']
+
+// การ์ดครอบ section — โทนเรียบ สีขาว ขอบบาง
+const cardStyle = {
+  border: '1px solid #e2e8f0',
+  borderRadius: 14,
+  background: '#fff',
+  padding: 18,
+  marginBottom: 16,
+}
 
 export default function FormatSettingsPage() {
   const isAdmin = (localStorage.getItem('iconfirm_role') || '').toUpperCase() === 'ADMIN'
   const navItems = isAdmin ? ADMIN_NAV_ITEMS : FORMAT_NAV_ITEMS
   const shellRoleLabel = isAdmin ? 'Admin' : 'Upload View'
 
-  const [categoryId, setCategoryId] = useState(CATEGORIES[0].id)
-  const category = CATEGORIES.find((c) => c.id === categoryId) || CATEGORIES[0]
+  const [scope, setScope] = useState('planning')
+  const active = SCOPES.find((s) => s.scope === scope) || SCOPES[0]
+  const targetOptions = TARGET_COLUMNS[scope] || []
 
+  // จัดตัวเลือก dropdown ให้จัดกลุ่มด้วยหัวข้อ (แสดงเป็น label นำหน้าแต่ละกลุ่ม)
   const scopeOptions = useMemo(
-    () =>
-      category.scopes
-        .map((s) => COLUMN_SCOPES.find((cs) => cs.scope === s))
-        .filter(Boolean)
-        .map((s) => ({ value: s.scope, label: s.label })),
-    [category],
+    () => SCOPES.map((s) => ({ value: s.scope, label: `${s.group} › ${s.label}` })),
+    [],
   )
-
-  const [scope, setScope] = useState(scopeOptions[0]?.value)
-  const active = COLUMN_SCOPES.find((s) => s.scope === scope) || COLUMN_SCOPES[0]
-
-  function handleCategoryChange(id) {
-    setCategoryId(id)
-    const next = CATEGORIES.find((c) => c.id === id)
-    const firstScope = next?.scopes?.[0]
-    if (firstScope) setScope(firstScope)
-  }
 
   return (
     <AppShell navItems={navItems} roleLabel={shellRoleLabel}>
-      <div style={{ padding: 16, maxWidth: 960 }}>
-        <h2 style={{ fontWeight: 700, marginBottom: 4, fontSize: 20, color: 'var(--color-brand-ink, #06312f)' }}>
-          Setting
-        </h2>
-        <p style={{ color: '#64748b', marginBottom: 20, fontSize: 14 }}>
-          ตั้งค่าที่นี่มีผลทันทีตอนอัปโหลดครั้งถัดไป ไม่ต้องแก้โค้ดหรือรีสตาร์ทระบบ
-        </p>
+      <div style={{ padding: 16, maxWidth: 900 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+          <h2 style={{ fontWeight: 700, fontSize: 22, color: 'var(--color-brand-ink, #06312f)', margin: 0 }}>
+            ตั้งค่า Format
+          </h2>
+          <span style={{ fontSize: 12.5, color: '#94a3b8' }}>
+            มีผลกับการอัปโหลดครั้งถัดไป (ไม่ย้อนหลังข้อมูลเดิม)
+          </span>
+        </div>
 
-        {/* ขั้นที่ 1 — เลือกหมวด */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 8 }}>
-            1) เลือกหมวดที่ต้องการตั้งค่า
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {CATEGORIES.map((c) => {
-              const isActive = c.id === categoryId
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => handleCategoryChange(c.id)}
-                  style={{
-                    flex: '1 1 200px',
-                    textAlign: 'left',
-                    padding: '10px 14px',
-                    borderRadius: 12,
-                    border: '1.5px solid ' + (isActive ? 'var(--color-brand-500, #00cec8)' : '#e2e8f0'),
-                    background: isActive ? 'var(--color-brand-50, #eafcfb)' : '#fff',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div style={{ fontSize: 14, fontWeight: 700, color: isActive ? 'var(--color-brand-700, #0f8580)' : '#0f172a' }}>
-                    {c.label}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{c.desc}</div>
-                </button>
-              )
-            })}
+        {/* เลือกไฟล์/งาน */}
+        <div style={{ ...cardStyle, paddingBottom: 14 }}>
+          <label style={{ fontSize: 13, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 8 }}>
+            เลือกไฟล์ / งานที่ต้องการตั้งค่า
+          </label>
+          <div style={{ maxWidth: 420 }}>
+            <SelectField value={scope} onChange={setScope} options={scopeOptions} />
           </div>
         </div>
 
-        {/* ขั้นที่ 2 — เลือกไฟล์/งานในหมวดนั้น */}
-        <div style={{ marginBottom: 22, maxWidth: 420 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 8 }}>
-            2) เลือกไฟล์/งานที่ต้องการตั้งค่า
-          </div>
-          <SelectField value={scope} onChange={setScope} options={scopeOptions} />
-          {active?.hint && (
-            <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 6 }}>เช่นหัวคอลัมน์: {active.hint}</p>
-          )}
-        </div>
-
-        <section style={{ marginBottom: 28 }}>
-          <h3 style={{ fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, fontSize: 15 }}>
-            <TagIcon className="size-4" style={{ color: 'var(--color-brand-600, #00a39d)' }} />
-            หัวคอลัมน์เปลี่ยน / เพิ่มใหม่ / สลับตำแหน่ง (Column Alias)
+        {/* Column Alias */}
+        <div style={cardStyle}>
+          <h3 style={{ fontWeight: 700, fontSize: 15, margin: '0 0 4px' }}>
+            หัวคอลัมน์เปลี่ยนชื่อ / เพิ่มใหม่ / สลับตำแหน่ง
           </h3>
-          <ColumnAliasPanel scope={active.scope} targetHint={active.hint} defaultOpen />
-        </section>
-
-        <section>
-          <h3 style={{ fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, fontSize: 15 }}>
-            <ArrowsRightLeftIcon className="size-4" style={{ color: 'var(--color-brand-600, #00a39d)' }} />
-            รหัส P/N / S/N / Machine No. หน้างานเปลี่ยนรูปแบบ (Code Alias)
-          </h3>
-          <p style={{ color: '#64748b', marginBottom: 8, fontSize: 13 }}>
-            เช่น หน้างานยิง <code>TNN-YN23993</code> หรือ <code>YN-2322#2</code> ให้ชี้กลับไปยัง S/N มาตรฐานในทะเบียนกลาง
+          <p style={{ fontSize: 12.5, color: '#64748b', margin: '0 0 12px' }}>
+            พิมพ์ชื่อหัวคอลัมน์ที่ไฟล์เขียนมาจริง แล้วเลือกว่าให้ลงคอลัมน์มาตรฐานตัวไหนของ{' '}
+            <b>{active.label}</b>
           </p>
-          <CodeAliasPanel componentType="it_controller" />
-        </section>
+          <ColumnAliasPanel scope={scope} targetOptions={targetOptions} embedded />
+        </div>
+
+        {/* Code Alias — เฉพาะ IT Controller (ค่า P/N · S/N · Machine No.) */}
+        <div style={cardStyle}>
+          <h3 style={{ fontWeight: 700, fontSize: 15, margin: '0 0 4px' }}>
+            รหัส P/N · S/N · Machine No. หน้างานเปลี่ยนรูปแบบ
+          </h3>
+          <p style={{ fontSize: 12.5, color: '#64748b', margin: '0 0 12px' }}>
+            ผูกค่าที่หน้างานยิงมาแบบใหม่ ให้ชี้กลับไปยังค่ามาตรฐานในทะเบียนกลาง
+          </p>
+          <CodeAliasPanel componentType="it_controller" embedded />
+        </div>
       </div>
     </AppShell>
   )
