@@ -133,10 +133,19 @@ func deriveMFGFromMachine(machineNo string) (itcNo, country string) {
 	}
 
 	// S/N ของ IT Controller -> เลข IT Controller No. 12 หลัก จากทะเบียนกลาง
+	// จำกัดเฉพาะแถวชนิด it_controller (เลข 12 หลักอยู่ที่ชนิดนี้เท่านั้น) กันเผลอ
+	// ไปเจอแถว serial เดียวกันของอะไหล่ชนิดอื่นที่ ITControllerNo เป็น null
 	if itcSN != "" {
 		var m models.MasterData
-		if err := config.DB.Where("serial_no = ?", itcSN).First(&m).Error; err == nil && m.ITControllerNo != nil {
+		q := config.DB.Where("serial_no = ? AND component_type = ?", itcSN, "it_controller")
+		if err := q.First(&m).Error; err == nil && m.ITControllerNo != nil {
 			itcNo = strings.TrimSpace(*m.ITControllerNo)
+		} else {
+			// เผื่อไฟล์เก่าไม่ได้ตั้ง component_type — ลองแบบไม่ระบุชนิด
+			var m2 models.MasterData
+			if e := config.DB.Where("serial_no = ?", itcSN).First(&m2).Error; e == nil && m2.ITControllerNo != nil {
+				itcNo = strings.TrimSpace(*m2.ITControllerNo)
+			}
 		}
 	}
 

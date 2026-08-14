@@ -277,6 +277,119 @@
   letter-spacing: 0.2px;
 }
 
+/* ── Modal รายละเอียดใบอนุญาตส่งออก (แทน "การเชื่อมโยงของเครื่องนี้" เดิม) ── */
+.il-detail-modal {
+  max-width: 560px;
+}
+
+/* การ์ดข้อมูลหลักของเครื่อง */
+.il-detail-card {
+  margin-top: 4px;
+  padding: 14px 16px;
+  background: var(--color-brand-50, #eafcfb);
+  border: 1px solid var(--color-brand-200, #9deeea);
+  border-radius: 12px;
+}
+
+/* ตารางคู่ label/value 2 คอลัมน์ (พับเป็น 1 คอลัมน์บนจอแคบ) */
+.il-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 20px;
+}
+
+.il-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.il-detail-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.2px;
+}
+
+.il-detail-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+/* กลุ่มข้อมูลที่เชื่อมโยงได้ (แสดงเฉพาะที่มีข้อมูลจริง) */
+.il-detail-links {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.il-detail-section {
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.il-detail-section-head {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-brand-700, #0f8580);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed #cbd5e1;
+}
+
+.il-detail-note {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.il-detail-note-err {
+  color: #b42318;
+}
+
+@media (max-width: 520px) {
+  .il-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* แถบเด่นรุ่นรถ ในโมดัลรายละเอียดการประกอบ (ฝั่ง MFG) */
+.mfg-detail-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--color-brand-600, #0f8580), var(--color-brand-700, #0a6b67));
+  color: #fff;
+}
+
+.mfg-detail-hero-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  opacity: 0.85;
+  letter-spacing: 0.3px;
+}
+
+.mfg-detail-hero-model {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.mfg-detail-hero-sub {
+  font-size: 12.5px;
+  font-weight: 500;
+  opacity: 0.9;
+  word-break: break-word;
+}
+
 /* รุ่นรถที่เชื่อมโยงจากทะเบียน Assembly (แสดงในตาราง MFG) */
 .mfg-model-link {
   display: inline-block;

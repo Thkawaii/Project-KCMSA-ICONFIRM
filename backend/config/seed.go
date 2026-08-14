@@ -181,18 +181,11 @@ func SeedData() {
 			Name:     "Administrator",
 		},
 		{
-			RoleName: "TSF",
+			RoleName: "MFG",
 			Username: "mfg@kobelco.com",
 			Password: hashPassword("mfg.kobelco"),
 			Status:   "Active",
 			Name:     "MFG",
-		},
-		{
-			RoleName: "UPLOAD",
-			Username: "uploadview@kobelco.com",
-			Password: hashPassword("uploadview.kobelco"),
-			Status:   "Active",
-			Name:     "Upload View",
 		},
 	}
 
@@ -205,7 +198,7 @@ func SeedData() {
 	// เหมือนที่เจอ error อยู่ตอนนี้
 	qaUserID := users[0].ID
 	whUserID := users[1].ID
-	tsfUserID := users[4].ID // ผู้ใช้ role TSF (mfg@kobelco.com) — สำหรับผูก sample tsf ด้านล่าง
+	tsfUserID := users[4].ID // ผู้ใช้ mfg@kobelco.com (role MFG) — สำหรับผูก sample tsf ด้านล่าง
 
 	// 2 แถวนี้เป็นข้อมูลตัวอย่างของเดิม ที่ tsf/qa ด้านล่างอ้างถึงอยู่
 	// ถ้าลบออก flow ตัวอย่างจะเสีย — ทะเบียน IT Controller ตัวจริง 36 เครื่อง
