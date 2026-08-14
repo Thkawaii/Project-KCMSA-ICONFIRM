@@ -226,6 +226,10 @@ export default function QAMachineList() {
         const matchesSearch = [
           r.partName,
           r.model,
+          r.asmModel,
+          r.specCode,
+          r.specDetail,
+          r.itDevice,
           r.machineNo,
           r.partNo,
           r.serialNo,
@@ -274,19 +278,18 @@ export default function QAMachineList() {
 
       const checkDateLabel = selectedDate ? thaiDateLabel(selectedDate) : 'ทั้งหมด'
 
-      const PHOTO_COL_INDEX = 12
+      const PHOTO_COL_INDEX = 11
       const head = [
         [
           'ITEM',
           'Part Name',
-          'Model',
+          'Model (Assembly)',
+          'Spec Code',
+          'IT device',
           'Machine No',
           'Part No.',
           'Serial No.',
           'IT Controller No.',
-          'IMEI',
-          'ใบอนุญาตนำเข้า',
-          'อินวอยซ์',
           'ส่งออกไปประเทศ',
           'ผลเทียบใบอนุญาต',
           'รูปถ่าย',
@@ -296,14 +299,13 @@ export default function QAMachineList() {
       const body = list.map((r, i) => [
         String(i + 1),
         dash(r.partName),
-        dash(r.model),
+        dash(r.asmModel),
+        dash(r.specCode),
+        dash(r.itDevice),
         dash(r.machineNo),
         dash(r.partNo),
         dash(r.serialNo),
         dash(r.itControllerNo),
-        dash(r.imei),
-        dash(r.licenseNo),
-        dash(r.invoiceNo),
         dash(r.exportCountry),
         licenseMatchMeta(r.matchStatus).label,
         '', // รูปถ่ายวาดเองใน didDrawCell
@@ -349,7 +351,7 @@ export default function QAMachineList() {
         columnStyles: {
           0: { halign: 'center', cellWidth: 10 },
           [PHOTO_COL_INDEX]: { halign: 'center', cellWidth: 16, minCellHeight: 14 },
-          13: { halign: 'center' },
+          12: { halign: 'center' },
         },
         didDrawPage: drawHeader,
         didDrawCell: (data) => {
@@ -423,6 +425,10 @@ export default function QAMachineList() {
         { key: 'item', header: 'ITEM', type: 'number', width: 8 },
         { key: 'partName', header: 'Part Name', type: 'text' },
         { key: 'model', header: 'Model', type: 'center', width: 12 },
+        { key: 'asmModel', header: 'Model (Assembly)', type: 'center', width: 14 },
+        { key: 'specCode', header: 'Spec Code', type: 'center', width: 14 },
+        { key: 'specDetail', header: 'Specification Detail', type: 'text', width: 20 },
+        { key: 'itDevice', header: 'IT device', type: 'center', width: 14 },
         { key: 'machineNo', header: 'Machine No', type: 'text' },
         { key: 'partNo', header: 'Part No.', type: 'text' },
         { key: 'serialNo', header: 'Serial No.', type: 'text' },
@@ -440,6 +446,10 @@ export default function QAMachineList() {
         item: i + 1,
         partName: dash(r.partName),
         model: dash(r.model),
+        asmModel: dash(r.asmModel),
+        specCode: dash(r.specCode),
+        specDetail: dash(r.specDetail),
+        itDevice: dash(r.itDevice),
         machineNo: dash(r.machineNo),
         partNo: dash(r.partNo),
         serialNo: dash(r.serialNo),
@@ -590,6 +600,10 @@ export default function QAMachineList() {
               <th>ITEM</th>
               <th>Part Name</th>
               <th>Model</th>
+              <th>Model (Assembly)</th>
+              <th>Spec Code</th>
+              <th>Specification Detail</th>
+              <th>IT device</th>
               <th>Machine No</th>
               <th>Part No.</th>
               <th>Serial No.</th>
@@ -606,7 +620,7 @@ export default function QAMachineList() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={14} className="wh-empty-cell">
+                <td colSpan={18} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -621,6 +635,10 @@ export default function QAMachineList() {
                     </td>
                     <td data-label="Part Name">{dash(r.partName)}</td>
                     <td data-label="Model">{dash(r.model)}</td>
+                    <td data-label="Model (Assembly)">{dash(r.asmModel)}</td>
+                    <td data-label="Spec Code">{dash(r.specCode)}</td>
+                    <td data-label="Specification Detail">{dash(r.specDetail)}</td>
+                    <td data-label="IT device">{dash(r.itDevice)}</td>
                     <td className="wh-cell-head" data-label="Machine No">
                       <strong>{dash(r.machineNo)}</strong>
                     </td>
@@ -679,7 +697,7 @@ export default function QAMachineList() {
               })}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={14} className="wh-empty-cell">
+                <td colSpan={18} className="wh-empty-cell">
                   {confirmedRows.length === 0
                     ? 'ยังไม่มีเครื่องที่ครบเงื่อนไข — ต้องให้ WH ยืนยันตรงกับใบอนุญาต และ MFG สแกนได้ Matched ก่อน'
                     : 'ไม่พบรายการที่ค้นหา'}

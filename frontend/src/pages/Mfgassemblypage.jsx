@@ -920,46 +920,56 @@ export default function MFGAssemblyPage() {
 
       {detailRow && (
         <div className="wh-modal-overlay" onClick={() => setDetailRow(null)}>
-          <div className="wh-modal mfg-detail-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="wh-modal il-detail-modal" onClick={(e) => e.stopPropagation()}>
             <h3 className="wh-modal-title">รายละเอียดการประกอบ</h3>
-            <p className="mfg-photo-hint" style={{ marginBottom: 12 }}>
-              Machine No นี้ประกอบเป็นรถรุ่น/สเปก/ประเทศใด — ดึงข้อมูลจากทะเบียน Assembly
-            </p>
 
-            <div className="mfg-photo-info">
-              <div className="mfg-photo-info-row">
-                <span className="mfg-photo-info-label">Machine No</span>
-                <span className="mfg-photo-info-value">{detailRow.row.MachineNo || '—'}</span>
-              </div>
-              <div className="mfg-photo-info-row">
-                <span className="mfg-photo-info-label">IT Controller No.</span>
-                <span className="mfg-photo-info-value">{detailRow.row.ITControllerNo || '—'}</span>
-              </div>
-              <div className="mfg-photo-info-row">
-                <span className="mfg-photo-info-label">Model (Assembly Parts Name)</span>
-                <span className="mfg-photo-info-value">{detailRow.asm.model || '—'}</span>
-              </div>
-              <div className="mfg-photo-info-row">
-                <span className="mfg-photo-info-label">Assembly Parts Number</span>
-                <span className="mfg-photo-info-value">{detailRow.asm.partsNumber || '—'}</span>
-              </div>
-              <div className="mfg-photo-info-row">
-                <span className="mfg-photo-info-label">Spec Code</span>
-                <span className="mfg-photo-info-value">{detailRow.asm.specCode || '—'}</span>
-              </div>
-              <div className="mfg-photo-info-row">
-                <span className="mfg-photo-info-label">Specification Detail</span>
-                <span className="mfg-photo-info-value">{detailRow.asm.specDetail || '—'}</span>
-              </div>
-              <div className="mfg-photo-info-row">
-                <span className="mfg-photo-info-label">IT device</span>
-                <span className="mfg-photo-info-value">{detailRow.asm.itDevice || '—'}</span>
-              </div>
-              <div className="mfg-photo-info-row">
-                <span className="mfg-photo-info-label">Country</span>
-                <span className="mfg-photo-info-value">
-                  {detailRow.asm.country || detailRow.row.Country || '—'}
-                </span>
+            {/* แถบเด่น: รุ่นรถที่ประกอบได้ */}
+            <div className="mfg-detail-hero">
+              <span className="mfg-detail-hero-label">รุ่นรถที่ประกอบ</span>
+              <span className="mfg-detail-hero-model">{detailRow.asm.model || '—'}</span>
+              <span className="mfg-detail-hero-sub">
+                {detailRow.row.MachineNo || '—'}
+                {detailRow.row.ITControllerNo ? ` · IT Controller ${detailRow.row.ITControllerNo}` : ''}
+              </span>
+            </div>
+
+            {/* รายละเอียดที่เหลือ จัดเป็นตาราง 2 คอลัมน์ */}
+            <div className="il-detail-card" style={{ marginTop: 12 }}>
+              <div className="il-detail-grid">
+                <div className="il-detail-item">
+                  <span className="il-detail-label">Machine No</span>
+                  <span className="il-detail-value">{detailRow.row.MachineNo || '—'}</span>
+                </div>
+                <div className="il-detail-item">
+                  <span className="il-detail-label">IT Controller No.</span>
+                  <span className="il-detail-value">{detailRow.row.ITControllerNo || '—'}</span>
+                </div>
+                <div className="il-detail-item">
+                  <span className="il-detail-label">Model (Assembly Parts Name)</span>
+                  <span className="il-detail-value">{detailRow.asm.model || '—'}</span>
+                </div>
+                <div className="il-detail-item">
+                  <span className="il-detail-label">Assembly Parts Number</span>
+                  <span className="il-detail-value">{detailRow.asm.partsNumber || '—'}</span>
+                </div>
+                <div className="il-detail-item">
+                  <span className="il-detail-label">Spec Code</span>
+                  <span className="il-detail-value">{detailRow.asm.specCode || '—'}</span>
+                </div>
+                <div className="il-detail-item">
+                  <span className="il-detail-label">IT device</span>
+                  <span className="il-detail-value">{detailRow.asm.itDevice || '—'}</span>
+                </div>
+                <div className="il-detail-item" style={{ gridColumn: '1 / -1' }}>
+                  <span className="il-detail-label">Specification Detail</span>
+                  <span className="il-detail-value">{detailRow.asm.specDetail || '—'}</span>
+                </div>
+                <div className="il-detail-item">
+                  <span className="il-detail-label">Country</span>
+                  <span className="il-detail-value">
+                    {detailRow.asm.country || detailRow.row.Country || '—'}
+                  </span>
+                </div>
               </div>
             </div>
 

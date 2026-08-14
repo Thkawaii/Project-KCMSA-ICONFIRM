@@ -31,8 +31,6 @@ const ROLE_OPTIONS = [
   { value: 'MFG', label: 'MFG — ฝ่ายผลิต/ประกอบ' },
   { value: 'LOG', label: 'LOG — Logistic (ใบอนุญาต)' },
   { value: 'QA', label: 'QA — ตรวจสอบคุณภาพ' },
-  { value: 'TSF', label: 'TSF — Operator' },
-  { value: 'UPLOAD', label: 'UPLOAD — อัปโหลดข้อมูล' },
   { value: 'ADMIN', label: 'ADMIN — ผู้ดูแลระบบ' },
 ]
 

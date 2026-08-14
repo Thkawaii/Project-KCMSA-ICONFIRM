@@ -168,9 +168,22 @@ func GenerateAssembly(c *gin.Context) {
 			countryName = strings.TrimSpace(p["Country Name"])
 		}
 
-		// IT Controller (เลข 12 หลัก) + Country จากทะเบียนกลาง
-		// deriveMFGFromMachine: MachineSpec(S/N) → MasterData → เลข 12 หลัก + Country(จาก MachineSpec)
+		// IT Controller (เลข 12 หลัก เช่น 878250022802) + Country
+		//
+		// ลำดับความน่าเชื่อถือของ "เลข IT Controller":
+		//   1) MFG Assembly — ลิงก์จริงตอนประกอบ (พนักงาน MFG สแกนผูกเครื่อง↔IT Controller)
+		//   2) MachineSpec(S/N) → MasterData(serial) → เลข 12 หลัก (deriveMFGFromMachine)
 		itcNo, deriveCountry := deriveMFGFromMachine(mc)
+		mfgCountry := ""
+		var mfgRow models.MFGAssembly
+		if err := config.DB.Where("machine_no = ?", mc).Order("id desc").
+			First(&mfgRow).Error; err == nil {
+			if v := strings.TrimSpace(mfgRow.ITControllerNo); v != "" {
+				itcNo = v // MFG ลิงก์จริง → ใช้ทับค่าที่ derive มา
+			}
+			mfgCountry = strings.TrimSpace(mfgRow.Country)
+		}
+
 		if itDevice == "" {
 			// fallback IT device จาก MachineSpec
 			var specs []models.MachineSpec
@@ -184,11 +197,15 @@ func GenerateAssembly(c *gin.Context) {
 		}
 
 		// Country: ให้ Import License (เทียบด้วยเลข IT Controller) เป็นหลักตามสเปก
-		// แล้วค่อย fallback ไป Planning → MachineSpec
+		// แล้วค่อย fallback ไป Planning → MFG → MachineSpec
 		if licCountry := lookupMFGCountry(itcNo); licCountry != "" {
 			countryName = licCountry
 		} else if countryName == "" {
-			countryName = deriveCountry
+			if mfgCountry != "" {
+				countryName = mfgCountry
+			} else {
+				countryName = deriveCountry
+			}
 		}
 
 		parts := wh1ByMachine[mc]

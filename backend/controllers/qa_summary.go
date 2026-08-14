@@ -25,14 +25,20 @@ type QAConfirmedRow struct {
 	SerialNo       string `json:"serialNo"`
 	ITControllerNo string `json:"itControllerNo"`
 	IMEI           string `json:"imei"`
-	LicenseNo      string `json:"licenseNo"`    // ใบอนุญาตนำเข้า
-	InvoiceNo      string `json:"invoiceNo"`    // อินวอยซ์
+	LicenseNo      string `json:"licenseNo"`     // ใบอนุญาตนำเข้า
+	InvoiceNo      string `json:"invoiceNo"`     // อินวอยซ์
 	ExportCountry  string `json:"exportCountry"` // ส่งออกไปประเทศ (จากบัญชีใบอนุญาตนำเข้า)
-	MatchStatus    string `json:"matchStatus"`  // ผลเทียบใบอนุญาต (MATCH)
-	MatchMessage   string `json:"matchMessage"` // ข้อความอธิบายผลเทียบ
-	PhotoURL       string `json:"photoURL"`     // รูปถ่ายป้ายยืนยันจากฝั่ง WH
-	Status         string `json:"status"`       // สถานะรวม (MATCHED เมื่อครบเงื่อนไข)
-	ConfirmedAt    string `json:"confirmedAt"`  // วันเวลาที่ WH ยืนยัน (RFC3339) — ใช้กรองตามปี/เดือน/วันฝั่ง QA
+	MatchStatus    string `json:"matchStatus"`   // ผลเทียบใบอนุญาต (MATCH)
+	MatchMessage   string `json:"matchMessage"`  // ข้อความอธิบายผลเทียบ
+	PhotoURL       string `json:"photoURL"`      // รูปถ่ายป้ายยืนยันจากฝั่ง WH
+	Status         string `json:"status"`        // สถานะรวม (MATCHED เมื่อครบเงื่อนไข)
+	ConfirmedAt    string `json:"confirmedAt"`   // วันเวลาที่ WH ยืนยัน (RFC3339) — ใช้กรองตามปี/เดือน/วันฝั่ง QA
+
+	// ── ข้อมูลจากทะเบียน Assembly (จับคู่ด้วย Machine No / IT Controller) ──
+	AsmModel   string `json:"asmModel"`   // Model (Assembly Parts Name) เช่น SK75-11
+	SpecCode   string `json:"specCode"`   // Spec Code
+	SpecDetail string `json:"specDetail"` // Specification Detail
+	ITDevice   string `json:"itDevice"`   // IT device
 }
 
 // GetQAConfirmedTable คืนตารางสรุปสำหรับ QA
@@ -50,6 +56,23 @@ func GetQAConfirmedTable(c *gin.Context) {
 	// คำนวณ Matched สดตอนแสดงผล) — ที่นี่จึงเช็คการจับคู่กับ WH สดเช่นกัน
 	var mfgRows []models.MFGAssembly
 	config.DB.Order("id asc").Find(&mfgRows)
+
+	// ทะเบียน Assembly — จับคู่ด้วย Machine No (frame) เป็นหลัก, IT Controller เป็นรอง
+	asmRows := loadUploadRows(models.DatasetAssembly)
+	asmByMachine := map[string]map[string]string{}
+	asmByITC := map[string]map[string]string{}
+	for _, a := range asmRows {
+		if mc := strings.TrimSpace(a["Machine No"]); mc != "" {
+			if _, ok := asmByMachine[mc]; !ok {
+				asmByMachine[mc] = a
+			}
+		}
+		if itc := strings.TrimSpace(a["IT Controller"]); itc != "" {
+			if _, ok := asmByITC[itc]; !ok {
+				asmByITC[itc] = a
+			}
+		}
+	}
 
 	out := make([]QAConfirmedRow, 0, len(mfgRows))
 	seen := map[string]bool{} // กันซ้ำ 1 แถวต่อ IT Controller No. (เก็บแถวแรก = เก่าสุด)
@@ -145,6 +168,20 @@ func GetQAConfirmedTable(c *gin.Context) {
 			if row.IMEI == "" {
 				row.IMEI = strings.TrimSpace(lic.ProductionNo)
 			}
+		}
+
+		// เติมข้อมูลจากทะเบียน Assembly (Machine No ก่อน แล้ว fallback IT Controller)
+		var asm map[string]string
+		if a, ok := asmByMachine[strings.TrimSpace(m.MachineNo)]; ok {
+			asm = a
+		} else if a, ok := asmByITC[itc]; ok {
+			asm = a
+		}
+		if asm != nil {
+			row.AsmModel = strings.TrimSpace(asm["Assembly_Parts_Name"])
+			row.SpecCode = strings.TrimSpace(asm["Spec Code"])
+			row.SpecDetail = strings.TrimSpace(asm["Specification Detail"])
+			row.ITDevice = strings.TrimSpace(asm["IT device"])
 		}
 
 		out = append(out, row)
