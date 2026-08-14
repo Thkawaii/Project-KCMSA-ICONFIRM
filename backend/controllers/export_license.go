@@ -136,6 +136,15 @@ var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"remark":   func(m *models.ExportLicenseItem, v string) { m.Remark = strings.TrimSpace(v) },
 	"remarks":  func(m *models.ExportLicenseItem, v string) { m.Remark = strings.TrimSpace(v) },
 	"หมายเหตุ": func(m *models.ExportLicenseItem, v string) { m.Remark = strings.TrimSpace(v) },
+
+	// ── Country (ประเทศปลายทาง) — มากับไฟล์โดยตรง ──
+	"country":       func(m *models.ExportLicenseItem, v string) { m.Country = strings.TrimSpace(v) },
+	"countryname":   func(m *models.ExportLicenseItem, v string) { m.Country = strings.TrimSpace(v) },
+	"exportcountry": func(m *models.ExportLicenseItem, v string) { m.Country = strings.TrimSpace(v) },
+	"destination":   func(m *models.ExportLicenseItem, v string) { m.Country = strings.TrimSpace(v) },
+	"ประเทศ":        func(m *models.ExportLicenseItem, v string) { m.Country = strings.TrimSpace(v) },
+	"ปลายทาง":       func(m *models.ExportLicenseItem, v string) { m.Country = strings.TrimSpace(v) },
+	"ส่งออกไปประเทศ": func(m *models.ExportLicenseItem, v string) { m.Country = strings.TrimSpace(v) },
 }
 
 func exportLicenseKnownHeaders() map[string]bool {

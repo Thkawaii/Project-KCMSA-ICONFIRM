@@ -69,6 +69,8 @@ func SetupRoutes(r *gin.Engine) {
 			manage.POST("/upload/:dataset", controllers.UploadDataFile)
 			// ทดลองอ่านไฟล์ (dry-run) เพื่อดูผลการแม็ปคอลัมน์ก่อนอัปโหลดจริง
 			manage.POST("/preview/:dataset", controllers.PreviewUploadDataMapping)
+			// ปั๊มตาราง Assembly อัตโนมัติจาก Planning/WH1/Engine + ทะเบียนกลาง
+			manage.POST("/assembly/generate", controllers.GenerateAssembly)
 			manage.DELETE("/:id", controllers.DeleteUploadDataRow)
 			manage.DELETE("", controllers.ClearUploadData)
 		}

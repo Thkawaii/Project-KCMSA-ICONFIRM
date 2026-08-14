@@ -14,6 +14,7 @@ import {
   scanStep,
   scanLoading,
   scanClose,
+  scanCloseWait,
   scanSuccessToast,
   scanErrorAlert,
   scanPhotoCapture,
@@ -128,6 +129,11 @@ export default function MFGAssemblyPage() {
   // IT Controller + Machine No ที่สแกน = ประกอบเป็นรถรุ่นไหน
   const [assemblyByPair, setAssemblyByPair] = useState({}) // "MACHINE|ITC" -> info
   const [assemblyByMachine, setAssemblyByMachine] = useState({}) // "MACHINE" -> info
+
+  // ── โมดัลรายละเอียดการประกอบ (ปุ่ม "รายละเอียด") ─────────────────────────
+  // เมื่อประกอบถูกแล้ว กดดูได้ว่า Machine No นี้ประกอบเป็นรถรุ่นไหน สเปกไหน
+  // ประเทศไหน — ดึงข้อมูลจากทะเบียน Assembly มาแสดงเป็นป็อปอัป
+  const [detailRow, setDetailRow] = useState(null) // { row, asm } ที่กำลังเปิดดู
 
   // ── สแกน/กรอก ──────────────────────────────────────────────────────────
   // ใช้ popup "ยิงบาร์โค้ด หรือพิมพ์เอง" (scanStep) เหมือนหน้า WH/TSF ทุกประการ
@@ -315,7 +321,10 @@ export default function MFGAssemblyPage() {
       // หลังบันทึกผลสแกนแล้ว เปิดกล้องให้ถ่ายรูปป้ายเครื่องจริงทันที เป็นขั้นตอน
       // ต่อเนื่องกับการสแกน (ถ้ากล้องใช้ไม่ได้ helper จะมีปุ่มปิดให้ข้ามได้เอง)
       if (row?.ID) {
-        scanClose() // ปิด popup loading ก่อนเปิดกล้อง กันซ้อนกัน
+        // ปิด popup loading ให้ปิดสนิทก่อน แล้วค่อยเปิดกล้องเป็น popup ใหม่
+        // (ถ้า fire ทับ popup loading เดิมโดยตรง SweetAlert จะไม่รัน didOpen ของ
+        //  scanPhotoCapture => กล้องไม่เริ่ม/หน้าถ่ายรูปไม่ขึ้น ตามที่เจอฝั่ง MFG)
+        await scanCloseWait()
         const photoBlob = await scanPhotoCapture({
           title: 'ถ่ายรูปป้ายเครื่อง',
           html: `<div class="scan-popup-hint">Machine No: <b>${machineNo || '-'}</b>${
@@ -634,7 +643,14 @@ export default function MFGAssemblyPage() {
                     </td>
                     <td data-label="Model" title={asmTitle}>
                       {asm && asm.model ? (
-                        <span className="mfg-model-link">{asm.model}</span>
+                        <button
+                          type="button"
+                          className="mfg-model-link mfg-model-link-btn"
+                          onClick={() => setDetailRow({ row: a, asm })}
+                          title="ดูรายละเอียดการประกอบ"
+                        >
+                          {asm.model}
+                        </button>
                       ) : (
                         '—'
                       )}
@@ -664,6 +680,15 @@ export default function MFGAssemblyPage() {
                       <span className={meta.cls}>{meta.label}</span>
                     </td>
                     <td className="wh-cell-action">
+                      {asm && (
+                        <button
+                          className="tsf-action-btn"
+                          onClick={() => setDetailRow({ row: a, asm })}
+                          title="ดูรายละเอียดการประกอบ (รุ่น/สเปก/ประเทศ)"
+                        >
+                          รายละเอียด
+                        </button>
+                      )}
                       <button
                         className="tsf-action-btn tsf-action-btn-warn"
                         onClick={() => setPhotoEditRow(a)}
@@ -887,6 +912,60 @@ export default function MFGAssemblyPage() {
             <div className="wh-modal-actions">
               <button className="wh-modal-cancel" onClick={() => setPhotoEditRow(null)}>
                 ยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {detailRow && (
+        <div className="wh-modal-overlay" onClick={() => setDetailRow(null)}>
+          <div className="wh-modal mfg-detail-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="wh-modal-title">รายละเอียดการประกอบ</h3>
+            <p className="mfg-photo-hint" style={{ marginBottom: 12 }}>
+              Machine No นี้ประกอบเป็นรถรุ่น/สเปก/ประเทศใด — ดึงข้อมูลจากทะเบียน Assembly
+            </p>
+
+            <div className="mfg-photo-info">
+              <div className="mfg-photo-info-row">
+                <span className="mfg-photo-info-label">Machine No</span>
+                <span className="mfg-photo-info-value">{detailRow.row.MachineNo || '—'}</span>
+              </div>
+              <div className="mfg-photo-info-row">
+                <span className="mfg-photo-info-label">IT Controller No.</span>
+                <span className="mfg-photo-info-value">{detailRow.row.ITControllerNo || '—'}</span>
+              </div>
+              <div className="mfg-photo-info-row">
+                <span className="mfg-photo-info-label">Model (Assembly Parts Name)</span>
+                <span className="mfg-photo-info-value">{detailRow.asm.model || '—'}</span>
+              </div>
+              <div className="mfg-photo-info-row">
+                <span className="mfg-photo-info-label">Assembly Parts Number</span>
+                <span className="mfg-photo-info-value">{detailRow.asm.partsNumber || '—'}</span>
+              </div>
+              <div className="mfg-photo-info-row">
+                <span className="mfg-photo-info-label">Spec Code</span>
+                <span className="mfg-photo-info-value">{detailRow.asm.specCode || '—'}</span>
+              </div>
+              <div className="mfg-photo-info-row">
+                <span className="mfg-photo-info-label">Specification Detail</span>
+                <span className="mfg-photo-info-value">{detailRow.asm.specDetail || '—'}</span>
+              </div>
+              <div className="mfg-photo-info-row">
+                <span className="mfg-photo-info-label">IT device</span>
+                <span className="mfg-photo-info-value">{detailRow.asm.itDevice || '—'}</span>
+              </div>
+              <div className="mfg-photo-info-row">
+                <span className="mfg-photo-info-label">Country</span>
+                <span className="mfg-photo-info-value">
+                  {detailRow.asm.country || detailRow.row.Country || '—'}
+                </span>
+              </div>
+            </div>
+
+            <div className="wh-modal-actions">
+              <button className="wh-modal-cancel" onClick={() => setDetailRow(null)}>
+                ปิด
               </button>
             </div>
           </div>

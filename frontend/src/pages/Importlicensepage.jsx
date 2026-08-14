@@ -838,8 +838,30 @@ export function WHExportLicensePanel() {
     }
   }, [])
 
-  // ประเทศปลายทางของ 1 แถวใบอนุญาตส่งออก (เชื่อมผ่าน IT Controller No. / Serial Number)
+  // ประเทศปลายทางของ 1 แถวใบอนุญาตส่งออก
+  //  1) ใช้ค่า Country ที่มากับไฟล์อัปโหลดโดยตรงก่อน (ฟิลด์ใหม่)
+  //  2) ข้อมูลเก่าที่อัปโหลดก่อนรู้จักคอลัมน์นี้ — ยังอยู่ใน extra_json (ไม่ต้องอัปโหลดใหม่)
+  //  3) ถ้าไม่มี ค่อยเชื่อมจากบัญชีใบอนุญาตนำเข้า (ExportCountry) ผ่าน IT Controller No.
   function countryOf(r) {
+    const direct = String(r.Country || '').trim()
+    if (direct) return direct
+
+    // จาก extra_json (ข้อมูลเก่า) — หา key ที่เป็น country/ประเทศ
+    try {
+      const extra = r.extra_json ? JSON.parse(r.extra_json) : null
+      if (extra) {
+        for (const [k, v] of Object.entries(extra)) {
+          const nk = String(k).replace(/^\[\+\]\s*/, '').toLowerCase().replace(/[\s_./-]/g, '')
+          if (['country', 'countryname', 'exportcountry', 'ประเทศ', 'ปลายทาง', 'ส่งออกไปประเทศ'].includes(nk)) {
+            const val = String(v || '').trim()
+            if (val) return val
+          }
+        }
+      }
+    } catch {
+      // extra_json อ่านไม่ได้ — ข้ามไปใช้การเชื่อมจากบัญชีนำเข้า
+    }
+
     const a = String(r.ITControllerNo || '').trim()
     const b = String(r.SerialNumber || '').trim()
     return countryByITC[a] || countryByITC[b] || ''
@@ -1163,7 +1185,7 @@ export function WHExportLicensePanel() {
                   <td data-label="Invoice">
                     <div className="il-mono">{row.InvoiceNo || '—'}</div>
                     {row.InvoiceDate && (
-                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                      <div className="il-invoice-date">
                         {formatThaiDate(row.InvoiceDate)}
                       </div>
                     )}
