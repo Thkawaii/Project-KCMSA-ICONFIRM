@@ -284,7 +284,7 @@ export default function MFGAssemblyPage() {
     try {
       // ── ครั้งที่ 1: Machine No ──
       const code1 = await scanStep({
-        title: 'สแกน Machine No (1/2)',
+        title: 'สแกน Machine No.',
         placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ Machine No แล้วกดปุ่ม',
         confirmText: 'ต่อไป',
       })
@@ -294,7 +294,7 @@ export default function MFGAssemblyPage() {
 
       // ── ครั้งที่ 2: IT Controller No. ──
       const code2 = await scanStep({
-        title: 'สแกน IT Controller (2/2)',
+        title: 'สแกน IT Controller No.',
         html: `<div class="scan-popup-hint">Machine No: <b>${machineNo || '-'}</b></div>`,
         placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ IT Controller No. แล้วกดปุ่ม',
         confirmText: 'บันทึก',
