@@ -239,25 +239,15 @@ func SetupRoutes(r *gin.Engine) {
 		admin.DELETE("/:id", controllers.DeleteUser)
 	}
 
-	// TSF Operator
-	tsf := auth.Group("/tsf")
-	tsf.Use(middleware.RoleMiddleware("TSF"))
-	{
-		tsf.GET("", controllers.GetTSF)
-		tsf.GET("/by-machine/:machineNo", controllers.GetTSFByMachine)
-		tsf.POST("", controllers.CreateTSF)
-		tsf.PATCH("/:id", controllers.UpdateTSF)
-	}
-
 	// ─────────────────────────────────────────────────────────────────────
-	// MFG Assembly — ผลตรวจตอนประกอบเสร็จ ของฝั่ง MFG (login = role TSF)
+	// MFG Assembly — ผลตรวจตอนประกอบเสร็จ ของฝั่ง MFG (role MFG)
 	//
 	// สแกน QR ของเครื่องที่ประกอบเสร็จ (บรรจุ Machine No + IT Controller No.)
 	// ระบบบันทึกคู่ + flag สถานะ (OK/UNKNOWN/REUSED/DUPLICATE) และแก้ไข/ลบ/
-	// เพิ่มเองได้ (สิทธิ์เดียวกับ tsf คือ role TSF)
+	// เพิ่มเองได้
 	// ─────────────────────────────────────────────────────────────────────
 	mfgAssembly := auth.Group("/mfg-assembly")
-	mfgAssembly.Use(middleware.RoleMiddleware("TSF", "MFG"))
+	mfgAssembly.Use(middleware.RoleMiddleware("MFG"))
 	{
 		mfgAssembly.GET("", controllers.GetMFGAssemblies)
 		mfgAssembly.POST("/scan", controllers.ScanMFGAssembly)
@@ -265,16 +255,8 @@ func SetupRoutes(r *gin.Engine) {
 		mfgAssembly.PATCH("/:id", controllers.UpdateMFGAssembly)
 		mfgAssembly.DELETE("/:id", controllers.DeleteMFGAssembly)
 
-		// ถ่ายรูปป้ายยืนยันหลังสแกน (ย้ายมาจากฝั่ง WH) — เก็บรูปเป็นหลักฐานเฉย ๆ
+		// ถ่ายรูปป้ายยืนยันหลังสแกน — เก็บรูปเป็นหลักฐานเฉย ๆ
 		mfgAssembly.POST("/:id/photo", controllers.UploadMFGAssemblyPhoto)
-	}
-
-	// TSF confirm — QA also needs to read/confirm these, so it's
-	// intentionally outside the "TSF" role-only group above.
-	tsfConfirm := auth.Group("/tsf-confirm")
-	{
-		tsfConfirm.GET("", controllers.GetTSFConfirm)
-		tsfConfirm.POST("/:id", controllers.ConfirmTSF)
 	}
 
 	// QA

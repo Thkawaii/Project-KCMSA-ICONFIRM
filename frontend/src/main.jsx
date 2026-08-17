@@ -5,7 +5,6 @@ import ImportLicensePage from './pages/Importlicensepage.jsx'
 import ExportLicensePage from './pages/Exportlicensepage.jsx'
 import WHPartConfirmationPage from './pages/Whpartconfirmationpage.jsx'
 import DashboardPage from './pages/Dashboardpage.jsx'
-import TSFOperatorPage from './pages/Tsfoperatorpage.jsx'
 import UploadViewPage from './pages/UploadViewpage.jsx'
 import MasterDataPage from './pages/MasterDataPage.jsx'
 import MFGAssemblyPage from './pages/Mfgassemblypage.jsx'
@@ -26,7 +25,7 @@ import './Selectfield.css'
 // theme.css = ชั้น Tailwind + ธีมใหม่ ต้องอยู่ท้ายสุดเสมอ (ทับสไตล์เก่า)
 import './theme.css'
 
-// role_name ที่ backend ส่งมา (ดู seed.go): QA / WH / TSF / UPLOAD
+// role_name ที่ backend ส่งมา (ดู seed.go): QA / WH / MFG / LOG / UPLOAD / ADMIN
 // role อื่น ๆ ที่ไม่ตรงกับ 4 ตัวนี้ (เช่น LOG, Coding) จะถูกส่งไป /dashboard เป็น fallback
 // หน้าแรกของแต่ละ role — ใช้ตัวเดียวกับ LoginPage (ดู lib/roleRoutes.js)
 const resolveHomeRoute = homeRouteForRole
@@ -39,9 +38,8 @@ const ROUTE_CONFIG = {
   '/warehouse': { component: ImportLicensePage, roles: ['LOG'] },
   '/warehouse/export-license': { component: ExportLicensePage, roles: ['LOG'] },
   '/warehouse/confirm': { component: WHPartConfirmationPage, roles: ['WH', 'LOG'] },
-  '/mfg-assembly': { component: MFGAssemblyPage, roles: ['MFG', 'TSF'] },
+  '/mfg-assembly': { component: MFGAssemblyPage, roles: ['MFG'] },
   '/admin': { component: AdminDashboardPage, roles: ['ADMIN'] },
-  '/tsf': { component: TSFOperatorPage, roles: ['TSF'] },
   '/upload': { component: UploadViewPage, roles: ['UPLOAD'] },
   '/master-data': { component: MasterDataPage, roles: ['UPLOAD'] },
   '/format-settings': { component: FormatSettingsPage, roles: ['UPLOAD', 'ADMIN'] },

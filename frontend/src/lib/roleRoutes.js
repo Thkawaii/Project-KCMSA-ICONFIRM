@@ -11,7 +11,6 @@ export function homeRouteForRole(role) {
   if (normalized === 'WH') return '/warehouse/confirm'
   if (normalized === 'MFG') return '/mfg-assembly'
   if (normalized === 'QA') return '/qa'
-  if (normalized === 'TSF') return '/tsf'
   if (normalized === 'UPLOAD') return '/master-data'
 
   return '/dashboard'

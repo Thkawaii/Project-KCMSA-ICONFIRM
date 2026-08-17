@@ -52,10 +52,6 @@ func ConnectDB() {
 
 		&models.MachineSpec{},
 
-		&models.TSFOperator{},
-
-		&models.TSFConfirm{},
-
 		&models.QA{},
 
 		&models.QAConfirm{},
