@@ -131,19 +131,12 @@ export default function FormatSettingsPage() {
         {/* Column Alias */}
         <div className="fmt-card">
           <h3 className="fmt-card-title">หัวคอลัมน์เปลี่ยนชื่อ / เพิ่มใหม่ / สลับตำแหน่ง</h3>
-          <p className="fmt-card-sub">
-            พิมพ์ชื่อหัวคอลัมน์ที่ไฟล์เขียนมาจริง แล้วเลือกว่าให้ลงคอลัมน์เดิมตัวไหนของ{' '}
-            <b>{active.label}</b>
-          </p>
           <ColumnAliasPanel scope={scope} targetOptions={targetOptions} embedded />
         </div>
 
         {/* Change Format Part (Code Alias) */}
         <div className="fmt-card">
           <h3 className="fmt-card-title">Change Format Part</h3>
-          <p className="fmt-card-sub">
-            เมื่อค่ารหัส Machine No. · P/N · S/N หน้างานเปลี่ยนรูปแบบ — ผูกค่าใหม่ให้ชี้กลับค่าเดิมในทะเบียน
-          </p>
           <CodeAliasPanel componentType="it_controller" embedded />
         </div>
       </div>
