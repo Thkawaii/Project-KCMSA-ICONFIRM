@@ -7,6 +7,7 @@ import {
   getUploadData,
   uploadDataFile,
   deleteUploadDataRow,
+  updateUploadDataRow,
   clearUploadData,
   previewUploadData,
   generateAssembly,
@@ -35,7 +36,7 @@ import '../UploadData.css'
 // noLabel = ชื่อคอลัมน์ "หมายเลข" เฉพาะของอะไหล่ชนิดนั้น (แสดงแทน "IT Controller no.")
 const COMPONENT_TYPES = [
   { value: 'it_controller', label: 'IT Controller', noLabel: 'IT Controller no.' },
-  { value: 'swing_motor', label: 'Swing Motor', noLabel: 'Swing Motor no.' },
+  { value: 'swing_motor', label: 'Swing Motor', noLabel: 'Swing Motor No.' },
   { value: 'pump_assy_hyd', label: 'Pump Assy HYD', noLabel: 'Pump Assy HYD NO.' },
   { value: 'motor_propel', label: 'Motor Propel', noLabel: 'Motor Propel NO.' },
   { value: 'control_valve', label: 'Control Valve', noLabel: 'Control Valve NO.' },
@@ -432,25 +433,33 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
     }
   }
 
-  function handleExportCsv() {
-    const header = ['Item No', 'Part Name', 'Model', 'Part No', 'Serial No', noLabel, 'IMEI']
-    const body = filtered.map((row, i) => [
-      i + 1,
-      row.Name || '',
-      row.Model || '',
-      excelText(row.PartNo),
-      excelText(row.SerialNo),
-      excelText(row.ITControllerNo),
-      excelText(row.IMEI),
-    ])
-    const csv = '\uFEFF' + [header, ...body].map((cols) => cols.map(csvCell).join(',')).join('\r\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `master-data-${Date.now()}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+  // Export เป็น Excel (.xlsx) แบบจัด Format ให้เหมือนตารางอื่น — Freeze Header,
+  // Header สี Theme ตัวหนากึ่งกลาง, Filter ทุกคอลัมน์ (Excel Table), แถบสีสลับแถว,
+  // ปรับความกว้างอัตโนมัติ, Border, จัด Alignment ตามชนิดข้อมูล
+  // (รหัส S/N, IT Controller no., IMEI, P/N คงเป็น "ข้อความ" กันเลขยาวเพี้ยนใน Excel)
+  function handleExport() {
+    const columns = [
+      { key: 'itemNo', header: 'Item No.', type: 'number', width: 8 },
+      { key: 'name', header: 'Part Name', type: 'text' },
+      { key: 'model', header: 'Model', type: 'text' },
+      { key: 'partNo', header: 'Part No.', type: 'text' },
+      { key: 'serialNo', header: 'Serial No.', type: 'text' },
+      { key: 'itcNo', header: noLabel, type: 'text' },
+      { key: 'imei', header: 'IMEI', type: 'text' },
+    ]
+    const rows = filtered.map((row, i) => ({
+      itemNo: i + 1,
+      name: row.Name || '',
+      model: row.Model || '',
+      partNo: row.PartNo || '',
+      serialNo: row.SerialNo || '',
+      itcNo: row.ITControllerNo || '',
+      imei: row.IMEI || '',
+    }))
+    const sheetName = (compType === 'all' ? 'ALL PART' : HEADING_LABEL_BY_TYPE[compType] || 'Master Data').slice(0, 31)
+    const blob = buildStyledXlsxBlob({ sheetName, columns, rows })
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+    downloadBlob(blob, `master-data-${compType}-${stamp}.xlsx`)
   }
 
   return (
@@ -522,8 +531,8 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
             placeholder={`สแกนหรือพิมพ์ S/N, ${noLabel}, IMEI, P/N`}
             style={{ minWidth: 200, flex: '1 1 200px' }}
           />
-          <button className="wh-issue-btn" onClick={handleExportCsv} disabled={filtered.length === 0}>
-            <ArrowDownTrayIcon className="size-4" /> Export CSV
+          <button className="wh-issue-btn" onClick={handleExport} disabled={filtered.length === 0}>
+            <ArrowDownTrayIcon className="size-4" /> Export Excel
           </button>
           <button className="qa-fail-btn" onClick={handleClearAll} disabled={rows.length === 0}>
             {compType === 'all' ? 'ลบทั้งหมด' : 'ลบทั้งชนิด'}
@@ -608,6 +617,7 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
         <MasterDataEditModal
           row={editRow}
           componentOptions={editComponentOptions}
+          itcLabel={noLabel}
           onClose={() => setEditRow(null)}
           onSaved={bumpReload}
         />
@@ -632,6 +642,7 @@ function DatasetView({ dataset }) {
   const [exporting, setExporting] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [localReload, setLocalReload] = useState(0)
+  const [editRow, setEditRow] = useState(null)
 
   // ── pagination ──
   const [page, setPage] = useState(1)
@@ -721,6 +732,14 @@ function DatasetView({ dataset }) {
     } catch (err) {
       toastError(err.message || 'ลบไม่สำเร็จ')
     }
+  }
+
+  // บันทึกการแก้ไขแถว (data = { ชื่อคอลัมน์: ค่า }) แล้วโหลดตารางใหม่
+  async function handleSaveEdit(id, data) {
+    await updateUploadDataRow(id, data)
+    setEditRow(null)
+    setLocalReload((n) => n + 1)
+    toastSuccess('บันทึกการแก้ไขแล้ว')
   }
 
   async function handleClear() {
@@ -889,7 +908,7 @@ function DatasetView({ dataset }) {
               disabled={generating}
               title="ระบบปั๊มตาราง Assembly ให้อัตโนมัติตอนเปิดหน้าอยู่แล้ว — กดปุ่มนี้เพื่อดึงข้อมูลล่าสุดซ้ำ (จาก Planning / WH1 / Engine + ทะเบียนกลาง จับคู่ด้วยหมายเลขเครื่อง)"
             >
-              {generating ? 'กำลังปั๊ม...' : 'รีเฟรช Assembly'}
+              {generating ? 'กำลังปั๊ม...' : 'Stamp Assembly'}
             </button>
           )}
           <button className="qa-fail-btn" onClick={handleClear} disabled={total === 0}>
@@ -927,9 +946,14 @@ function DatasetView({ dataset }) {
                     </td>
                   ))}
                   <td className="wh-cell-action">
-                    <button className="qa-fail-btn" onClick={() => handleDelete(row.ID)}>
-                      ลบ
-                    </button>
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <button className="wh-issue-btn" onClick={() => setEditRow(row)}>
+                        แก้ไข
+                      </button>
+                      <button className="qa-fail-btn" onClick={() => handleDelete(row.ID)}>
+                        ลบ
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -974,6 +998,16 @@ function DatasetView({ dataset }) {
           </button>
         </div>
       )}
+
+      {editRow && (
+        <UploadRowEditModal
+          row={editRow}
+          columns={columns}
+          datasetLabel={label}
+          onClose={() => setEditRow(null)}
+          onSave={handleSaveEdit}
+        />
+      )}
     </>
   )
 }
@@ -981,13 +1015,74 @@ function DatasetView({ dataset }) {
 // เลขรหัสทุกช่องใช้ฟอนต์ monospace เพื่อให้นับหลักตอนเทียบกับตัวเครื่องได้ง่าย
 const codeStyle = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }
 
-// ครอบด้วย ="..." เพื่อบังคับให้ Excel อ่านเป็นข้อความ ไม่งั้น IMEI 15 หลักจะเพี้ยน
-function excelText(value) {
-  if (!value) return ''
-  return `="${String(value)}"`
-}
+/* ─────────────────────────────────────────────────────────────────────────
+   UploadRowEditModal — แก้ไขข้อมูล 1 แถวของ Planning/WH1/WH2/Engine/Assembly
+   แสดงทุกคอลัมน์ของ dataset เป็นช่องกรอก (ค่าเริ่มต้นจาก DataJSON) แล้วบันทึก
+   ───────────────────────────────────────────────────────────────────────── */
+function UploadRowEditModal({ row, columns, datasetLabel, onClose, onSave }) {
+  const initial = useMemo(() => {
+    let data = {}
+    try {
+      data = JSON.parse(row.DataJSON || '{}')
+    } catch {
+      data = {}
+    }
+    const out = {}
+    columns.forEach((c) => {
+      out[c] = data[c] == null ? '' : String(data[c])
+    })
+    return out
+  }, [row, columns])
 
-function csvCell(value) {
-  const s = value == null ? '' : String(value)
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  const [form, setForm] = useState(initial)
+  const [saving, setSaving] = useState(false)
+
+  const set = (col) => (e) => setForm((f) => ({ ...f, [col]: e.target.value }))
+
+  async function submit() {
+    setSaving(true)
+    try {
+      await onSave(row.ID, form)
+    } catch (err) {
+      toastError(err.message || 'บันทึกไม่สำเร็จ')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="wh-modal-overlay" onClick={onClose}>
+      <div
+        className="wh-modal"
+        style={{ maxWidth: 720, maxHeight: '85vh', overflowY: 'auto' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="wh-modal-title">แก้ไขข้อมูล {datasetLabel}</h3>
+
+        <div className="fmt-form fmt-form-compact" style={{ marginTop: 12 }}>
+          {columns.map((col) => (
+            <div className="fmt-field" key={col}>
+              <label className="fmt-label">{col}</label>
+              <input className="fmt-input" value={form[col] ?? ''} onChange={set(col)} />
+            </div>
+          ))}
+        </div>
+
+        {columns.length === 0 && (
+          <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 10 }}>
+            ยังไม่มีคอลัมน์ให้แก้ไข
+          </p>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+          <button className="wh-modal-cancel" onClick={onClose} disabled={saving}>
+            ยกเลิก
+          </button>
+          <button className="wh-modal-confirm" onClick={submit} disabled={saving || columns.length === 0}>
+            {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }

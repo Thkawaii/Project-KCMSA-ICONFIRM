@@ -515,9 +515,6 @@ export default function MFGAssemblyPage() {
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">Matching Assembly</h2>
-          <p className="wh-subtitle">
-            แตะการ์ดด้านล่างเพื่อยิงบาร์โค้ด หรือพิมพ์ Machine No เอง — ระบบบันทึก Machine No + IT Controller No. แล้วตรวจสถานะให้
-          </p>
         </div>
       </div>
 

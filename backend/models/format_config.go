@@ -31,6 +31,10 @@ type ColumnAlias struct {
 	// คอลัมน์มาตรฐานที่ต้องการแม็ปไปหา เช่น "Machine"
 	Target string `gorm:"size:150;not null" json:"target"`
 
+	// ชนิดการเปลี่ยน: rename (เปลี่ยนชื่อ) | add (เพิ่มใหม่) — เว้นว่าง = rename
+	// (สลับตำแหน่งไม่ต้องบันทึก เพราะระบบจับคู่ด้วยชื่อหัวคอลัมน์อยู่แล้ว)
+	Kind string `gorm:"size:20" json:"kind"`
+
 	Note       string    `gorm:"size:255" json:"note"`
 	UploadDate time.Time `json:"upload_date"`
 	UserID     uint      `json:"user_id"`
