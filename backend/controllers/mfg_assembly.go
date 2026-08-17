@@ -460,10 +460,14 @@ func ScanMFGAssembly(c *gin.Context) {
 	message := mfgStatusMessage(row.Status, itcNo, row.WHLicenseNo)
 
 	// ── เทียบกับแผน: IT Controller ตัวนี้เป็นของคันนี้จริงไหม (ออปชัน) ──────
+	// หมายเหตุ: ถ้า WH ยืนยันแล้วว่าตรงกับใบอนุญาตนำเข้า (row.Status == MATCHED)
+	// ถือว่าผลจากฝั่ง WH เป็นตัวชี้ขาด — ไม่ต้องเอาข้อความ "แผนไม่สั่งติด" (NO_OPTION)
+	// ไปทับ/ต่อท้ายข้อความสำเร็จ เพราะจะอ่านแล้วดูขัดแย้งกันเอง (เขียว + "ไม่ได้สั่งติด")
+	// ทั้งที่จริง ๆ คนละเรื่องกัน: NO_OPTION บอกแค่ว่า MachineSpec ไม่มีข้อมูลวางแผนไว้
 	plannedITCNo, plannedState := plannedITCForMachine(machineNo, itcNo)
 	if plannedState == "MISMATCH" {
 		message = "IT Controller ไม่ตรงกับที่แผนกำหนดให้เครื่องนี้ (แผน: " + plannedITCNo + ")"
-	} else if plannedState == "NO_OPTION" {
+	} else if plannedState == "NO_OPTION" && row.Status != models.MFGStatusMatched {
 		message = "เครื่องนี้ไม่ได้สั่งติด IT Controller ตามแผน — " + message
 	}
 
