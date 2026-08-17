@@ -198,9 +198,8 @@ func SeedData() {
 	// เหมือนที่เจอ error อยู่ตอนนี้
 	qaUserID := users[0].ID
 	whUserID := users[1].ID
-	tsfUserID := users[4].ID // ผู้ใช้ mfg@kobelco.com (role MFG) — สำหรับผูก sample tsf ด้านล่าง
 
-	// 2 แถวนี้เป็นข้อมูลตัวอย่างของเดิม ที่ tsf/qa ด้านล่างอ้างถึงอยู่
+	// 2 แถวนี้เป็นข้อมูลตัวอย่างของเดิม ที่ qa ด้านล่างอ้างถึงอยู่
 	// ถ้าลบออก flow ตัวอย่างจะเสีย — ทะเบียน IT Controller ตัวจริง 36 เครื่อง
 	// อยู่ใน SeedMasterITController() ต่างหาก
 	master := []models.MasterData{
@@ -223,20 +222,6 @@ func SeedData() {
 	}
 
 	DB.Create(&master)
-
-	tsf := []models.TSFOperator{
-		{
-			SerialNumber:     "J05ETG63544",
-			ActualPartNo:     "YN02P00133F2G1",
-			ActualSpecCode:   "SPEC001",
-			ValidationStatus: "PASS",
-			FileName:         "it_controller.jpg",
-			ScannedBy:        "operator",
-			UserID:           tsfUserID,
-		},
-	}
-
-	DB.Create(&tsf)
 
 	qa := []models.QA{
 		{

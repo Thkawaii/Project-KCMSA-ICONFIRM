@@ -695,16 +695,45 @@ func UploadDataFile(c *gin.Context) {
 		return
 	}
 
-	// แทนที่ทั้งชุดใน transaction เดียว — ล้างของเดิมแล้วใส่ใหม่
-	tx := config.DB.Begin()
-	if err := tx.Where("dataset = ?", dataset).Delete(&models.UploadDataRow{}).Error; err != nil {
-		tx.Rollback()
-		c.JSON(500, gin.H{"message": "ล้างข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+	// อัปโหลดเพิ่ม = ต่อท้ายข้อมูลเดิม (ไม่ล้างทับของเก่า)
+	// กันแถวซ้ำเป๊ะ ๆ ด้วยการเทียบ DataJSON กับที่มีอยู่แล้ว (อัปโหลดไฟล์เดิมซ้ำ =
+	// ไม่เพิ่มซ้ำ) — json.Marshal ของ Go เรียงคีย์ map เสมอ จึงเทียบสตริงตรง ๆ ได้
+	existingSet := map[string]bool{}
+	var existingJSON []string
+	config.DB.Model(&models.UploadDataRow{}).
+		Where("dataset = ?", dataset).Pluck("data_json", &existingJSON)
+	for _, j := range existingJSON {
+		existingSet[j] = true
+	}
+
+	var toInsert []models.UploadDataRow
+	seenInFile := map[string]bool{}
+	duplicate := 0
+	for _, r := range parsed {
+		if existingSet[r.DataJSON] || seenInFile[r.DataJSON] {
+			duplicate++
+			continue
+		}
+		seenInFile[r.DataJSON] = true
+		toInsert = append(toInsert, r)
+	}
+
+	if len(toInsert) == 0 {
+		c.JSON(200, gin.H{
+			"dataset":   dataset,
+			"imported":  0,
+			"skipped":   skipped,
+			"duplicate": duplicate,
+			"file":      fileName,
+			"message":   "ไม่มีแถวใหม่ — ข้อมูลในไฟล์ซ้ำกับที่มีอยู่แล้วทั้งหมด",
+		})
 		return
 	}
+
 	// insert ทีละ batch — ตาราง 13 คอลัมน์ × แถวเยอะ จะทะลุลิมิต 65535 bind params
 	// ของ PostgreSQL ถ้ายัด statement เดียว (batch 1000 = ~13,000 params ปลอดภัย)
-	if err := tx.CreateInBatches(&parsed, 1000).Error; err != nil {
+	tx := config.DB.Begin()
+	if err := tx.CreateInBatches(&toInsert, 1000).Error; err != nil {
 		tx.Rollback()
 		c.JSON(500, gin.H{"message": "บันทึกข้อมูลไม่สำเร็จ: " + err.Error()})
 		return
@@ -714,10 +743,11 @@ func UploadDataFile(c *gin.Context) {
 	CreateAuditLog("UPLOAD_DATA", 0, "upload_"+dataset, fileName, userID, userName)
 
 	c.JSON(201, gin.H{
-		"dataset":  dataset,
-		"imported": len(parsed),
-		"skipped":  skipped,
-		"file":     fileName,
+		"dataset":   dataset,
+		"imported":  len(toInsert),
+		"skipped":   skipped,
+		"duplicate": duplicate,
+		"file":      fileName,
 	})
 }
 

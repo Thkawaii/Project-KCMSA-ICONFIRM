@@ -27,11 +27,16 @@ import {
   QrCodeIcon,
   CameraIcon,
   ArrowUpTrayIcon,
+  ArrowsRightLeftIcon,
 } from '../components/icons.jsx'
 import AppShell from '../components/AppShell.jsx'
 import SelectField from '../components/Selectfield.jsx'
-import { MFG_NAV_ITEMS } from './Tsfoperatorpage.jsx'
 import bcMachine from '../assets/barcodes/Machine_Barcode.gif'
+
+// MFG มีหน้าเดียว — AppShell จะซ่อนแถบเมนูย่อยให้เองเมื่อมีรายการเดียว
+export const MFG_NAV_ITEMS = [
+  { to: '/mfg-assembly', label: 'MFG Assembly', icon: <ArrowsRightLeftIcon className="size-4" />, roles: ['MFG'] },
+]
 
 // ป้ายสถานะ — ใช้ชุดคลาส .il-badge เดิม
 // backend คืนค่าจริงเป็น MATCHED / NOT_MATCHED / DUPLICATE (ดู models.MFGStatus*)
@@ -270,28 +275,44 @@ export default function MFGAssemblyPage() {
   }, [])
 
   // ── สแกน/กรอก ───────────────────────────────────────────────────────────
-  // เปิด popup ว่าง ให้ "ยิงบาร์โค้ด หรือพิมพ์เอง" Machine No (+IT Controller) แล้วกดบันทึก
-  // — เหมือนหน้า WH/TSF ทุกประการ ไม่มีการเปิดกล้อง/บังคับถ่ายรูป
+  // เปิด popup ให้ "ยิงบาร์โค้ด หรือพิมพ์เอง" 2 ครั้ง — ครั้งแรก Machine No,
+  // ครั้งสอง IT Controller No. แล้วบันทึกทั้งคู่
+  // (เหมือนหน้า WH/TSF ไม่มีการเปิดกล้อง/บังคับถ่ายรูปในขั้นสแกน)
   async function runScanFlow() {
     if (busyRef.current) return
     busyRef.current = true
     try {
-      const code = await scanStep({
-        title: 'Machine Part Confirmation',
+      // ── ครั้งที่ 1: Machine No ──
+      const code1 = await scanStep({
+        title: 'สแกน Machine No (1/2)',
         placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ Machine No แล้วกดปุ่ม',
+        confirmText: 'ต่อไป',
+      })
+      if (!code1) return
+      const parsed1 = parseAssemblyCode(code1)
+      const machineNo = parsed1.machineNo || code1.trim()
+
+      // ── ครั้งที่ 2: IT Controller No. ──
+      const code2 = await scanStep({
+        title: 'สแกน IT Controller (2/2)',
+        html: `<div class="scan-popup-hint">Machine No: <b>${machineNo || '-'}</b></div>`,
+        placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ IT Controller No. แล้วกดปุ่ม',
         confirmText: 'บันทึก',
       })
-      if (!code) return
-      const { machineNo, itControllerNo } = parseAssemblyCode(code)
-      if (machineNo && itControllerNo) {
+
+      if (code2) {
+        const parsed2 = parseAssemblyCode(code2)
+        // ครั้งที่ 2 คาดหวังเป็นเลข IT Controller — ถ้าเป็นก้อนรวมก็ดึงเลขออก ไม่งั้นใช้ค่าดิบ
+        const itControllerNo = parsed2.itControllerNo || code2.trim()
         await submitScan(machineNo, itControllerNo)
       } else if (machineNo) {
-        // มีแค่ Machine No — บันทึกได้เลย (backend จะดึง IT Controller/Country ให้ถ้ามี)
-        await submitScan(machineNo, itControllerNo || '')
+        // ข้ามการสแกน IT Controller — บันทึกด้วย Machine No อย่างเดียว
+        // (backend จะพยายามดึง IT Controller/Country ให้เองถ้ามีในทะเบียน)
+        await submitScan(machineNo, '')
       } else {
         // แยกไม่ได้ — เปิดโมดัลให้เติม/แก้เอง
         setEditId(null)
-        setForm({ ...EMPTY_FORM, machineNo, itControllerNo })
+        setForm({ ...EMPTY_FORM, machineNo, itControllerNo: '' })
         setModalOpen(true)
         toastError('อ่านค่าไม่ได้ — กรุณาตรวจ/เติมข้อมูลก่อนบันทึก')
       }

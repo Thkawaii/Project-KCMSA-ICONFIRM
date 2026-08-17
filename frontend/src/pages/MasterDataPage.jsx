@@ -183,10 +183,13 @@ export default function MasterDataPage() {
           problems: result.problems || [],
         })
       } else {
-        // Planning / WH1 / WH2 / Engine — แทนที่ข้อมูลเดิมของประเภทนั้นทั้งชุด
+        // Planning / WH1 / WH2 / Engine / Assembly — เพิ่มต่อท้ายข้อมูลเดิม (ไม่ทับ)
         const result = await uploadDataFile(uploadType, pendingFile)
-        const extra = result.skipped ? ` (ข้าม ${result.skipped} แถว)` : ''
-        setUploadMsg({ success: `นำเข้าสำเร็จ ${result.imported} รายการ${extra}` })
+        const parts = []
+        if (result.skipped) parts.push(`ข้าม ${result.skipped} แถว`)
+        if (result.duplicate) parts.push(`ซ้ำ ${result.duplicate} แถว`)
+        const extra = parts.length ? ` (${parts.join(', ')})` : ''
+        setUploadMsg({ success: `เพิ่มข้อมูลสำเร็จ ${result.imported} รายการ${extra}` })
       }
 
       setPendingFile(null)

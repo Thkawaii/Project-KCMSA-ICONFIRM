@@ -95,16 +95,24 @@ export function ColumnAliasPanel({ scope, targetOptions = [], embedded = false }
   }, [scope])
 
   async function handleAdd() {
-    if (!source.trim() || !target.trim()) {
-      toastError('กรอก "ข้อมูลใหม่ที่จะเปลี่ยน" และเลือก "ข้อมูลเดิม"')
+    if (!source.trim()) {
+      toastError('กรอกชื่อหัวคอลัมน์')
       return
     }
+    // "เพิ่มหัวคอลัมน์ใหม่" ไม่ต้องเลือกข้อมูลเดิม — เก็บชื่อคอลัมน์ไว้เป็นตัวมันเอง
+    // (ระบบเก็บคอลัมน์ใหม่ให้เป็น "คอลัมน์เพิ่ม" อัตโนมัติอยู่แล้ว)
+    const isAdd = changeKind === 'add'
+    if (!isAdd && !target.trim()) {
+      toastError('เลือก "ข้อมูลเดิม" ที่จะให้แม็ปไปหา')
+      return
+    }
+    const finalTarget = isAdd ? source.trim() : target.trim()
     setSaving(true)
     try {
       await createColumnAlias({
         scope,
         source: source.trim(),
-        target: target.trim(),
+        target: finalTarget,
         note: note.trim(),
         kind: changeKind,
       })
@@ -179,31 +187,39 @@ export function ColumnAliasPanel({ scope, targetOptions = [], embedded = false }
                 placeholder="เช่น หมายเลขเครื่อง (ใหม่)"
               />
             </div>
-            <div className="fmt-field">
-              <label className="fmt-label">ข้อมูลเดิม</label>
-              {hasTargets ? (
-                <SelectField
-                  value={target}
-                  onChange={setTarget}
-                  options={targetOptions.map((t) =>
-                    typeof t === 'string' ? { value: t, label: t } : { value: t.value, label: t.label },
-                  )}
-                  placeholder="— เลือกคอลัมน์ —"
-                />
-              ) : (
-                <input
-                  className="fmt-input"
-                  value={target}
-                  onChange={(e) => setTarget(e.target.value)}
-                  placeholder="เช่น Machine"
-                />
-              )}
-            </div>
+            {changeKind !== 'add' && (
+              <div className="fmt-field">
+                <label className="fmt-label">ข้อมูลเดิม</label>
+                {hasTargets ? (
+                  <SelectField
+                    value={target}
+                    onChange={setTarget}
+                    options={targetOptions.map((t) =>
+                      typeof t === 'string' ? { value: t, label: t } : { value: t.value, label: t.label },
+                    )}
+                    placeholder="— เลือกคอลัมน์ —"
+                  />
+                ) : (
+                  <input
+                    className="fmt-input"
+                    value={target}
+                    onChange={(e) => setTarget(e.target.value)}
+                    placeholder="เช่น Machine"
+                  />
+                )}
+              </div>
+            )}
             <div className="fmt-field">
               <label className="fmt-label">หมายเหตุ (ไม่บังคับ)</label>
               <input className="fmt-input" value={note} onChange={(e) => setNote(e.target.value)} />
             </div>
           </div>
+
+          {changeKind === 'add' && (
+            <p style={{ fontSize: 12.5, color: '#64748b', margin: '8px 2px 0' }}>
+              เพิ่มหัวคอลัมน์ใหม่ไม่ต้องเลือก "ข้อมูลเดิม" — ระบบจะเก็บคอลัมน์นี้เป็น "คอลัมน์เพิ่ม" ให้เอง
+            </p>
+          )}
 
           <div className="fmt-actions">
             <button className="wh-issue-btn fmt-add-btn" onClick={handleAdd} disabled={saving}>
@@ -388,7 +404,7 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
             className="fmt-input"
             value={fromCode}
             onChange={(e) => setFromCode(e.target.value)}
-            placeholder="เช่น TNN-YN23993 / KQ-3000/NEW"
+            placeholder=""
           />
         </div>
         <div className="fmt-field">
@@ -397,7 +413,7 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
             className="fmt-input"
             value={toSerial}
             onChange={(e) => setToSerial(e.target.value)}
-            placeholder="เช่น KQ3000045093 / YN23993"
+            placeholder=""
           />
         </div>
         <div className="fmt-field">
