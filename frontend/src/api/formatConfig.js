@@ -19,10 +19,10 @@ export function getColumnAliases(scope) {
 //   scope  = ชื่อ dataset ของหน้า Upload Data
 //   source = หัวคอลัมน์ที่ไฟล์เขียนมาจริง (เช่น 'หมายเลขเครื่อง (ใหม่)')
 //   target = ชื่อคอลัมน์มาตรฐานที่จะให้ค่าไหลไปลง (เช่น 'Machine')
-export function createColumnAlias({ scope, source, target, note }) {
+export function createColumnAlias({ scope, source, target, note, kind }) {
   return apiFetch('/format-config/column-alias', {
     method: 'POST',
-    body: JSON.stringify({ scope, source, target, note: note || '' }),
+    body: JSON.stringify({ scope, source, target, note: note || '', kind: kind || 'rename' }),
   })
 }
 

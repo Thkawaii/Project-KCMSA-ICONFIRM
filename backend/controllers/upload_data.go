@@ -770,6 +770,64 @@ func DeleteUploadDataRow(c *gin.Context) {
 	c.JSON(200, gin.H{"deleted": true})
 }
 
+// UpdateUploadDataRow แก้ไขข้อมูล 1 แถวของ dataset (Planning/WH1/WH2/Engine/Assembly)
+// body: { "data": { "ชื่อคอลัมน์มาตรฐาน": "ค่า", ... } } — เขียนทับ DataJSON ทั้งแถว
+// แล้ว sync คอลัมน์ค้น/เรียง (MachineNo/OrderNo/PartsNo/...) ให้ตรงกับค่าใหม่
+func UpdateUploadDataRow(c *gin.Context) {
+
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(400, gin.H{"message": "id ไม่ถูกต้อง"})
+		return
+	}
+
+	var body struct {
+		Data map[string]string `json:"data"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(400, gin.H{"message": err.Error()})
+		return
+	}
+	if body.Data == nil {
+		c.JSON(400, gin.H{"message": "ต้องส่ง data (คอลัมน์ → ค่า) มาด้วย"})
+		return
+	}
+
+	var row models.UploadDataRow
+	if err := config.DB.First(&row, id).Error; err != nil {
+		c.JSON(404, gin.H{"message": "ไม่พบรายการนี้"})
+		return
+	}
+
+	// trim ค่าทุกช่อง แล้วเขียนทับทั้งแถว
+	clean := map[string]string{}
+	for k, v := range body.Data {
+		clean[strings.TrimSpace(k)] = strings.TrimSpace(v)
+	}
+
+	jsonBytes, _ := json.Marshal(clean)
+	row.DataJSON = string(jsonBytes)
+
+	// ล้างคีย์ค้น/เรียงเดิมก่อน sync ใหม่ (กันค่าค้างเมื่อผู้ใช้ลบค่าออกจากช่อง)
+	row.MachineNo = ""
+	row.LotNo = ""
+	row.OrderNo = ""
+	row.PartsNo = ""
+	row.KCMOrder = ""
+	row.WorkOrder = ""
+	fillUploadDataKeys(&row, row.Dataset, clean)
+
+	if err := config.DB.Save(&row).Error; err != nil {
+		c.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	userID, userName := lookupUserName(c)
+	CreateAuditLog("UPLOAD_DATA", row.ID, "edit_"+row.Dataset, row.MachineNo, userID, userName)
+
+	c.JSON(200, gin.H{"updated": true})
+}
+
 // ClearUploadData ล้างทั้ง dataset (ต้องส่ง ?dataset= มาเสมอ กันลบยกตาราง)
 func ClearUploadData(c *gin.Context) {
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import SelectField from './Selectfield.jsx'
+import './FormatTools.css'
 import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js'
 import {
   getColumnAliases,
@@ -11,6 +12,7 @@ import {
   uploadCodeAliases,
 } from '../api/formatConfig.js'
 import { updateMasterData } from '../api/masterData.js'
+import { buildStyledXlsxBlob, downloadBlob } from '../lib/xlsx.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // เครื่องมือ "รองรับการเปลี่ยน format" ที่ใช้ร่วมกันหลายหน้า
@@ -39,16 +41,6 @@ const panelHeadStyle = {
   fontSize: 14,
 }
 const panelBodyStyle = { padding: '14px 16px' }
-const rowFormStyle = { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }
-const fieldStyle = { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 150, flex: '1 1 150px' }
-const labelStyle = { fontSize: 12, color: '#64748b' }
-const inputStyle = {
-  border: '1px solid #cbd5e1',
-  borderRadius: 8,
-  padding: '8px 10px',
-  fontSize: 14,
-  width: '100%',
-}
 const codeStyle = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }
 
 function Collapsible({ title, hint, children, defaultOpen = false }) {
@@ -78,6 +70,7 @@ export function ColumnAliasPanel({ scope, targetOptions = [], embedded = false }
   const [source, setSource] = useState('')
   const [target, setTarget] = useState('')
   const [note, setNote] = useState('')
+  const [changeKind, setChangeKind] = useState('rename') // rename | add | reorder
   const [saving, setSaving] = useState(false)
   const hasTargets = Array.isArray(targetOptions) && targetOptions.length > 0
 
@@ -103,12 +96,18 @@ export function ColumnAliasPanel({ scope, targetOptions = [], embedded = false }
 
   async function handleAdd() {
     if (!source.trim() || !target.trim()) {
-      toastError('กรอกทั้ง "หัวคอลัมน์ในไฟล์" และเลือก "คอลัมน์มาตรฐาน"')
+      toastError('กรอก "ข้อมูลใหม่ที่จะเปลี่ยน" และเลือก "ข้อมูลเดิม"')
       return
     }
     setSaving(true)
     try {
-      await createColumnAlias({ scope, source: source.trim(), target: target.trim(), note: note.trim() })
+      await createColumnAlias({
+        scope,
+        source: source.trim(),
+        target: target.trim(),
+        note: note.trim(),
+        kind: changeKind,
+      })
       setSource('')
       setTarget('')
       setNote('')
@@ -133,51 +132,94 @@ export function ColumnAliasPanel({ scope, targetOptions = [], embedded = false }
     }
   }
 
+  const CHANGE_KIND_LABEL = { rename: 'เปลี่ยนชื่อ', add: 'เพิ่มใหม่', reorder: 'สลับตำแหน่ง' }
+  // ป้ายช่อง "ข้อมูลใหม่ที่จะเปลี่ยน" ปรับตามชนิดการเปลี่ยนให้เข้าใจง่าย
+  const sourceLabel = changeKind === 'add' ? 'ชื่อหัวคอลัมน์ที่เพิ่มเข้ามา' : 'ชื่อหัวคอลัมน์ใหม่ (ที่เปลี่ยนมา)'
+
   const body = (
     <>
-      <div style={rowFormStyle}>
-        <div style={fieldStyle}>
-          <label style={labelStyle}>หัวคอลัมน์ในไฟล์ (ตามที่พิมพ์มา)</label>
-          <input
-            style={inputStyle}
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
-            placeholder="เช่น หมายเลขเครื่อง (ใหม่)"
-          />
-        </div>
-        <div style={fieldStyle}>
-          <label style={labelStyle}>ให้ลงคอลัมน์มาตรฐาน</label>
-          {hasTargets ? (
-            <SelectField
-              value={target}
-              onChange={setTarget}
-              options={targetOptions.map((t) => ({ value: t, label: t }))}
-              placeholder="— เลือกคอลัมน์ —"
-            />
-          ) : (
-            <input
-              style={inputStyle}
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              placeholder="เช่น Machine"
-            />
-          )}
-        </div>
-        <div style={fieldStyle}>
-          <label style={labelStyle}>หมายเหตุ (ไม่บังคับ)</label>
-          <input style={inputStyle} value={note} onChange={(e) => setNote(e.target.value)} />
-        </div>
-        <button className="wh-issue-btn" onClick={handleAdd} disabled={saving} style={{ height: 38 }}>
-          {saving ? 'กำลังเพิ่ม...' : 'เพิ่ม'}
-        </button>
+      <div className="fmt-field" style={{ maxWidth: 260, marginBottom: 12 }}>
+        <label className="fmt-label">ชนิดการเปลี่ยน</label>
+        <SelectField
+          value={changeKind}
+          onChange={setChangeKind}
+          options={[
+            { value: 'rename', label: 'เปลี่ยนชื่อหัวคอลัมน์' },
+            { value: 'add', label: 'เพิ่มหัวคอลัมน์ใหม่' },
+            { value: 'reorder', label: 'สลับตำแหน่งคอลัมน์' },
+          ]}
+        />
       </div>
 
-      <div style={{ marginTop: 12, overflowX: 'auto' }}>
+      {changeKind === 'reorder' ? (
+        <div
+          style={{
+            background: '#f0fdfa',
+            border: '1px solid #99f6e4',
+            borderRadius: 10,
+            padding: '12px 14px',
+            fontSize: 13,
+            color: '#0f766e',
+            lineHeight: 1.6,
+          }}
+        >
+          การ <b>สลับตำแหน่งคอลัมน์</b> ระบบรองรับให้อัตโนมัติอยู่แล้ว — เพราะจับคู่ด้วย
+          <b> ชื่อหัวคอลัมน์</b> ไม่ใช่ตำแหน่ง ดังนั้นย้ายคอลัมน์ไปไว้ตรงไหนก็อ่านถูก
+          <b> ไม่ต้องตั้งค่าเพิ่ม</b>
+        </div>
+      ) : (
+        <>
+          <div className="fmt-form">
+            <div className="fmt-field">
+              <label className="fmt-label">{sourceLabel}</label>
+              <input
+                className="fmt-input"
+                value={source}
+                onChange={(e) => setSource(e.target.value)}
+                placeholder="เช่น หมายเลขเครื่อง (ใหม่)"
+              />
+            </div>
+            <div className="fmt-field">
+              <label className="fmt-label">ข้อมูลเดิม</label>
+              {hasTargets ? (
+                <SelectField
+                  value={target}
+                  onChange={setTarget}
+                  options={targetOptions.map((t) =>
+                    typeof t === 'string' ? { value: t, label: t } : { value: t.value, label: t.label },
+                  )}
+                  placeholder="— เลือกคอลัมน์ —"
+                />
+              ) : (
+                <input
+                  className="fmt-input"
+                  value={target}
+                  onChange={(e) => setTarget(e.target.value)}
+                  placeholder="เช่น Machine"
+                />
+              )}
+            </div>
+            <div className="fmt-field">
+              <label className="fmt-label">หมายเหตุ (ไม่บังคับ)</label>
+              <input className="fmt-input" value={note} onChange={(e) => setNote(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="fmt-actions">
+            <button className="wh-issue-btn fmt-add-btn" onClick={handleAdd} disabled={saving}>
+              {saving ? 'กำลังเพิ่ม...' : 'เพิ่ม'}
+            </button>
+          </div>
+        </>
+      )}
+
+      <div className="fmt-table-wrap">
         <table className="wh-table" style={{ width: '100%' }}>
           <thead>
             <tr>
-              <th>หัวคอลัมน์ในไฟล์</th>
-              <th>→ คอลัมน์มาตรฐาน</th>
+              <th>ชนิด</th>
+              <th>ข้อมูลใหม่ที่จะเปลี่ยน</th>
+              <th>→ ข้อมูลเดิม</th>
               <th>หมายเหตุ</th>
               <th></th>
             </tr>
@@ -185,17 +227,18 @@ export function ColumnAliasPanel({ scope, targetOptions = [], embedded = false }
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={4} className="wh-empty-cell">กำลังโหลด...</td>
+                <td colSpan={5} className="wh-empty-cell">กำลังโหลด...</td>
               </tr>
             )}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={4} className="wh-empty-cell">ยังไม่มีการจับคู่ — ไฟล์ปกติไม่ต้องตั้งค่าอะไร</td>
+                <td colSpan={5} className="wh-empty-cell">ยังไม่มีการจับคู่ — ไฟล์ปกติไม่ต้องตั้งค่าอะไร</td>
               </tr>
             )}
             {!loading &&
               rows.map((r) => (
                 <tr key={r.id}>
+                  <td>{CHANGE_KIND_LABEL[r.kind] || 'เปลี่ยนชื่อ'}</td>
                   <td style={codeStyle}>{r.source}</td>
                   <td style={codeStyle}>{r.target}</td>
                   <td>{r.note || '—'}</td>
@@ -221,16 +264,19 @@ export function ColumnAliasPanel({ scope, targetOptions = [], embedded = false }
 }
 
 // ── B) Code Alias ──────────────────────────────────────────────────────────
+// ป้ายกำกับชนิดรหัส — ใช้ต่อท้ายชื่อช่อง เช่น "ข้อมูลใหม่ที่จะเปลี่ยน(Machine No.)"
+const KIND_LABEL = { machine: 'Machine No.', pn: 'P/N', sn: 'S/N' }
+
 export function CodeAliasPanel({ componentType = 'it_controller', embedded = false }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [fromCode, setFromCode] = useState('')
   const [toSerial, setToSerial] = useState('')
-  const [toPart, setToPart] = useState('')
   const [kind, setKind] = useState('machine')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const kindText = KIND_LABEL[kind] || ''
 
   async function load() {
     setLoading(true)
@@ -251,7 +297,7 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
 
   async function handleAdd() {
     if (!fromCode.trim() || !toSerial.trim()) {
-      toastError('กรอกทั้ง "ค่าที่หน้างานยิงมา" และ "S/N มาตรฐาน"')
+      toastError('กรอกทั้ง "ข้อมูลใหม่" และ "ข้อมูลเก่า"')
       return
     }
     setSaving(true)
@@ -259,14 +305,13 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
       await createCodeAlias({
         from_code: fromCode.trim(),
         to_serial_no: toSerial.trim(),
-        to_part_no: toPart.trim(),
+        to_part_no: '',
         component_type: componentType,
         kind,
         note: note.trim(),
       })
       setFromCode('')
       setToSerial('')
-      setToPart('')
       setNote('')
       toastSuccess('เพิ่มการจับคู่ค่ารหัสแล้ว')
       await load()
@@ -305,11 +350,28 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
     }
   }
 
+  // ดาวน์โหลดไฟล์ตัวอย่าง (.xlsx) — หัวคอลัมน์ + ตัวอย่างข้อมูลให้กรอกตาม
+  function handleDownloadSample() {
+    const columns = [
+      { key: 'from_code', header: 'from_code', type: 'text' },
+      { key: 'to_serial_no', header: 'to_serial_no', type: 'text' },
+      { key: 'kind', header: 'kind', type: 'text' },
+      { key: 'note', header: 'note', type: 'text' },
+    ]
+    const rows = [
+      { from_code: 'TNN-YN23993', to_serial_no: 'YN23993', kind: 'machine', note: 'ตัวอย่าง Machine No.' },
+      { from_code: 'KQ-3000/NEW', to_serial_no: 'KQ3000045093', kind: 'sn', note: 'ตัวอย่าง S/N' },
+      { from_code: 'YN22-E00849', to_serial_no: 'YN22E00849FA', kind: 'pn', note: 'ตัวอย่าง P/N' },
+    ]
+    const blob = buildStyledXlsxBlob({ sheetName: 'Change Format Part', columns, rows })
+    downloadBlob(blob, 'change-format-part-ตัวอย่าง.xlsx')
+  }
+
   const body = (
     <>
-      <div style={rowFormStyle}>
-        <div style={fieldStyle}>
-          <label style={labelStyle}>ชนิดรหัส</label>
+      <div className="fmt-form">
+        <div className="fmt-field">
+          <label className="fmt-label">ชนิดรหัส</label>
           <SelectField
             value={kind}
             onChange={setKind}
@@ -320,44 +382,50 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
             ]}
           />
         </div>
-        <div style={fieldStyle}>
-          <label style={labelStyle}>ค่าที่หน้างานยิงมา (รูปแบบใหม่)</label>
-          <input style={inputStyle} value={fromCode} onChange={(e) => setFromCode(e.target.value)} placeholder="เช่น TNN-YN23993 / KQ-3000/NEW" />
+        <div className="fmt-field">
+          <label className="fmt-label">ข้อมูลใหม่ที่จะเปลี่ยน({kindText})</label>
+          <input
+            className="fmt-input"
+            value={fromCode}
+            onChange={(e) => setFromCode(e.target.value)}
+            placeholder="เช่น TNN-YN23993 / KQ-3000/NEW"
+          />
         </div>
-        <div style={fieldStyle}>
-          <label style={labelStyle}>ค่ามาตรฐานในทะเบียน (S/N หรือ Machine No.)</label>
-          <input style={inputStyle} value={toSerial} onChange={(e) => setToSerial(e.target.value)} placeholder="เช่น KQ3000045093 / YN23993" />
+        <div className="fmt-field">
+          <label className="fmt-label">ข้อมูลเดิม({kindText})</label>
+          <input
+            className="fmt-input"
+            value={toSerial}
+            onChange={(e) => setToSerial(e.target.value)}
+            placeholder="เช่น KQ3000045093 / YN23993"
+          />
         </div>
-        <div style={fieldStyle}>
-          <label style={labelStyle}>P/N มาตรฐาน (ไม่บังคับ)</label>
-          <input style={inputStyle} value={toPart} onChange={(e) => setToPart(e.target.value)} />
+        <div className="fmt-field">
+          <label className="fmt-label">หมายเหตุ (ไม่บังคับ)</label>
+          <input className="fmt-input" value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
-        <div style={fieldStyle}>
-          <label style={labelStyle}>หมายเหตุ (ไม่บังคับ)</label>
-          <input style={inputStyle} value={note} onChange={(e) => setNote(e.target.value)} />
-        </div>
-        <button className="wh-issue-btn" onClick={handleAdd} disabled={saving} style={{ height: 38 }}>
+      </div>
+
+      <div className="fmt-actions">
+        <button className="wh-issue-btn fmt-action-btn" type="button" onClick={handleDownloadSample}>
+          ดาวน์โหลดตัวอย่าง
+        </button>
+        <label className="wh-issue-btn fmt-action-btn" style={{ cursor: 'pointer' }}>
+          <input type="file" accept=".xlsx,.xls,.csv" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading} />
+          {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลดหลายรายการจากไฟล์'}
+        </label>
+        <button className="wh-issue-btn fmt-add-btn" onClick={handleAdd} disabled={saving}>
           {saving ? 'กำลังเพิ่ม...' : 'เพิ่ม'}
         </button>
       </div>
 
-      <div style={{ marginTop: 10 }}>
-        <label className="wh-issue-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-          <input type="file" accept=".xlsx,.xls,.csv" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading} />
-          {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลดหลายรายการจากไฟล์'}
-        </label>
-        <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 8 }}>
-          หัวคอลัมน์: from_code, to_serial_no, [to_part_no], [note]
-        </span>
-      </div>
-
-      <div style={{ marginTop: 12, overflowX: 'auto' }}>
+      <div className="fmt-table-wrap">
         <table className="wh-table" style={{ width: '100%' }}>
           <thead>
             <tr>
-              <th>ค่าที่ยิงมา</th>
-              <th>→ S/N มาตรฐาน</th>
-              <th>→ P/N</th>
+              <th>ชนิด</th>
+              <th>ข้อมูลใหม่</th>
+              <th>→ ข้อมูลเก่า</th>
               <th>หมายเหตุ</th>
               <th></th>
             </tr>
@@ -376,9 +444,9 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
             {!loading &&
               rows.map((r) => (
                 <tr key={r.id}>
+                  <td>{KIND_LABEL[r.kind] || '—'}</td>
                   <td style={codeStyle}>{r.from_code}</td>
                   <td style={codeStyle}>{r.to_serial_no}</td>
-                  <td style={codeStyle}>{r.to_part_no || '—'}</td>
                   <td>{r.note || '—'}</td>
                   <td className="wh-cell-action">
                     <button className="qa-fail-btn" onClick={() => handleDelete(r.id)}>ลบ</button>
@@ -394,7 +462,7 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
   if (embedded) return body
 
   return (
-    <Collapsible title="จับคู่ค่ารหัส (เมื่อ P/N · S/N · Machine No. เปลี่ยน format)" defaultOpen>
+    <Collapsible title="Change Format Part" defaultOpen>
       {body}
     </Collapsible>
   )
@@ -621,9 +689,8 @@ export function ChangePreview({ result }) {
 }
 
 // ── Master Data edit modal (PATCH) ──────────────────────────────────────────
-export function MasterDataEditModal({ row, componentOptions = [], onClose, onSaved }) {
+export function MasterDataEditModal({ row, componentOptions = [], itcLabel = 'IT Controller no.', onClose, onSaved }) {
   const [form, setForm] = useState({
-    ItemNo: row.ItemNo || 0,
     Name: row.Name || '',
     Model: row.Model || '',
     ComponentType: row.ComponentType || '',
@@ -631,7 +698,6 @@ export function MasterDataEditModal({ row, componentOptions = [], onClose, onSav
     SerialNo: row.SerialNo || '',
     ITControllerNo: row.ITControllerNo || '',
     IMEI: row.IMEI || '',
-    SpecCode: row.SpecCode || '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -644,8 +710,8 @@ export function MasterDataEditModal({ row, componentOptions = [], onClose, onSav
     }
     setSaving(true)
     try {
+      // ไม่ส่ง ItemNo / SpecCode — backend เป็น PATCH ค่าที่ไม่ส่งจะคงเดิมไว้
       const patch = {
-        ItemNo: Number(form.ItemNo) || 0,
         Name: form.Name.trim(),
         Model: form.Model.trim(),
         ComponentType: form.ComponentType.trim(),
@@ -653,7 +719,6 @@ export function MasterDataEditModal({ row, componentOptions = [], onClose, onSav
         SerialNo: form.SerialNo.trim(),
         ITControllerNo: form.ITControllerNo.trim(),
         IMEI: form.IMEI.trim(),
-        SpecCode: form.SpecCode.trim(),
       }
       await updateMasterData(row.ID, patch)
       toastSuccess('บันทึกการแก้ไขแล้ว')
@@ -667,9 +732,9 @@ export function MasterDataEditModal({ row, componentOptions = [], onClose, onSav
   }
 
   const field = (label, key, mono = false) => (
-    <div style={fieldStyle}>
-      <label style={labelStyle}>{label}</label>
-      <input style={{ ...inputStyle, ...(mono ? codeStyle : {}) }} value={form[key]} onChange={set(key)} />
+    <div className="fmt-field">
+      <label className="fmt-label">{label}</label>
+      <input className={'fmt-input' + (mono ? ' fmt-input-mono' : '')} value={form[key]} onChange={set(key)} />
     </div>
   )
 
@@ -678,11 +743,11 @@ export function MasterDataEditModal({ row, componentOptions = [], onClose, onSav
       <div className="wh-modal" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
         <h3 className="wh-modal-title">แก้ไขทะเบียน Master Data</h3>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
+        <div className="fmt-form fmt-form-compact" style={{ marginTop: 12 }}>
           {field('Part Name', 'Name')}
           {field('Model', 'Model')}
-          <div style={fieldStyle}>
-            <label style={labelStyle}>ชนิดอะไหล่</label>
+          <div className="fmt-field">
+            <label className="fmt-label">ชนิดอะไหล่</label>
             {componentOptions.length > 0 ? (
               <SelectField
                 value={form.ComponentType}
@@ -690,15 +755,13 @@ export function MasterDataEditModal({ row, componentOptions = [], onClose, onSav
                 options={componentOptions}
               />
             ) : (
-              <input style={inputStyle} value={form.ComponentType} onChange={set('ComponentType')} />
+              <input className="fmt-input" value={form.ComponentType} onChange={set('ComponentType')} />
             )}
           </div>
           {field('Part No.', 'PartNo', true)}
           {field('Serial No.', 'SerialNo', true)}
-          {field('IT Controller no.', 'ITControllerNo', true)}
+          {field(itcLabel, 'ITControllerNo', true)}
           {field('IMEI', 'IMEI', true)}
-          {field('Spec Code', 'SpecCode')}
-          {field('Item No.', 'ItemNo')}
         </div>
 
         <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 10 }}>

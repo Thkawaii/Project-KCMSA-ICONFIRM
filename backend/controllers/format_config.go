@@ -79,6 +79,23 @@ func loadColumnAliasReverse(scope string) map[string]string {
 	return out
 }
 
+// loadColumnAliasReverseMerged รวม reverse alias หลาย scope เข้าด้วยกัน
+// (scope ที่อยู่หลังจะทับ scope ที่อยู่หน้าเมื่อ key ชนกัน) — ใช้กับ master_data
+// ที่มีทั้ง scope รวม "master_data" (ทุกชนิด) + scope ราย component เช่น
+// "master_data:it_controller"
+func loadColumnAliasReverseMerged(scopes ...string) map[string]string {
+	out := map[string]string{}
+	for _, sc := range scopes {
+		if strings.TrimSpace(sc) == "" {
+			continue
+		}
+		for k, v := range loadColumnAliasReverse(sc) {
+			out[k] = v
+		}
+	}
+	return out
+}
+
 // aliasHeaderKey แปลหัวคอลัมน์ที่ normalize แล้วให้กลายเป็น "คีย์มาตรฐาน" ตาม ColumnAlias
 // ถ้าไม่มี alias ตรงกับ normHeader ก็คืนค่าเดิม (พฤติกรรมไม่เปลี่ยนกับไฟล์ปกติ)
 func aliasHeaderKey(reverse map[string]string, normHeader string) string {
@@ -158,6 +175,10 @@ func CreateColumnAlias(c *gin.Context) {
 	in.Scope = strings.ToLower(strings.TrimSpace(in.Scope))
 	in.Source = strings.TrimSpace(in.Source)
 	in.Target = strings.TrimSpace(in.Target)
+	in.Kind = strings.ToLower(strings.TrimSpace(in.Kind))
+	if in.Kind == "" {
+		in.Kind = "rename"
+	}
 	if in.Scope == "" || in.Source == "" || in.Target == "" {
 		c.JSON(400, gin.H{"message": "ต้องระบุ scope, source (หัวคอลัมน์ในไฟล์) และ target (คอลัมน์มาตรฐาน)"})
 		return

@@ -389,7 +389,7 @@ func UploadMasterData(c *gin.Context) {
 		return
 	}
 
-	headerIdx, headers := findMasterDataHeader(rows)
+	headerIdx, headers := findMasterDataHeader(rows, fallbackComponentType)
 	if headerIdx < 0 {
 		c.JSON(400, gin.H{
 			"message": "หาหัวตารางไม่เจอ — ไฟล์ต้องมีคอลัมน์ Serial No. และ Part No. อย่างน้อย",
@@ -591,7 +591,7 @@ func PreviewMasterDataChanges(c *gin.Context) {
 		return
 	}
 
-	headerIdx, headers := findMasterDataHeader(rows)
+	headerIdx, headers := findMasterDataHeader(rows, fallbackComponentType)
 	if headerIdx < 0 {
 		c.JSON(200, gin.H{
 			"file":        fileHeader.Filename,
@@ -758,16 +758,27 @@ func DeleteMasterData(c *gin.Context) {
 // จำเป็นต้องมี เพราะไฟล์จริงไม่ได้ขึ้นหัวตารางที่แถวแรก — ไฟล์ TQ60610 มีบรรทัด
 // "Summary IT Controller" กับแถวว่างคั่นอยู่ข้างบน ถ้าอ่าน rows[0] เป็นหัวตาราง
 // ตรงๆ จะ map คอลัมน์ไม่ได้เลยสักช่อง
-func findMasterDataHeader(rows [][]string) (int, []string) {
+// masterDataAliasScopes คืน scope ของ column alias สำหรับ master data ตามชนิดอะไหล่
+// "master_data" ใช้ร่วมทุกชนิด และ "master_data:{type}" เฉพาะชนิดนั้น (ทับของรวม)
+func masterDataAliasScopes(componentType string) []string {
+	ct := strings.TrimSpace(componentType)
+	if ct == "" || ct == "all" {
+		return []string{"master_data"}
+	}
+	return []string{"master_data", "master_data:" + ct}
+}
+
+func findMasterDataHeader(rows [][]string, componentType string) (int, []string) {
 
 	limit := 30
 	if len(rows) < limit {
 		limit = len(rows)
 	}
 
-	// ColumnAlias ตอนรัน (scope=master_data): หัวคอลัมน์ที่ถูกเปลี่ยนชื่อ/เพิ่มใหม่
-	// → คีย์มาตรฐาน โดยไม่ต้องแก้โค้ด (ตั้งค่าหน้า Format Config)
-	reverse := loadColumnAliasReverse("master_data")
+	// ColumnAlias ตอนรัน: หัวคอลัมน์ที่ถูกเปลี่ยนชื่อ/เพิ่มใหม่ → คีย์มาตรฐาน
+	// รวม scope "master_data" (ใช้ทุกชนิด) + scope ราย component ที่กำลังอัปโหลด
+	// (เช่น "master_data:it_controller") ตั้งค่าได้จากหน้า Format Config
+	reverse := loadColumnAliasReverseMerged(masterDataAliasScopes(componentType)...)
 
 	for i := 0; i < limit; i++ {
 

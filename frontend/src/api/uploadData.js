@@ -63,6 +63,14 @@ export function deleteUploadDataRow(id) {
   return apiFetch(`/upload-data/${id}`, { method: 'DELETE' })
 }
 
+// แก้ไขข้อมูล 1 แถว (Planning/WH1/WH2/Engine/Assembly) — data = { ชื่อคอลัมน์: ค่า }
+export function updateUploadDataRow(id, data) {
+  return apiFetch(`/upload-data/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ data }),
+  })
+}
+
 // ปั๊มตาราง Assembly อัตโนมัติจาก Planning / WH1 / Engine + ทะเบียนกลาง
 // (จับคู่ด้วยหมายเลขเครื่อง) — คืน { created, updated, skipped, machines }
 export function generateAssembly() {
