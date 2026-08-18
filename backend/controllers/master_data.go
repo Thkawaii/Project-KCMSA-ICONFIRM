@@ -67,11 +67,106 @@ func GetMasterData(c *gin.Context) {
 	c.JSON(200, masterData)
 }
 
-// UpdateMasterData แก้ไขทะเบียนกลาง 1 รายการ (PATCH /master-data/:id)
+// GetMasterDataSummary สรุปจำนวนอะไหล่ในทะเบียนกลางแยกตาม "ชนิดการเชื่อมต่อ"
+// (Mobile4G ปกติ / Mobile4G High / Satellite Iridium / ไม่ระบุ) ไว้ทำรายงาน/การ์ด
+// บนหน้าเว็บ โดยไม่ต้องส่งทุกแถวมานับฝั่ง client
 //
+//	GET /master-data/summary                          → รวมทุกชนิดอะไหล่
+//	GET /master-data/summary?component_type=it_controller → เฉพาะ IT Controller
+//
+// คืน: { total, by_connectivity: { MOBILE_4G_NORMAL, MOBILE_4G_HIGH, SATELLITE_IRIDIUM, UNKNOWN } }
+func GetMasterDataSummary(c *gin.Context) {
+
+	componentType := strings.TrimSpace(c.Query("component_type"))
+
+	type connRow struct {
+		ConnectivityType string
+		Count            int64
+	}
+
+	q := config.DB.Model(&models.MasterData{}).
+		Select("connectivity_type as connectivity_type, COUNT(*) as count").
+		Group("connectivity_type")
+	if componentType != "" && componentType != "all" {
+		q = q.Where("component_type = ?", componentType)
+	}
+
+	var rows []connRow
+	q.Scan(&rows)
+
+	// เริ่มทุก key ที่ 0 เพื่อให้หน้าเว็บแสดงครบทุกชนิดแม้ยอดเป็นศูนย์
+	byConn := map[string]int64{
+		models.ConnMobile4GNormal: 0,
+		models.ConnMobile4GHigh:   0,
+		models.ConnSatelliteIrid:  0,
+		"UNKNOWN":                 0,
+	}
+	var total int64
+	for _, r := range rows {
+		key := strings.TrimSpace(r.ConnectivityType)
+		if key == "" {
+			key = "UNKNOWN"
+		}
+		byConn[key] += r.Count
+		total += r.Count
+	}
+
+	c.JSON(200, gin.H{
+		"total":           total,
+		"by_connectivity": byConn,
+	})
+}
+
 // ใช้ตอนหน้างานเปลี่ยน format ของ P/N / S/N / Machine No. แล้วต้องการ "แก้ที่ต้นทาง"
 // แทนการลบทิ้งแล้วเพิ่มใหม่ — โหลดของเดิมมาก่อน แล้ว bind เฉพาะฟิลด์ที่ส่งมาทับ
 // (ฟิลด์ที่ไม่ได้ส่งจะคงค่าเดิมไว้) จากนั้น normalize + เขียนกลับแบบระบุคอลัมน์
+// masterDataRefCounts = จำนวนรายการที่ "อ้างอิง" แถวทะเบียนกลางแถวหนึ่งอยู่
+// (ใช้ตัดสินว่าการแก้กุญแจ match จะกระทบข้อมูลที่ยืนยันไปแล้วหรือไม่)
+type masterDataRefCounts struct {
+	PartCheck        int64 `json:"part_check"`
+	MFGAssembly      int64 `json:"mfg_assembly"`
+	MatchingAssembly int64 `json:"matching_assembly"`
+	ImportLicense    int64 `json:"import_license"`
+	Total            int64 `json:"total"`
+}
+
+// countMasterDataRefs นับว่ามีรายการยืนยัน/จับคู่ที่ผูกกับ Serial No. เดิม หรือ
+// IT Controller No. เดิม (เลข 12 หลัก) ของแถวนี้อยู่กี่รายการ ในตารางที่ใช้ผล
+// match จริง: PartCheck / MFGAssembly / MatchingAssembly / ImportLicenseItem
+func countMasterDataRefs(serialNo, itcNo string) masterDataRefCounts {
+	var r masterDataRefCounts
+
+	serialNo = strings.TrimSpace(serialNo)
+	itcNo = strings.TrimSpace(itcNo)
+
+	if serialNo != "" {
+		var n int64
+		config.DB.Model(&models.PartCheck{}).Where("sn = ?", serialNo).Count(&n)
+		r.PartCheck += n
+
+		var m int64
+		config.DB.Model(&models.MatchingAssembly{}).Where("it_controller_sn = ?", serialNo).Count(&m)
+		r.MatchingAssembly += m
+	}
+
+	if itcNo != "" {
+		var pc int64
+		config.DB.Model(&models.PartCheck{}).Where("machine_no = ?", itcNo).Count(&pc)
+		r.PartCheck += pc
+
+		var mfg int64
+		config.DB.Model(&models.MFGAssembly{}).Where("it_controller_no = ?", itcNo).Count(&mfg)
+		r.MFGAssembly += mfg
+
+		var il int64
+		config.DB.Model(&models.ImportLicenseItem{}).Where("machine_no = ?", itcNo).Count(&il)
+		r.ImportLicense += il
+	}
+
+	r.Total = r.PartCheck + r.MFGAssembly + r.MatchingAssembly + r.ImportLicense
+	return r
+}
+
 func UpdateMasterData(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))
@@ -86,6 +181,13 @@ func UpdateMasterData(c *gin.Context) {
 		return
 	}
 
+	// จับค่า "กุญแจ match" เดิมไว้ก่อน bind — สำคัญมาก เพราะ ShouldBindJSON จะ
+	// เขียนทับ existing ทันที ถ้าไม่เก็บก่อนจะเทียบไม่ได้ว่ากุญแจถูกแก้หรือไม่
+	oldSN := strings.TrimSpace(existing.SerialNo)
+	oldPN := strings.TrimSpace(existing.PartNo)
+	oldITC := derefStr(existing.ITControllerNo)
+	oldIMEI := derefStr(existing.IMEI)
+
 	// bind ทับลงบนของเดิม — ฟิลด์ที่ JSON ไม่ได้ส่งมาจะคงค่าเดิม (PATCH semantics)
 	if err := c.ShouldBindJSON(&existing); err != nil {
 		c.JSON(400, gin.H{"message": err.Error()})
@@ -93,21 +195,48 @@ func UpdateMasterData(c *gin.Context) {
 	}
 	normalizeMasterData(&existing)
 
+	// ── Guard: กันการแก้ "คอลัมน์ที่เป็นกุญแจ match" ทับของที่ใช้ยืนยันไปแล้ว ──
+	// กุญแจ = Serial No. / Part No. / IT Controller No. / IMEI  (ตัวที่การสแกน/
+	// จับคู่ทั้งระบบใช้เชื่อมโยง) — ถ้าแก้ทับทั้งที่มีรายการยืนยัน/จับคู่อ้างอยู่แล้ว
+	// การ match เดิมจะเพี้ยนแบบเงียบ ๆ จึงบล็อกไว้ก่อน (ยกเว้นส่ง ?force=true)
+	// แนวทางที่ถูกต้องกว่าเมื่อ format หน้างานเปลี่ยน = ใช้ CodeAlias (Format Settings)
+	newSN := strings.TrimSpace(existing.SerialNo)
+	newPN := strings.TrimSpace(existing.PartNo)
+	newITC := derefStr(existing.ITControllerNo)
+	newIMEI := derefStr(existing.IMEI)
+
+	keyChanged := oldSN != newSN || oldPN != newPN || oldITC != newITC || oldIMEI != newIMEI
+	force := strings.EqualFold(strings.TrimSpace(c.Query("force")), "true")
+
+	if keyChanged && !force {
+		refs := countMasterDataRefs(oldSN, oldITC)
+		if refs.Total > 0 {
+			c.JSON(409, gin.H{
+				"message": "แถวนี้ถูกใช้ยืนยัน/จับคู่ไปแล้ว การแก้ Serial No./Part No./IT Controller No./IMEI " +
+					"อาจทำให้การ match เดิมไม่ตรง — แนะนำให้ใช้ Format Settings (CodeAlias) แทน " +
+					"หรือส่ง force=true เพื่อยืนยันการแก้",
+				"blocked": true,
+				"refs":    refs,
+			})
+			return
+		}
+	}
+
 	userID, userName := lookupUserName(c)
 
 	updates := map[string]interface{}{
-		"item_no":          existing.ItemNo,
-		"name":             existing.Name,
-		"component_type":   existing.ComponentType,
-		"model":            existing.Model,
-		"part_no":          existing.PartNo,
-		"serial_no":        existing.SerialNo,
-		"it_controller_no": existing.ITControllerNo,
-		"imei":             existing.IMEI,
-		"spec_code":        existing.SpecCode,
+		"item_no":           existing.ItemNo,
+		"name":              existing.Name,
+		"component_type":    existing.ComponentType,
+		"model":             existing.Model,
+		"part_no":           existing.PartNo,
+		"serial_no":         existing.SerialNo,
+		"it_controller_no":  existing.ITControllerNo,
+		"imei":              existing.IMEI,
+		"spec_code":         existing.SpecCode,
 		"connectivity_type": existing.ConnectivityType,
-		"upload_date":      time.Now(),
-		"user_id":          userID,
+		"upload_date":       time.Now(),
+		"user_id":           userID,
 	}
 
 	if err := config.DB.Model(&models.MasterData{}).
@@ -118,7 +247,14 @@ func UpdateMasterData(c *gin.Context) {
 		return
 	}
 
-	CreateAuditLog("MASTER_DATA", uint(id), "update", existing.SerialNo, userID, userName)
+	action := "update"
+	auditDetail := existing.SerialNo
+	if keyChanged {
+		// ระบุชัดใน Audit ว่าเป็นการแก้กุญแจ + ค่าเดิม→ใหม่ (ไว้ตามย้อนหลัง)
+		action = "update_key"
+		auditDetail = "S/N " + oldSN + "→" + newSN + " | ITC " + oldITC + "→" + newITC
+	}
+	CreateAuditLog("MASTER_DATA", uint(id), action, auditDetail, userID, userName)
 
 	var out models.MasterData
 	config.DB.First(&out, id)
@@ -233,7 +369,7 @@ var masterDataColumns = map[string]func(*models.MasterData, string){
 	"network":          func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
 	"networktype":      func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
 	"ittype":           func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
-	"ชนิดการเชื่อมต่อ":  func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
+	"ชนิดการเชื่อมต่อ": func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
 }
 
 // componentTypeHeaderKeys คือหัวคอลัมน์ที่ถือว่าเป็น "คอลัมน์ชนิดอะไหล่" ในไฟล์
@@ -433,16 +569,16 @@ func UploadMasterData(c *gin.Context) {
 			err := config.DB.Model(&models.MasterData{}).
 				Where("id = ?", old.ID).
 				Updates(map[string]interface{}{
-					"item_no":          row.ItemNo,
-					"name":             row.Name,
-					"component_type":   row.ComponentType,
-					"model":            row.Model,
-					"part_no":          row.PartNo,
-					"it_controller_no": row.ITControllerNo,
-					"imei":             row.IMEI,
+					"item_no":           row.ItemNo,
+					"name":              row.Name,
+					"component_type":    row.ComponentType,
+					"model":             row.Model,
+					"part_no":           row.PartNo,
+					"it_controller_no":  row.ITControllerNo,
+					"imei":              row.IMEI,
 					"connectivity_type": row.ConnectivityType,
-					"upload_date":      now,
-					"user_id":          userID,
+					"upload_date":       now,
+					"user_id":           userID,
 				}).Error
 
 			if err != nil {

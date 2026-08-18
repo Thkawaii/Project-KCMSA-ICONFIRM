@@ -736,14 +736,42 @@ export function MasterDataEditModal({ row, componentOptions = [], itcLabel = 'IT
         ITControllerNo: form.ITControllerNo.trim(),
         IMEI: form.IMEI.trim(),
       }
-      await updateMasterData(row.ID, patch)
+      await saveWithGuard(patch)
       toastSuccess('บันทึกการแก้ไขแล้ว')
       onSaved && onSaved()
       onClose && onClose()
     } catch (err) {
-      toastError(err.message || 'บันทึกไม่สำเร็จ')
+      // ถ้าไม่ใช่กรณีถูกบล็อก (ผู้ใช้กดยกเลิกการยืนยัน) จึงค่อยแจ้ง error ปกติ
+      if (err?.message !== '__CANCELLED__') {
+        toastError(err.message || 'บันทึกไม่สำเร็จ')
+      }
     } finally {
       setSaving(false)
+    }
+  }
+
+  // saveWithGuard: บันทึกปกติก่อน ถ้าโดน guard กันแก้กุญแจ (409 blocked) จะถามยืนยัน
+  // แล้วบันทึกซ้ำแบบ force เพื่อให้ผู้ใช้ตัดสินใจเองว่ายอมรับผลกระทบต่อการ match เดิม
+  async function saveWithGuard(patch) {
+    try {
+      await updateMasterData(row.ID, patch)
+    } catch (err) {
+      if (err?.status === 409 && err?.data?.blocked) {
+        const refs = err.data.refs || {}
+        const ok = await confirmDelete({
+          title: 'ยืนยันการแก้ข้อมูลกุญแจ',
+          text:
+            (err.message || 'แถวนี้ถูกใช้ยืนยัน/จับคู่ไปแล้ว') +
+            `\n\nรายการที่อ้างอิงอยู่: PartCheck ${refs.part_check || 0}, MFG ${refs.mfg_assembly || 0}, ` +
+            `Matching ${refs.matching_assembly || 0}, Import License ${refs.import_license || 0}` +
+            '\n\nยืนยันแก้ต่อ (อาจกระทบการ match เดิม)?',
+          confirmText: 'ยืนยันแก้ (force)',
+        })
+        if (!ok) throw new Error('__CANCELLED__')
+        await updateMasterData(row.ID, patch, { force: true })
+        return
+      }
+      throw err
     }
   }
 

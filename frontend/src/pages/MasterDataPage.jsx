@@ -94,6 +94,23 @@ const HEADING_LABEL_BY_TYPE = {
   ...Object.fromEntries(COMPONENT_TYPES.map((t) => [t.value, t.label])),
 }
 
+// ── ชนิดการเชื่อมต่อของ IT Controller (ตรงกับค่าคงที่ฝั่ง backend) ──────────────
+// ใช้ทำ "รายงานแยก Mobile4G / Satellite" — โชว์เป็นชิปสรุป + คอลัมน์ + ตัวกรอง
+const CONNECTIVITY_LABELS = {
+  SATELLITE_IRIDIUM: 'Satellite (Iridium)',
+  MOBILE_4G_HIGH: '4G (High speed)',
+  MOBILE_4G_NORMAL: '4G (ปกติ)',
+  UNKNOWN: 'ไม่ระบุ',
+}
+
+// ลำดับที่ใช้แสดงชิป/ตัวกรอง (คงที่ อ่านง่าย)
+const CONNECTIVITY_ORDER = ['SATELLITE_IRIDIUM', 'MOBILE_4G_HIGH', 'MOBILE_4G_NORMAL', 'UNKNOWN']
+
+const CONNECTIVITY_FILTER = [
+  { value: 'all', label: 'ทุก Connectivity' },
+  ...CONNECTIVITY_ORDER.map((v) => ({ value: v, label: CONNECTIVITY_LABELS[v] })),
+]
+
 const uploadNavItems = [
   { to: '/master-data', label: 'ทะเบียน Master Data', icon: <RectangleStackIcon className="size-4" /> },
   { to: '/format-settings', label: 'Setting', icon: <RectangleStackIcon className="size-4" /> },
@@ -341,6 +358,7 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
   const [keyword, setKeyword] = useState('')
   const [deletingId, setDeletingId] = useState(0)
   const [editRow, setEditRow] = useState(null)
+  const [connFilter, setConnFilter] = useState('all')
 
   // ชื่อคอลัมน์ "หมายเลข" ของตารางนี้ — เปลี่ยนตามตัวกรอง (Filter) ที่เลือก
   const noLabel = NO_LABEL_BY_TYPE[compType] || 'IT Controller no.'
@@ -385,14 +403,31 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
       )
     }
 
+    // กรองตามชนิดการเชื่อมต่อ (Connectivity) — 'UNKNOWN' = แถวที่ยังไม่ระบุ
+    if (connFilter !== 'all') {
+      result = result.filter((row) => (row.ConnectivityType || 'UNKNOWN') === connFilter)
+    }
+
     return result
-  }, [rows, keyword, compType])
+  }, [rows, keyword, compType, connFilter])
 
   const stats = useMemo(() => {
     const withImei = rows.filter((row) => row.IMEI).length
     const models = new Set(rows.map((row) => row.Model).filter(Boolean))
     const partNos = new Set(rows.map((row) => row.PartNo).filter(Boolean))
     return { total: rows.length, withImei, models: models.size, partNos: partNos.size }
+  }, [rows])
+
+  // รายงานแยกตามชนิดการเชื่อมต่อ — นับเฉพาะแถว IT Controller (ชนิดอื่นไม่มีค่านี้)
+  const connStats = useMemo(() => {
+    const counts = { SATELLITE_IRIDIUM: 0, MOBILE_4G_HIGH: 0, MOBILE_4G_NORMAL: 0, UNKNOWN: 0 }
+    for (const row of rows) {
+      if (row.ComponentType !== 'it_controller') continue
+      const key = row.ConnectivityType || 'UNKNOWN'
+      counts[key] = (counts[key] || 0) + 1
+    }
+    const total = CONNECTIVITY_ORDER.reduce((sum, k) => sum + counts[k], 0)
+    return { counts, total }
   }, [rows])
 
   async function handleDelete(row) {
@@ -512,6 +547,44 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
         </div>
       </div>
 
+      {/* รายงานแยกตามชนิดการเชื่อมต่อ (Mobile4G / Satellite) — เฉพาะ IT Controller */}
+      {connStats.total > 0 && (
+        <div
+          className="md-conn-report"
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '4px 0 14px' }}
+        >
+          <span style={{ alignSelf: 'center', fontSize: 13, color: '#64748b', fontWeight: 600 }}>
+            Connectivity:
+          </span>
+          {CONNECTIVITY_ORDER.map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setConnFilter((cur) => (cur === k ? 'all' : k))}
+              title={`กรองเฉพาะ ${CONNECTIVITY_LABELS[k]}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 10px',
+                borderRadius: 999,
+                border: connFilter === k ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                background: connFilter === k ? '#eff6ff' : '#f8fafc',
+                color: '#0f172a',
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              <span>{CONNECTIVITY_LABELS[k]}</span>
+              <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{connStats.counts[k]}</strong>
+            </button>
+          ))}
+          <span style={{ alignSelf: 'center', fontSize: 12, color: '#94a3b8' }}>
+            รวม {connStats.total} รายการ
+          </span>
+        </div>
+      )}
+
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title" style={{ fontSize: 17 }}>
@@ -524,6 +597,13 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
               value={compType}
               onChange={setCompType}
               options={COMPONENT_TYPE_FILTER.map((t) => ({ value: t.value, label: t.label }))}
+            />
+          </div>
+          <div className="md-type-field" style={{ minWidth: 190 }}>
+            <SelectField
+              value={connFilter}
+              onChange={setConnFilter}
+              options={CONNECTIVITY_FILTER}
             />
           </div>
           <input
@@ -554,13 +634,14 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
               <th>Serial No.</th>
               <th>{noLabel}</th>
               <th>IMEI</th>
+              <th>Connectivity</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={8} className="wh-empty-cell">
+                <td colSpan={9} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -586,6 +667,11 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
                   <td data-label="IMEI" style={codeStyle}>
                     {row.IMEI || DASH}
                   </td>
+                  <td data-label="Connectivity">
+                    {row.ComponentType === 'it_controller'
+                      ? CONNECTIVITY_LABELS[row.ConnectivityType || 'UNKNOWN']
+                      : DASH}
+                  </td>
                   <td className="wh-cell-action">
                     <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                       <button className="wh-issue-btn" onClick={() => setEditRow(row)}>
@@ -605,7 +691,7 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
 
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={8} className="wh-empty-cell">
+                <td colSpan={9} className="wh-empty-cell">
                   {keyword.trim() || compType !== 'all'
                     ? 'ไม่พบรายการตามตัวกรอง'
                     : 'ยังไม่มีข้อมูลในทะเบียน'}

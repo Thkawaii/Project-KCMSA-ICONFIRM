@@ -17,6 +17,16 @@ export function deleteMasterData(id) {
   return apiFetch(`/master-data/${id}`, { method: 'DELETE' })
 }
 
+// getMasterDataSummary() -> รายงานสรุปทะเบียนกลางแยกตามชนิดการเชื่อมต่อ
+//   { total, by_connectivity: { MOBILE_4G_NORMAL, MOBILE_4G_HIGH, SATELLITE_IRIDIUM, UNKNOWN } }
+// ส่ง componentType เพื่อจำกัดเฉพาะชนิด (ปกติใช้ 'it_controller')
+export function getMasterDataSummary({ componentType } = {}) {
+  const params = new URLSearchParams()
+  if (componentType) params.set('component_type', componentType)
+  const qs = params.toString()
+  return apiFetch(`/master-data/summary${qs ? `?${qs}` : ''}`)
+}
+
 // ลบทะเบียนกลาง — ระบุ componentType เพื่อลบเฉพาะชนิด หรือ all=true เพื่อลบทั้งหมด
 export function clearMasterData({ componentType, all = false } = {}) {
   const params = new URLSearchParams()
@@ -49,8 +59,9 @@ export async function previewMasterDataChanges(file, componentType) {
 // แก้ไขทะเบียนกลาง 1 รายการ (ใช้ตอนหน้างานเปลี่ยน format ของ P/N / S/N / Machine No.)
 // ส่งเฉพาะฟิลด์ที่ต้องการแก้ก็ได้ ฟิลด์ที่ไม่ส่งจะคงค่าเดิมไว้
 //   patch = { PartNo?, SerialNo?, Name?, Model?, ComponentType?, ITControllerNo?, IMEI?, SpecCode?, ItemNo? }
-export function updateMasterData(id, patch) {
-  return apiFetch(`/master-data/${id}`, {
+export function updateMasterData(id, patch, { force = false } = {}) {
+  const qs = force ? '?force=true' : ''
+  return apiFetch(`/master-data/${id}${qs}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
   })
