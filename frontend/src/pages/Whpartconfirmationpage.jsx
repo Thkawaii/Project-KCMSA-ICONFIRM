@@ -108,6 +108,7 @@ export default function WHPartConfirmationPage() {
   const [licenseItems, setLicenseItems] = useState([])
   const [licenseTab, setLicenseTab] = useState('all')
   const [licenseModel, setLicenseModel] = useState('all') // ตัวกรอง แบบ/รุ่น
+  const [licenseNo, setLicenseNo] = useState('all') // ตัวกรอง ใบอนุญาตนำเข้า
   const [licensePageSize, setLicensePageSize] = useState(10) // จำนวนต่อหน้าของตารางเทียบ
   const [licensePage, setLicensePage] = useState(1)
   const [highlightId, setHighlightId] = useState(null)
@@ -165,7 +166,7 @@ export default function WHPartConfirmationPage() {
 
   useEffect(() => {
     setLicensePage(1)
-  }, [licenseTab, licenseModel, licensePageSize])
+  }, [licenseTab, licenseModel, licenseNo, licensePageSize])
 
   // ลบรายการประวัติการสแกน — กดได้เฉพาะแถวที่ผลเทียบเป็น "ไม่พบในใบอนุญาต" (NOT_FOUND),
   // "ไม่ต้องเทียบ" (NOT_REQUIRED) หรือ "ยืนยันซ้ำ" (DUPLICATE) — แถวที่ตรงกับใบอนุญาต
@@ -477,8 +478,9 @@ export default function WHPartConfirmationPage() {
     if (licenseTab === 'pending') list = list.filter((r) => r.ConfirmStatus !== 'CONFIRMED')
     if (licenseTab === 'confirmed') list = list.filter((r) => r.ConfirmStatus === 'CONFIRMED')
     if (licenseModel !== 'all') list = list.filter((r) => (r.Model || '') === licenseModel)
+    if (licenseNo !== 'all') list = list.filter((r) => (r.LicenseNo || '') === licenseNo)
     return list
-  }, [licenseItems, licenseTab, licenseModel])
+  }, [licenseItems, licenseTab, licenseModel, licenseNo])
 
   // แบ่งหน้าตารางเทียบ
   const licenseTotalPages = Math.max(1, Math.ceil(licenseRows.length / licensePageSize))
@@ -502,6 +504,15 @@ export default function WHPartConfirmationPage() {
     const set = new Set()
     licenseItems.forEach((r) => {
       if (r.Model) set.add(r.Model)
+    })
+    return Array.from(set).sort()
+  }, [licenseItems])
+
+  // รายชื่อ เลขใบอนุญาตนำเข้า ที่มีอยู่จริงในบัญชี (ไว้ทำตัวเลือกใน dropdown กรอง)
+  const licenseNoOptions = useMemo(() => {
+    const set = new Set()
+    licenseItems.forEach((r) => {
+      if (r.LicenseNo) set.add(r.LicenseNo)
     })
     return Array.from(set).sort()
   }, [licenseItems])
@@ -691,31 +702,44 @@ export default function WHPartConfirmationPage() {
       </div>
 
       <div className="tsf-history-toolbar">
-        <div className="tsf-history-pagesize">
-          <div className="wh-pagesize-select">
+        <div className="wh-history-filters">
+          <div className="tsf-history-pagesize">
+            <div className="wh-pagesize-select">
+              <SelectField
+                value={licensePageSize}
+                onChange={setLicensePageSize}
+                options={[
+                  { value: 10, label: '10' },
+                  { value: 25, label: '25' },
+                  { value: 50, label: '50' },
+                  { value: 100, label: '100' },
+                ]}
+              />
+            </div>
+            entries per page
+          </div>
+          <div className="wh-filter-field">
+            <span className="wh-filter-label">แบบ/รุ่น</span>
             <SelectField
-              value={licensePageSize}
-              onChange={setLicensePageSize}
+              value={licenseModel}
+              onChange={setLicenseModel}
               options={[
-                { value: 10, label: '10' },
-                { value: 25, label: '25' },
-                { value: 50, label: '50' },
-                { value: 100, label: '100' },
+                { value: 'all', label: 'ทั้งหมด' },
+                ...licenseModelOptions.map((m) => ({ value: m, label: m })),
               ]}
             />
           </div>
-          entries per page
-        </div>
-        <div className="wh-filter-field">
-          <span className="wh-filter-label">แบบ/รุ่น</span>
-          <SelectField
-            value={licenseModel}
-            onChange={setLicenseModel}
-            options={[
-              { value: 'all', label: 'ทั้งหมด' },
-              ...licenseModelOptions.map((m) => ({ value: m, label: m })),
-            ]}
-          />
+          <div className="wh-filter-field">
+            <span className="wh-filter-label">ใบอนุญาตนำเข้า</span>
+            <SelectField
+              value={licenseNo}
+              onChange={setLicenseNo}
+              options={[
+                { value: 'all', label: 'ทั้งหมด' },
+                ...licenseNoOptions.map((n) => ({ value: n, label: n })),
+              ]}
+            />
+          </div>
         </div>
       </div>
 
