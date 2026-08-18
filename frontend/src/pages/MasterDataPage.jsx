@@ -99,7 +99,7 @@ const HEADING_LABEL_BY_TYPE = {
 const CONNECTIVITY_LABELS = {
   SATELLITE_IRIDIUM: 'Satellite (Iridium)',
   MOBILE_4G_HIGH: '4G (High speed)',
-  MOBILE_4G_NORMAL: '4G (ปกติ)',
+  MOBILE_4G_NORMAL: '4G (Normal speed)',
   UNKNOWN: 'ไม่ระบุ',
 }
 
@@ -418,18 +418,6 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
     return { total: rows.length, withImei, models: models.size, partNos: partNos.size }
   }, [rows])
 
-  // รายงานแยกตามชนิดการเชื่อมต่อ — นับเฉพาะแถว IT Controller (ชนิดอื่นไม่มีค่านี้)
-  const connStats = useMemo(() => {
-    const counts = { SATELLITE_IRIDIUM: 0, MOBILE_4G_HIGH: 0, MOBILE_4G_NORMAL: 0, UNKNOWN: 0 }
-    for (const row of rows) {
-      if (row.ComponentType !== 'it_controller') continue
-      const key = row.ConnectivityType || 'UNKNOWN'
-      counts[key] = (counts[key] || 0) + 1
-    }
-    const total = CONNECTIVITY_ORDER.reduce((sum, k) => sum + counts[k], 0)
-    return { counts, total }
-  }, [rows])
-
   async function handleDelete(row) {
     const label = row.SerialNo || row.Name || `รายการ #${row.ID}`
     const ok = await confirmDelete({ text: `ลบ ${label} ออกจากทะเบียน? กู้คืนไม่ได้` })
@@ -546,44 +534,6 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
           <div className="dash-stat-value">{stats.partNos}</div>
         </div>
       </div>
-
-      {/* รายงานแยกตามชนิดการเชื่อมต่อ (Mobile4G / Satellite) — เฉพาะ IT Controller */}
-      {connStats.total > 0 && (
-        <div
-          className="md-conn-report"
-          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '4px 0 14px' }}
-        >
-          <span style={{ alignSelf: 'center', fontSize: 13, color: '#64748b', fontWeight: 600 }}>
-            Connectivity:
-          </span>
-          {CONNECTIVITY_ORDER.map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setConnFilter((cur) => (cur === k ? 'all' : k))}
-              title={`กรองเฉพาะ ${CONNECTIVITY_LABELS[k]}`}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '4px 10px',
-                borderRadius: 999,
-                border: connFilter === k ? '1px solid #2563eb' : '1px solid #e2e8f0',
-                background: connFilter === k ? '#eff6ff' : '#f8fafc',
-                color: '#0f172a',
-                fontSize: 13,
-                cursor: 'pointer',
-              }}
-            >
-              <span>{CONNECTIVITY_LABELS[k]}</span>
-              <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{connStats.counts[k]}</strong>
-            </button>
-          ))}
-          <span style={{ alignSelf: 'center', fontSize: 12, color: '#94a3b8' }}>
-            รวม {connStats.total} รายการ
-          </span>
-        </div>
-      )}
 
       <div className="wh-heading-row">
         <div>
