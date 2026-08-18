@@ -21,6 +21,7 @@ func SetupRoutes(r *gin.Engine) {
 	masterData := auth.Group("/master-data")
 	{
 		masterData.GET("", controllers.GetMasterData)
+		masterData.GET("/summary", controllers.GetMasterDataSummary)
 		masterData.POST("", controllers.CreateMasterData)
 
 		// แก้ไขทะเบียนได้เฉพาะ role UPLOAD เหมือนกับฝั่ง machine-spec

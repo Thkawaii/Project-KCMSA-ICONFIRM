@@ -370,7 +370,7 @@ function UserModal({ user, onClose, onSaved }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 10 }}>
           <div>
             <label style={labelStyle}>ชื่อ - นามสกุล</label>
-            <input style={inputStyle} value={form.name} onChange={set('name')} placeholder="เช่น นายวสันต์ มีฤทธิ์" />
+            <input style={inputStyle} value={form.name} onChange={set('name')} placeholder="" />
           </div>
           <div>
             <label style={labelStyle}>
@@ -380,18 +380,13 @@ function UserModal({ user, onClose, onSaved }) {
               style={{ ...inputStyle, ...(isEdit ? { background: '#f8fafc', color: '#94a3b8' } : {}) }}
               value={form.username}
               onChange={set('username')}
-              placeholder="wh@kobelco.com / mfg@kobelco.com"
+              placeholder=""
               disabled={isEdit}
             />
-            {!isEdit && (
-              <span style={{ fontSize: 11, color: '#94a3b8' }}>
-                ใช้ร่วมกันทั้งแผนกได้ (เช่น wh@kobelco.com) แยกคนด้วยรหัสผ่าน
-              </span>
-            )}
           </div>
           <div>
             <label style={labelStyle}>รหัสผ่าน {isEdit && <span style={{ color: '#94a3b8' }}>(เว้นว่าง = ไม่เปลี่ยน)</span>}</label>
-            <input style={inputStyle} type="text" value={form.password} onChange={set('password')} placeholder={isEdit ? '••••••' : 'เช่น wh07.kobelco'} />
+            <input style={inputStyle} type="text" value={form.password} onChange={set('password')} placeholder={isEdit ? '••••••' : ''} />
           </div>
           <div>
             <label style={labelStyle}>แผนก / Role</label>
