@@ -280,11 +280,51 @@
 /* ── Modal รายละเอียดใบอนุญาตส่งออก (แทน "การเชื่อมโยงของเครื่องนี้" เดิม) ── */
 .il-detail-modal {
   max-width: 560px;
+  max-height: 88vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* หัวโมดัล — อยู่กับที่ ไม่เลื่อนตามเนื้อหา */
+.il-detail-modal .wh-modal-title {
+  margin: 0;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid #eef2f6;
+  flex-shrink: 0;
+}
+
+/* เนื้อหาตรงกลาง — เลื่อนได้เมื่อข้อมูลยาวเกินจอ */
+.il-detail-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* แถบปุ่มด้านล่าง — อยู่กับที่ */
+.il-detail-modal .wh-modal-actions {
+  margin: 0;
+  padding: 14px 24px;
+  border-top: 1px solid #eef2f6;
+  flex-shrink: 0;
+}
+
+/* ภายใน body ใช้ gap จัดระยะแล้ว จึงล้าง margin ซ้ำของการ์ด/กลุ่ม */
+.il-detail-body .il-detail-card {
+  margin-top: 0;
+}
+
+.il-detail-body .il-detail-links {
+  margin-top: 0;
 }
 
 /* การ์ดข้อมูลหลักของเครื่อง */
 .il-detail-card {
-  margin-top: 4px;
   padding: 14px 16px;
   background: var(--color-brand-50, #eafcfb);
   border: 1px solid var(--color-brand-200, #9deeea);
@@ -343,6 +383,20 @@
   border-bottom: 1px dashed #cbd5e1;
 }
 
+/* สถานะอายุในหน้ารายละเอียด — ป้ายสถานะ + วันคงเหลือ วางแนวนอน */
+.il-detail-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.il-detail-days {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
 .il-detail-note {
   margin-top: 12px;
   font-size: 13px;
@@ -353,7 +407,63 @@
   color: #b42318;
 }
 
-@media (max-width: 520px) {
+/* ปุ่มในเซลล์ action ของตาราง Import/Export License (รายละเอียด + ลบ)
+   จัดให้กว้างเท่ากันด้วย grid 2 ช่องเท่ากัน — ช่อง "ลบ" จะกว้างเท่า "รายละเอียด"
+   (บนมือถือกฎ .wh-cell-action > div เดิมจะ override เป็น flex เต็มแถวให้อยู่แล้ว) */
+.il-row-actions {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.il-row-actions > button {
+  width: 100%;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* ── รองรับมือถือ ─────────────────────────────────────────────────────────
+   จอแคบ (≤640px): โมดัลกินเต็มความกว้างโดยเว้นขอบเล็กน้อย, ลด padding ภายใน,
+   ใช้ dvh เพื่อไม่ให้แถบ address bar ของ Safari ดันเนื้อหาล้น */
+@media (max-width: 640px) {
+  .il-detail-modal {
+    max-width: calc(100% - 24px);
+    max-height: 92vh;
+    max-height: 92dvh;
+    box-sizing: border-box;
+  }
+
+  .il-detail-modal .wh-modal-title {
+    padding: 16px 18px 12px;
+    font-size: 17px;
+  }
+
+  .il-detail-body {
+    padding: 14px 16px;
+    gap: 10px;
+  }
+
+  .il-detail-modal .wh-modal-actions {
+    padding: 12px 16px;
+  }
+
+  .il-detail-card {
+    padding: 12px 14px;
+  }
+
+  .il-detail-section {
+    padding: 11px 12px;
+  }
+
+  .il-detail-grid {
+    gap: 10px 14px;
+  }
+}
+
+/* จอแคบมาก (≤480px): เลขยาว (หมายเลขเครื่อง/การผลิต) จะชนกันถ้าแบ่ง 2 คอลัมน์
+   จึงยุบเหลือคอลัมน์เดียว อ่านง่ายและไม่ตัดคำกลางตัวเลข */
+@media (max-width: 480px) {
   .il-detail-grid {
     grid-template-columns: 1fr;
   }

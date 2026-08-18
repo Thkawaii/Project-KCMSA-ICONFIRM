@@ -112,6 +112,8 @@ export default function ImportLicensePage() {
   const [pageSize, setPageSize] = useState(25)
   const [page, setPage] = useState(1)
 
+  const [detailRow, setDetailRow] = useState(null) // แถวที่กำลังเปิดดู modal รายละเอียด
+
   const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [uploadMsg, setUploadMsg] = useState(null)
@@ -584,9 +586,14 @@ export default function ImportLicensePage() {
                     <ExtraColumnsCell json={row.extra_json} />
                   </td>
                   <td className="wh-cell-action">
-                    <button className="wh-btn-danger wh-btn-danger-sm" onClick={() => handleDeleteRow(row)}>
-                      ลบ
-                    </button>
+                    <div className="il-row-actions">
+                      <button className="wh-modal-cancel" onClick={() => setDetailRow(row)}>
+                        รายละเอียด
+                      </button>
+                      <button className="wh-btn-danger" onClick={() => handleDeleteRow(row)}>
+                        ลบ
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -634,7 +641,136 @@ export default function ImportLicensePage() {
           </div>
         </div>
       )}
+
+      {detailRow && (
+        <ImportDetailModal row={detailRow} onClose={() => setDetailRow(null)} />
+      )}
     </AppShell>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// modal รายละเอียดของ 1 แถวใบอนุญาตนำเข้า — แสดงข้อมูลทุกฟิลด์ของเครื่องแบบอ่านง่าย
+// ข้อมูลมีครบอยู่ใน row แล้ว (ไม่ต้องยิง API ซ้ำ) จึงแสดงได้ทันที
+// ใช้คลาส il-detail-* ชุดเดียวกับ ExportTraceModal เพื่อให้หน้าตาสอดคล้องกัน
+// ═══════════════════════════════════════════════════════════════════════════
+function ImportDetailModal({ row, onClose }) {
+  // 1 ช่องข้อมูล (label + value) — แสดงเสมอ โชว์ '—' เมื่อไม่มีค่า
+  const item = (label, value) => (
+    <div className="il-detail-item">
+      <span className="il-detail-label">{label}</span>
+      <span className="il-detail-value">{value === 0 || value ? value : '—'}</span>
+    </div>
+  )
+
+  // section หัวข้อ — จัดกลุ่มข้อมูลให้อ่านง่าย
+  const section = (title, children) => (
+    <div className="il-detail-section">
+      <div className="il-detail-section-head">{title}</div>
+      <div className="il-detail-grid">{children}</div>
+    </div>
+  )
+
+  // อายุใบอนุญาต (6 เดือนนับจากวันที่ออก) — คำนวณ realtime เหมือนในตาราง
+  const exp = computeLicenseExpiry(row.IssueDate)
+
+  // สถานะยืนยันจากหน้า Part Confirmation (ถ้ามี)
+  const CONFIRM_LABEL = {
+    CONFIRMED: 'ยืนยันแล้ว',
+    PENDING: 'รอยืนยัน',
+    REJECTED: 'ไม่ผ่าน',
+  }
+  const confirmLabel = CONFIRM_LABEL[row.ConfirmStatus] || row.ConfirmStatus
+
+  // คอลัมน์เพิ่ม (extra_json) — คีย์ที่ระบบไม่รู้จัก เก็บไว้ไม่ให้ข้อมูลหาย
+  let extraEntries = []
+  try {
+    const obj = row.extra_json ? JSON.parse(row.extra_json) : null
+    if (obj) extraEntries = Object.entries(obj)
+  } catch {
+    extraEntries = []
+  }
+
+  return (
+    <div className="wh-modal-overlay" onClick={onClose}>
+      <div className="wh-modal il-detail-modal" onClick={(e) => e.stopPropagation()}>
+        <h3 className="wh-modal-title">รายละเอียดใบอนุญาตนำเข้า</h3>
+
+        <div className="il-detail-body">
+        {/* ── ข้อมูลเครื่อง ── */}
+        <div className="il-detail-card">
+          <div className="il-detail-grid">
+            {item('หมายเลขเครื่อง', row.MachineNo)}
+            {item('หมายเลขการผลิต', row.ProductionNo)}
+            {item('ตราอักษร', row.Brand)}
+            {item('แบบ/รุ่น', row.Model)}
+            {item('จำนวน (เครื่อง)', row.Qty)}
+            {item('ส่งออกไปประเทศ', row.ExportCountry)}
+          </div>
+        </div>
+
+        <div className="il-detail-links">
+        {/* ── ข้อมูลใบอนุญาต ── */}
+        {section('ข้อมูลใบอนุญาต', (
+          <>
+            {item('เลขใบอนุญาตนำเข้า', row.LicenseNo)}
+            {item('เลขอินวอยซ์นำเข้า', row.InvoiceNo)}
+            {item('เลขใบขนสินค้าขาเข้า', row.DeclarationNo)}
+            {item('วันที่ออกใบอนุญาต', row.IssueDate ? formatThaiDate(row.IssueDate) : '')}
+            {item('วันหมดอายุ (6 เดือน)', exp.hasDate ? formatThaiDate(exp.expiryDate) : '')}
+            {item(
+              'สถานะอายุ',
+              <span className="il-detail-status">
+                <span className={EXPIRY_BADGE_CLASS[exp.status]}>{STATUS_LABEL[exp.status]}</span>
+                {exp.hasDate && (
+                  <span className="il-detail-days">{daysLeftLabel(exp.daysLeft)}</span>
+                )}
+              </span>,
+            )}
+            {item('หมายเหตุ', row.Remark)}
+          </>
+        ))}
+
+        {/* ── สถานะการยืนยัน (จากหน้า Part Confirmation) ── */}
+        {section('สถานะการยืนยัน', (
+          <>
+            {item('สถานะ', confirmLabel)}
+            {item('TAG ที่สแกนคู่', row.ConfirmedTag)}
+            {item('ผู้ยืนยัน', row.ConfirmedBy)}
+            {item(
+              'วันเวลาที่ยืนยัน',
+              row.ConfirmedDatetime ? formatThaiDate(row.ConfirmedDatetime) : '',
+            )}
+          </>
+        ))}
+
+        {/* ── คอลัมน์เพิ่มจากไฟล์ (ถ้ามี) ── */}
+        {extraEntries.length > 0 &&
+          section('คอลัมน์เพิ่มจากไฟล์', (
+            <>
+              {extraEntries.map(([k, v]) =>
+                item(String(k).replace(/^\[\+\]\s*/, ''), v),
+              )}
+            </>
+          ))}
+
+        {/* ── ที่มาของข้อมูล ── */}
+        {section('ที่มาของข้อมูล', (
+          <>
+            {item('ชื่อไฟล์', row.FileName)}
+            {item('วันที่อัปโหลด', row.UploadDate ? formatThaiDate(row.UploadDate) : '')}
+          </>
+        ))}
+        </div>
+        </div>
+
+        <div className="wh-modal-actions">
+          <button className="wh-modal-cancel" onClick={onClose}>
+            ปิด
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -749,6 +885,15 @@ function ExportTraceModal({ row, country, onClose }) {
       </div>
     ) : null
 
+  // เหมือน item แต่ "แสดงเสมอ" (โชว์ '—' เมื่อไม่มีค่า)
+  // ใช้กับฟิลด์สำคัญที่ต้องเห็นชัดทุกครั้ง เช่น Import License เพื่อไม่ให้ข้อมูลหายเงียบ ๆ
+  const itemAlways = (label, value) => (
+    <div className="il-detail-item">
+      <span className="il-detail-label">{label}</span>
+      <span className="il-detail-value">{value || '—'}</span>
+    </div>
+  )
+
   // section ข้อมูลที่เชื่อมได้ — แสดงเฉพาะเมื่อมีข้อมูลจริง
   const linkSection = (title, children) => (
     <div className="il-detail-section">
@@ -757,18 +902,12 @@ function ExportTraceModal({ row, country, onClose }) {
     </div>
   )
 
-  const hasLinks =
-    !!data &&
-    (!!data.importLicense ||
-      !!data.mfgAssembly ||
-      !!(data.machineSpecs && data.machineSpecs.length) ||
-      !!data.whStock)
-
   return (
     <div className="wh-modal-overlay" onClick={onClose}>
       <div className="wh-modal il-detail-modal" onClick={(e) => e.stopPropagation()}>
         <h3 className="wh-modal-title">รายละเอียดใบอนุญาตส่งออก</h3>
 
+        <div className="il-detail-body">
         {/* ── ข้อมูลหลักของเครื่อง ── */}
         <div className="il-detail-card">
           <div className="il-detail-grid">
@@ -780,7 +919,7 @@ function ExportTraceModal({ row, country, onClose }) {
             {item('Invoice Date', row.InvoiceDate ? formatThaiDate(row.InvoiceDate) : '')}
             {item('Export Entry', row.ExportEntry)}
             {item('Export License', row.ExportLicenseNo || row.ExceptionLicense)}
-            {item('Import License', row.ImportLicenseNo)}
+            {itemAlways('Import License', row.ImportLicenseNo)}
             {item("Date Ass'y", row.AssemblyDate ? formatThaiDate(row.AssemblyDate) : '')}
             {item('Remark', row.Remark)}
           </div>
@@ -789,10 +928,12 @@ function ExportTraceModal({ row, country, onClose }) {
         {loading && <p className="il-detail-note">กำลังโหลดข้อมูลที่เชื่อมโยง...</p>}
         {err && <p className="il-detail-note il-detail-note-err">{err}</p>}
 
-        {!loading && !err && hasLinks && (
+        {!loading && !err && (
           <div className="il-detail-links">
-            {data.importLicense &&
-              linkSection('Import License (บัญชี กสทช.)', (
+            {/* Import License (บัญชี กสทช.) — แสดง "เสมอ" ไม่ให้ข้อมูลหายเงียบ ๆ
+                ถ้าจับคู่บัญชีนำเข้าไม่ได้ ให้โชว์เหตุผลแทนการซ่อนทั้ง section */}
+            {linkSection('Import License (บัญชี กสทช.)', (
+              data?.importLicense ? (
                 <>
                   {item('เลขใบอนุญาต (กสทช.)', data.importLicense.LicenseNo)}
                   {item('Invoice นำเข้า', data.importLicense.InvoiceNo)}
@@ -800,9 +941,21 @@ function ExportTraceModal({ row, country, onClose }) {
                   {item('ประเทศส่งออก', data.importLicense.ExportCountry)}
                   {item('สถานะยืนยัน', data.importLicense.ConfirmStatus)}
                 </>
-              ))}
+              ) : (
+                <div className="il-detail-item" style={{ gridColumn: '1 / -1' }}>
+                  <span
+                    className="il-detail-value"
+                    style={{ color: 'var(--muted, #6b7280)', fontStyle: 'italic' }}
+                  >
+                    ไม่พบใบอนุญาตนำเข้าที่เชื่อมโยง — ตรวจสอบว่าเลข IT Controller (
+                    {row.ITControllerNo || row.SerialNumber || '—'}) ตรงกับ “หมายเลขเครื่อง”
+                    ในบัญชีใบอนุญาตนำเข้า และเป็นเลข 12 หลัก
+                  </span>
+                </div>
+              )
+            ))}
 
-            {data.mfgAssembly &&
+            {data?.mfgAssembly &&
               linkSection('MFG Assembly (ผลตรวจตอนประกอบ)', (
                 <>
                   {item('สถานะ', data.mfgAssembly.Status)}
@@ -810,7 +963,7 @@ function ExportTraceModal({ row, country, onClose }) {
                 </>
               ))}
 
-            {data.machineSpecs && data.machineSpecs.length > 0 &&
+            {data?.machineSpecs && data.machineSpecs.length > 0 &&
               linkSection('Machine Spec (สเปคเครื่องจักร)', (
                 <>
                   {item('ชิ้นส่วนที่ตรงกับเครื่องนี้', `${data.machineSpecs.length} รายการ`)}
@@ -819,7 +972,7 @@ function ExportTraceModal({ row, country, onClose }) {
                 </>
               ))}
 
-            {data.whStock &&
+            {data?.whStock &&
               linkSection('WH Stock (ออเดอร์คลัง)', (
                 <>
                   {item('Warehouse', data.whStock.Warehouse)}
@@ -829,6 +982,7 @@ function ExportTraceModal({ row, country, onClose }) {
               ))}
           </div>
         )}
+        </div>
 
         <div className="wh-modal-actions">
           <button className="wh-modal-cancel" onClick={onClose}>
@@ -1258,12 +1412,14 @@ export function WHExportLicensePanel() {
                     <ExtraColumnsCell json={row.extra_json} />
                   </td>
                   <td className="wh-cell-action">
-                    <button className="wh-modal-cancel" onClick={() => setTraceRow(row)}>
-                      รายละเอียด
-                    </button>
-                    <button className="wh-btn-danger wh-btn-danger-sm" onClick={() => handleDelete(row)}>
-                      ลบ
-                    </button>
+                    <div className="il-row-actions">
+                      <button className="wh-modal-cancel" onClick={() => setTraceRow(row)}>
+                        รายละเอียด
+                      </button>
+                      <button className="wh-btn-danger" onClick={() => handleDelete(row)}>
+                        ลบ
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
