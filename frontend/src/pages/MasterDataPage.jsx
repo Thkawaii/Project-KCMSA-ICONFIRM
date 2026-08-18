@@ -18,7 +18,7 @@ import {
   MasterDataEditModal,
 } from '../components/FormatTools.jsx'
 import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js'
-import { buildStyledXlsxBlob, downloadBlob } from '../lib/xlsx.js'
+import { buildStyledXlsxBlob, buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js'
 import { CloudArrowUpIcon } from '../components/icons.jsx'
 import {
   ArrowDownTrayIcon,
@@ -463,6 +463,11 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
   // Header สี Theme ตัวหนากึ่งกลาง, Filter ทุกคอลัมน์ (Excel Table), แถบสีสลับแถว,
   // ปรับความกว้างอัตโนมัติ, Border, จัด Alignment ตามชนิดข้อมูล
   // (รหัส S/N, IT Controller no., IMEI, P/N คงเป็น "ข้อความ" กันเลขยาวเพี้ยนใน Excel)
+  //
+  // ตาราง ALL PART (compType === 'all') — แยกเป็นชีตตาม Connectivity:
+  // Satellite (Iridium) / 4G (High speed) / 4G (Normal speed) / ไม่ระบุ
+  // (ยึดตามรายการที่ผ่านตัวกรองอยู่แล้ว — ถ้าเลือก Connectivity filter ไว้ตัวใดตัวหนึ่ง
+  // ผลลัพธ์จะเหลือชีตเดียวโดยอัตโนมัติ) — ชนิดอะไหล่อื่นยังคง export ชีตเดียวตามเดิม
   function handleExport() {
     const columns = [
       { key: 'itemNo', header: 'Item No.', type: 'number', width: 8 },
@@ -473,18 +478,34 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
       { key: 'itcNo', header: noLabel, type: 'text' },
       { key: 'imei', header: 'IMEI', type: 'text' },
     ]
-    const rows = filtered.map((row, i) => ({
-      itemNo: i + 1,
-      name: row.Name || '',
-      model: row.Model || '',
-      partNo: row.PartNo || '',
-      serialNo: row.SerialNo || '',
-      itcNo: row.ITControllerNo || '',
-      imei: row.IMEI || '',
-    }))
-    const sheetName = (compType === 'all' ? 'ALL PART' : HEADING_LABEL_BY_TYPE[compType] || 'Master Data').slice(0, 31)
-    const blob = buildStyledXlsxBlob({ sheetName, columns, rows })
+    const toRows = (list) =>
+      list.map((row, i) => ({
+        itemNo: i + 1,
+        name: row.Name || '',
+        model: row.Model || '',
+        partNo: row.PartNo || '',
+        serialNo: row.SerialNo || '',
+        itcNo: row.ITControllerNo || '',
+        imei: row.IMEI || '',
+      }))
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+
+    if (compType === 'all') {
+      // จัดกลุ่มตาม Connectivity แล้วสร้างเป็นคนละชีต (ข้ามชีตที่ไม่มีข้อมูล)
+      const groups = CONNECTIVITY_ORDER.map((code) => ({
+        sheetName: CONNECTIVITY_LABELS[code].slice(0, 31),
+        columns,
+        rows: toRows(filtered.filter((row) => (row.ConnectivityType || 'UNKNOWN') === code)),
+      })).filter((g) => g.rows.length > 0)
+
+      if (groups.length === 0) return
+      const blob = buildStyledXlsxWorkbookBlob({ sheets: groups })
+      downloadBlob(blob, `master-data-all-part-${stamp}.xlsx`)
+      return
+    }
+
+    const sheetName = (HEADING_LABEL_BY_TYPE[compType] || 'Master Data').slice(0, 31)
+    const blob = buildStyledXlsxBlob({ sheetName, columns, rows: toRows(filtered) })
     downloadBlob(blob, `master-data-${compType}-${stamp}.xlsx`)
   }
 
