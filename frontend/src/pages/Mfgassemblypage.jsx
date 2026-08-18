@@ -514,15 +514,22 @@ export default function MFGAssemblyPage() {
       list = list.filter((r) => (r.Status || '') === statusFilter)
     }
     const term = search.trim().toLowerCase()
-    if (!term) return list
-    return list.filter(
-      (r) =>
-        (r.Item || '').toLowerCase().includes(term) ||
-        (r.MachineNo || '').toLowerCase().includes(term) ||
-        (r.ITControllerNo || '').toLowerCase().includes(term) ||
-        (r.Country || '').toLowerCase().includes(term) ||
-        (r.Status || '').toLowerCase().includes(term)
-    )
+    if (term) {
+      list = list.filter(
+        (r) =>
+          (r.Item || '').toLowerCase().includes(term) ||
+          (r.MachineNo || '').toLowerCase().includes(term) ||
+          (r.ITControllerNo || '').toLowerCase().includes(term) ||
+          (r.Country || '').toLowerCase().includes(term) ||
+          (r.Status || '').toLowerCase().includes(term)
+      )
+    }
+    // เรียง Check Date ล่าสุดขึ้นก่อน (ไม่มีวันที่ให้ไปอยู่ท้ายสุด)
+    return [...list].sort((a, b) => {
+      const ta = a.CheckDate ? new Date(a.CheckDate).getTime() : -Infinity
+      const tb = b.CheckDate ? new Date(b.CheckDate).getTime() : -Infinity
+      return tb - ta
+    })
   }, [rows, search, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
@@ -630,7 +637,8 @@ export default function MFGAssemblyPage() {
               </tr>
             )}
             {!loading &&
-              paged.map((a) => {
+              paged.map((a, idx) => {
+                const rowNo = (page - 1) * pageSize + idx + 1
                 const meta = STATUS_META[a.Status] || {
                   label: a.Status || '—',
                   cls: 'il-badge il-badge-muted',
@@ -650,7 +658,7 @@ export default function MFGAssemblyPage() {
                 return (
                   <tr key={a.ID}>
                     <td className="wh-cell-head" data-label="Item">
-                      <strong>{a.Item || '—'}</strong>
+                      <strong>{rowNo}</strong>
                     </td>
                     <td data-label="Date Ass'y">{fmtDate(a.DateAssembly)}</td>
                     <td className="il-mono" data-label="Machine No">
