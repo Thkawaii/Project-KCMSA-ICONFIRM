@@ -46,10 +46,14 @@ type ColumnAlias struct {
 // ลงทะเบียน mapping ไว้ที่นี่ครั้งเดียว ระบบตอนสแกน/ค้นจะเทียบผ่านตารางนี้ให้อัตโนมัติ
 //
 //	Kind       ชนิดรหัส: sn | pn | machine (ไว้จัดกลุ่ม/รายงาน — ไม่บังคับ)
-//	FromCode   ค่าที่หน้างานยิง/กรอกเข้ามา (รูปแบบใหม่ที่ยังไม่มีในทะเบียน)
+//	FromCode   = "New (ค่าใหม่)" ค่าที่หน้างานยิง/กรอกเข้ามา (รูปแบบใหม่ที่ยังไม่มีในทะเบียน)
 //	FromNorm   FromCode หลัง normalize (ตัดช่องว่าง/ขีด/จุด + พิมพ์ใหญ่) — คอลัมน์ที่ใช้ค้นจริง
-//	ToSerialNo ค่า S/N มาตรฐานในทะเบียนกลางที่ต้องการชี้ไปหา
+//	ToSerialNo = "Old (ค่าเดิม)" ค่ามาตรฐานเดิมในทะเบียนกลางที่ต้องการชี้ไปหา (ต้องมีอยู่จริงในระบบ)
 //	ToPartNo   P/N มาตรฐาน (ถ้าระบุ จะช่วยล็อกแถวให้แม่นขึ้น)
+//
+// การตั้งชื่อฝั่งผู้ใช้ (หัวตาราง Excel / หน้าเว็บ) ใช้ "New (ค่าใหม่)" แทน FromCode และ
+// "Old (ค่าเดิม)" แทน ToSerialNo — ส่วนชื่อตารางในฐานข้อมูลถูกเปลี่ยนเป็น
+// "change_format_parts" (ดู TableName ด้านล่าง) ให้ตรงกับชื่อฟีเจอร์ "Change Format Part"
 type CodeAlias struct {
 	ID uint `gorm:"primaryKey" json:"id"`
 
@@ -68,4 +72,11 @@ type CodeAlias struct {
 	Note       string    `gorm:"size:255" json:"note"`
 	UploadDate time.Time `json:"upload_date"`
 	UserID     uint      `json:"user_id"`
+}
+
+// TableName เปลี่ยนชื่อตารางในฐานข้อมูลจากค่า default ของ GORM ("code_aliases")
+// เป็น "change_format_parts" ให้ตรงกับชื่อฟีเจอร์ "Change Format Part" ที่หน้าเว็บใช้
+// (GORM จะอ้างชื่อนี้ให้อัตโนมัติทุกที่ — migrate/insert/query จึงสอดคล้องกันหมด)
+func (CodeAlias) TableName() string {
+	return "change_format_parts"
 }

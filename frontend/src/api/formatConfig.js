@@ -57,11 +57,14 @@ export function deleteCodeAlias(id) {
 }
 
 // อัปโหลด code alias จำนวนมากจากไฟล์ Excel/CSV ทีเดียว
-// (หัวคอลัมน์: from_code, to_serial_no, [to_part_no], [component_type], [kind], [note])
-export async function uploadCodeAliases(file) {
+// (หัวคอลัมน์: New (ค่าใหม่), Old (ค่าเดิม), [to_part_no], [component_type], [kind], [note])
+//   componentType = ชนิดอะไหล่ตั้งต้นของหน้าที่กดอัปโหลด (เช่น it_controller) —
+//   ใช้เติมให้แถวที่ไม่ได้ระบุชนิดในไฟล์ เพื่อให้รายการนำเข้าโผล่ในตารางของหน้านั้น
+export async function uploadCodeAliases(file, componentType) {
   const token = getToken()
   const formData = new FormData()
   formData.append('file', file)
+  if (componentType) formData.append('component_type', componentType)
 
   const res = await fetch(`${API_BASE_URL}/format-config/code-alias/upload`, {
     method: 'POST',

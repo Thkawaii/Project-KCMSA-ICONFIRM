@@ -11,6 +11,7 @@ import {
   scanClose,
 } from '../lib/scanPopup.js'
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js'
+import { inDateTab } from '../lib/dateRange.js'
 import {
   CheckIcon,
   ChevronDoubleLeftIcon,
@@ -527,17 +528,11 @@ export default function WHPartConfirmationPage() {
 
   // ── ประวัติการสแกน ───────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    const now = new Date()
     let list = rows
 
     if (dateTab !== 'all') {
-      list = list.filter((r) => {
-        const diffDays = (now - new Date(r.CheckedDatetime)) / (1000 * 60 * 60 * 24)
-        if (dateTab === 'day') return diffDays <= 1
-        if (dateTab === 'week') return diffDays <= 7
-        if (dateTab === 'month') return diffDays <= 31
-        return true
-      })
+      // ใช้ตัวช่วยกลาง (ปฏิทินจริง): รายวัน=วันนี้ · รายสัปดาห์=สัปดาห์นี้ · รายเดือน=เดือนนี้
+      list = list.filter((r) => inDateTab(r.CheckedDatetime, dateTab))
     }
 
     if (matchFilter !== 'all') {

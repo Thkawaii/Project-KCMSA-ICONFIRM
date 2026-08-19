@@ -10,6 +10,7 @@ import {
 import { API_BASE_URL } from '../api/client.js'
 import { getUploadData } from '../api/uploadData.js'
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js'
+import { inDateTab, DATE_TAB_OPTIONS } from '../lib/dateRange.js'
 import {
   scanStep,
   scanLoading,
@@ -113,6 +114,7 @@ export default function MFGAssemblyPage() {
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [dateTab, setDateTab] = useState('all') // ทั้งหมด | รายวัน | รายสัปดาห์ | รายเดือน (อิง Check Date)
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
 
@@ -233,7 +235,7 @@ export default function MFGAssemblyPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, pageSize, statusFilter])
+  }, [search, pageSize, statusFilter, dateTab])
 
   // ── ดักเครื่องสแกน (keyboard-wedge) ที่ยิงบาร์โค้ดตรงเข้าหน้าเว็บ ───────────
   // เครื่องสแกนพิมพ์อักขระรัว ๆ ปิดท้ายด้วย Enter — ถ้าเจอ burst แบบนี้ให้เปิด
@@ -513,6 +515,10 @@ export default function MFGAssemblyPage() {
     if (statusFilter !== 'all') {
       list = list.filter((r) => (r.Status || '') === statusFilter)
     }
+    if (dateTab !== 'all') {
+      // กรองตาม Check Date ด้วยตัวช่วยกลางเดียวกับหน้า WH (ปฏิทินจริง)
+      list = list.filter((r) => inDateTab(r.CheckDate, dateTab))
+    }
     const term = search.trim().toLowerCase()
     if (term) {
       list = list.filter(
@@ -530,7 +536,7 @@ export default function MFGAssemblyPage() {
       const tb = b.CheckDate ? new Date(b.CheckDate).getTime() : -Infinity
       return tb - ta
     })
-  }, [rows, search, statusFilter])
+  }, [rows, search, statusFilter, dateTab])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize)
@@ -543,6 +549,17 @@ export default function MFGAssemblyPage() {
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">Matching Assembly</h2>
+        </div>
+        <div className="vr-tabs">
+          {DATE_TAB_OPTIONS.map((tab) => (
+            <button
+              key={tab.key}
+              className={'vr-tab' + (dateTab === tab.key ? ' vr-tab-active' : '')}
+              onClick={() => setDateTab(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
