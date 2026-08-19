@@ -238,6 +238,71 @@ var udDatasetLabels = map[string]string{
 	models.DatasetAssembly: "Assembly",
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Change detection (ทำเหมือน Master Data / IT Controller) — สำหรับ preview
+//
+//   udDatasetKeyFields  = คอลัมน์ที่ใช้เป็น "business key" จับคู่แถวใหม่กับของเดิม
+//                         (ต้องตรงกับที่ fillUploadDataKeys ใช้เป็นคีย์จริง)
+//   udDatasetCoreFields = คอลัมน์ "ค่าหลัก" ถ้าเปลี่ยน = CHANGED (ต้องยืนยันก่อน)
+//                         ฟิลด์อื่นที่เปลี่ยน = UPDATED (อัปเดตทั่วไป)
+//   udDatasetKeyLabel   = ป้ายหัวคอลัมน์คีย์ที่โชว์ในตาราง preview
+// ─────────────────────────────────────────────────────────────────────────────
+var udDatasetKeyFields = map[string][]string{
+	models.DatasetPlanning: {"Machine"},
+	models.DatasetWH1:      {"Order No", "Parts No", "Work order"},
+	models.DatasetWH2:      {"ORDER No.", "Parts No"},
+	models.DatasetEngine:   {"Machine No"},
+	models.DatasetAssembly: {"Machine No"},
+}
+
+var udDatasetCoreFields = map[string][]string{
+	models.DatasetPlanning: {"Product Spec 1", "Product Spec 2", "KCM Order", "Country Name"},
+	models.DatasetWH1:      {"Assembly Parts Number", "Name"},
+	models.DatasetWH2:      {"PARTS NAME", "Quantity"},
+	models.DatasetEngine:   {"ENGINE"},
+	models.DatasetAssembly: {"IT Controller", "Spec Code", "Assembly_Parts_Number"},
+}
+
+var udDatasetKeyLabel = map[string]string{
+	models.DatasetPlanning: "Machine No",
+	models.DatasetWH1:      "Order · Parts · WO",
+	models.DatasetWH2:      "Order · Parts",
+	models.DatasetEngine:   "Machine No",
+	models.DatasetAssembly: "Machine No",
+}
+
+// uploadDataDiffKey สร้าง business key จากค่าในแถว (normalize: trim + lower)
+func uploadDataDiffKey(dataset string, data map[string]string) string {
+	fields := udDatasetKeyFields[dataset]
+	parts := make([]string, 0, len(fields))
+	for _, f := range fields {
+		parts = append(parts, strings.ToLower(strings.TrimSpace(data[f])))
+	}
+	return strings.Join(parts, "|")
+}
+
+// buildStandardRowData แปลง raw 1 แถว → map{ Label: value } เฉพาะคอลัมน์มาตรฐาน
+// (ใช้ตอน preview เพื่อเทียบกับของเดิม — คืน anyValue=false ถ้าแถวว่างล้วน)
+func buildStandardRowData(ds udDataset, headerMap map[string]int, raw []string) (map[string]string, bool) {
+	data := map[string]string{}
+	occSeen := map[string]int{}
+	anyValue := false
+	for _, cdef := range ds.Columns {
+		occSeen[cdef.Aliases[0]]++
+		occ := occSeen[cdef.Aliases[0]]
+		j, found := resolveColumn(headerMap, cdef, occ)
+		val := ""
+		if found && j < len(raw) {
+			val = strings.TrimSpace(unwrapExcelText(raw[j]))
+		}
+		data[cdef.Label] = val
+		if val != "" {
+			anyValue = true
+		}
+	}
+	return data, anyValue
+}
+
 // buildHeaderIndex map หัวตารางไฟล์ (normalize แล้ว) -> เลข column
 // รองรับหัวตารางซ้ำกัน (เช่น Planning มี "Product Spec" 2 ช่อง) โดยเติม #n ต่อท้าย
 func buildHeaderIndex(headerRow []string) map[string]int {
@@ -428,6 +493,96 @@ func PreviewUploadDataMapping(c *gin.Context) {
 		extra = append(extra, strings.TrimSpace(cell))
 	}
 
+	// ── Change detection (NEW / UNCHANGED / UPDATED / CHANGED) ──────────────────
+	// จับคู่แต่ละแถวใหม่กับของเดิมด้วย business key แล้วจำแนกสถานะ + เก็บค่า old→new
+	coreSet := map[string]bool{}
+	for _, f := range udDatasetCoreFields[dataset] {
+		coreSet[f] = true
+	}
+
+	// โหลดของเดิมทั้ง dataset แล้ว index ด้วย business key (parse DataJSON)
+	var existingJSON []string
+	config.DB.Model(&models.UploadDataRow{}).
+		Where("dataset = ?", dataset).Pluck("data_json", &existingJSON)
+	existing := make(map[string]map[string]string, len(existingJSON))
+	for _, j := range existingJSON {
+		m := map[string]string{}
+		if err := json.Unmarshal([]byte(j), &m); err != nil {
+			continue
+		}
+		existing[uploadDataDiffKey(dataset, m)] = m
+	}
+
+	type fieldDiff struct {
+		Field string `json:"field"`
+		Old   string `json:"old"`
+		New   string `json:"new"`
+	}
+	type rowResult struct {
+		Key    string      `json:"key"`
+		Status string      `json:"status"`
+		Diffs  []fieldDiff `json:"diffs,omitempty"`
+	}
+
+	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0}
+	preview := make([]rowResult, 0, 300)
+
+	for i := headerIdx + 1; i < len(rows); i++ {
+		raw := rows[i]
+		// ข้ามแถวว่างล้วน + แถวคำอธิบาย (คอลัมน์แรกยาวผิดปกติ) เหมือนตอนอัปโหลดจริง
+		if len(raw) > 0 && len([]rune(raw[0])) > 60 {
+			continue
+		}
+		data, anyValue := buildStandardRowData(ds, headerMap, raw)
+		if !anyValue {
+			continue
+		}
+
+		diffKey := uploadDataDiffKey(dataset, data)
+		keyLabel := strings.TrimSpace(strings.ReplaceAll(diffKey, "|", " · "))
+		if keyLabel == "" {
+			keyLabel = "(ไม่มีคีย์)"
+		}
+
+		old, ok := existing[diffKey]
+		if !ok {
+			counts["NEW"]++
+			if len(preview) < 300 {
+				preview = append(preview, rowResult{Key: keyLabel, Status: "NEW"})
+			}
+			continue
+		}
+
+		var diffs []fieldDiff
+		coreChanged := false
+		for _, cdef := range ds.Columns {
+			o := strings.TrimSpace(old[cdef.Label])
+			n := strings.TrimSpace(data[cdef.Label])
+			if o != n {
+				diffs = append(diffs, fieldDiff{Field: cdef.Label, Old: o, New: n})
+				if coreSet[cdef.Label] {
+					coreChanged = true
+				}
+			}
+		}
+
+		var status string
+		switch {
+		case len(diffs) == 0:
+			status = "UNCHANGED"
+		case coreChanged:
+			status = "CHANGED"
+		default:
+			status = "UPDATED"
+		}
+		counts[status]++
+		if status != "UNCHANGED" && len(preview) < 300 {
+			preview = append(preview, rowResult{Key: keyLabel, Status: status, Diffs: diffs})
+		}
+	}
+
+	total := counts["NEW"] + counts["UPDATED"] + counts["CHANGED"] + counts["UNCHANGED"]
+
 	c.JSON(200, gin.H{
 		"file":        fileName,
 		"dataset":     dataset,
@@ -436,6 +591,16 @@ func PreviewUploadDataMapping(c *gin.Context) {
 		"matched":     matched,
 		"missing":     missing,
 		"extra":       extra,
+		"keyLabel":    udDatasetKeyLabel[dataset],
+		"coreFields":  udDatasetCoreFields[dataset],
+		"summary": gin.H{
+			"total":     total,
+			"new":       counts["NEW"],
+			"updated":   counts["UPDATED"],
+			"changed":   counts["CHANGED"],
+			"unchanged": counts["UNCHANGED"],
+		},
+		"rows": preview,
 	})
 }
 

@@ -625,12 +625,124 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 		}
 	}
 
+	// ── Change detection (NEW / UNCHANGED / UPDATED / CHANGED) เหมือน IT Controller ──
+	// คีย์ = Serial Number (fallback: Machine No / IT Controller Serial No.) เหมือนตอนอัปโหลด
+	var newItems []models.ExportLicenseItem
+	seenSerial := map[string]bool{}
+	for i := headerIdx + 1; i < len(rows); i++ {
+		it := models.ExportLicenseItem{}
+		for col, header := range headers {
+			if col >= len(rows[i]) {
+				break
+			}
+			val := strings.TrimSpace(rows[i][col])
+			if setter, ok := exportLicenseColumns[header]; ok {
+				setter(&it, val)
+			}
+		}
+		if it.SerialNumber == "" {
+			switch {
+			case it.MachineNo != "":
+				it.SerialNumber = it.MachineNo
+			case it.ITControllerNo != "":
+				it.SerialNumber = it.ITControllerNo
+			}
+		}
+		if it.SerialNumber == "" || seenSerial[it.SerialNumber] {
+			continue
+		}
+		seenSerial[it.SerialNumber] = true
+		newItems = append(newItems, it)
+	}
+
+	serials := make([]string, 0, len(newItems))
+	for _, it := range newItems {
+		serials = append(serials, it.SerialNumber)
+	}
+	existing := map[string]models.ExportLicenseItem{}
+	if len(serials) > 0 {
+		var existingRows []models.ExportLicenseItem
+		config.DB.Where("serial_number IN ?", serials).Find(&existingRows)
+		for _, r := range existingRows {
+			existing[r.SerialNumber] = r
+		}
+	}
+
+	type fieldDiff struct {
+		Field string `json:"field"`
+		Old   string `json:"old"`
+		New   string `json:"new"`
+	}
+	type rowResult struct {
+		Key    string      `json:"key"`
+		Status string      `json:"status"`
+		Diffs  []fieldDiff `json:"diffs,omitempty"`
+	}
+	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0}
+	preview := make([]rowResult, 0, 300)
+
+	for _, it := range newItems {
+		old, ok := existing[it.SerialNumber]
+		if !ok {
+			counts["NEW"]++
+			if len(preview) < 300 {
+				preview = append(preview, rowResult{Key: it.SerialNumber, Status: "NEW"})
+			}
+			continue
+		}
+		var diffs []fieldDiff
+		coreChanged := false
+		add := func(field, o, n string, core bool) {
+			if strings.TrimSpace(o) != strings.TrimSpace(n) {
+				diffs = append(diffs, fieldDiff{Field: field, Old: o, New: n})
+				if core {
+					coreChanged = true
+				}
+			}
+		}
+		add("Exception License", old.ExceptionLicense, it.ExceptionLicense, true)
+		add("Export License", old.ExportLicenseNo, it.ExportLicenseNo, true)
+		add("Import License", old.ImportLicenseNo, it.ImportLicenseNo, true)
+		add("IT Controller S/N", old.ITControllerNo, it.ITControllerNo, true)
+		add("Machine No", old.MachineNo, it.MachineNo, false)
+		add("Invoice", old.InvoiceNo, it.InvoiceNo, false)
+		add("Export Entry", old.ExportEntry, it.ExportEntry, false)
+		add("Country", old.Country, it.Country, false)
+		add("Remark", old.Remark, it.Remark, false)
+
+		var status string
+		switch {
+		case len(diffs) == 0:
+			status = "UNCHANGED"
+		case coreChanged:
+			status = "CHANGED"
+		default:
+			status = "UPDATED"
+		}
+		counts[status]++
+		if status != "UNCHANGED" && len(preview) < 300 {
+			preview = append(preview, rowResult{Key: it.SerialNumber, Status: status, Diffs: diffs})
+		}
+	}
+
+	total := counts["NEW"] + counts["UPDATED"] + counts["CHANGED"] + counts["UNCHANGED"]
+
 	c.JSON(200, gin.H{
 		"file":        fileName,
 		"headerFound": true,
 		"headerRow":   headerIdx + 1,
 		"matched":     matched,
 		"extra":       extra,
+		"keyLabel":    "Serial Number",
+		"coreFields":  []string{"Exception License", "Export License", "Import License", "IT Controller S/N"},
+		"summary": gin.H{
+			"total":     total,
+			"new":       counts["NEW"],
+			"updated":   counts["UPDATED"],
+			"changed":   counts["CHANGED"],
+			"unchanged": counts["UNCHANGED"],
+		},
+		"rows": preview,
 	})
 }
 
