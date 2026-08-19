@@ -313,7 +313,7 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
 
   async function handleAdd() {
     if (!fromCode.trim() || !toSerial.trim()) {
-      toastError('กรอกทั้ง "ข้อมูลใหม่" และ "ข้อมูลเก่า"')
+      toastError('กรอกทั้ง "New (ค่าใหม่)" และ "Old (ค่าเดิม)"')
       return
     }
     setSaving(true)
@@ -356,8 +356,17 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
     if (!file) return
     setUploading(true)
     try {
-      const res = await uploadCodeAliases(file)
-      toastSuccess(`นำเข้าแล้ว ${res.imported ?? 0} รายการ`)
+      // ส่ง componentType ไปด้วย เพื่อให้แถวที่ไม่ได้ระบุชนิดในไฟล์ถูกเติมให้ตรงกับ
+      // หน้านี้ — รายการที่นำเข้าจะได้โผล่ในตาราง Change Format Part (ที่กรองด้วยชนิด)
+      const res = await uploadCodeAliases(file, componentType)
+      const parts = [`นำเข้าแล้ว ${res.imported ?? 0} รายการ`]
+      if (res.updated) parts.push(`อัปเดต ${res.updated}`)
+      if (res.skipped) parts.push(`ข้าม ${res.skipped}`)
+      toastSuccess(parts.join(' · '))
+      // ถ้ามีแถวที่ถูกข้าม (เช่น ค่าเดิมไม่มีในระบบ) แจ้งรายละเอียดให้เห็นชัด
+      if (Array.isArray(res.problems) && res.problems.length > 0) {
+        toastError(res.problems.slice(0, 5).join('\n'))
+      }
       await load()
     } catch (err) {
       toastError(err.message || 'อัปโหลดไม่สำเร็จ')
@@ -367,17 +376,19 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
   }
 
   // ดาวน์โหลดไฟล์ตัวอย่าง (.xlsx) — หัวคอลัมน์ + ตัวอย่างข้อมูลให้กรอกตาม
+  //   New (ค่าใหม่) = รหัสรูปแบบใหม่ที่หน้างานยิง/กรอกเข้ามา
+  //   Old (ค่าเดิม) = ค่าเดิม (Machine No./S/N/P/N) ที่ "ต้องมีอยู่จริงในระบบแล้ว"
   function handleDownloadSample() {
     const columns = [
-      { key: 'from_code', header: 'from_code', type: 'text' },
-      { key: 'to_serial_no', header: 'to_serial_no', type: 'text' },
+      { key: 'new', header: 'New (ค่าใหม่)', type: 'text' },
+      { key: 'old', header: 'Old (ค่าเดิม)', type: 'text' },
       { key: 'kind', header: 'kind', type: 'text' },
       { key: 'note', header: 'note', type: 'text' },
     ]
     const rows = [
-      { from_code: 'TNN-YN23993', to_serial_no: 'YN23993', kind: 'machine', note: 'ตัวอย่าง Machine No.' },
-      { from_code: 'KQ-3000/NEW', to_serial_no: 'KQ3000045093', kind: 'sn', note: 'ตัวอย่าง S/N' },
-      { from_code: 'YN22-E00849', to_serial_no: 'YN22E00849FA', kind: 'pn', note: 'ตัวอย่าง P/N' },
+      { new: 'TNN-YN23993', old: 'YN23993', kind: 'machine', note: 'ตัวอย่าง Machine No. (ค่าเดิมต้องมีในระบบ)' },
+      { new: 'KQ-3000/NEW', old: 'KQ3000045093', kind: 'sn', note: 'ตัวอย่าง S/N (ค่าเดิมต้องมีในระบบ)' },
+      { new: 'YN22-E00849', old: 'YN22E00849FA', kind: 'pn', note: 'ตัวอย่าง P/N (ค่าเดิมต้องมีในระบบ)' },
     ]
     const blob = buildStyledXlsxBlob({ sheetName: 'Change Format Part', columns, rows })
     downloadBlob(blob, 'change-format-part-ตัวอย่าง.xlsx')
@@ -399,7 +410,7 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
           />
         </div>
         <div className="fmt-field">
-          <label className="fmt-label">ข้อมูลใหม่ที่จะเปลี่ยน({kindText})</label>
+          <label className="fmt-label">New (ค่าใหม่) ({kindText})</label>
           <input
             className="fmt-input"
             value={fromCode}
@@ -408,7 +419,7 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
           />
         </div>
         <div className="fmt-field">
-          <label className="fmt-label">ข้อมูลเดิม({kindText})</label>
+          <label className="fmt-label">Old (ค่าเดิม) ({kindText})</label>
           <input
             className="fmt-input"
             value={toSerial}
@@ -440,8 +451,8 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
           <thead>
             <tr>
               <th>ชนิด</th>
-              <th>ข้อมูลใหม่</th>
-              <th>→ ข้อมูลเก่า</th>
+              <th>New (ค่าใหม่)</th>
+              <th>→ Old (ค่าเดิม)</th>
               <th>หมายเหตุ</th>
               <th></th>
             </tr>

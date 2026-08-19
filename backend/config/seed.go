@@ -195,46 +195,15 @@ func SeedData() {
 	// slice users ให้อัตโนมัติ (users[0].ID, users[1].ID, ...) เอาไว้ผูกกับ
 	// UserID ของตารางอื่น — ถ้าไม่ทำแบบนี้ UserID จะเป็น 0 ตาม zero-value
 	// ของ Go แล้วชน FK constraint (fk_master_data_user, fk_qas_user ฯลฯ)
-	// เหมือนที่เจอ error อยู่ตอนนี้
-	qaUserID := users[0].ID
-	whUserID := users[1].ID
 
-	// 2 แถวนี้เป็นข้อมูลตัวอย่างของเดิม ที่ qa ด้านล่างอ้างถึงอยู่
-	// ถ้าลบออก flow ตัวอย่างจะเสีย — ทะเบียน IT Controller ตัวจริง 36 เครื่อง
-	// อยู่ใน SeedMasterITController() ต่างหาก
-	master := []models.MasterData{
-		{
-			Name:          "IT Controller",
-			ComponentType: "it_controller",
-			PartNo:        "YN02P00133F2G1",
-			SerialNo:      "J05ETG63544",
-			SpecCode:      "SPEC001",
-			UserID:        whUserID,
-		},
-		{
-			Name:          "Control Valve",
-			ComponentType: "control_valve",
-			PartNo:        "CV001",
-			SerialNo:      "SN10001",
-			SpecCode:      "SPEC002",
-			UserID:        whUserID,
-		},
-	}
-
-	DB.Create(&master)
-
-	qa := []models.QA{
-		{
-			ExpectedPartNo: "YN02P00133F2G1",
-			ActualPartNo:   "YN02P00133F2G1",
-			ExpectedSpec:   "SPEC001",
-			ActualSpec:     "SPEC001",
-			Result:         "PASS",
-			UserID:         qaUserID,
-		},
-	}
-
-	DB.Create(&qa)
+	// ── Master Data / QA เริ่มต้น "ว่างเปล่า" ──────────────────────────────────
+	// ตามข้อกำหนด (ดูหมายเหตุใน config/database.go): ตอนเริ่มต้นระบบ Master Data
+	// ต้องว่างเปล่า และให้โหลดข้อมูลจริงผ่านการอัปโหลด Serial List / Master Data เท่านั้น
+	//
+	// แถวตัวอย่างของเดิม (IT Controller: YN02P00133F2G1 / J05ETG63544 และ
+	// Control Valve: CV001 / SN10001) รวมถึงแถว QA ตัวอย่างที่อ้างถึงมัน ถูกเอาออก
+	// ทั้งหมดตามที่ร้องขอ — ทะเบียน IT Controller ตัวจริง 36 เครื่องยังอยู่ใน
+	// SeedMasterITController() (เปิดด้วย env SEED_SAMPLE_ITC=1) ต่างหาก ไม่กระทบกัน
 }
 
 // SeedMasterITController เติมทะเบียน IT Controller 36 เครื่องตามเอกสาร TQ60610
