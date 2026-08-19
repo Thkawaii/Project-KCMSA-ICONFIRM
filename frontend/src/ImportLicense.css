@@ -778,9 +778,9 @@
 .lab-panel {
   position: absolute;
   top: calc(100% + 12px);
-  right: 0;
+  right: 8px;
   width: 380px;
-  max-width: calc(100vw - 24px);
+  max-width: calc(100vw - 32px);
   background: #ffffff;
   border: 1px solid var(--card-border);
   border-radius: 16px;
@@ -798,7 +798,7 @@
   content: '';
   position: absolute;
   top: -7px;
-  right: 16px;
+  right: 14px;
   width: 12px;
   height: 12px;
   background: #ffffff;
@@ -1360,4 +1360,172 @@
 .lab-more-btn:hover {
   background: #f1f5f9;
   color: #0f172a;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   ปรับสีสัน panel กระดิ่งให้ "น่าใช้ + คลิกได้ชัด" ขึ้น
+   • แต่ละแถวเป็นการ์ดโค้งมนเบา ๆ ยกตัวตอน hover
+   • มี chevron โผล่ตอน hover บอกว่า "คลิกเพื่อเปิด/ค้นหาใบนี้"
+   • เส้นซ้ายหนาขึ้นเล็กน้อยเพื่อบอกความรุนแรง (แดง=หมดอายุ, อำพัน=ใกล้หมด)
+   ═════════════════════════════════════════════════════════════════════════ */
+.lab-list .lab-item {
+  width: auto;
+  margin: 3px 10px;
+  border-radius: 12px;
+  box-sizing: border-box;
+  transition: background 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
+}
+.lab-list .lab-item:hover {
+  background: #f8fafc;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+.lab-item-main {
+  align-items: center;
+  border-radius: 12px;
+  position: relative;
+}
+/* เส้นบอกสถานะซ้ายสุด — หนา/มนขึ้น อ่านง่ายขึ้น */
+.lab-item-bar {
+  width: 5px;
+}
+/* chevron บอกว่าคลิกได้ — ซ่อนไว้ปกติ โผล่จาง ๆ ตอน hover ทั้งแถว */
+.lab-item-main::after {
+  content: '';
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-top: 2px solid #cbd5e1;
+  border-right: 2px solid #cbd5e1;
+  transform: translateY(-50%) rotate(45deg);
+  opacity: 0;
+  transition: opacity 0.14s ease, right 0.14s ease, border-color 0.14s ease;
+  pointer-events: none;
+}
+.lab-item:hover .lab-item-main::after {
+  opacity: 1;
+  right: 4px;
+  border-color: var(--brand-500, #14b8a6);
+}
+/* เลขใบอนุญาตเด่นขึ้นตอน hover */
+.lab-item:hover .lab-item-license {
+  color: var(--brand-700, #0f766e);
+}
+
+/* ป้ายจำนวนวัน — คอนทราสต์สูงขึ้น อ่านชัดขึ้น */
+.lab-days-expired {
+  background: #fee2e2;
+  color: #b42318;
+  box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.22);
+}
+.lab-days-expiring {
+  background: #ffedd5;
+  color: #c2410c;
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.28);
+}
+
+/* หัวข้อกลุ่ม (หมดอายุแล้ว / ใกล้หมดอายุ) — มีจุดสีนำหน้าให้ไล่สายตาง่าย */
+.lab-group-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lab-group-label::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.lab-group-expired::before { background: #dc2626; }
+.lab-group-expiring::before { background: #f59e0b; }
+.lab-group-hidden::before { background: #94a3b8; }
+
+/* section header (นำเข้า/ส่งออก) — ไล่เฉดพื้นหลังบาง ๆ ตามธีมของฝั่ง */
+.lab-section-import .lab-section-head {
+  background: linear-gradient(90deg, #fef2f2, #f8fafc 60%);
+}
+.lab-section-export .lab-section-head {
+  background: linear-gradient(90deg, #fffbeb, #f8fafc 60%);
+}
+
+/* ป้ายสรุปตัวเลขในหัว section — โค้งมน มีเส้นขอบบาง ๆ ให้ดูเป็นชิป */
+.lab-section-count .lab-sum-expired {
+  box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.18);
+}
+.lab-section-count .lab-sum-expiring {
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.22);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   ซ่อนแถบ scroll ในกระดิ่งแจ้งเตือน — ยังเลื่อนดูได้ปกติ แค่ไม่โชว์แถบให้เกะกะ
+   (ครอบทั้ง WebKit/Chrome/Safari, Firefox, Edge เก่า)
+   ═════════════════════════════════════════════════════════════════════════ */
+.lab-panel,
+.lab-panel-wide,
+.lab-list {
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* IE / Edge เก่า */
+}
+.lab-panel::-webkit-scrollbar,
+.lab-panel-wide::-webkit-scrollbar,
+.lab-list::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;                /* Chrome / Safari / Edge ใหม่ */
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   จัดระยะขวาให้ "พอดี" ไม่ชิดขอบ — เพิ่ม padding ขวาของแถว/หัว section
+   เพื่อให้ป้าย "เลขกำหนด X วัน" และชิปสรุปไม่เบียดขอบ panel
+   ═════════════════════════════════════════════════════════════════════════ */
+.lab-item-main {
+  padding-right: 14px;
+}
+/* กัน chevron (คลิกได้) ไม่ให้ทับป้ายจำนวนวันตอน hover */
+.lab-item-main::after {
+  right: 4px;
+}
+.lab-item:hover .lab-item-main::after {
+  right: 2px;
+}
+.lab-section-head {
+  padding-right: 16px;
+}
+/* หัว panel (ปุ่มปิด) ให้มีระยะขวาสมดุลกับเนื้อหา */
+.lab-panel-head {
+  padding-right: 16px;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Hover รายการแจ้งเตือน — กรอบมี "สีตามความรุนแรง"
+   • หมดอายุแล้ว  → กรอบ/พื้นโทนแดง
+   • ใกล้หมดอายุ  → กรอบ/พื้นโทนอำพัน
+   ใช้ inset ring เป็นกรอบสี (ไม่ดันเลย์เอาต์) + เงานุ่มโทนเดียวกัน
+   ═════════════════════════════════════════════════════════════════════════ */
+.lab-list .lab-item-expired:hover {
+  background: #fff5f5;
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.14),
+    inset 0 0 0 1.5px rgba(220, 38, 38, 0.45);
+}
+.lab-list .lab-item-expiring:hover {
+  background: #fffaf0;
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.16),
+    inset 0 0 0 1.5px rgba(245, 158, 11, 0.5);
+}
+/* chevron "คลิกได้" ให้สีเข้าชุดกับกรอบ */
+.lab-item-expired:hover .lab-item-main::after {
+  border-color: #dc2626;
+}
+.lab-item-expiring:hover .lab-item-main::after {
+  border-color: #f59e0b;
+}
+/* เลขใบอนุญาตตอน hover — โทนเข้มขึ้นตามสถานะ (แทนสีแบรนด์กลาง ๆ เดิม) */
+.lab-item-expired:hover .lab-item-license {
+  color: #b42318;
+}
+.lab-item-expiring:hover .lab-item-license {
+  color: #c2410c;
 }

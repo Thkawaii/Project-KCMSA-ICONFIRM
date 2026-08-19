@@ -29,6 +29,7 @@ import {
   EXPIRY_STATUS,
 } from '../lib/licenseExpiry.js'
 import { useDailyTick } from '../lib/useDailyTick.js'
+import { useAppParams } from '../lib/nav.jsx'
 import { buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js'
 import {
   ChevronDoubleLeftIcon,
@@ -100,6 +101,7 @@ function ExpiryCell({ issueDate }) {
 
 export default function ImportLicensePage() {
   const today = useDailyTick() // เปลี่ยนค่าเมื่อข้ามวัน → บังคับ recompute สถานะอายุ
+  const params = useAppParams() // รับ focusLicense/focusInvoice จากกระดิ่งแจ้งเตือน
   const [items, setItems] = useState([])
   const [summary, setSummary] = useState([])
   const [loading, setLoading] = useState(true)
@@ -158,6 +160,31 @@ export default function ImportLicensePage() {
   useEffect(() => {
     setPage(1)
   }, [selectedLot, search, modelFilter, expiryFilter, pageSize])
+
+  // ── มาจากกระดิ่งแจ้งเตือน: auto-search ใบที่คลิกทันที ──────────────────────
+  // เคลียร์ filter อื่น ๆ ก่อน แล้วตั้งคำค้น = เลขใบอนุญาต (ไม่มีไฮไลต์สีแล้ว)
+  useEffect(() => {
+    const lic = (params?.focusLicense || '').trim()
+    if (!lic) return
+    setModelFilter('all')
+    setExpiryFilter('all')
+    setSelectedLot('')
+    setSearch(lic)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params?.focusLicense, params?.focusInvoice, params?.focusTs])
+
+  // เมื่อ summary โหลดเสร็จ ค่อย "ปักหมุดล็อต" ให้ตรงใบ (ถ้ามีจริงในบัญชี)
+  // ได้การ์ดหัวใบอนุญาต (currentLot) โชว์ใบนั้นเด่น ๆ = "แสดงใบนั้นเลย"
+  useEffect(() => {
+    const lic = (params?.focusLicense || '').trim()
+    const inv = (params?.focusInvoice || '').trim()
+    if (!lic || !inv) return
+    const key = `${lic}|${inv}`
+    if (summary.some((s) => `${s.LicenseNo}|${s.InvoiceNo}` === key)) {
+      setSelectedLot(key)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary, params?.focusLicense, params?.focusInvoice, params?.focusTs])
 
   async function handleUpload() {
     if (!file) {
@@ -307,6 +334,15 @@ export default function ImportLicensePage() {
           (r.ExportCountry || '').toLowerCase().includes(term)
       )
     }
+
+    // เรียงจากวันที่ออกใบอนุญาต (IssueDate) ล่าสุดขึ้นก่อน — แถวที่ยังไม่ระบุวันที่ไปอยู่ท้ายสุด
+    rows = [...rows].sort((a, b) => {
+      const da = a.IssueDate ? new Date(a.IssueDate).getTime() : NaN
+      const db = b.IssueDate ? new Date(b.IssueDate).getTime() : NaN
+      const va = Number.isNaN(da) ? -Infinity : da
+      const vb = Number.isNaN(db) ? -Infinity : db
+      return vb - va
+    })
 
     return rows
   }, [items, selectedLot, modelFilter, expiryFilter, search, today])
@@ -996,6 +1032,7 @@ function ExportTraceModal({ row, country, onClose }) {
 
 export function WHExportLicensePanel() {
   useDailyTick() // ข้ามวัน → recompute สถานะ Expire date
+  const params = useAppParams() // รับ focusSerial จากกระดิ่งแจ้งเตือน
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -1177,6 +1214,15 @@ export function WHExportLicensePanel() {
   useEffect(() => {
     setPage(1)
   }, [search, exceptionFilter, pageSize])
+
+  // ── มาจากกระดิ่งแจ้งเตือน (ฝั่งส่งออก): auto-search ด้วย S/N ที่คลิก ──────────
+  useEffect(() => {
+    const sn = (params?.focusSerial || '').trim()
+    if (!sn) return
+    setExceptionFilter('all')
+    setSearch(sn)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params?.focusSerial, params?.focusException, params?.focusTs])
 
   async function handleUpload() {
     if (!file) {
