@@ -272,7 +272,7 @@ export default function LicenseAlertBell() {
 function AlertItem({ item, hidden = false, onOpen, onDismiss, onRestore }) {
   const isExpired = item.Status === 'EXPIRED'
   return (
-    <div className={'lab-item' + (hidden ? ' lab-item-hidden' : '')}>
+    <div className={'lab-item' + (hidden ? ' lab-item-hidden' : '') + (isExpired ? ' lab-item-expired' : ' lab-item-expiring')}>
       <button className="lab-item-main" onClick={() => onOpen?.(item)}>
         <span className={'lab-item-bar ' + (isExpired ? 'lab-bar-expired' : 'lab-bar-expiring')} />
         <span className="lab-item-body">

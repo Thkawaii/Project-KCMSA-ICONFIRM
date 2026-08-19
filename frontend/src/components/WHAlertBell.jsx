@@ -191,13 +191,23 @@ export default function WHAlertBell() {
     if (next) markAllSeen()
   }
 
-  const goImport = () => {
+  // คลิกรายการ -> เปิดหน้าใบอนุญาตพร้อม "auto-search" ใบที่คลิกทันที
+  // ส่ง key ของใบไปกับ navigate params แล้วหน้าปลายทางจะ pin/ค้นหา + ไฮไลต์ให้เอง
+  const goImport = (item) => {
     setOpen(false)
-    navigate('/warehouse')
+    navigate(
+      '/warehouse',
+      item ? { focusLicense: item.LicenseNo || '', focusInvoice: item.InvoiceNo || '', focusTs: Date.now() } : {},
+    )
   }
-  const goExport = () => {
+  const goExport = (item) => {
     setOpen(false)
-    navigate('/warehouse/export-license')
+    navigate(
+      '/warehouse/export-license',
+      item
+        ? { focusSerial: item.SerialNumber || '', focusException: item.ExceptionLicense || '', focusTs: Date.now() }
+        : {},
+    )
   }
 
   const badge = unseenCount
@@ -406,7 +416,7 @@ function AlertSection({
 function Row({ item, onOpen, renderMeta, titleField }) {
   const isExpired = item.Status === 'EXPIRED'
   return (
-    <div className="lab-item">
+    <div className={'lab-item ' + (isExpired ? 'lab-item-expired' : 'lab-item-expiring')}>
       <button className="lab-item-main" onClick={() => onOpen?.(item)}>
         <span className={'lab-item-bar ' + (isExpired ? 'lab-bar-expired' : 'lab-bar-expiring')} />
         <span className="lab-item-body">
