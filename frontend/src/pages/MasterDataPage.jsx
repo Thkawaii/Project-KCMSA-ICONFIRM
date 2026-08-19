@@ -163,7 +163,10 @@ export default function MasterDataPage() {
       const data = isMasterType
         ? await previewMasterDataChanges(pendingFile, uploadType)
         : await previewUploadData(uploadType, pendingFile)
-      setPreviewData({ ...data, _mode: isMasterType ? 'change' : 'map' })
+      // ทั้ง Master Data และชุดข้อมูลไฟล์ (Planning/WH1/WH2/Engine/Assembly) ตอนนี้
+      // ตรวจจับ NEW/UPDATED/CHANGED/UNCHANGED ได้เหมือนกัน — ใช้ ChangePreview เมื่อมี summary
+      const useChangeView = isMasterType || !!data?.summary
+      setPreviewData({ ...data, _mode: useChangeView ? 'change' : 'map' })
     } catch (err) {
       setUploadMsg({ error: err.message || 'ตรวจสอบไฟล์ไม่สำเร็จ' })
     } finally {

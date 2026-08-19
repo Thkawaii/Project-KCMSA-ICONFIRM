@@ -608,8 +608,10 @@ export function ExtraColumnsCell({ json }) {
   )
 }
 
-// ── Change-detection preview (Master Data) ──────────────────────────────────
+// ── Change-detection preview (Master Data + Upload datasets) ────────────────
 // แสดงสรุป NEW/UPDATED/CHANGED/UNCHANGED + ตารางค่า old→new ของแถวที่เปลี่ยน
+// รองรับทั้งทะเบียน Master Data (คีย์ = Serial No.) และชุดข้อมูลไฟล์
+// (Planning/WH1/WH2/Engine/Assembly — คีย์ = business key ของแต่ละ dataset)
 export function ChangePreview({ result }) {
   if (!result) return null
   if (result.headerFound === false) {
@@ -622,6 +624,14 @@ export function ChangePreview({ result }) {
   const s = result.summary || {}
   const rows = result.rows || []
   const extra = result.extra || []
+  const missing = result.missing || []
+  const matched = result.matched || []
+  // ป้ายหัวคอลัมน์คีย์ + ข้อความ "ค่าหลัก" — ปรับตามชนิดไฟล์ (มาจาก backend)
+  const keyLabel = result.keyLabel || 'Serial No.'
+  const coreFields =
+    result.coreFields && result.coreFields.length
+      ? result.coreFields
+      : ['P/N', 'S/N', 'IT Controller', 'IMEI']
 
   const stat = (label, value, bg, color) => (
     <div style={{ background: bg, color, borderRadius: 10, padding: '8px 12px', minWidth: 92, textAlign: 'center' }}>
@@ -638,6 +648,11 @@ export function ChangePreview({ result }) {
     const [bg, color] = map[status] || ['#f1f5f9', '#475569']
     return <span style={{ background: bg, color, borderRadius: 999, padding: '2px 9px', fontSize: 12, fontWeight: 600 }}>{status}</span>
   }
+  const chip = (text, bg, color) => (
+    <span key={text} style={{ background: bg, color, borderRadius: 999, padding: '2px 10px', fontSize: 12, ...codeStyle }}>
+      {text}
+    </span>
+  )
 
   return (
     <div style={{ marginTop: 10, padding: '12px 14px', background: '#f8fafc', borderRadius: 10, fontSize: 13 }}>
@@ -652,15 +667,29 @@ export function ChangePreview({ result }) {
         {stat('เหมือนเดิม', s.unchanged, '#f1f5f9', '#475569')}
       </div>
 
+      {/* สรุปการแม็ปคอลัมน์ (โชว์เมื่อ backend ส่งมา — ชุดข้อมูลไฟล์จะมีข้อมูลนี้) */}
+      {(matched.length > 0 || missing.length > 0) && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ color: '#16a34a', fontWeight: 600 }}>แม็ปได้ {matched.length}</span>
+          {missing.length > 0 && (
+            <>
+              <span style={{ color: '#b45309', fontWeight: 600, marginLeft: 6 }}>ไม่พบในไฟล์ {missing.length}:</span>
+              {missing.map((m) => chip(m, '#fef3c7', '#92400e'))}
+            </>
+          )}
+        </div>
+      )}
+
       {extra.length > 0 && (
-        <div style={{ marginBottom: 8, color: '#2563eb' }}>
-          คอลัมน์ใหม่ที่ระบบไม่รู้จัก: {extra.join(', ')}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ color: '#2563eb', fontWeight: 600 }}>คอลัมน์ใหม่ (จะถูกเก็บไว้) {extra.length}:</span>
+          {extra.map((m) => chip(m, '#dbeafe', '#1e40af'))}
         </div>
       )}
 
       {s.changed > 0 && (
         <div style={{ marginBottom: 8, color: '#92400e' }}>
-          ⚠ มี {s.changed} แถวที่ค่าหลัก (P/N · S/N · IT Controller · IMEI) เปลี่ยน — ตรวจก่อนยืนยัน
+          ⚠ มี {s.changed} แถวที่ค่าหลัก ({coreFields.join(' · ')}) เปลี่ยน — ตรวจก่อนยืนยัน
         </div>
       )}
 
@@ -670,15 +699,15 @@ export function ChangePreview({ result }) {
             <thead>
               <tr>
                 <th>สถานะ</th>
-                <th>Serial No.</th>
+                <th>{keyLabel}</th>
                 <th>ฟิลด์ที่เปลี่ยน (เดิม → ใหม่)</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
-                <tr key={`${r.serial}-${i}`}>
+                <tr key={`${r.serial ?? r.key}-${i}`}>
                   <td>{badge(r.status)}</td>
-                  <td style={codeStyle}>{r.serial}</td>
+                  <td style={codeStyle}>{r.serial ?? r.key ?? '—'}</td>
                   <td>
                     {(r.diffs || []).length === 0 ? (
                       <span style={{ color: '#94a3b8' }}>{r.status === 'NEW' ? 'แถวใหม่' : '—'}</span>

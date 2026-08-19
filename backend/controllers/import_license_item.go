@@ -839,12 +839,119 @@ func PreviewImportLicenseMapping(c *gin.Context) {
 		}
 	}
 
+	// ── Change detection (NEW / UNCHANGED / UPDATED / CHANGED) เหมือน IT Controller ──
+	// คีย์ = หมายเลขเครื่อง 12 หลัก (unique) · ค่าหลัก = ใบอนุญาต/อินวอยซ์/IMEI/รุ่น
+	fallbackIssueDate := scanIssueDateFromHeaderBlock(rows, headerIdx)
+	var newItems []models.ImportLicenseItem
+	seenMachine := map[string]bool{}
+	for i := headerIdx + 1; i < len(rows); i++ {
+		it := models.ImportLicenseItem{Qty: 1}
+		for col, header := range headers {
+			if col >= len(rows[i]) {
+				break
+			}
+			val := strings.TrimSpace(rows[i][col])
+			if setter, ok := importLicenseColumns[header]; ok {
+				setter(&it, val)
+			}
+		}
+		if it.IssueDate == nil {
+			it.IssueDate = fallbackIssueDate
+		}
+		if it.MachineNo == "" || seenMachine[it.MachineNo] {
+			continue
+		}
+		seenMachine[it.MachineNo] = true
+		newItems = append(newItems, it)
+	}
+
+	machineNos := make([]string, 0, len(newItems))
+	for _, it := range newItems {
+		machineNos = append(machineNos, it.MachineNo)
+	}
+	existing := map[string]models.ImportLicenseItem{}
+	if len(machineNos) > 0 {
+		var existingRows []models.ImportLicenseItem
+		config.DB.Where("machine_no IN ?", machineNos).Find(&existingRows)
+		for _, r := range existingRows {
+			existing[r.MachineNo] = r
+		}
+	}
+
+	type fieldDiff struct {
+		Field string `json:"field"`
+		Old   string `json:"old"`
+		New   string `json:"new"`
+	}
+	type rowResult struct {
+		Key    string      `json:"key"`
+		Status string      `json:"status"`
+		Diffs  []fieldDiff `json:"diffs,omitempty"`
+	}
+	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0}
+	preview := make([]rowResult, 0, 300)
+
+	for _, it := range newItems {
+		old, ok := existing[it.MachineNo]
+		if !ok {
+			counts["NEW"]++
+			if len(preview) < 300 {
+				preview = append(preview, rowResult{Key: it.MachineNo, Status: "NEW"})
+			}
+			continue
+		}
+		var diffs []fieldDiff
+		coreChanged := false
+		add := func(field, o, n string, core bool) {
+			if strings.TrimSpace(o) != strings.TrimSpace(n) {
+				diffs = append(diffs, fieldDiff{Field: field, Old: o, New: n})
+				if core {
+					coreChanged = true
+				}
+			}
+		}
+		add("เลขใบอนุญาต", old.LicenseNo, it.LicenseNo, true)
+		add("อินวอยซ์", old.InvoiceNo, it.InvoiceNo, true)
+		add("หมายเลขการผลิต", old.ProductionNo, it.ProductionNo, true)
+		add("แบบ/รุ่น", old.Model, it.Model, true)
+		add("ตราอักษร", old.Brand, it.Brand, false)
+		add("ใบขนสินค้า", old.DeclarationNo, it.DeclarationNo, false)
+		add("ส่งออกไปประเทศ", old.ExportCountry, it.ExportCountry, false)
+		add("หมายเหตุ", old.Remark, it.Remark, false)
+
+		var status string
+		switch {
+		case len(diffs) == 0:
+			status = "UNCHANGED"
+		case coreChanged:
+			status = "CHANGED"
+		default:
+			status = "UPDATED"
+		}
+		counts[status]++
+		if status != "UNCHANGED" && len(preview) < 300 {
+			preview = append(preview, rowResult{Key: it.MachineNo, Status: status, Diffs: diffs})
+		}
+	}
+
+	total := counts["NEW"] + counts["UPDATED"] + counts["CHANGED"] + counts["UNCHANGED"]
+
 	c.JSON(200, gin.H{
 		"file":        fileHeader.Filename,
 		"headerFound": true,
 		"headerRow":   headerIdx + 1,
 		"matched":     matched,
 		"extra":       extra,
+		"keyLabel":    "หมายเลขเครื่อง",
+		"coreFields":  []string{"เลขใบอนุญาต", "อินวอยซ์", "หมายเลขการผลิต", "แบบ/รุ่น"},
+		"summary": gin.H{
+			"total":     total,
+			"new":       counts["NEW"],
+			"updated":   counts["UPDATED"],
+			"changed":   counts["CHANGED"],
+			"unchanged": counts["UNCHANGED"],
+		},
+		"rows": preview,
 	})
 }
 

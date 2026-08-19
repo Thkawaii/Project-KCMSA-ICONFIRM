@@ -16,7 +16,7 @@ import {
   deleteExportLicense,
   clearExportLicense,
 } from '../api/exportLicense.js'
-import { PreviewResult, ExtraColumnsCell } from '../components/FormatTools.jsx'
+import { PreviewResult, ChangePreview, ExtraColumnsCell } from '../components/FormatTools.jsx'
 import AppShell from '../components/AppShell.jsx'
 import FileDropZone from '../components/Filedropzone.jsx'
 import SelectField from '../components/Selectfield.jsx'
@@ -438,7 +438,12 @@ export default function ImportLicensePage() {
           </button>
         </div>
 
-        {previewData && <PreviewResult result={previewData} />}
+        {previewData &&
+          (previewData.summary ? (
+            <ChangePreview result={previewData} />
+          ) : (
+            <PreviewResult result={previewData} />
+          ))}
 
         {uploadMsg?.success && (
           <p className="upload-card-msg upload-card-msg-ok wh-upload-msg">{uploadMsg.success}</p>
@@ -1340,7 +1345,12 @@ export function WHExportLicensePanel() {
             {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลด'}
           </button>
         </div>
-        {previewData && <PreviewResult result={previewData} />}
+        {previewData &&
+          (previewData.summary ? (
+            <ChangePreview result={previewData} />
+          ) : (
+            <PreviewResult result={previewData} />
+          ))}
         {msg?.success && <p className="upload-card-msg upload-card-msg-ok wh-upload-msg">{msg.success}</p>}
         {msg?.error && <p className="upload-card-msg upload-card-msg-err wh-upload-msg">{msg.error}</p>}
       </div>
