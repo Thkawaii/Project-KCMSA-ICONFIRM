@@ -64,19 +64,24 @@ export default function AppShell({ navItems, roleLabel, children }) {
 
       {visibleNav.length > 1 && (
         <nav className="shell-subnav" aria-label="เมนูภายในระบบ">
-          {visibleNav.map((item) => (
-            <button
-              key={item.to}
-              type="button"
-              onClick={() => navigate(item.to)}
-              className={
-                'shell-subnav-item' + (currentView === item.to ? ' shell-subnav-item-active' : '')
-              }
-            >
-              <span className="shell-subnav-icon">{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
+          {visibleNav.map((item) => {
+            // ป้ายเมนูปรับตาม role ได้ (labelByRole) เช่น LOG เห็น "Part Checklist"
+            // ส่วน role อื่นยังเห็น item.label เดิม — ไม่ต้องแยกเมนู/หน้าเป็นคนละไฟล์
+            const navLabel = (item.labelByRole && item.labelByRole[role]) || item.label
+            return (
+              <button
+                key={item.to}
+                type="button"
+                onClick={() => navigate(item.to)}
+                className={
+                  'shell-subnav-item' + (currentView === item.to ? ' shell-subnav-item-active' : '')
+                }
+              >
+                <span className="shell-subnav-icon">{item.icon}</span>
+                {navLabel}
+              </button>
+            )
+          })}
         </nav>
       )}
 
