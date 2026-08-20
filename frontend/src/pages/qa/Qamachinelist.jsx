@@ -6,7 +6,12 @@ import {
   ArrowDownTrayIcon,
   CameraIcon,
   CheckCircleIcon,
+  ClockIcon,
+  DocumentTextIcon,
+  QrCodeIcon,
   Squares2X2Icon,
+  TagIcon,
+  WrenchScrewdriverIcon,
   XMarkIcon,
 } from '../../components/icons.jsx'
 import { getQAConfirmedTable } from '../../api/qaConfirmed.js'
@@ -155,6 +160,7 @@ export default function QAMachineList() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [photoView, setPhotoView] = useState(null) // URL รูปที่กำลังเปิดดู
+  const [detailRow, setDetailRow] = useState(null) // แถวที่กำลังเปิดดู modal รายละเอียด (ใคร-สแกน/ประกอบ)
 
   const [search, setSearch] = useState('')
   const [pageSize, setPageSize] = useState(10)
@@ -615,12 +621,13 @@ export default function QAMachineList() {
               <th>ผลเทียบใบอนุญาต</th>
               <th>รูปถ่าย</th>
               <th>Status</th>
+              <th>รายละเอียด</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={18} className="wh-empty-cell">
+                <td colSpan={19} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -692,12 +699,17 @@ export default function QAMachineList() {
                     <td data-label="Status">
                       <span className="il-badge il-badge-ok">Matched</span>
                     </td>
+                    <td className="wh-cell-action" data-label="รายละเอียด">
+                      <button className="tsf-action-btn" onClick={() => setDetailRow(r)}>
+                        รายละเอียด
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={18} className="wh-empty-cell">
+                <td colSpan={19} className="wh-empty-cell">
                   {confirmedRows.length === 0
                     ? 'ยังไม่มีเครื่องที่ครบเงื่อนไข — ต้องให้ WH ยืนยันตรงกับใบอนุญาต และ MFG สแกนได้ Matched ก่อน'
                     : 'ไม่พบรายการที่ค้นหา'}
@@ -743,6 +755,118 @@ export default function QAMachineList() {
               alt="รูปถ่ายป้าย"
               style={{ maxWidth: '100%', borderRadius: 8 }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* ── รายละเอียด: ใครสแกน (WH) / ใครประกอบ (MFG) ─────────────────────── */}
+      {detailRow && (
+        <div className="wh-modal-overlay" onClick={() => setDetailRow(null)}>
+          <div className="wh-modal wh-detail-modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="wh-detail-close"
+              onClick={() => setDetailRow(null)}
+              aria-label="ปิด"
+            >
+              <XMarkIcon className="size-4" />
+            </button>
+
+            <div className="wh-detail-header">
+              <span className="wh-detail-header-icon">
+                <CheckCircleIcon className="size-5" />
+              </span>
+              <div>
+                <h3 className="wh-modal-title">รายละเอียดการยืนยัน</h3>
+                <span className="wh-detail-header-sub">{dash(detailRow.partName)}</span>
+              </div>
+            </div>
+
+            {/* ข้อมูลชิ้นงานสั้น ๆ ให้รู้ว่ากำลังดูเครื่องไหน */}
+            <div className="wh-detail-section">
+              <span className="wh-detail-section-title">
+                <DocumentTextIcon className="size-4" /> ข้อมูลชิ้นงาน
+              </span>
+              <div className="wh-detail-grid">
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">Machine No</span>
+                  <span className="wh-detail-value mono">{dash(detailRow.machineNo)}</span>
+                </div>
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">IT Controller No.</span>
+                  <span className="wh-detail-value mono">{dash(detailRow.itControllerNo)}</span>
+                </div>
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">Part No.</span>
+                  <span className="wh-detail-value mono">{dash(detailRow.partNo)}</span>
+                </div>
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">Serial No.</span>
+                  <span className="wh-detail-value mono">{dash(detailRow.serialNo)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="wh-detail-divider" />
+
+            {/* ตอนสแกน — ใครสแกนยืนยันฝั่งคลัง (WH / Part Confirmation) */}
+            <div className="wh-detail-section">
+              <span className="wh-detail-section-title">
+                <QrCodeIcon className="size-4" /> ตอนสแกน (ยืนยันคลัง — WH)
+              </span>
+              <div className="wh-detail-grid">
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">สแกนโดย</span>
+                  <span className="wh-detail-value">{dash(detailRow.checkedByWH)}</span>
+                </div>
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">เมื่อ</span>
+                  <span className="wh-detail-value">
+                    {detailRow.checkedAtWH
+                      ? new Date(detailRow.checkedAtWH).toLocaleString('th-TH')
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="wh-detail-divider" />
+
+            {/* ตอนประกอบ — ใครประกอบ/สแกนฝั่งผลิต (MFG / Assembly) */}
+            <div className="wh-detail-section">
+              <span className="wh-detail-section-title">
+                <WrenchScrewdriverIcon className="size-4" /> ตอนประกอบ (ผลิต — MFG)
+              </span>
+              <div className="wh-detail-grid">
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">ประกอบโดย</span>
+                  <span className="wh-detail-value">{dash(detailRow.assembledBy)}</span>
+                </div>
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">เมื่อ</span>
+                  <span className="wh-detail-value">
+                    {detailRow.assembledAt
+                      ? new Date(detailRow.assembledAt).toLocaleString('th-TH')
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="wh-detail-meta">
+              <span>
+                <TagIcon className="size-3.5" /> ใบอนุญาต {dash(detailRow.licenseNo)}
+              </span>
+              <span>
+                <ClockIcon className="size-3.5" /> อินวอยซ์ {dash(detailRow.invoiceNo)}
+              </span>
+            </div>
+
+            <div className="wh-modal-actions">
+              <button className="wh-modal-cancel" onClick={() => setDetailRow(null)}>
+                ปิด
+              </button>
+            </div>
           </div>
         </div>
       )}

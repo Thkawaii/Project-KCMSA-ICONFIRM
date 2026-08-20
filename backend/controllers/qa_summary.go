@@ -34,6 +34,14 @@ type QAConfirmedRow struct {
 	Status         string `json:"status"`        // สถานะรวม (MATCHED เมื่อครบเงื่อนไข)
 	ConfirmedAt    string `json:"confirmedAt"`   // วันเวลาที่ WH ยืนยัน (RFC3339) — ใช้กรองตามปี/เดือน/วันฝั่ง QA
 
+	// ── ผู้ทำรายการ (ไว้โชว์ใน modal รายละเอียดฝั่ง QA) ─────────────────────
+	// ตอนสแกนยืนยันฝั่ง WH (Part Confirmation) ใครเป็นคนสแกน + เมื่อไหร่
+	CheckedByWH string `json:"checkedByWH"` // ผู้สแกนยืนยันฝั่ง WH
+	CheckedAtWH string `json:"checkedAtWH"` // เวลาที่ WH สแกนยืนยัน (RFC3339)
+	// ตอนประกอบ/สแกนฝั่ง MFG (Assembly) ใครเป็นคนประกอบ + เมื่อไหร่
+	AssembledBy string `json:"assembledBy"` // ผู้ประกอบ/สแกนฝั่ง MFG
+	AssembledAt string `json:"assembledAt"` // เวลาที่ประกอบ/สแกนฝั่ง MFG (RFC3339)
+
 	// ── ข้อมูลจากทะเบียน Assembly (จับคู่ด้วย Machine No / IT Controller) ──
 	AsmModel   string `json:"asmModel"`   // Model (Assembly Parts Name) เช่น SK75-11
 	SpecCode   string `json:"specCode"`   // Spec Code
@@ -134,6 +142,13 @@ func GetQAConfirmedTable(c *gin.Context) {
 			PhotoURL:       photoURL,
 			Status:         models.MFGStatusMatched,
 			ConfirmedAt:    pc.CheckedDatetime.Format(time.RFC3339),
+
+			// ผู้สแกนยืนยันฝั่ง WH (Part Confirmation)
+			CheckedByWH: strings.TrimSpace(pc.CheckedBy),
+			CheckedAtWH: pc.CheckedDatetime.Format(time.RFC3339),
+			// ผู้ประกอบ/สแกนฝั่ง MFG (Assembly)
+			AssembledBy: strings.TrimSpace(m.CreatedBy),
+			AssembledAt: m.CreatedDatetime.Format(time.RFC3339),
 		}
 
 		if hasMD {
