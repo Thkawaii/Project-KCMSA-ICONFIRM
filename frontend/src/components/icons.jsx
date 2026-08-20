@@ -86,6 +86,7 @@ export {
   ShieldCheckIcon,
   Squares2X2Icon,
   TagIcon,
+  WrenchScrewdriverIcon,
   XCircleIcon,
   XMarkIcon,
 }
