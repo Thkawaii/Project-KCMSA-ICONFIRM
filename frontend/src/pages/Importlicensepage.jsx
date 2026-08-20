@@ -61,6 +61,7 @@ export const WH_NAV_ITEMS = [
   {
     to: '/warehouse/confirm',
     label: 'Part Confirmation',
+    labelByRole: { LOG: 'Part Checklist' }, // LOG เห็นเป็น "Part Checklist" (WH ยังเป็น Part Confirmation)
     icon: <ClipboardDocumentCheckIcon className="size-4" />,
     roles: ['WH', 'LOG'],
   },

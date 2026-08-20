@@ -569,7 +569,7 @@ export default function WHPartConfirmationPage() {
     <AppShell navItems={WH_NAV_ITEMS} roleLabel="Warehouse">
       <div className="wh-heading-row">
         <div>
-          <h2 className="wh-title">Part Confirmation</h2>
+          <h2 className="wh-title">{isManager ? 'Part Checklist' : 'Part Confirmation'}</h2>
         </div>
       </div>
 
