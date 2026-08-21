@@ -500,6 +500,41 @@
   word-break: break-word;
 }
 
+/* ── ปรับ layout โมดัล "รายละเอียดการประกอบ" (MFG) ให้โปร่งขึ้น ────────────
+   เดิม label/value อยู่ชิดกันจนดูชน โดยเฉพาะข้อความไทยที่มีวรรณยุกต์บน-ล่าง
+   จึงเพิ่มระยะห่างแนวตั้ง + line-height เฉพาะโมดัลนี้ (ไม่กระทบโมดัลอื่นที่ใช้
+   คลาส il-detail-* ร่วมกัน) */
+.mfg-assembly-detail .mfg-detail-hero {
+  gap: 4px;
+  padding: 16px 18px;
+}
+
+.mfg-assembly-detail .mfg-detail-hero-model {
+  line-height: 1.25;
+  margin: 2px 0;
+  word-break: break-word;
+}
+
+.mfg-assembly-detail .il-detail-card {
+  padding: 16px 18px;
+}
+
+.mfg-assembly-detail .il-detail-grid {
+  gap: 16px 24px;
+}
+
+.mfg-assembly-detail .il-detail-item {
+  gap: 4px;
+}
+
+.mfg-assembly-detail .il-detail-label {
+  line-height: 1.35;
+}
+
+.mfg-assembly-detail .il-detail-value {
+  line-height: 1.4;
+}
+
 /* รุ่นรถที่เชื่อมโยงจากทะเบียน Assembly (แสดงในตาราง MFG) */
 .mfg-model-link {
   display: inline-block;

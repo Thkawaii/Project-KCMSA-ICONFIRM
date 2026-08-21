@@ -984,6 +984,12 @@ function ExportTraceModal({ row, country, onClose }) {
                   {item('รุ่น', data.importLicense.Model)}
                   {item('ประเทศส่งออก', data.importLicense.ExportCountry)}
                   {item('สถานะยืนยัน', data.importLicense.ConfirmStatus)}
+                  {itemAlways(
+                    'วันที่เช็ค',
+                    data.importLicense.ConfirmedDatetime
+                      ? formatThaiDate(data.importLicense.ConfirmedDatetime)
+                      : '',
+                  )}
                 </>
               ) : (
                 <div className="il-detail-item" style={{ gridColumn: '1 / -1' }}>
@@ -1004,6 +1010,12 @@ function ExportTraceModal({ row, country, onClose }) {
                 <>
                   {item('สถานะ', data.mfgAssembly.Status)}
                   {item('Machine No (ที่ประกอบ)', data.mfgAssembly.MachineNo)}
+                  {itemAlways(
+                    'วันที่ประกอบ',
+                    data.mfgAssembly.DateAssembly
+                      ? formatThaiDate(data.mfgAssembly.DateAssembly)
+                      : '',
+                  )}
                 </>
               ))}
 
