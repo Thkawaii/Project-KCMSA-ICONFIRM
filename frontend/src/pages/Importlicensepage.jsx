@@ -31,6 +31,8 @@ import {
 import { useDailyTick } from '../lib/useDailyTick.js'
 import { useAppParams } from '../lib/nav.jsx'
 import { buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js'
+import PeriodRangePicker from '../components/PeriodRangePicker.jsx'
+import { inPeriod, periodRangeLabel, periodFileTag } from '../lib/dateRange.js'
 import {
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
@@ -41,6 +43,7 @@ import {
   DocumentTextIcon,
   ReceiptPercentIcon,
   Squares2X2Icon,
+  XMarkIcon,
 } from '../components/icons.jsx'
 
 // เมนูฝั่งคลัง — กรองตาม role ที่ AppShell (WH_MANAGER เห็นครบ, WH เห็นแค่ Part Confirmation)
@@ -777,7 +780,6 @@ function ImportDetailModal({ row, onClose }) {
         {section('สถานะการยืนยัน', (
           <>
             {item('สถานะ', confirmLabel)}
-            {item('TAG ที่สแกนคู่', row.ConfirmedTag)}
             {item('ผู้ยืนยัน', row.ConfirmedBy)}
             {item(
               'วันเวลาที่ยืนยัน',
@@ -1053,6 +1055,11 @@ export function WHExportLicensePanel() {
   const [page, setPage] = useState(1)
   const [exportingXlsx, setExportingXlsx] = useState(false)
 
+  // ตัวกรองช่วงเวลา (อิงวันที่ประกอบ Date Ass'y) — ให้ Export แยกประเทศ
+  // ออกได้ตามช่วง รายวัน/รายสัปดาห์/รายเดือน/รายปี (ค่าเริ่มต้น = ทั้งหมด)
+  const [periodMode, setPeriodMode] = useState('all')
+  const [periodAnchor, setPeriodAnchor] = useState('') // 'YYYY-MM-DD' หรือ ''
+
   // แผนที่ IT Controller No. -> ประเทศปลายทาง (ดึงจากบัญชีใบอนุญาตนำเข้า ExportCountry)
   // ใช้ทั้งแสดงคอลัมน์ Country ในตาราง และตอน Export แยกประเทศ
   const [countryByITC, setCountryByITC] = useState({})
@@ -1176,9 +1183,9 @@ export function WHExportLicensePanel() {
       }))
 
       const blob = buildStyledXlsxWorkbookBlob({ sheets })
-      const stamp = new Date().toISOString().slice(0, 10)
-      downloadBlob(blob, `ExportLicense-by-country-${stamp}.xlsx`)
-      toastSuccess(`Export สำเร็จ — ${countryNames.length} ประเทศ (${list.length} รายการ)`)
+      downloadBlob(blob, `ExportLicense-by-country-${periodTag}.xlsx`)
+      const scope = periodMode === 'all' ? '' : ` — ช่วง ${periodLabel}`
+      toastSuccess(`Export สำเร็จ — ${countryNames.length} ประเทศ (${list.length} รายการ)${scope}`)
     } catch (err) {
       toastError(err.message || 'Export ไม่สำเร็จ')
     } finally {
@@ -1219,7 +1226,7 @@ export function WHExportLicensePanel() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, exceptionFilter, pageSize])
+  }, [search, exceptionFilter, pageSize, periodMode, periodAnchor])
 
   // ── มาจากกระดิ่งแจ้งเตือน (ฝั่งส่งออก): auto-search ด้วย S/N ที่คลิก ──────────
   useEffect(() => {
@@ -1304,9 +1311,44 @@ export function WHExportLicensePanel() {
       )
     }
 
+    // กรองตามช่วงเวลา (อิงวันที่ประกอบ Date Ass'y) — ให้ทั้งตารางและ Export
+    // แยกประเทศ ออกได้ตามช่วง รายวัน/สัปดาห์/เดือน/ปี ที่เลือก
+    if (periodMode !== 'all') {
+      list = list.filter((r) => r.AssemblyDate && inPeriod(r.AssemblyDate, periodMode, periodAnchor))
+    }
+
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, exceptionFilter, search, countryByITC])
+  }, [rows, exceptionFilter, search, countryByITC, periodMode, periodAnchor])
+
+  // ขอบเขตวันที่ประกอบที่มีข้อมูลจริง — กำหนด min/max ให้ปฏิทิน anchor
+  const asmDateBounds = useMemo(() => {
+    let min = null
+    let max = null
+    rows.forEach((r) => {
+      if (!r.AssemblyDate) return
+      const d = new Date(r.AssemblyDate)
+      if (Number.isNaN(d.getTime())) return
+      const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      if (min === null || ymd < min) min = ymd
+      if (max === null || ymd > max) max = ymd
+    })
+    return { min, max }
+  }, [rows])
+
+  // เปลี่ยนโหมดช่วงเวลา — ยังไม่เลือกวันอ้างอิงให้ตั้งต้นเป็นวันล่าสุดที่มีข้อมูล
+  function handlePeriodModeChange(next) {
+    setPeriodMode(next)
+    if (next !== 'all' && !periodAnchor) {
+      const today = new Date()
+      const todayYMD = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      setPeriodAnchor(asmDateBounds.max || todayYMD)
+    }
+  }
+
+  // ป้าย/ชื่อไฟล์ของช่วงที่เลือก
+  const periodLabel = periodMode === 'all' ? 'ทั้งหมด' : periodRangeLabel(periodMode, periodAnchor)
+  const periodTag = periodFileTag(periodMode, periodAnchor)
 
   // รายการ Exception License (unique) สำหรับ dropdown filter — เทียบเท่า "แบบ/รุ่น" ของฝั่งนำเข้า
   const exceptionOptions = useMemo(() => {
@@ -1356,6 +1398,25 @@ export function WHExportLicensePanel() {
         {msg?.error && <p className="upload-card-msg upload-card-msg-err wh-upload-msg">{msg.error}</p>}
       </div>
 
+      <div className="il-export-filter-card">
+        <PeriodRangePicker
+          mode={periodMode}
+          onModeChange={handlePeriodModeChange}
+          anchor={periodAnchor}
+          onAnchorChange={setPeriodAnchor}
+          min={asmDateBounds.min}
+          max={asmDateBounds.max}
+          label="เลือกช่วงวันที่สำหรับ Export แยกประเทศ"
+          countLabel={`${filtered.length} รายการ`}
+        />
+        {periodMode !== 'all' && (
+          <button type="button" className="qa-clear-btn" onClick={() => { setPeriodMode('all'); setPeriodAnchor('') }}>
+            <XMarkIcon className="size-4" />
+            ล้างช่วง
+          </button>
+        )}
+      </div>
+
       <div className="tsf-history-toolbar">
         <div className="tsf-history-pagesize">
           <div className="wh-pagesize-select">
@@ -1387,7 +1448,7 @@ export function WHExportLicensePanel() {
             className="wh-issue-btn"
             onClick={handleExportByCountry}
             disabled={exportingXlsx || rows.length === 0}
-            title="ดาวน์โหลด Excel แยกชีตตามประเทศปลายทาง"
+            title={`ดาวน์โหลด Excel แยกชีตตามประเทศปลายทาง — ช่วง ${periodLabel}`}
           >
             {exportingXlsx ? 'กำลัง Export...' : 'Export Excel (แยกประเทศ)'}
           </button>

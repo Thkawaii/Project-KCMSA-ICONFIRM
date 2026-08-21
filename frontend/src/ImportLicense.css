@@ -564,6 +564,52 @@
    แบบเดียวกับหน้า Master Data (pagesize อยู่ซ้าย, filter+ค้นหาอยู่ขวา)
    ปล่อยให้ .tsf-history-toolbar ใช้ justify-content: space-between เดิม */
 
+/* การ์ดเลือกช่วงเวลาสำหรับ Export แยกประเทศ (LOG) — เข้าชุดกับการ์ดทั้งระบบ */
+.il-export-filter-card {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--card-border, #e2e8f0);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.il-export-filter-card .prp {
+  flex: 1 1 auto;
+}
+.il-export-filter-card .qa-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  height: fit-content;
+}
+.il-export-filter-card .qa-clear-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+@media (max-width: 640px) {
+  .il-export-filter-card {
+    padding: 16px;
+    align-items: stretch;
+  }
+  .il-export-filter-card .qa-clear-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 /* กลุ่ม filter แบบ/รุ่น + ช่องค้นหา ให้อยู่ข้างกัน */
 .il-filter-search-group {
   display: flex;

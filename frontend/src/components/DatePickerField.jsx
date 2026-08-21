@@ -32,6 +32,7 @@ export default function DatePickerField({
   min,
   max,
   placeholder = 'เลือกวันที่',
+  renderTrigger,
 }) {
   const [open, setOpen] = useState(false)
   const boxRef = useRef(null)
@@ -112,23 +113,32 @@ export default function DatePickerField({
 
   return (
     <div className="dpf" ref={boxRef}>
-      <button
-        type="button"
-        className={'dpf-trigger' + (open ? ' dpf-trigger-open' : '')}
-        onClick={() => setOpen((o) => !o)}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-      >
-        <span className={selected ? 'dpf-value' : 'dpf-value dpf-value-empty'}>
-          {triggerLabel}
-        </span>
-        <span className="dpf-cal-icon" aria-hidden="true">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="4.5" width="18" height="16" rx="2.5" stroke="currentColor" strokeWidth="1.6" />
-            <path d="M3 9h18M8 3v3M16 3v3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-        </span>
-      </button>
+      {renderTrigger ? (
+        renderTrigger({
+          open,
+          toggle: () => setOpen((o) => !o),
+          label: triggerLabel,
+          hasValue: !!selected,
+        })
+      ) : (
+        <button
+          type="button"
+          className={'dpf-trigger' + (open ? ' dpf-trigger-open' : '')}
+          onClick={() => setOpen((o) => !o)}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+        >
+          <span className={selected ? 'dpf-value' : 'dpf-value dpf-value-empty'}>
+            {triggerLabel}
+          </span>
+          <span className="dpf-cal-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="4.5" width="18" height="16" rx="2.5" stroke="currentColor" strokeWidth="1.6" />
+              <path d="M3 9h18M8 3v3M16 3v3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          </span>
+        </button>
+      )}
 
       {open && (
         <div className="dpf-pop" role="dialog">

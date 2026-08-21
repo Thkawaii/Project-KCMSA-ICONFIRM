@@ -1,0 +1,99 @@
+/* ตัวเลือกช่วงเวลาใช้ซ้ำ (LOG Export แยกประเทศ + QA Check Sheet)
+   ใช้โทน/รัศมี/เงา ให้เข้าชุดกับ .vr-tabs และการ์ดทั้งระบบ */
+
+.prp {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px 18px;
+  flex-wrap: wrap;
+}
+
+.prp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.prp-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #5b6b82);
+  letter-spacing: 0.01em;
+}
+
+/* segmented control — ต่อยอดจาก .vr-tabs เดิม แต่ไม่มี margin ล่าง */
+.prp-modes {
+  margin-bottom: 0;
+  flex-wrap: wrap;
+}
+
+.prp-mode {
+  padding: 7px 14px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.prp-anchor .dpf {
+  min-width: 190px;
+}
+
+/* ชิปสรุปช่วงที่เลือก — บอกผู้ใช้ชัด ๆ ว่าจะได้ข้อมูลช่วงไหน */
+.prp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-end;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--brand-50, #eafcfb);
+  border: 1px solid var(--brand-200, #9deeea);
+  color: var(--brand-800, #146a66);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  max-width: 100%;
+}
+
+.prp-chip svg {
+  flex: 0 0 auto;
+  color: var(--brand-600, #00a39d);
+}
+
+.prp-chip-range {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prp-chip-count {
+  padding-left: 10px;
+  margin-left: 2px;
+  border-left: 1px solid var(--brand-200, #9deeea);
+  color: var(--brand-700, #0f8580);
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .prp {
+    align-items: stretch;
+    gap: 12px;
+  }
+  .prp-field {
+    width: 100%;
+  }
+  .prp-modes {
+    width: 100%;
+  }
+  .prp-mode {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+  .prp-anchor .dpf {
+    width: 100%;
+    min-width: 0;
+  }
+  .prp-chip {
+    align-self: stretch;
+    justify-content: center;
+  }
+}
