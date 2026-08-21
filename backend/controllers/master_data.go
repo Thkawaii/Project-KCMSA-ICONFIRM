@@ -405,6 +405,21 @@ var componentTypeHeaderKeys = map[string]bool{
 	"ชนิดอะไหล่":    true,
 }
 
+// noPartNoComponentTypes คืออะไหล่ 4 ชนิดที่ไม่มี Part No. ในโลกจริง (มีแค่ S/N
+// กับ "หมายเลขเครื่อง" ของตัวเอง) — Swing Motor / Pump Assy HYD / Motor Propel /
+// Control Valve ต่างจาก IT Controller ที่มี Part No. คู่กับ Serial No.
+//
+// ถ้าไฟล์ที่อัปโหลดดันมีคอลัมน์ Part No. แนบมาด้วย (เผื่อผู้ใช้กรอกผิดชีท/ผิดคอลัมน์)
+// ระบบจะ "ไม่บันทึก" ค่า Part No. นั้นลงอะไหล่ 4 ชนิดนี้ — ล้างทิ้งแล้วขึ้น "-"
+// เหมือนเดิมเสมอ พร้อมแจ้งเตือนไว้ใน problems ให้ผู้ใช้เห็นว่าแถวไหนโดนล้าง
+// แต่แถวข้อมูลยังบันทึกตามปกติ (ไม่ข้าม ไม่ปัดทิ้งทั้งแถว)
+var noPartNoComponentTypes = map[string]string{
+	"swing_motor":   "Swing Motor",
+	"pump_assy_hyd": "Pump Assy HYD",
+	"motor_propel":  "Motor Propel",
+	"control_valve": "Control Valve",
+}
+
 // componentTypeValues จับคู่ "ค่าที่เขียนในคอลัมน์ชนิดอะไหล่" (normalize แล้ว)
 // กับรหัส component_type ที่ระบบใช้เก็บจริง — ใส่ทั้งชื่อเต็มภาษาอังกฤษ (ตรงกับ
 // label ที่ใช้ในหน้าเว็บ) และรหัสตรงๆ (it_controller ฯลฯ) เผื่อไฟล์เขียนมาแบบไหน
@@ -668,6 +683,13 @@ func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallb
 		}
 
 		normalizeMasterData(&row)
+
+		// อะไหล่ 4 ชนิดที่ไม่มี Part No. — ถ้าไฟล์แนบ Part No. มาด้วย ล้างทิ้งเสมอ
+		// (แจ้งเตือนไว้ใน problems) แถวยังบันทึกต่อตามปกติ ไม่ข้าม/ไม่ปัดทิ้ง
+		if label, ok := noPartNoComponentTypes[row.ComponentType]; ok && row.PartNo != "" {
+			problems = append(problems, "แถว "+strconv.Itoa(i+1)+": "+label+" ไม่มี Part No. — ข้อมูล Part No. ที่แนบมาจะไม่ถูกบันทึก")
+			row.PartNo = ""
+		}
 
 		if row.SerialNo == "" {
 			skipped++
