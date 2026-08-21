@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import AppShell from '../../components/AppShell.jsx'
 import SelectField from '../../components/Selectfield.jsx'
-import DatePickerField from '../../components/DatePickerField.jsx'
+import PeriodRangePicker from '../../components/PeriodRangePicker.jsx'
+import { inPeriod, periodRangeLabel, periodFileTag } from '../../lib/dateRange.js'
 import {
   ArrowDownTrayIcon,
   CameraIcon,
@@ -168,9 +169,12 @@ export default function QAMachineList() {
   const [exportingPDF, setExportingPDF] = useState(false)
   const [exportingExcel, setExportingExcel] = useState(false)
 
-  // ตัวกรองวันที่ (วันที่ WH ยืนยัน) — เลือกได้ตามใจ ไม่บังคับ
-  // ว่าง = ออก Check Sheet ของทุกวันรวมกัน / เลือกวัน = เฉพาะวันนั้น
-  const [selectedDate, setSelectedDate] = useState('') // 'YYYY-MM-DD' หรือ ''
+  // ตัวกรองช่วงเวลา (อิงวันที่ WH ยืนยัน) — เลือกได้ตามใจ ไม่บังคับ
+  //   periodMode  = 'all' | 'day' | 'week' | 'month' | 'year'
+  //   periodAnchor = วันอ้างอิง 'YYYY-MM-DD' (โหมด != all ใช้ระบุว่าช่วงไหน)
+  // 'all' = ออก Check Sheet ของทุกวันรวมกัน / โหมดอื่น = เฉพาะช่วงที่เลือก
+  const [periodMode, setPeriodMode] = useState('all')
+  const [periodAnchor, setPeriodAnchor] = useState('') // 'YYYY-MM-DD' หรือ ''
 
   async function loadConfirmed() {
     setLoading(true)
@@ -200,7 +204,7 @@ export default function QAMachineList() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, pageSize, selectedDate])
+  }, [search, pageSize, periodMode, periodAnchor])
 
   // ขอบเขตวันที่ที่มีข้อมูลจริง — ใช้กำหนด min/max ให้ปฏิทิน และปุ่ม "ล่าสุด"
   const dateBounds = useMemo(() => {
@@ -216,8 +220,22 @@ export default function QAMachineList() {
   }, [confirmedRows])
 
   function clearDateFilter() {
-    setSelectedDate('')
+    setPeriodMode('all')
+    setPeriodAnchor('')
   }
+
+  // เปลี่ยนโหมดช่วงเวลา — ถ้ายังไม่ได้เลือกวันอ้างอิง ให้ตั้งต้นเป็นวันล่าสุดที่มีข้อมูล
+  // (ไม่มีข้อมูลก็ใช้วันนี้) เพื่อให้ผู้ใช้เห็นผลทันทีโดยไม่ต้องกดปฏิทินก่อน
+  function handlePeriodModeChange(next) {
+    setPeriodMode(next)
+    if (next !== 'all' && !periodAnchor) {
+      setPeriodAnchor(dateBounds.max || toYMD(new Date()))
+    }
+  }
+
+  // ป้าย/ชื่อไฟล์ของช่วงที่เลือก — ใช้ซ้ำทั้งหัวเรื่อง PDF, ชื่อไฟล์, และคำอธิบาย
+  const periodLabel = periodMode === 'all' ? 'ทั้งหมด' : periodRangeLabel(periodMode, periodAnchor)
+  const periodTag = periodFileTag(periodMode, periodAnchor)
 
   const stats = useMemo(() => {
     const total = confirmedRows.length
@@ -247,14 +265,14 @@ export default function QAMachineList() {
         if (!matchesSearch) return false
       }
 
-      if (selectedDate) {
+      if (periodMode !== 'all') {
         if (!r.confirmedAt) return false
-        if (toYMD(new Date(r.confirmedAt)) !== selectedDate) return false
+        if (!inPeriod(r.confirmedAt, periodMode, periodAnchor)) return false
       }
 
       return true
     })
-  }, [confirmedRows, search, selectedDate])
+  }, [confirmedRows, search, periodMode, periodAnchor])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize)
@@ -282,7 +300,7 @@ export default function QAMachineList() {
         day: 'numeric',
       })} ${now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`
 
-      const checkDateLabel = selectedDate ? thaiDateLabel(selectedDate) : 'ทั้งหมด'
+      const checkDateLabel = periodLabel
 
       const PHOTO_COL_INDEX = 11
       const head = [
@@ -401,8 +419,7 @@ export default function QAMachineList() {
         doc.text(c.label, c.cx, signY + 5, { align: 'center' })
       })
 
-      const fileDate = selectedDate || 'ทั้งหมด'
-      savePdf(doc, `QA-CheckSheet-${fileDate}.pdf`)
+      savePdf(doc, `QA-CheckSheet-${periodTag}.pdf`)
     } catch (err) {
       console.error(err)
       alert('สร้าง PDF ไม่สำเร็จ กรุณาลองใหม่')
@@ -472,8 +489,7 @@ export default function QAMachineList() {
       }))
 
       const blob = buildStyledXlsxBlob({ sheetName: 'QA Check Sheet', columns, rows })
-      const fileDate = selectedDate || 'ทั้งหมด'
-      downloadBlob(blob, `QA-CheckSheet-${fileDate}.xlsx`)
+      downloadBlob(blob, `QA-CheckSheet-${periodTag}.xlsx`)
     } catch (err) {
       console.error(err)
       alert('สร้าง Excel ไม่สำเร็จ กรุณาลองใหม่')
@@ -490,57 +506,59 @@ export default function QAMachineList() {
         </div>
       </div>
 
-      <div className="qa-date-filter-row">
-        <div className="qa-date-field">
-          <label>วันที่ยืนยัน (ไม่บังคับ)</label>
-          <DatePickerField
-            value={selectedDate}
-            onChange={setSelectedDate}
+      <div className="qa-filter-card">
+        <div className="qa-filter-top">
+          <PeriodRangePicker
+            mode={periodMode}
+            onModeChange={handlePeriodModeChange}
+            anchor={periodAnchor}
+            onAnchorChange={setPeriodAnchor}
             min={dateBounds.min}
             max={dateBounds.max}
-            placeholder="— เลือกวันที่ —"
+            label="ช่วงวันที่ยืนยัน (สำหรับ Check Sheet)"
+            countLabel={`${filtered.length} เครื่อง`}
           />
+          {periodMode !== 'all' && (
+            <button type="button" className="qa-clear-btn" onClick={clearDateFilter}>
+              <XMarkIcon className="size-4" />
+              ล้างช่วง
+            </button>
+          )}
         </div>
-        {selectedDate && (
-          <button type="button" className="qa-download-btn" onClick={clearDateFilter}>
-            ล้างวันที่
+
+        <div className="qa-export-actions">
+          <button
+            className="qa-download-btn qa-export-btn"
+            onClick={handleExportPDF}
+            disabled={loading || filtered.length === 0 || exportingPDF}
+            title={
+              filtered.length === 0
+                ? 'ไม่มีรายการให้ออก Check Sheet'
+                : `ดาวน์โหลด Check Sheet — ช่วง ${periodLabel}`
+            }
+          >
+            <ArrowDownTrayIcon className="size-4" />
+            {exportingPDF ? 'กำลังสร้าง PDF...' : 'Export PDF (Check Sheet)'}
           </button>
-        )}
-        <button
-          className="qa-download-btn qa-export-btn"
-          onClick={handleExportPDF}
-          disabled={loading || filtered.length === 0 || exportingPDF}
-          title={
-            filtered.length === 0
-              ? 'ไม่มีรายการให้ออก Check Sheet'
-              : selectedDate
-                ? `ดาวน์โหลด Check Sheet ของวันที่ ${thaiDateLabel(selectedDate)}`
-                : 'ดาวน์โหลด Check Sheet ของรายการทั้งหมด'
-          }
-        >
-          <ArrowDownTrayIcon className="size-4" />
-          {exportingPDF ? 'กำลังสร้าง PDF...' : 'Export PDF (Check Sheet)'}
-        </button>
-        <button
-          className="qa-download-btn qa-export-btn qa-export-btn-excel"
-          onClick={handleExportExcel}
-          disabled={loading || filtered.length === 0 || exportingExcel}
-          title={
-            filtered.length === 0
-              ? 'ไม่มีรายการให้ออก Excel'
-              : selectedDate
-                ? `ดาวน์โหลด Excel ของวันที่ ${thaiDateLabel(selectedDate)}`
-                : 'ดาวน์โหลด Excel ของรายการทั้งหมด'
-          }
-        >
-          <ArrowDownTrayIcon className="size-4" />
-          {exportingExcel ? 'กำลังสร้าง Excel...' : 'Export Excel'}
-        </button>
+          <button
+            className="qa-download-btn qa-export-btn qa-export-btn-excel"
+            onClick={handleExportExcel}
+            disabled={loading || filtered.length === 0 || exportingExcel}
+            title={
+              filtered.length === 0
+                ? 'ไม่มีรายการให้ออก Excel'
+                : `ดาวน์โหลด Excel — ช่วง ${periodLabel}`
+            }
+          >
+            <ArrowDownTrayIcon className="size-4" />
+            {exportingExcel ? 'กำลังสร้าง Excel...' : 'Export Excel'}
+          </button>
+        </div>
       </div>
-      <p className="qa-stat-sub" style={{ marginTop: -8, marginBottom: 16 }}>
-        {selectedDate
-          ? `กำลังกรองเฉพาะวันที่ ${thaiDateLabel(selectedDate)} — พบ ${filtered.length} เครื่อง`
-          : `ยังไม่ได้เลือกวัน — Export จะได้ทั้งหมด ${filtered.length} เครื่อง (เลือกวันเพื่อออกเฉพาะวันนั้น)`}
+      <p className="qa-stat-sub" style={{ marginTop: 10, marginBottom: 16 }}>
+        {periodMode === 'all'
+          ? `ยังไม่ได้เลือกช่วง — Export จะได้ทั้งหมด ${filtered.length} เครื่อง (เลือกช่วงเพื่อออกเฉพาะรายวัน/สัปดาห์/เดือน/ปี)`
+          : `กำลังกรองช่วง ${periodLabel} — พบ ${filtered.length} เครื่อง (Export PDF/Excel จะได้เฉพาะช่วงนี้)`}
       </p>
 
       <div className="dash-stats-row">
