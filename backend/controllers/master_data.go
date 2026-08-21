@@ -357,6 +357,25 @@ var masterDataColumns = map[string]func(*models.MasterData, string){
 	"itcontrollersn":       func(m *models.MasterData, v string) { m.ITControllerNo = &v },
 	"itcontrollerserial":   func(m *models.MasterData, v string) { m.ITControllerNo = &v },
 
+	// ── หมายเลขเครื่องเฉพาะของอะไหล่ชนิดอื่น (Swing Motor / Pump Assy HYD /
+	// Motor Propel / Control Valve) ────────────────────────────────────────
+	// อะไหล่ 4 ชนิดนี้ไม่มี IMEI/รหัส 12 หลักแบบ IT Controller มีแค่ S/N กับ
+	// "หมายเลขเครื่อง" ของตัวเอง (เช่น Swing Motor No.) — เก็บหมายเลขเครื่องนี้
+	// ลงในฟิลด์เดียวกับ ITControllerNo เพราะเป็นคอลัมน์ "No." กลางที่หน้าเว็บ
+	// แสดงผลตามชนิดอะไหล่อยู่แล้ว (ดู NO_LABEL_BY_TYPE ฝั่ง frontend) จึงไม่ต้อง
+	// เพิ่มคอลัมน์ใหม่ในตาราง ทั้งหมด normalize แล้ว (ตัดช่องว่าง/จุด/ขีดทิ้ง)
+	"swingmotorno":   func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"swingmotor":     func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"swno":           func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"pumpassyhydno":  func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"pumpassyno":     func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"pumpno":         func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"motorpropelno":  func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"propelno":       func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"controlvalveno": func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"valveno":        func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"cvno":           func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+
 	"imei": func(m *models.MasterData, v string) { m.IMEI = &v },
 
 	"speccode": func(m *models.MasterData, v string) { m.SpecCode = v },

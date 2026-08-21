@@ -963,7 +963,7 @@ export default function MFGAssemblyPage() {
 
       {detailRow && (
         <div className="wh-modal-overlay" onClick={() => setDetailRow(null)}>
-          <div className="wh-modal il-detail-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="wh-modal il-detail-modal mfg-assembly-detail" onClick={(e) => e.stopPropagation()}>
             <h3 className="wh-modal-title">รายละเอียดการประกอบ</h3>
 
             {/* แถบเด่น: รุ่นรถที่ประกอบได้ */}

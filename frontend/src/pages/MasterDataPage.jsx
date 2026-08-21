@@ -45,6 +45,18 @@ const COMPONENT_TYPES = [
 // เซ็ตรหัสอะไหล่ — เช็คว่า "ประเภทที่อัปโหลด" เป็นทะเบียน Master Data หรือชุดข้อมูลไฟล์
 const COMPONENT_TYPE_VALUES = new Set(COMPONENT_TYPES.map((t) => t.value))
 
+// คำอธิบายคอลัมน์ที่ไฟล์แต่ละชนิดควรมี — โชว์ใต้กล่องอัปโหลดให้ผู้ใช้รู้ว่าต้องมีหัวอะไร
+// IT Controller มีครบ (P/N + IMEI + เลข 12 หลัก) ส่วนอีก 4 ชนิดมีแค่ S/N + หมายเลขเครื่อง
+// ของตัวเอง — backend อ่านหัวคอลัมน์เหล่านี้ได้แล้ว (ดู masterDataColumns ฝั่ง backend)
+const EXPECTED_COLUMNS_BY_TYPE = Object.fromEntries(
+  COMPONENT_TYPES.map((t) => [
+    t.value,
+    t.value === 'it_controller'
+      ? ['Part Name', 'Model', 'Part No.', 'Serial No.', t.noLabel, 'IMEI']
+      : ['Part Name', 'Serial No.', t.noLabel],
+  ]),
+)
+
 // ── ชุดข้อมูลไฟล์ภายนอก (อัปโหลดผ่าน /upload-data) — ตารางไดนามิกตามคอลัมน์ ──
 const DATASET_TYPES = [
   { value: 'planning', label: 'Planning' },
@@ -260,6 +272,11 @@ export default function MasterDataPage() {
             {pendingFile ? pendingFile.name : `คลิกเพื่อเลือกไฟล์ (${typeLabel(uploadType)})`}
           </span>
           <span className="upload-dropzone-hint">.xlsx, .xls, .csv</span>
+          {EXPECTED_COLUMNS_BY_TYPE[uploadType] && (
+            <span className="upload-dropzone-hint" style={{ marginTop: 2 }}>
+              คอลัมน์ที่ควรมี: {EXPECTED_COLUMNS_BY_TYPE[uploadType].join(' · ')}
+            </span>
+          )}
         </label>
 
         <div className="upload-panel-side">
@@ -366,6 +383,11 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
   // ชื่อคอลัมน์ "หมายเลข" ของตารางนี้ — เปลี่ยนตามตัวกรอง (Filter) ที่เลือก
   const noLabel = NO_LABEL_BY_TYPE[compType] || 'IT Controller no.'
 
+  // IMEI + Connectivity มีเฉพาะ IT Controller — เวลากรองดูอะไหล่ชนิดอื่น
+  // (Swing Motor / Pump Assy HYD / Motor Propel / Control Valve) ให้ซ่อน 2 คอลัมน์นี้
+  // เพื่อไม่ให้ตารางรก (all = ดูทุกชนิดรวมกัน จึงยังต้องโชว์ไว้)
+  const showITCols = compType === 'all' || compType === 'it_controller'
+
   // ชนิดอะไหล่สำหรับ dropdown ในกล่องแก้ไข + panel จับคู่ค่ารหัส
   const editComponentOptions = COMPONENT_TYPES.map((t) => ({ value: t.value, label: t.label }))
 
@@ -407,12 +429,14 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
     }
 
     // กรองตามชนิดการเชื่อมต่อ (Connectivity) — 'UNKNOWN' = แถวที่ยังไม่ระบุ
-    if (connFilter !== 'all') {
+    // ใช้เฉพาะตอนดู IT Controller/ทุกชนิด เท่านั้น (อะไหล่อื่นไม่มี Connectivity
+    // และตัวกรองนี้ถูกซ่อนไว้ จึงไม่ให้ค่าเก่าค้างมากรองแบบมองไม่เห็น)
+    if (showITCols && connFilter !== 'all') {
       result = result.filter((row) => (row.ConnectivityType || 'UNKNOWN') === connFilter)
     }
 
     return result
-  }, [rows, keyword, compType, connFilter])
+  }, [rows, keyword, compType, connFilter, showITCols])
 
   const stats = useMemo(() => {
     const withImei = rows.filter((row) => row.IMEI).length
@@ -472,15 +496,26 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
   // (ยึดตามรายการที่ผ่านตัวกรองอยู่แล้ว — ถ้าเลือก Connectivity filter ไว้ตัวใดตัวหนึ่ง
   // ผลลัพธ์จะเหลือชีตเดียวโดยอัตโนมัติ) — ชนิดอะไหล่อื่นยังคง export ชีตเดียวตามเดิม
   function handleExport() {
-    const columns = [
-      { key: 'itemNo', header: 'Item No.', type: 'number', width: 8 },
-      { key: 'name', header: 'Part Name', type: 'text' },
-      { key: 'model', header: 'Model', type: 'text' },
-      { key: 'partNo', header: 'Part No.', type: 'text' },
-      { key: 'serialNo', header: 'Serial No.', type: 'text' },
-      { key: 'itcNo', header: noLabel, type: 'text' },
-      { key: 'imei', header: 'IMEI', type: 'text' },
-    ]
+    // IT Controller / ALL = คอลัมน์ครบ (มี P/N + IMEI)
+    // ชนิดอื่น (Swing Motor ฯลฯ) = เหลือแค่ Part Name / Serial No. / หมายเลขเครื่อง
+    // ให้ตรงกับที่โชว์บนตารางและความจริงว่าอะไหล่พวกนี้ไม่มี P/N/IMEI
+    const columns = showITCols
+      ? [
+          { key: 'itemNo', header: 'Item No.', type: 'number', width: 8 },
+          { key: 'name', header: 'Part Name', type: 'text' },
+          { key: 'model', header: 'Model', type: 'text' },
+          { key: 'partNo', header: 'Part No.', type: 'text' },
+          { key: 'serialNo', header: 'Serial No.', type: 'text' },
+          { key: 'itcNo', header: noLabel, type: 'text' },
+          { key: 'imei', header: 'IMEI', type: 'text' },
+        ]
+      : [
+          { key: 'itemNo', header: 'Item No.', type: 'number', width: 8 },
+          { key: 'name', header: 'Part Name', type: 'text' },
+          { key: 'model', header: 'Model', type: 'text' },
+          { key: 'serialNo', header: 'Serial No.', type: 'text' },
+          { key: 'itcNo', header: noLabel, type: 'text' },
+        ]
     const toRows = (list) =>
       list.map((row, i) => ({
         itemNo: i + 1,
@@ -573,19 +608,21 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
               options={COMPONENT_TYPE_FILTER.map((t) => ({ value: t.value, label: t.label }))}
             />
           </div>
-          <div className="md-type-field" style={{ minWidth: 190 }}>
-            <SelectField
-              value={connFilter}
-              onChange={setConnFilter}
-              options={CONNECTIVITY_FILTER}
-            />
-          </div>
+          {showITCols && (
+            <div className="md-type-field" style={{ minWidth: 190 }}>
+              <SelectField
+                value={connFilter}
+                onChange={setConnFilter}
+                options={CONNECTIVITY_FILTER}
+              />
+            </div>
+          )}
           <input
             className="wh-search"
             type="search"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder={`สแกนหรือพิมพ์ S/N, ${noLabel}, IMEI, P/N`}
+            placeholder={showITCols ? `สแกนหรือพิมพ์ S/N, ${noLabel}, IMEI, P/N` : `สแกนหรือพิมพ์ S/N, ${noLabel}`}
             style={{ minWidth: 200, flex: '1 1 200px' }}
           />
           <button className="wh-issue-btn" onClick={handleExport} disabled={filtered.length === 0}>
@@ -604,18 +641,18 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
               <th>Item No.</th>
               <th>Part Name</th>
               <th>Model</th>
-              <th>Part No.</th>
+              {showITCols && <th>Part No.</th>}
               <th>Serial No.</th>
               <th>{noLabel}</th>
-              <th>IMEI</th>
-              <th>Connectivity</th>
+              {showITCols && <th>IMEI</th>}
+              {showITCols && <th>Connectivity</th>}
               <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={9} className="wh-empty-cell">
+                <td colSpan={showITCols ? 9 : 6} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>
@@ -629,23 +666,29 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
                   </td>
                   <td data-label="Part Name">{row.Name || DASH}</td>
                   <td data-label="Model">{row.Model || DASH}</td>
-                  <td data-label="Part No." style={codeStyle}>
-                    {row.PartNo || DASH}
-                  </td>
+                  {showITCols && (
+                    <td data-label="Part No." style={codeStyle}>
+                      {row.PartNo || DASH}
+                    </td>
+                  )}
                   <td data-label="Serial No." style={codeStyle}>
                     {row.SerialNo || DASH}
                   </td>
                   <td data-label={noLabel} style={codeStyle}>
                     {row.ITControllerNo || DASH}
                   </td>
-                  <td data-label="IMEI" style={codeStyle}>
-                    {row.IMEI || DASH}
-                  </td>
-                  <td data-label="Connectivity">
-                    {row.ComponentType === 'it_controller'
-                      ? CONNECTIVITY_LABELS[row.ConnectivityType || 'UNKNOWN']
-                      : DASH}
-                  </td>
+                  {showITCols && (
+                    <td data-label="IMEI" style={codeStyle}>
+                      {row.IMEI || DASH}
+                    </td>
+                  )}
+                  {showITCols && (
+                    <td data-label="Connectivity">
+                      {row.ComponentType === 'it_controller'
+                        ? CONNECTIVITY_LABELS[row.ConnectivityType || 'UNKNOWN']
+                        : DASH}
+                    </td>
+                  )}
                   <td className="wh-cell-action">
                     <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                       <button className="wh-issue-btn" onClick={() => setEditRow(row)}>
@@ -665,7 +708,7 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
 
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={9} className="wh-empty-cell">
+                <td colSpan={showITCols ? 9 : 6} className="wh-empty-cell">
                   {keyword.trim() || compType !== 'all'
                     ? 'ไม่พบรายการตามตัวกรอง'
                     : 'ยังไม่มีข้อมูลในทะเบียน'}

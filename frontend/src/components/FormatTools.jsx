@@ -842,10 +842,12 @@ export function MasterDataEditModal({ row, componentOptions = [], itcLabel = 'IT
               <input className="fmt-input" value={form.ComponentType} onChange={set('ComponentType')} />
             )}
           </div>
-          {field('Part No.', 'PartNo', true)}
+          {/* Part No. + IMEI มีเฉพาะ IT Controller — อะไหล่ชนิดอื่นมีแค่ S/N +
+              หมายเลขเครื่อง จึงซ่อน 2 ช่องนี้เมื่อเลือกชนิดอื่น */}
+          {form.ComponentType === 'it_controller' && field('Part No.', 'PartNo', true)}
           {field('Serial No.', 'SerialNo', true)}
           {field(itcLabel, 'ITControllerNo', true)}
-          {field('IMEI', 'IMEI', true)}
+          {form.ComponentType === 'it_controller' && field('IMEI', 'IMEI', true)}
         </div>
 
         <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 10 }}>
