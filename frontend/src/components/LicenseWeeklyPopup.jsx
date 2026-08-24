@@ -171,7 +171,6 @@ export default function LicenseWeeklyPopup() {
           <h2 className="lwp-title" id="lwp-title">
             สถานะอายุใบอนุญาต
           </h2>
-          <p className="lwp-sub">สรุปใบอนุญาตนำเข้าและส่งออกที่ใกล้หมดอายุหรือหมดอายุแล้ว</p>
 
           {/* ── ชิปสรุป 3 ช่อง ── */}
           <div className="lwp-chips">
