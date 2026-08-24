@@ -43,6 +43,12 @@ type MasterData struct {
 	// อ่านจากคอลัมน์ในไฟล์ได้ตรงๆ หรือถ้าไม่มี ระบบเดาจาก Part Name/Model ให้
 	ConnectivityType string `gorm:"column:connectivity_type;size:30;index"`
 
+	// ExtraJSON = คอลัมน์นอกสเปก (หัวคอลัมน์ใหม่ที่ไฟล์เพิ่มเข้ามาเอง ระบบยังไม่รู้จัก)
+	// เก็บทั้งชุดเป็น JSON กันข้อมูลหายเวลาไฟล์เปลี่ยน format — คีย์ = ชื่อหัวเดิมจากไฟล์
+	// (ระบบ matching/ตรวจสอบไม่ได้ใช้ฟิลด์นี้ แต่เก็บไว้ให้ตรวจ/ส่งออกได้ เหมือน DataJSON
+	//  ของหน้า Upload Data — เพื่อไม่ให้คอลัมน์ที่หลุดสเปก "หายเงียบ")
+	ExtraJSON string `gorm:"type:text" json:"extra_json,omitempty"`
+
 	UploadDate time.Time
 
 	UserID uint

@@ -580,6 +580,14 @@ func UploadImportLicenseItems(c *gin.Context) {
 		problems []string
 	)
 
+	// กันคอลัมน์รู้จักที่ normalize แล้วซ้ำกัน (last-wins → ทับค่าดีเงียบ ๆ) ให้เป็น first-wins
+	dupSkip, dupProblems := findDuplicateKnownColumns(
+		headers,
+		func(k string) bool { _, ok := importLicenseColumns[k]; return ok },
+		rows[headerIdx],
+	)
+	problems = append(problems, dupProblems...)
+
 	for i := headerIdx + 1; i < len(rows); i++ {
 
 		row := models.ImportLicenseItem{
@@ -594,6 +602,9 @@ func UploadImportLicenseItems(c *gin.Context) {
 		for col, header := range headers {
 			if col >= len(rows[i]) {
 				break
+			}
+			if dupSkip[col] {
+				continue // คอลัมน์รู้จักที่ซ้ำ — ใช้คอลัมน์แรกไปแล้ว ข้ามตัวนี้
 			}
 			val := strings.TrimSpace(rows[i][col])
 			if setter, ok := importLicenseColumns[header]; ok {
@@ -844,11 +855,19 @@ func PreviewImportLicenseMapping(c *gin.Context) {
 	fallbackIssueDate := scanIssueDateFromHeaderBlock(rows, headerIdx)
 	var newItems []models.ImportLicenseItem
 	seenMachine := map[string]bool{}
+	dupSkip, _ := findDuplicateKnownColumns(
+		headers,
+		func(k string) bool { _, ok := importLicenseColumns[k]; return ok },
+		rows[headerIdx],
+	)
 	for i := headerIdx + 1; i < len(rows); i++ {
 		it := models.ImportLicenseItem{Qty: 1}
 		for col, header := range headers {
 			if col >= len(rows[i]) {
 				break
+			}
+			if dupSkip[col] {
+				continue
 			}
 			val := strings.TrimSpace(rows[i][col])
 			if setter, ok := importLicenseColumns[header]; ok {
@@ -1043,6 +1062,7 @@ func ClearImportLicenseItems(c *gin.Context) {
 //   - แถวที่มี IssueDate อยู่แล้ว: IssueDate += N วัน (วันหมดอายุเดิม + N วัน)
 //   - แถวที่ยังไม่มี IssueDate (NO_DATE): ถือว่าหมดอายุวันนี้เป็นฐาน แล้วบวก N วัน
 //     -> วันหมดอายุใหม่ = วันนี้ + N วัน (ใบใหม่มีอายุ N วันนับจากวันนี้)
+//
 // ─────────────────────────────────────────────────────────────────────────────
 func RenewImportLicense(c *gin.Context) {
 	var req struct {
