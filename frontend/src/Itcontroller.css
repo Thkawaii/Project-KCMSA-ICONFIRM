@@ -1,4 +1,4 @@
-/* IT Controller (กสทช.) — ใช้โทนเดียวกับ Warehouse.css: teal #00cec8 บนพื้นขาว/slate */
+/* IT Controller (กสทช.) — ใช้โทนเดียวกับ Warehouse.css: teal #06e0d4 บนพื้นขาว/slate */
 
 .itc-card {
   background: #ffffff;
@@ -40,7 +40,7 @@
 
 .itc-field input:focus,
 .itc-field select:focus {
-  border-color: #00cec8;
+  border-color: #06e0d4;
 }
 
 .itc-scan-row {
@@ -262,7 +262,7 @@
 }
 
 .itc-split-row input:focus {
-  border-color: #00cec8;
+  border-color: #06e0d4;
 }
 
 .itc-ghost-btn {
@@ -277,7 +277,7 @@
 }
 
 .itc-ghost-btn:hover {
-  border-color: #00cec8;
+  border-color: #06e0d4;
   color: #00a39d;
 }
 
@@ -494,7 +494,7 @@
 }
 
 .itc-purpose-active {
-  border-color: #00cec8;
+  border-color: #06e0d4;
   background: #f4fdfd;
 }
 

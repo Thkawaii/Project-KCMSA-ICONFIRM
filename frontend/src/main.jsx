@@ -13,6 +13,7 @@ import AdminDashboardPage from './pages/AdminDashboardpage.jsx'
 import QAMachineList from './pages/qa/Qamachinelist.jsx'
 import QAMachineDetail from './pages/qa/Qamachinedetail.jsx'
 import UiKitPage from './pages/UiKitPage.jsx'
+import LicenseWeeklyPopup from './components/LicenseWeeklyPopup.jsx'
 import { NavProvider, useAppNavigate, useAppView } from './lib/nav.jsx'
 import { getToken } from './api/client.js'
 import { homeRouteForRole } from './lib/roleRoutes.js'
@@ -88,7 +89,21 @@ function AppScreen() {
 
   const entry = ROUTE_CONFIG[effectiveView] || ROUTE_CONFIG['/login']
   const Component = entry.component
-  return <Component />
+
+  // ── ป๊อปอัปแจ้งเตือนอายุใบอนุญาตประจำสัปดาห์ ──
+  // แสดงเฉพาะผู้ใช้ที่ล็อกอินแล้วและเป็น role LOG (คนเดียวกับที่เห็นกระดิ่งเตือน)
+  // วางไว้เป็น sibling ของหน้า -> mount ครั้งเดียวตอนเข้าระบบ และอยู่ข้ามหน้า
+  // (ไม่ remount ทุกครั้งที่สลับเมนู) ตัวป๊อปอัปเองคุมให้เด้ง "สัปดาห์ละครั้ง"
+  const token = getToken()
+  const role = (localStorage.getItem('iconfirm_role') || '').toUpperCase()
+  const showWeeklyPopup = Boolean(token) && role === 'LOG' && effectiveView !== '/login'
+
+  return (
+    <>
+      <Component />
+      {showWeeklyPopup && <LicenseWeeklyPopup />}
+    </>
+  )
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(

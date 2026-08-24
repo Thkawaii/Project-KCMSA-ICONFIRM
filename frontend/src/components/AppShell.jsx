@@ -2,6 +2,7 @@ import { useAppNavigate, useAppView } from '../lib/nav.jsx'
 import { logout } from '../api/auth.js'
 import { ArrowRightStartOnRectangleIcon } from './icons.jsx'
 import WHAlertBell from './WHAlertBell.jsx'
+import kobelcoLogo from '../assets/brand/kobelco-logo-white.png'
 
 // ป้ายชื่อ role ที่อ่านง่ายบน topbar (เดิมหน้าคลังส่งมาว่า "Warehouse" เหมือนกันหมด
 // จึงแยก WH Manager / WH User ให้ชัดจาก role จริงใน localStorage)
@@ -42,7 +43,8 @@ export default function AppShell({ navItems, roleLabel, children }) {
     <div className="shell">
       <header className="shell-topbar">
         <div className="brand-row">
-          <span className="brand-badge">KOBELCO</span>
+          <img className="brand-logo-topbar" src={kobelcoLogo} alt="KOBELCO" draggable="false" />
+          <span className="brand-divider-topbar" aria-hidden="true" />
           <h1 className="brand-title-sm">I-CONFIRMATION</h1>
         </div>
 

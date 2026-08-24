@@ -497,13 +497,13 @@
 
 .qa-scan-btn:hover {
   border-color: var(--brand-500);
-  box-shadow: 0 8px 20px -10px rgba(0, 206, 200, 0.45);
+  box-shadow: 0 8px 20px -10px rgba(6, 224, 212, 0.45);
   transform: translateY(-1px);
 }
 
 .qa-scan-btn:active {
   transform: translateY(0);
-  box-shadow: 0 2px 8px -4px rgba(0, 206, 200, 0.4);
+  box-shadow: 0 2px 8px -4px rgba(6, 224, 212, 0.4);
 }
 
 .qa-btn-icon {
@@ -1249,13 +1249,13 @@
   padding: 16px 14px;
   border: 2px dashed var(--brand-500);
   border-radius: 12px;
-  background: rgba(0, 206, 200, 0.06);
+  background: rgba(6, 224, 212, 0.06);
   color: #101828;
 }
 .scan-popup .scan-popup-input:focus {
   border-style: solid;
   background: #fff;
-  box-shadow: 0 0 0 4px rgba(0, 206, 200, 0.15);
+  box-shadow: 0 0 0 4px rgba(6, 224, 212, 0.15);
 }
 
 /* ===== Part Confirmation — การ์ดบาร์โค้ด (white label cards) =====
@@ -1288,11 +1288,11 @@
   position: absolute;
   inset: 0 0 auto 0;
   height: 5px;
-  background: var(--pc-accent, #00cec8);
+  background: var(--pc-accent, #06e0d4);
 }
 .pc-barcode-card:hover {
   transform: translateY(-4px);
-  border-color: var(--pc-accent, #00cec8);
+  border-color: var(--pc-accent, #06e0d4);
   box-shadow: 0 2px 4px rgba(16, 24, 40, 0.05), 0 18px 38px rgba(16, 24, 40, 0.13);
 }
 .pc-barcode-card:active {
@@ -1300,15 +1300,15 @@
 }
 .pc-barcode-card:focus-visible {
   outline: none;
-  border-color: var(--pc-accent, #00cec8);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--pc-accent, #00cec8) 22%, transparent);
+  border-color: var(--pc-accent, #06e0d4);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--pc-accent, #06e0d4) 22%, transparent);
 }
 
 /* การ์ดที่เป็น "โหมดสแกนปัจจุบัน" (armed) — ผู้ใช้แตะเลือกไว้ล่าสุด
    ยิงบาร์โค้ดที่ระบุชนิดไม่ได้จะเข้าโหมดนี้ให้เอง ไม่ต้องเลือกซ้ำ */
 .pc-barcode-card-armed {
-  border-color: var(--pc-accent, #00cec8);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc-accent, #00cec8) 30%, transparent),
+  border-color: var(--pc-accent, #06e0d4);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc-accent, #06e0d4) 30%, transparent),
     0 10px 26px rgba(16, 24, 40, 0.1);
 }
 .pc-barcode-armed-tag {
@@ -1318,7 +1318,7 @@
   z-index: 1;
   padding: 2px 9px;
   border-radius: 999px;
-  background: var(--pc-accent, #00cec8);
+  background: var(--pc-accent, #06e0d4);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
@@ -1328,8 +1328,8 @@
   margin: 10px 2px 0;
   padding: 10px 14px;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--brand-500, #00cec8) 10%, #fff);
-  border: 1px solid color-mix(in srgb, var(--brand-500, #00cec8) 30%, transparent);
+  background: color-mix(in srgb, var(--brand-500, #06e0d4) 10%, #fff);
+  border: 1px solid color-mix(in srgb, var(--brand-500, #06e0d4) 30%, transparent);
   color: #0f5b57;
   font-size: 13px;
   line-height: 1.5;
@@ -1352,8 +1352,8 @@
   font-weight: 700;
   letter-spacing: 0.4px;
   color: var(--pc-accent, #00a39d);
-  background: color-mix(in srgb, var(--pc-accent, #00cec8) 12%, #fff);
-  border: 1px solid color-mix(in srgb, var(--pc-accent, #00cec8) 30%, #fff);
+  background: color-mix(in srgb, var(--pc-accent, #06e0d4) 12%, #fff);
+  border: 1px solid color-mix(in srgb, var(--pc-accent, #06e0d4) 30%, #fff);
   padding: 3px 9px;
   border-radius: 999px;
 }
