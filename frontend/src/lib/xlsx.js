@@ -182,6 +182,9 @@ function makeZip(files) {
 const HEADER_FILL_RGB = 'FF00A39D'
 const BAND_FILL_RGB = 'FFEAFCFB'
 const BORDER_RGB = 'FFD7E1E8'
+// แถวที่ "หมดอายุแล้ว" — สไตล์แบบ Excel "Bad" (พื้นแดงอ่อน + ตัวอักษรแดงเข้ม) อ่านง่ายและสื่อว่าแดง
+const EXPIRED_FILL_RGB = 'FFFFC7CE'
+const EXPIRED_FONT_RGB = 'FF9C0006'
 const FONT_NAME = 'Tahoma' // รองรับภาษาไทยและมีติดตั้งอยู่แทบทุกเครื่อง Windows
 
 // index ของ cellXfs ที่ใช้อ้างจาก worksheet (s="N")
@@ -194,28 +197,34 @@ const XF = {
   CENTER_BAND: 5,
   NUMBER: 6,
   NUMBER_BAND: 7,
+  // สไตล์แถวหมดอายุ (แดง) — ทับสีแถบสลับ
+  TEXT_RED: 8,
+  CENTER_RED: 9,
+  NUMBER_RED: 10,
 }
 
 function buildStylesXml() {
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-    '<fonts count="2">' +
+    '<fonts count="3">' +
     `<font><sz val="11"/><name val="${FONT_NAME}"/></font>` +
     `<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="${FONT_NAME}"/></font>` +
+    `<font><sz val="11"/><color rgb="${EXPIRED_FONT_RGB}"/><name val="${FONT_NAME}"/></font>` +
     '</fonts>' +
-    '<fills count="4">' +
+    '<fills count="5">' +
     '<fill><patternFill patternType="none"/></fill>' +
     '<fill><patternFill patternType="gray125"/></fill>' +
     `<fill><patternFill patternType="solid"><fgColor rgb="${HEADER_FILL_RGB}"/><bgColor indexed="64"/></patternFill></fill>` +
     `<fill><patternFill patternType="solid"><fgColor rgb="${BAND_FILL_RGB}"/><bgColor indexed="64"/></patternFill></fill>` +
+    `<fill><patternFill patternType="solid"><fgColor rgb="${EXPIRED_FILL_RGB}"/><bgColor indexed="64"/></patternFill></fill>` +
     '</fills>' +
     '<borders count="2">' +
     '<border><left/><right/><top/><bottom/><diagonal/></border>' +
     `<border><left style="thin"><color rgb="${BORDER_RGB}"/></left><right style="thin"><color rgb="${BORDER_RGB}"/></right><top style="thin"><color rgb="${BORDER_RGB}"/></top><bottom style="thin"><color rgb="${BORDER_RGB}"/></bottom><diagonal/></border>` +
     '</borders>' +
     '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-    '<cellXfs count="8">' +
+    '<cellXfs count="11">' +
     '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
     '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
     '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>' +
@@ -224,6 +233,10 @@ function buildStylesXml() {
     '<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
     '<xf numFmtId="1" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
     '<xf numFmtId="1" fontId="0" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
+    // แถวหมดอายุ — ตัวอักษรแดงเข้มบนพื้นแดงอ่อน (แทน text/center/number)
+    '<xf numFmtId="0" fontId="2" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>' +
+    '<xf numFmtId="0" fontId="2" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
+    '<xf numFmtId="1" fontId="2" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
     '</cellXfs>' +
     '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
     '</styleSheet>'
@@ -231,7 +244,13 @@ function buildStylesXml() {
 }
 
 // เลือก style index ของเซลล์ข้อมูล ตามชนิดคอลัมน์ + ว่าเป็นแถวแถบสีหรือไม่
-function dataXf(type, banded) {
+// danger = true -> ใช้สไตล์แดง (แถวหมดอายุ) ทับสีแถบสลับ
+function dataXf(type, banded, danger) {
+  if (danger) {
+    if (type === 'number') return XF.NUMBER_RED
+    if (type === 'center' || type === 'image') return XF.CENTER_RED
+    return XF.TEXT_RED
+  }
   if (type === 'number') return banded ? XF.NUMBER_BAND : XF.NUMBER
   if (type === 'center' || type === 'image') return banded ? XF.CENTER_BAND : XF.CENTER
   return banded ? XF.TEXT_BAND : XF.TEXT
@@ -322,11 +341,12 @@ function buildSheetXml({ columns, rows, freezeHeader, hasImages, imageRowPx }) {
   rows.forEach((row, r) => {
     const rowNum = r + 2
     const banded = r % 2 === 1
+    const danger = row.__danger === true // แถวหมดอายุ -> ระบายแดงทั้งแถว
     let cells = ''
     columns.forEach((col, c) => {
       const ref = colLetter(c + 1) + rowNum
       const val = row[col.key]
-      const s = dataXf(col.type, banded)
+      const s = dataXf(col.type, banded, danger)
       if (col.type === 'image') {
         // เซลล์รูปเว้นค่าไว้ (รูปวาดผ่าน DrawingML) — คงพื้น/ขอบของเซลล์ไว้
         cells += `<c r="${ref}" s="${s}"/>`

@@ -984,6 +984,7 @@ function ExportTraceModal({ row, country, onClose }) {
                   {item('รุ่น', data.importLicense.Model)}
                   {item('ประเทศส่งออก', data.importLicense.ExportCountry)}
                   {item('สถานะยืนยัน', data.importLicense.ConfirmStatus)}
+                  {itemAlways('ผู้ยืนยัน (WH)', data.importLicense.ConfirmedBy)}
                   {itemAlways(
                     'วันที่เช็ค',
                     data.importLicense.ConfirmedDatetime
@@ -1016,6 +1017,7 @@ function ExportTraceModal({ row, country, onClose }) {
                       ? formatThaiDate(data.mfgAssembly.DateAssembly)
                       : '',
                   )}
+                  {itemAlways('Check By (MFG)', data.mfgAssembly.CreatedBy)}
                 </>
               ))}
 
@@ -1057,6 +1059,7 @@ export function WHExportLicensePanel() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [exceptionFilter, setExceptionFilter] = useState('all') // แบบ/รุ่น (ฝั่งส่งออกใช้ Exception License)
+  const [expiryFilter, setExpiryFilter] = useState('all') // สถานะวันหมดอายุ (ใบอนุญาตส่งออกอายุ 1 เดือน)
   const [traceRow, setTraceRow] = useState(null) // แถวที่กำลังเปิดดู modal เชื่อมโยง
   const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -1137,7 +1140,7 @@ export function WHExportLicensePanel() {
     if (exportingXlsx) return
     setExportingXlsx(true)
     try {
-      const list = filtered // ส่งออกตามที่กรอง/ค้นหาอยู่ (ทุกหน้า)
+      const list = filtered // ส่งออกตามที่กรอง/ค้นหาอยู่ (ทุกหน้า) — รวมรายการที่หมดอายุด้วย
       if (!list.length) {
         toastError('ไม่มีรายการให้ Export')
         return
@@ -1162,6 +1165,7 @@ export function WHExportLicensePanel() {
       const columns = [
         { key: 'item', header: 'Item', type: 'number', width: 6 },
         { key: 'assemblyDate', header: "Date Ass'y", type: 'center', width: 14 },
+        { key: 'declarationDate', header: 'วันที่นำออกใบอนุญาต', type: 'center', width: 18 },
         { key: 'machineNo', header: 'Machine No', type: 'text' },
         { key: 'itControllerNo', header: 'IT Controller S/N', type: 'text' },
         { key: 'invoiceNo', header: 'Invoice', type: 'text' },
@@ -1179,9 +1183,20 @@ export function WHExportLicensePanel() {
         // ชื่อชีตต้องไม่เกิน 31 ตัว/ไม่มีอักขระต้องห้าม (lib ตัดให้อยู่แล้ว)
         sheetName: country,
         columns,
-        rows: groups.get(country).map((r, i) => ({
+        rows: [...groups.get(country)]
+          // เรียงแต่ละประเทศตาม "วันที่นำออกใบอนุญาต" (Declaration date) เก่า→ใหม่
+          // แถวที่ยังไม่ระบุวันที่ให้ไปอยู่ท้ายสุด แล้วค่อยลำดับ Item ใหม่ตามนี้
+          .sort((a, b) => {
+            const ta = a.DeclarationDate ? new Date(a.DeclarationDate).getTime() : Infinity
+            const tb = b.DeclarationDate ? new Date(b.DeclarationDate).getTime() : Infinity
+            return ta - tb
+          })
+          .map((r, i) => ({
+          // แถวที่ "หมดอายุแล้ว" ให้ไฟล์ Excel ระบายแดงทั้งแถว (ยังรวมอยู่ในไฟล์)
+          __danger: computeExportExpiry(r).status === EXPIRY_STATUS.EXPIRED,
           item: i + 1,
           assemblyDate: r.AssemblyDate ? formatThaiDate(r.AssemblyDate) : '—',
+          declarationDate: r.DeclarationDate ? formatThaiDate(r.DeclarationDate) : '—',
           machineNo: dash2(r.MachineNo),
           itControllerNo: dash2(r.ITControllerNo || r.SerialNumber),
           invoiceNo: dash2(r.InvoiceNo),
@@ -1238,7 +1253,7 @@ export function WHExportLicensePanel() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, exceptionFilter, pageSize, periodMode, periodAnchor])
+  }, [search, exceptionFilter, expiryFilter, pageSize, periodMode, periodAnchor])
 
   // ── มาจากกระดิ่งแจ้งเตือน (ฝั่งส่งออก): auto-search ด้วย S/N ที่คลิก ──────────
   useEffect(() => {
@@ -1329,9 +1344,15 @@ export function WHExportLicensePanel() {
       list = list.filter((r) => r.AssemblyDate && inPeriod(r.AssemblyDate, periodMode, periodAnchor))
     }
 
+    // กรองตามสถานะวันหมดอายุ (ยังไม่ระบุวันที่ / ใกล้หมดอายุ / หมดอายุแล้ว / ปกติ)
+    // ใบอนุญาตส่งออกอายุ 1 เดือน — ใช้ computeExportExpiry (นำออก + 1 เดือน)
+    if (expiryFilter !== 'all') {
+      list = list.filter((r) => computeExportExpiry(r).status === expiryFilter)
+    }
+
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, exceptionFilter, search, countryByITC, periodMode, periodAnchor])
+  }, [rows, exceptionFilter, expiryFilter, search, countryByITC, periodMode, periodAnchor])
 
   // ขอบเขตวันที่ประกอบที่มีข้อมูลจริง — กำหนด min/max ให้ปฏิทิน anchor
   const asmDateBounds = useMemo(() => {
@@ -1368,6 +1389,18 @@ export function WHExportLicensePanel() {
     const list = Array.from(set).sort((a, b) => a.localeCompare(b))
     return [{ value: 'all', label: 'Export License(ทุกใบ)' }, ...list.map((m) => ({ value: m, label: m }))]
   }, [rows])
+
+  // ตัวเลือก filter สถานะวันหมดอายุ (เหมือนฝั่งนำเข้า) — ใบอนุญาตส่งออกอายุ 1 เดือน
+  const expiryOptions = useMemo(
+    () => [
+      { value: 'all', label: 'ทุกสถานะวันหมดอายุ' },
+      { value: EXPIRY_STATUS.NO_DATE, label: STATUS_LABEL[EXPIRY_STATUS.NO_DATE] }, // ยังไม่ระบุวันที่
+      { value: EXPIRY_STATUS.EXPIRING, label: STATUS_LABEL[EXPIRY_STATUS.EXPIRING] }, // ใกล้หมดอายุ
+      { value: EXPIRY_STATUS.EXPIRED, label: STATUS_LABEL[EXPIRY_STATUS.EXPIRED] }, // หมดอายุแล้ว
+      { value: EXPIRY_STATUS.VALID, label: STATUS_LABEL[EXPIRY_STATUS.VALID] }, // ปกติ
+    ],
+    [],
+  )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize)
@@ -1448,6 +1481,9 @@ export function WHExportLicensePanel() {
         <div className="il-filter-search-group">
           <div className="wh-pagesize-select il-model-filter">
             <SelectField value={exceptionFilter} onChange={setExceptionFilter} options={exceptionOptions} />
+          </div>
+          <div className="wh-pagesize-select il-model-filter">
+            <SelectField value={expiryFilter} onChange={setExpiryFilter} options={expiryOptions} />
           </div>
           <input
             className="wh-search"
