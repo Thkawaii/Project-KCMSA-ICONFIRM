@@ -1,4 +1,5 @@
 import { useAppNavigate } from '../lib/nav.jsx'
+import kobelcoLogo from '../assets/brand/kobelco-logo-white.png'
 
 export default function DashboardPage() {
   const navigate = useAppNavigate()
@@ -13,7 +14,8 @@ export default function DashboardPage() {
     <div className="wh-page">
       <header className="wh-topbar">
         <div className="brand-row">
-          <span className="brand-badge">KOBELCO</span>
+          <img className="brand-logo-topbar" src={kobelcoLogo} alt="KOBELCO" draggable="false" />
+          <span className="brand-divider-topbar" aria-hidden="true" />
           <h1 className="brand-title-sm">I-CONFIRMATION</h1>
         </div>
         <button className="wh-logout-btn" onClick={handleLogout}>

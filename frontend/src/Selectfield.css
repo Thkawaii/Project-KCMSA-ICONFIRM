@@ -24,14 +24,14 @@
 }
 
 .sf-trigger:hover:not(:disabled) {
-  border-color: #00cec8;
+  border-color: #06e0d4;
 }
 
 .sf-trigger-open,
 .sf-trigger:focus-visible {
-  border-color: #00cec8;
+  border-color: #06e0d4;
   outline: none;
-  box-shadow: 0 0 0 3px rgba(0, 206, 200, 0.18);
+  box-shadow: 0 0 0 3px rgba(6, 224, 212, 0.18);
 }
 
 .sf-trigger:disabled {

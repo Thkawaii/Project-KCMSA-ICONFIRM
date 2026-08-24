@@ -362,7 +362,7 @@
   height: 100%;
 }
 
-/* ไอคอนเมฆอัปโหลดในหน้า Upload Master Data ใช้สีแบรนด์ #00CEC8 เป็นสีเน้น
+/* ไอคอนเมฆอัปโหลดในหน้า Upload Master Data ใช้สีแบรนด์ #06e0d4 เป็นสีเน้น
    (เดิมเป็นสีเทากลืนกับพื้น) — ตัวอักษร/กรอบ hover/ปุ่ม ใช้แบรนด์อยู่แล้ว */
 .upload-panel-wide .upload-dropzone svg {
   color: var(--brand-500);
@@ -466,14 +466,14 @@
 
 .upload-dropzone:hover {
   border-color: var(--brand-500);
-  background: rgba(0, 206, 200, 0.06);
+  background: rgba(6, 224, 212, 0.06);
   color: var(--brand-600);
 }
 
 .upload-dropzone-filled {
   border-style: solid;
   border-color: var(--brand-500);
-  background: rgba(0, 206, 200, 0.08);
+  background: rgba(6, 224, 212, 0.08);
   color: var(--brand-600);
 }
 
@@ -711,8 +711,8 @@
 }
 
 @keyframes scanGlow {
-  0%, 100% { box-shadow: 0 20px 50px -15px rgba(0, 206, 200, 0.25); }
-  50% { box-shadow: 0 20px 60px -10px rgba(0, 206, 200, 0.55); }
+  0%, 100% { box-shadow: 0 20px 50px -15px rgba(6, 224, 212, 0.25); }
+  50% { box-shadow: 0 20px 60px -10px rgba(6, 224, 212, 0.55); }
 }
 
 .scan-capture-card {

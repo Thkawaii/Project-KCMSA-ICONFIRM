@@ -12,7 +12,7 @@ export default function UiKitPage() {
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans">
-      <header className="from-brand-700 to-brand-500 bg-gradient-to-r px-6 py-5">
+      <header className="bg-brand-500 px-6 py-5">
         <p className="font-mono text-[11px] tracking-[0.14em] text-white/70 uppercase">
           KOBELCO I-CONFIRM
         </p>

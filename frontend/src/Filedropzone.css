@@ -22,7 +22,7 @@
 
 .fdz:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(0, 206, 200, 0.25);
+  box-shadow: 0 0 0 3px rgba(6, 224, 212, 0.25);
   border-color: var(--brand-500);
 }
 
@@ -30,7 +30,7 @@
   border-color: var(--brand-500);
   border-style: solid;
   background: var(--brand-50);
-  box-shadow: 0 0 0 3px rgba(0, 206, 200, 0.18);
+  box-shadow: 0 0 0 3px rgba(6, 224, 212, 0.18);
 }
 
 .fdz-filled {

@@ -8,7 +8,9 @@ import {
   EyeSlashIcon,
   LockClosedIcon,
   ShieldCheckIcon,
+  UserIcon,
 } from '../components/icons.jsx'
+import kobelcoLogo from '../assets/brand/kobelco-logo.png'
 
 // ใช้ homeRouteForRole ร่วมกับ main.jsx (แหล่งความจริงเดียว ดู lib/roleRoutes.js)
 const resolveRoute = homeRouteForRole
@@ -55,13 +57,26 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
+      <div className="auth-bg" aria-hidden="true">
+        <span className="auth-blob auth-blob-1" />
+        <span className="auth-blob auth-blob-2" />
+        <span className="auth-grid" />
+      </div>
+
       <div className="auth-header">
-        <div className="brand-row">
-          <span className="brand-badge">KOBELCO</span>
-          <ShieldCheckIcon className="shield-icon size-[26px]" />
-          <h1 className="brand-title">I-CONFIRMATION</h1>
+        <div className="brand-lockup">
+          <img
+            className="brand-logo"
+            src={kobelcoLogo}
+            alt="KOBELCO"
+            draggable="false"
+          />
+          <span className="brand-divider" aria-hidden="true" />
+          <h1 className="brand-title">
+            <ShieldCheckIcon className="shield-icon" />
+            <span>I-CONFIRMATION</span>
+          </h1>
         </div>
-        <p className="brand-subtitle">Traceability &amp; Validation System</p>
       </div>
 
       <div className="auth-card">
@@ -71,22 +86,26 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} noValidate>
           <div className="field">
             <label htmlFor="email">Username</label>
-            <input
-              id="email"
-              name="username"
-              type="text"
-              autoComplete="username"
-              placeholder=""
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+            <div className="input-wrap">
+              <UserIcon className="input-icon size-[18px]" />
+              <input
+                id="email"
+                name="username"
+                type="text"
+                autoComplete="username"
+                placeholder="Enter your username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="field">
             <div className="field-row">
               <label htmlFor="password">Password</label>
             </div>
-            <div className="password-input">
+            <div className="input-wrap password-input">
+              <LockClosedIcon className="input-icon size-[18px]" />
               <input
                 id="password"
                 name="password"

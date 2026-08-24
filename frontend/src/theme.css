@@ -28,14 +28,14 @@
   --font-sans: 'Inter', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
 
-  /* แบรนด์ teal เดิม (#00cec8) ขยายเป็นสเกลเต็ม
+  /* แบรนด์ teal เดิม (#06e0d4) ขยายเป็นสเกลเต็ม
      เฉดเข้ม 600–800 มีไว้ใช้กับ "ตัวอักษรบนพื้นขาว" ให้ผ่านเกณฑ์ contrast */
   --color-brand-50: #eafcfb;
   --color-brand-100: #cdf6f4;
   --color-brand-200: #9deeea;
   --color-brand-300: #5fdfda;
   --color-brand-400: #23d3cd;
-  --color-brand-500: #00cec8;
+  --color-brand-500: #06e0d4;
   --color-brand-600: #00a39d;
   --color-brand-700: #0f8580;
   --color-brand-800: #146a66;
@@ -140,10 +140,11 @@
 
   .ui-btn-primary {
     @apply bg-brand-500 text-brand-ink shadow-sm;
-    box-shadow: var(--shadow-press), 0 1px 2px rgb(16 24 40 / 0.1);
+    box-shadow: 0 8px 20px -8px rgba(6, 224, 212, 0.7), 0 1px 2px rgb(16 24 40 / 0.1);
   }
   .ui-btn-primary:not(:disabled):hover {
     @apply bg-brand-400;
+    box-shadow: 0 10px 24px -6px rgba(6, 224, 212, 0.8), 0 1px 2px rgb(16 24 40 / 0.1);
   }
   .ui-btn-primary:not(:disabled):active {
     @apply bg-brand-600;
@@ -310,25 +311,57 @@
   font-family: var(--font-sans);
 }
 
-.shell-topbar {
-  background: linear-gradient(100deg, var(--color-brand-700) 0%, var(--color-brand-500) 100%);
-  box-shadow: 0 1px 0 rgb(255 255 255 / 0.25) inset, 0 6px 20px -12px rgb(16 24 40 / 0.5);
+/* topbar ทุก role ใช้เทียลสว่าง #06e0d4 ล้วน (ไม่มี gradient — เดิมไล่ไป
+   brand-600 #00a39d ด้านขวาทำให้ดูเข้ม) ตรงกับ logo tile หน้า Login เป๊ะ */
+.shell-topbar,
+.wh-topbar {
+  background: var(--color-brand-500);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.3) inset, 0 8px 22px -10px rgba(6, 224, 212, 0.6), 0 6px 20px -12px rgb(16 24 40 / 0.5);
   position: sticky;
   top: 0;
   z-index: 40;
 }
 
-.shell-topbar .brand-badge {
-  background: #fff;
-  color: var(--color-brand-700);
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  padding: 5px 10px;
-  border-radius: 7px;
-  box-shadow: none;
-  border: 0;
+/* โลโก้ KOBELCO ตัวจริง (wordmark สีขาวพื้นโปร่ง) แทนป้ายตัวอักษรเดิม
+   ใช้กับ topbar ทุก role — ทั้ง .shell-topbar (AppShell) และ .wh-topbar (Dashboard) */
+.shell-topbar .brand-logo-topbar,
+.wh-topbar .brand-logo-topbar {
+  height: 26px;
+  width: auto;
+  display: block;
+  flex-shrink: 0;
+  user-select: none;
+  /* เงาบางๆ ให้ wordmark ลอยจากพื้นเทียลนุ่มๆ ไม่จมไปกับ gradient */
+  filter: drop-shadow(0 1px 2px rgb(16 24 40 / 0.18));
+}
+
+/* เส้นคั่นบางๆ ระหว่างโลโก้กับชื่อระบบ ให้ดูเป็น lockup เดียวกัน */
+.shell-topbar .brand-divider-topbar,
+.wh-topbar .brand-divider-topbar {
+  width: 1.5px;
+  height: 22px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgb(255 255 255 / 0.55) 22%,
+    rgb(255 255 255 / 0.55) 78%,
+    transparent
+  );
+}
+
+/* เผื่อยังมีป้ายตัวอักษรเดิมค้างที่ไหน ให้ซ่อนไม่ให้โผล่ */
+.shell-topbar .brand-badge,
+.wh-topbar .brand-badge {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .shell-topbar .brand-logo-topbar,
+  .wh-topbar .brand-logo-topbar {
+    height: 22px;
+  }
 }
 
 .shell-logout-btn {
@@ -618,16 +651,8 @@
   background: #f8fafc;
 }
 
-.auth-card {
-  border-radius: 20px;
-  border: 1px solid var(--color-line);
-  box-shadow: var(--shadow-pop);
-}
-
-.brand-badge {
-  font-family: var(--font-mono);
-  letter-spacing: 0.08em;
-}
+/* หมายเหตุ: สไตล์การ์ดล็อกอิน (.auth-card) ย้ายไปคุมที่ styles.css ทั้งหมดแล้ว
+   เพื่อให้ดีไซน์หน้า Login ใหม่ (กระจกฝ้า + เงาหลายชั้น + เส้น accent) ไม่ถูกทับ */
 
 /* ── กรอบแจ้งเตือน (alert) ───────────────────────────────────────────────
    ทุกกล่องแจ้งเตือนใช้ภาษาเดียวกัน: แถบสีหนา 4px ด้านซ้าย + พื้นอ่อน
