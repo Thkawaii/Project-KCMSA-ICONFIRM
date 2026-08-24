@@ -108,6 +108,49 @@ func aliasHeaderKey(reverse map[string]string, normHeader string) string {
 	return normHeader
 }
 
+// findDuplicateKnownColumns หา index ของ "คอลัมน์รู้จักที่ normalize แล้วซ้ำกับคอลัมน์ก่อนหน้า"
+//
+// ใช้กับ importer ที่แม็ปคอลัมน์แบบ header→setter (import/export license) ที่ลูปเดิมเป็น
+// last-wins — ถ้าไฟล์เผลอมี 2 คอลัมน์ที่ normalize แล้วเป็นช่องเดียวกัน (เช่น "Part No"
+// กับ "PartNo" หรือหัวซ้ำกันเป๊ะ) คอลัมน์ขวาจะทับคอลัมน์ซ้ายเงียบ ๆ และถ้าเซลล์ขวาว่าง
+// ก็จะล้างค่าดีทิ้ง
+//
+// คืน:
+//   - skip[col]=true สำหรับคอลัมน์รู้จักที่ซ้ำ (ตัวที่ 2 เป็นต้นไป) ให้ผู้เรียก "ข้าม" →
+//     กลายเป็น first-wins เหมือนที่ master_data ทำ
+//   - problems รายการคำเตือน (อิงชื่อหัวเดิมจากไฟล์) เตือนครั้งเดียวต่อคีย์
+//
+// isKnown บอกว่า key (normalize แล้ว) เป็นคอลัมน์มาตรฐานของ importer นั้นไหม
+// headerRow = แถวหัวตารางดิบ (ก่อน normalize) ไว้ทำข้อความให้อ่านง่าย
+func findDuplicateKnownColumns(headers []string, isKnown func(string) bool, headerRow []string) (map[int]bool, []string) {
+	skip := map[int]bool{}
+	seen := map[string]bool{}
+	warned := map[string]bool{}
+	var problems []string
+
+	for col, key := range headers {
+		if key == "" || !isKnown(key) {
+			continue
+		}
+		if seen[key] {
+			skip[col] = true
+			if !warned[key] {
+				label := key
+				if col < len(headerRow) {
+					if l := strings.TrimSpace(headerRow[col]); l != "" {
+						label = l
+					}
+				}
+				problems = append(problems, "คอลัมน์ซ้ำ '"+label+"' (ถือเป็นช่องเดียวกัน) — ใช้คอลัมน์แรก คอลัมน์ที่ซ้ำถูกข้าม")
+				warned[key] = true
+			}
+			continue
+		}
+		seen[key] = true
+	}
+	return skip, problems
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // registryIndex — ดัชนีค่ารหัสที่ "มีอยู่จริงในระบบ" (normalize แล้ว) แยกตามชนิดช่อง
 // ไว้ตรวจว่า "Old (ค่าเดิม)" ของ Change Format Part มีของให้ชี้ไปหาจริงหรือไม่

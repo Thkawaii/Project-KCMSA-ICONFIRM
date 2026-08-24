@@ -3,6 +3,7 @@ package controllers
 import (
 	"bytes"
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"io"
 	"mime/multipart"
@@ -561,16 +562,23 @@ func UploadMasterData(c *gin.Context) {
 
 	headerIdx, headers := findMasterDataHeader(rows, fallbackComponentType)
 	if headerIdx < 0 {
-		c.JSON(400, gin.H{
-			"message": "หาหัวตารางไม่เจอ — ไฟล์ต้องมีคอลัมน์ Serial No. และ Part No. อย่างน้อย",
-		})
+		c.JSON(400, gin.H{"message": masterDataHeaderHint(rows, fallbackComponentType)})
 		return
 	}
 
 	userID, userName := lookupUserName(c)
 	now := time.Now()
 
-	parsed, skipped, problems := parseMasterDataRows(rows, headerIdx, headers, fallbackComponentType, userID, now)
+	parsed, skipped, problems, extraColumns := parseMasterDataRows(rows, headerIdx, headers, fallbackComponentType, userID, now)
+
+	// แจ้งเตือน "คอลัมน์นอกสเปก" ให้เห็นแม้กดอัปโหลดตรง ๆ โดยไม่ผ่านหน้า Preview —
+	// ค่ายังถูกเก็บไว้ใน ExtraJSON ไม่ให้หาย แต่ผู้ใช้ต้องรู้ว่าระบบไม่ได้ map เข้าคอลัมน์มาตรฐาน
+	if len(extraColumns) > 0 {
+		problems = append(problems,
+			"พบคอลัมน์นอกสเปก (ระบบไม่รู้จัก) "+strconv.Itoa(len(extraColumns))+" คอลัมน์: "+
+				strings.Join(extraColumns, ", ")+
+				" — เก็บค่าไว้ใน Extra ให้แล้ว หากต้องการให้ map เข้าคอลัมน์มาตรฐาน ให้ตั้ง Column Alias ที่หน้า Format Settings")
+	}
 
 	if len(parsed) == 0 {
 		c.JSON(400, gin.H{"message": "ไม่พบแถวข้อมูลที่นำเข้าได้ในไฟล์นี้"})
@@ -611,6 +619,7 @@ func UploadMasterData(c *gin.Context) {
 					"it_controller_no":  row.ITControllerNo,
 					"imei":              row.IMEI,
 					"connectivity_type": row.ConnectivityType,
+					"extra_json":        row.ExtraJSON,
 					"upload_date":       now,
 					"user_id":           userID,
 				}).Error
@@ -635,20 +644,86 @@ func UploadMasterData(c *gin.Context) {
 	CreateAuditLog("MASTER_DATA", 0, "upload_excel", fallbackComponentType, userID, userName)
 
 	c.JSON(201, gin.H{
-		"imported": imported,
-		"updated":  updated,
-		"skipped":  skipped,
-		"problems": problems,
-		"file":     fileHeader.Filename,
+		"imported":     imported,
+		"updated":      updated,
+		"skipped":      skipped,
+		"problems":     problems,
+		"extraColumns": extraColumns,
+		"file":         fileHeader.Filename,
 	})
+}
+
+// masterExtraPrefix นำหน้าคีย์ของ "คอลัมน์นอกสเปก" (คอลัมน์ใหม่ที่ไฟล์เพิ่มมาเอง)
+// ให้ตรงรูปแบบเดียวกับหน้า Upload Data เพื่อให้ผู้ใช้เห็น/ค้น/ส่งออกได้เหมือนกัน
+const masterExtraPrefix = "[+] "
+
+// classifyMasterDataHeaders จำแนกคอลัมน์ในหัวตารางครั้งเดียว (ไม่ใช่ทุกแถว) ออกเป็น
+//   - activeKnown[col] = คอลัมน์ที่รู้จักและเป็น "ตัวขับ setter" จริง (เก็บเฉพาะครั้งแรก
+//     ที่เจอคีย์นั้น — คอลัมน์ซ้ำที่ normalize แล้วชนกันจะถูกข้ามและแจ้งเตือน)
+//   - extraLabel[col] = ชื่อหัวเดิมจากไฟล์ของ "คอลัมน์นอกสเปก" (ไม่รู้จัก + ไม่ใช่คอลัมน์ชนิด)
+//     ที่ต้องเก็บไว้ไม่ให้หาย
+//   - extraCols = รายชื่อหัวคอลัมน์นอกสเปกแบบไม่ซ้ำ ไว้รายงานกลับ
+//   - dupProblems = คำเตือนคอลัมน์ซ้ำ (normalize ชนกัน) เพื่อไม่ให้ทับกันเงียบ ๆ
+func classifyMasterDataHeaders(rows [][]string, headerIdx int, headers []string, typeColIdx int) (activeKnown, extraLabel map[int]string, extraCols, dupProblems []string) {
+	activeKnown = map[int]string{}
+	extraLabel = map[int]string{}
+	seenKey := map[string]bool{}
+	dupWarned := map[string]bool{}
+	seenExtra := map[string]bool{}
+
+	labelAt := func(col int) string {
+		if headerIdx >= 0 && headerIdx < len(rows) && col < len(rows[headerIdx]) {
+			return strings.TrimSpace(rows[headerIdx][col])
+		}
+		return ""
+	}
+
+	for col, key := range headers {
+		if col == typeColIdx {
+			continue // คอลัมน์ชนิดอะไหล่ จัดการแยกต่างหาก
+		}
+		if _, ok := masterDataColumns[key]; ok {
+			if seenKey[key] {
+				// คอลัมน์รู้จักที่ normalize แล้วชนกับคอลัมน์ก่อนหน้า → ใช้ "คอลัมน์แรก"
+				// (first-wins) แล้วข้ามตัวซ้ำ กัน cell ว่างของคอลัมน์ขวามาทับค่าดีเงียบ ๆ
+				if !dupWarned[key] {
+					dupProblems = append(dupProblems,
+						"คอลัมน์ซ้ำ '"+labelAt(col)+"' (หัวคอลัมน์ต่างกันแต่ถือเป็นช่องเดียวกัน) — ใช้คอลัมน์แรก คอลัมน์ที่ซ้ำถูกข้าม")
+					dupWarned[key] = true
+				}
+				continue
+			}
+			seenKey[key] = true
+			activeKnown[col] = key
+			continue
+		}
+		if componentTypeHeaderKeys[key] {
+			continue // คอลัมน์ชนิดอะไหล่ (ตัวสำรอง) ถือว่ารู้จัก
+		}
+		// คอลัมน์นอกสเปก (คอลัมน์ใหม่) → เก็บไว้ไม่ให้หาย
+		label := labelAt(col)
+		if label == "" {
+			continue
+		}
+		extraLabel[col] = label
+		if !seenExtra[label] {
+			seenExtra[label] = true
+			extraCols = append(extraCols, label)
+		}
+	}
+	return
 }
 
 // parseMasterDataRows แปลงแถวจากไฟล์ให้เป็น []MasterData (ใช้ร่วมทั้ง Upload และ Preview)
 // - map คอลัมน์ตามชื่อหัว (masterDataColumns) รองรับสลับลำดับ/เปลี่ยนชื่อผ่าน synonyms
 // - อ่านชนิดอะไหล่จากคอลัมน์ในไฟล์ถ้ามี ไม่งั้นใช้ fallback
 // - ข้ามแถวที่ไม่มี Serial No. (ไม่ใช่แถวข้อมูล) และกัน Serial ซ้ำในไฟล์เดียว
-func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallbackComponentType string, userID uint, now time.Time) ([]models.MasterData, int, []string) {
+// - คอลัมน์นอกสเปก (ไม่รู้จัก) ถูกเก็บลง ExtraJSON กันข้อมูลหาย + คืน extraCols ไปรายงาน
+// - คอลัมน์ซ้ำ (normalize ชนกัน) ใช้ค่าคอลัมน์แรก แล้วแจ้งเตือนใน problems
+func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallbackComponentType string, userID uint, now time.Time) ([]models.MasterData, int, []string, []string) {
 	typeColIdx := findComponentTypeColumn(headers)
+
+	activeKnown, extraLabel, extraCols, dupProblems := classifyMasterDataHeaders(rows, headerIdx, headers, typeColIdx)
 
 	var (
 		parsed   []models.MasterData
@@ -656,6 +731,7 @@ func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallb
 		skipped  int
 		problems []string
 	)
+	problems = append(problems, dupProblems...)
 
 	for i := headerIdx + 1; i < len(rows); i++ {
 		row := models.MasterData{
@@ -664,12 +740,28 @@ func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallb
 			UserID:        userID,
 		}
 
+		extras := map[string]string{}
 		for col, header := range headers {
 			if col >= len(rows[i]) {
 				break
 			}
-			if setter, ok := masterDataColumns[header]; ok {
-				setter(&row, unwrapExcelText(rows[i][col]))
+			val := unwrapExcelText(rows[i][col])
+			if _, isActive := activeKnown[col]; isActive {
+				if setter, ok := masterDataColumns[header]; ok {
+					setter(&row, val)
+				}
+				continue
+			}
+			// คอลัมน์นอกสเปก → เก็บค่าที่ไม่ว่างไว้ใน extras (คีย์ = "[+] ชื่อหัวเดิม")
+			if label, ok := extraLabel[col]; ok {
+				if v := strings.TrimSpace(val); v != "" {
+					extras[masterExtraPrefix+label] = v
+				}
+			}
+		}
+		if len(extras) > 0 {
+			if b, err := json.Marshal(extras); err == nil {
+				row.ExtraJSON = string(b)
 			}
 		}
 
@@ -706,7 +798,7 @@ func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallb
 		parsed = append(parsed, row)
 	}
 
-	return parsed, skipped, problems
+	return parsed, skipped, problems, extraCols
 }
 
 // ClearMasterData ลบทะเบียนกลาง — ระบุ ?component_type= เพื่อลบเฉพาะชนิด
@@ -773,32 +865,30 @@ func PreviewMasterDataChanges(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"file":        fileHeader.Filename,
 			"headerFound": false,
-			"message":     "หาหัวตารางไม่เจอ — ไฟล์ต้องมีคอลัมน์ Serial No. และ Part No. อย่างน้อย",
+			"message":     masterDataHeaderHint(rows, fallbackComponentType),
 		})
 		return
 	}
 
-	// รายงานคอลัมน์ที่ระบบไม่รู้จัก (คอลัมน์ใหม่) เพื่อให้เห็นควบคู่กับ change detection
-	var matchedCols, extraCols []string
+	// รายงานคอลัมน์ที่ "รู้จัก" (map เข้าคอลัมน์มาตรฐาน) เพื่อให้เห็นควบคู่กับ change detection
+	// ส่วนคอลัมน์ "นอกสเปก" ใช้ค่า extraCols ที่ parseMasterDataRows คืนมา (ตรรกะเดียวกับ
+	// ตอนอัปโหลดจริง 100% — กัน Preview กับ Upload เห็นไม่ตรงกัน)
+	var matchedCols []string
 	seenCol := map[string]bool{}
 	for col, key := range headers {
-		label := ""
-		if col < len(rows[headerIdx]) {
-			label = strings.TrimSpace(rows[headerIdx][col])
+		if _, ok := masterDataColumns[key]; !ok {
+			continue
 		}
-		if _, ok := masterDataColumns[key]; ok {
-			if !seenCol[key] {
-				matchedCols = append(matchedCols, label)
-				seenCol[key] = true
-			}
-		} else if componentTypeHeaderKeys[key] {
-			// คอลัมน์ชนิดอะไหล่ ถือว่ารู้จัก
-		} else if label != "" {
-			extraCols = append(extraCols, label)
+		if seenCol[key] {
+			continue
+		}
+		seenCol[key] = true
+		if col < len(rows[headerIdx]) {
+			matchedCols = append(matchedCols, strings.TrimSpace(rows[headerIdx][col]))
 		}
 	}
 
-	parsed, skipped, problems := parseMasterDataRows(rows, headerIdx, headers, fallbackComponentType, 0, time.Now())
+	parsed, skipped, problems, extraCols := parseMasterDataRows(rows, headerIdx, headers, fallbackComponentType, 0, time.Now())
 
 	// ดึงของเดิมทีเดียว แล้วจำแนกในหน่วยความจำ (ไม่เขียน DB)
 	serials := make([]string, 0, len(parsed))
@@ -945,6 +1035,15 @@ func masterDataAliasScopes(componentType string) []string {
 	return []string{"master_data", "master_data:" + ct}
 }
 
+// masterSerialKeys = คีย์ (normalize แล้ว) ที่ถือว่าเป็นคอลัมน์ Serial No.
+// ประกาศไว้ที่เดียว ใช้ร่วมทั้งตัวหาหัวตารางและตัววินิจฉัย เพื่อให้เกณฑ์ "มี Serial ไหม"
+// ตรงกับ synonyms ใน masterDataColumns เสมอ (กันกรณีหัว Serial สะกดแบบ serailnumber/snno
+// map ค่าได้แต่กลับไม่ผ่านด่านหาหัวตาราง)
+var masterSerialKeys = map[string]bool{
+	"serialno": true, "serailno": true, "serialnumber": true,
+	"serailnumber": true, "sn": true, "snno": true,
+}
+
 func findMasterDataHeader(rows [][]string, componentType string) (int, []string) {
 
 	limit := 30
@@ -969,7 +1068,7 @@ func findMasterDataHeader(rows [][]string, componentType string) (int, []string)
 
 			if _, ok := masterDataColumns[key]; ok {
 				hits++
-				if key == "serialno" || key == "serailno" || key == "serialnumber" || key == "sn" {
+				if masterSerialKeys[key] {
 					hasSerial = true
 				}
 			}
@@ -981,6 +1080,57 @@ func findMasterDataHeader(rows [][]string, componentType string) (int, []string)
 	}
 
 	return -1, nil
+}
+
+// masterDataHeaderHint อธิบายว่า "ทำไมหาหัวตารางไม่เจอ" แบบชี้จุด แทนข้อความกว้าง ๆ เดิม
+//
+// ไล่หาแถวที่ใกล้เป็นหัวตารางที่สุด (เจอคอลัมน์ที่รู้จักมากสุด) แล้วบอกว่าเจอคอลัมน์ไหนบ้าง
+// ขาด Serial No. หรือจำนวนคอลัมน์ไม่ถึงเกณฑ์ พร้อมชี้ทางไปตั้ง Column Alias ที่หน้า Format Settings
+func masterDataHeaderHint(rows [][]string, componentType string) string {
+	reverse := loadColumnAliasReverseMerged(masterDataAliasScopes(componentType)...)
+	limit := 30
+	if len(rows) < limit {
+		limit = len(rows)
+	}
+
+	bestRow, bestHits, bestSerial := -1, 0, false
+	var bestKnown []string
+	for i := 0; i < limit; i++ {
+		hits := 0
+		serial := false
+		var known []string
+		for _, cell := range rows[i] {
+			key := aliasHeaderKey(reverse, normalizeHeader(cell))
+			if _, ok := masterDataColumns[key]; ok {
+				hits++
+				known = append(known, strings.TrimSpace(cell))
+				if masterSerialKeys[key] {
+					serial = true
+				}
+			}
+		}
+		if hits > bestHits {
+			bestRow, bestHits, bestSerial, bestKnown = i, hits, serial, known
+		}
+	}
+
+	base := "หาหัวตารางไม่เจอ — ไฟล์ต้องมีคอลัมน์ Serial No. และคอลัมน์ที่รู้จักอย่างน้อย 3 คอลัมน์"
+	if bestRow < 0 || bestHits == 0 {
+		return base + " (ไม่พบคอลัมน์ที่รู้จักเลยใน 30 แถวแรก) — ตรวจว่าหัวตารางสะกดตรงสเปก " +
+			"หรือถ้าหน้างานเปลี่ยนชื่อหัวคอลัมน์ ให้ไปตั้ง Column Alias ที่หน้า Format Settings (scope: master_data)"
+	}
+
+	msg := base + ". แถวที่ใกล้ที่สุดคือแถว " + strconv.Itoa(bestRow+1) +
+		" (เจอคอลัมน์ที่รู้จัก " + strconv.Itoa(bestHits) + " คอลัมน์: " + strings.Join(bestKnown, ", ") + ")"
+	switch {
+	case !bestSerial:
+		msg += " — แต่ยังขาดคอลัมน์ Serial No. ถ้าไฟล์เปลี่ยนชื่อหัว Serial ไปแล้ว " +
+			"ให้ตั้ง Column Alias (source = ชื่อหัวใหม่, target = Serial No) ที่หน้า Format Settings แล้วอัปโหลดซ้ำ"
+	case bestHits < 3:
+		msg += " — แต่จำนวนคอลัมน์ที่รู้จักยังไม่ถึง 3 อาจมีหัวคอลัมน์ถูกเปลี่ยนชื่อ " +
+			"ให้ตั้ง Column Alias ที่หน้า Format Settings แล้วอัปโหลดซ้ำ"
+	}
+	return msg
 }
 
 // normalizeHeader ทำให้ "IT Controller no." กับ "ITCONTROLLER NO" กลายเป็นค่าเดียวกัน

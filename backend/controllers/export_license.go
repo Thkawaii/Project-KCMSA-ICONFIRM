@@ -51,6 +51,10 @@ var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"serialnumber": func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
 	"serialno":     func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
 	"serial":       func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
+	"sn":           func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) }, // หัว "S/N" (normalize แล้ว)
+	"snno":         func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
+	"serailno":     func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) }, // สะกดผิดที่พบในไฟล์ต้นทาง
+	"serailnumber": func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
 	"หมายเลขซีเรียล": func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
 	"ซีเรียล":        func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
 
@@ -472,7 +476,7 @@ func UploadExportLicense(c *gin.Context) {
 	headerIdx, headers := findExportHeaderRow(
 		rows,
 		exportLicenseKnownHeaders(),
-		[]string{"serialnumber", "serialno", "serial", "itcontrollerserialno", "itcontrollerno", "machineno"},
+		[]string{"serialnumber", "serialno", "serial", "sn", "snno", "itcontrollerserialno", "itcontrollerno", "machineno"},
 		2,
 	)
 	if headerIdx < 0 {
@@ -484,10 +488,19 @@ func UploadExportLicense(c *gin.Context) {
 	now := time.Now()
 
 	var (
-		parsed  []models.ExportLicenseItem
-		seen    = map[string]bool{}
-		skipped int
+		parsed   []models.ExportLicenseItem
+		seen     = map[string]bool{}
+		skipped  int
+		problems []string
 	)
+
+	// กันคอลัมน์รู้จักที่ normalize แล้วซ้ำกัน (last-wins → ทับค่าดีเงียบ ๆ) ให้เป็น first-wins
+	dupSkip, dupProblems := findDuplicateKnownColumns(
+		headers,
+		func(k string) bool { _, ok := exportLicenseColumns[k]; return ok },
+		rows[headerIdx],
+	)
+	problems = append(problems, dupProblems...)
 
 	for i := headerIdx + 1; i < len(rows); i++ {
 		row := models.ExportLicenseItem{
@@ -499,6 +512,9 @@ func UploadExportLicense(c *gin.Context) {
 		for col, header := range headers {
 			if col >= len(rows[i]) {
 				break
+			}
+			if dupSkip[col] {
+				continue // คอลัมน์รู้จักที่ซ้ำ — ใช้คอลัมน์แรกไปแล้ว ข้ามตัวนี้
 			}
 			val := strings.TrimSpace(rows[i][col])
 			if setter, ok := exportLicenseColumns[header]; ok {
@@ -565,6 +581,7 @@ func UploadExportLicense(c *gin.Context) {
 	c.JSON(201, gin.H{
 		"imported": len(parsed),
 		"skipped":  skipped,
+		"problems": problems,
 		"file":     fileName,
 	})
 }
@@ -594,7 +611,7 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 	headerIdx, headers := findExportHeaderRow(
 		rows,
 		exportLicenseKnownHeaders(),
-		[]string{"serialnumber", "serialno", "serial", "itcontrollerserialno", "itcontrollerno", "machineno"},
+		[]string{"serialnumber", "serialno", "serial", "sn", "snno", "itcontrollerserialno", "itcontrollerno", "machineno"},
 		2,
 	)
 	if headerIdx < 0 {
@@ -629,11 +646,19 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 	// คีย์ = Serial Number (fallback: Machine No / IT Controller Serial No.) เหมือนตอนอัปโหลด
 	var newItems []models.ExportLicenseItem
 	seenSerial := map[string]bool{}
+	dupSkip, _ := findDuplicateKnownColumns(
+		headers,
+		func(k string) bool { _, ok := exportLicenseColumns[k]; return ok },
+		rows[headerIdx],
+	)
 	for i := headerIdx + 1; i < len(rows); i++ {
 		it := models.ExportLicenseItem{}
 		for col, header := range headers {
 			if col >= len(rows[i]) {
 				break
+			}
+			if dupSkip[col] {
+				continue
 			}
 			val := strings.TrimSpace(rows[i][col])
 			if setter, ok := exportLicenseColumns[header]; ok {
