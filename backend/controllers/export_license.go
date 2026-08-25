@@ -787,13 +787,34 @@ func DeleteExportLicense(c *gin.Context) {
 }
 
 func ClearExportLicense(c *gin.Context) {
-	res := config.DB.Where("1 = 1").Delete(&models.ExportLicenseItem{})
+	licenseNo := strings.TrimSpace(c.Query("license_no"))
+	_, hasLicense := c.GetQuery("license_no")
+	deleteAll := strings.EqualFold(strings.TrimSpace(c.Query("all")), "true")
+
+	userID, userName := lookupUserName(c)
+
+	if deleteAll || !hasLicense {
+		res := config.DB.Where("1 = 1").Delete(&models.ExportLicenseItem{})
+		if res.Error != nil {
+			c.JSON(500, gin.H{"message": res.Error.Error()})
+			return
+		}
+		CreateAuditLog("EXPORT_LICENSE", 0, "clear_all", "", userID, userName)
+		c.JSON(200, gin.H{"deleted": res.RowsAffected})
+		return
+	}
+
+	if licenseNo == "" {
+		c.JSON(400, gin.H{"message": "ต้องระบุเลขใบอนุญาตส่งออกที่จะลบ หรือส่ง all=true เพื่อลบทั้งหมด"})
+		return
+	}
+
+	res := config.DB.Where("exception_license = ?", licenseNo).Delete(&models.ExportLicenseItem{})
 	if res.Error != nil {
 		c.JSON(500, gin.H{"message": res.Error.Error()})
 		return
 	}
-	userID, userName := lookupUserName(c)
-	CreateAuditLog("EXPORT_LICENSE", 0, "clear_all", "", userID, userName)
+	CreateAuditLog("EXPORT_LICENSE", 0, "clear_license", licenseNo, userID, userName)
 	c.JSON(200, gin.H{"deleted": res.RowsAffected})
 }
 

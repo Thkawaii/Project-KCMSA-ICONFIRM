@@ -21,7 +21,7 @@ import { PreviewResult, ChangePreview, ExtraColumnsCell } from '../components/Fo
 import AppShell from '../components/AppShell.jsx'
 import FileDropZone from '../components/Filedropzone.jsx'
 import SelectField from '../components/Selectfield.jsx'
-import { confirmDelete, toastError, toastSuccess, promptRenewDays, promptRenewExport } from '../lib/toast.js'
+import { confirmDelete, toastError, toastSuccess, promptRenewDays } from '../lib/toast.js'
 import {
   computeLicenseExpiry,
   formatThaiDate,
@@ -1156,26 +1156,24 @@ export function WHExportLicensePanel() {
     load()
   }, [])
 
-  async function handleRenewExport() {
-    const licenses = Array.from(
-      new Set(
-        rows
-          .map((r) => String(r.ExportLicenseNo || r.ExceptionLicense || '').trim())
-          .filter(Boolean)
-      )
-    ).sort()
-    if (licenses.length === 0) {
-      toastError('ยังไม่มีเลขใบอนุญาตส่งออกให้ต่ออายุ')
+  async function handleRenewSelectedExport() {
+    const licenseNo = exceptionFilter
+    if (!licenseNo || licenseNo === 'all') {
+      toastError('กรุณาเลือกใบอนุญาตส่งออกที่ต้องการต่ออายุก่อน')
       return
     }
-    const picked = await promptRenewExport({ licenseOptions: licenses, defaultDays: 180 })
-    if (!picked) return
+    const days = await promptRenewDays({
+      title: `ต่ออายุใบอนุญาตส่งออก ${licenseNo}`,
+      html: '<div class="scan-popup-hint">ระบบจะเลื่อนวันหมดอายุออกไปตามจำนวนวันที่กรอก</div>',
+      defaultDays: 180,
+    })
+    if (!days) return
     try {
-      const res = await renewExportLicense(picked.licenseNo, '', picked.days)
+      const res = await renewExportLicense(licenseNo, '', days)
       await load()
       const newExp = res?.newExpiry ? formatThaiDate(new Date(res.newExpiry)) : ''
       toastSuccess(
-        `ต่ออายุใบอนุญาตส่งออก ${picked.licenseNo} อีก ${picked.days} วันแล้ว${newExp ? ` — หมดอายุ ${newExp}` : ''}`
+        `ต่ออายุใบอนุญาตส่งออก ${licenseNo} อีก ${days} วันแล้ว${newExp ? ` — หมดอายุ ${newExp}` : ''}`
       )
     } catch (err) {
       toastError(err.message || 'ต่ออายุไม่สำเร็จ')
@@ -1235,6 +1233,24 @@ export function WHExportLicensePanel() {
       await clearExportLicense()
       await load()
       toastSuccess('ลบบัญชีใบอนุญาตส่งออกทั้งหมดแล้ว')
+    } catch (err) {
+      toastError(err.message || 'ลบไม่สำเร็จ')
+    }
+  }
+
+  async function handleClearSelectedExportLicense() {
+    const licenseNo = exceptionFilter
+    if (!licenseNo || licenseNo === 'all') return
+    const ok = await confirmDelete({
+      text: `ลบใบอนุญาตส่งออก ${licenseNo} ออกจากระบบทั้งใบ? กู้คืนไม่ได้`,
+      confirmText: 'ลบทั้งใบ',
+    })
+    if (!ok) return
+    try {
+      const res = await clearExportLicense(licenseNo)
+      setExceptionFilter('all')
+      await load()
+      toastSuccess(`ลบใบอนุญาตส่งออก ${licenseNo} แล้ว (${res?.deleted ?? 0} รายการ)`)
     } catch (err) {
       toastError(err.message || 'ลบไม่สำเร็จ')
     }
@@ -1320,6 +1336,16 @@ export function WHExportLicensePanel() {
     [],
   )
 
+  const currentLicenseRows = useMemo(() => {
+    if (exceptionFilter === 'all') return []
+    return rows.filter((r) => (r.ExceptionLicense || '') === exceptionFilter)
+  }, [rows, exceptionFilter])
+
+  const currentLicenseInvoices = useMemo(() => {
+    const set = new Set(currentLicenseRows.map((r) => r.InvoiceNo).filter(Boolean))
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [currentLicenseRows])
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize)
 
@@ -1380,6 +1406,36 @@ export function WHExportLicensePanel() {
         )}
       </div>
 
+      {rows.length > 0 && (
+        <div className="il-lot-filter">
+          <label className="il-lot-filter-label">ใบอนุญาตส่งออก</label>
+          <div className="il-lot-filter-select">
+            <SelectField value={exceptionFilter} onChange={setExceptionFilter} options={exceptionOptions} />
+          </div>
+        </div>
+      )}
+
+      {exceptionFilter !== 'all' && (
+        <div className="wh-so-active-bar">
+          <div>
+            <span className="wh-so-active-label">ใบอนุญาตส่งออก</span>
+            <h3 className="wh-so-active-name">{exceptionFilter || '(ไม่มีเลขใบอนุญาต)'}</h3>
+            <span className="wh-subtitle">
+              Invoice {currentLicenseInvoices.length > 0 ? currentLicenseInvoices.join(', ') : '—'} ·{' '}
+              {currentLicenseRows.length} เครื่อง
+            </span>
+          </div>
+          <div className="il-lot-actions">
+            <button className="wh-issue-btn il-renew-btn" onClick={handleRenewSelectedExport}>
+              ต่ออายุ
+            </button>
+            <button className="wh-modal-cancel" onClick={handleClearSelectedExportLicense}>
+              ลบทั้งใบ
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="tsf-history-toolbar">
         <div className="tsf-history-pagesize">
           <div className="wh-pagesize-select">
@@ -1398,9 +1454,6 @@ export function WHExportLicensePanel() {
         </div>
         <div className="il-filter-search-group">
           <div className="wh-pagesize-select il-model-filter">
-            <SelectField value={exceptionFilter} onChange={setExceptionFilter} options={exceptionOptions} />
-          </div>
-          <div className="wh-pagesize-select il-model-filter">
             <SelectField value={expiryFilter} onChange={setExpiryFilter} options={expiryOptions} />
           </div>
           <input
@@ -1417,14 +1470,6 @@ export function WHExportLicensePanel() {
             title={`ดาวน์โหลด Excel แยกชีตตามประเทศปลายทาง — ช่วง ${periodLabel}`}
           >
             {exportingXlsx ? 'กำลัง Export...' : 'Export Excel (แยกประเทศ)'}
-          </button>
-          <button
-            className="wh-issue-btn il-renew-btn"
-            onClick={handleRenewExport}
-            disabled={rows.length === 0}
-            title="ต่ออายุใบอนุญาตส่งออก"
-          >
-            ต่ออายุใบอนุญาต
           </button>
           {rows.length > 0 && (
             <button className="wh-btn-danger" onClick={handleClearAll}>

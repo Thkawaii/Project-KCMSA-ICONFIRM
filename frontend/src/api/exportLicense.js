@@ -24,8 +24,14 @@ export function deleteExportLicense(id) {
   return apiFetch(`/export-license/${id}`, { method: 'DELETE' })
 }
 
-export function clearExportLicense() {
-  return apiFetch('/export-license', { method: 'DELETE' })
+export function clearExportLicense(licenseNo = '', all = false) {
+  const params = new URLSearchParams()
+  if (all || !licenseNo) {
+    params.set('all', 'true')
+  } else {
+    params.set('license_no', licenseNo)
+  }
+  return apiFetch(`/export-license?${params.toString()}`, { method: 'DELETE' })
 }
 
 export function renewExportLicense(exportLicenseNo = '', invoiceNo = '', days = 0) {
