@@ -1208,6 +1208,35 @@
   box-shadow: 0 0 0 4px rgba(6, 224, 212, 0.15);
 }
 
+.scan-error-text {
+  font-size: 15px;
+  color: #101828;
+  line-height: 1.6;
+}
+
+.scan-error-admin-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px auto 4px;
+  padding: 12px 16px;
+  max-width: 360px;
+  border-radius: 12px;
+  background: var(--color-warn-50, #fffaeb);
+  border: 1px solid rgba(247, 144, 9, 0.35);
+  color: var(--color-warn-700, #b54708);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.scan-error-admin-icon {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  color: var(--color-warn-500, #f79009);
+}
+
 .pc-barcode-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

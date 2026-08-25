@@ -203,7 +203,7 @@ func ScanPartCheck(c *gin.Context) {
 
 		if master == nil {
 			check.MatchStatus = models.MatchStatusNotFound
-			check.MatchMessage = "ไม่พบ S/N " + sn + " ใน master data (ทะเบียนกลาง)"
+			check.MatchMessage = "ไม่พบข้อมูลในระบบ กรุณาติดต่อ ADMIN"
 		} else {
 			machineNo := derefStr(master.ITControllerNo)
 			imei := derefStr(master.IMEI)

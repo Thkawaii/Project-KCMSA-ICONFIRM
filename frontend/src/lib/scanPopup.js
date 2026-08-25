@@ -134,11 +134,28 @@ export function scanSuccessToast(title) {
   return toastSuccess(title)
 }
 
-export function scanErrorAlert(text) {
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (ch) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+  ))
+}
+
+export function scanErrorAlert(text, { hint } = {}) {
   return Swal.fire({
     icon: 'error',
     title: 'เกิดข้อผิดพลาด',
-    text,
+    html: `
+      <div class="scan-error-text">${escapeHtml(text)}</div>
+      ${hint ? `
+        <div class="scan-error-admin-hint">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="scan-error-admin-icon">
+            <path d="M12 15.5c-4.2 0-7.5 1.7-7.5 4v1.5h15V19.5c0-2.3-3.3-4-7.5-4Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <circle cx="12" cy="8" r="3.75" stroke="currentColor" stroke-width="1.6"/>
+          </svg>
+          <span>${escapeHtml(hint)}</span>
+        </div>
+      ` : ''}
+    `,
     confirmButtonText: 'ตกลง',
   })
 }

@@ -239,7 +239,9 @@ export default function WHPartConfirmationPage() {
         if (res.matched) {
           successToast = `ตรงกับบัญชี: ${sn}`
         } else if (isITC) {
-          await scanErrorAlert(check.MatchMessage || res.message || 'ไม่ตรงกับบัญชีใบอนุญาตนำเข้า')
+          const errMsg = check.MatchMessage || res.message || 'ไม่ตรงกับบัญชีใบอนุญาตนำเข้า'
+          const isMasterDataMiss = check.MatchStatus === 'NOT_FOUND' && errMsg.includes('ทะเบียนกลาง')
+          await scanErrorAlert(errMsg, isMasterDataMiss ? { hint: 'กรุณาติดต่อ ADMIN' } : undefined)
         } else {
           successToast = `บันทึกแล้ว: ${tagLabel(check.PartType)} — ${sn}`
         }
