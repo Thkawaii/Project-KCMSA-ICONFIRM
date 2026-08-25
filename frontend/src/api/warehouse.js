@@ -16,7 +16,6 @@ export function issueWarehouseStock(id, { qty, scannedPartNo, scannedSerial, rem
   })
 }
 
-// ใช้ทั้งฝั่ง WH (ดูว่าอะไรส่งไปแล้ว) และฝั่ง TSF (ดูของที่รอรับ)
 export function getWhConfirms(status) {
   const qs = status ? `?status=${encodeURIComponent(status)}` : ''
   return apiFetch(`/wh-confirm${qs}`)
@@ -26,7 +25,6 @@ export function receiveWhTransfer(id) {
   return apiFetch(`/wh-confirm/${id}/receive`, { method: 'POST' })
 }
 
-// อัปโหลด Excel นำ SO + สต็อกเข้าคลังเป็นชุด (multipart)
 export async function uploadWarehouseStock(file) {
   const token = getToken()
   const formData = new FormData()

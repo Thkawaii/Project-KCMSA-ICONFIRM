@@ -1,7 +1,3 @@
-/* ─────────────────────────────────────────────────────────────────────────
-   หน้า Upload Data — แท็บเลือกชนิดไฟล์ + ตารางกว้างที่เลื่อนแนวนอนได้
-   (ใช้ต่อจากคลาสของ Warehouse.css เดิม: wh-table, wh-issue-btn ฯลฯ)
-   ───────────────────────────────────────────────────────────────────────── */
 
 .ud-tabs {
   display: flex;
@@ -36,7 +32,6 @@
   color: #fff;
 }
 
-/* ตาราง Planning มีได้ถึง ~61 คอลัมน์ — ต้องเลื่อนแนวนอน ไม่ให้ล้นทะลุจอ */
 .ud-table-scroll {
   overflow-x: auto;
 }
@@ -53,7 +48,6 @@
   text-overflow: ellipsis;
 }
 
-/* คอลัมน์ลำดับซ้ายสุด ตรึงไว้ตอนเลื่อนแนวนอน */
 .ud-th-sticky,
 .ud-td-sticky {
   position: sticky;
@@ -64,8 +58,6 @@
   min-width: 48px;
 }
 
-/* บังคับให้หัวคอลัมน์ "#" กับเลขลำดับในแถวจัดกึ่งกลางตรงกัน
-   (ต้องเจาะจงพอที่จะทับ .wh-table thead th { text-align:left } ของธีมหลัก) */
 .ud-table thead th.ud-th-sticky,
 .ud-table tbody td.ud-td-sticky {
   text-align: center;

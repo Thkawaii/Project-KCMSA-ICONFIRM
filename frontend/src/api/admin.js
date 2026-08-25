@@ -1,6 +1,5 @@
 import { apiFetch } from './client.js'
 
-// จัดการผู้ใช้ (เฉพาะ Admin) — backend ไม่ส่ง password กลับมาไม่ว่ากรณีใด
 
 export function getAdminUsers({ role = '', q = '' } = {}) {
   const params = new URLSearchParams()

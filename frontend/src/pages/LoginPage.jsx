@@ -12,7 +12,6 @@ import {
 } from '../components/icons.jsx'
 import kobelcoLogo from '../assets/brand/kobelco-logo.png'
 
-// ใช้ homeRouteForRole ร่วมกับ main.jsx (แหล่งความจริงเดียว ดู lib/roleRoutes.js)
 const resolveRoute = homeRouteForRole
 
 export default function LoginPage() {

@@ -1,13 +1,6 @@
 import { apiFetch, API_BASE_URL, getToken } from './client.js'
 
-// ── บัญชีใบอนุญาตส่งออก (คู่กับ Import License) ──────────────────────────────
-// อัปโหลดไฟล์ Excel/CSV ที่มีคอลัมน์ ใบขน (Date) / Exception License /
-// Serial Number / Expire date เก็บไว้เป็น "ตารางอ้างอิง" ฝั่งขาออก
-// หลักการเดียวกับ importLicense.js / whStock.js
 
-// getExportLicense() -> ทั้งหมด (แต่ละแถวมี field `Link` = ผลการเชื่อมโยง)
-// getExportLicense('YN15436814') -> ค้น Serial / Exception / Machine No / IT Controller No / Invoice No
-// getExportLicense('', 'matched'|'unmatched') -> กรองตามสถานะการเชื่อม
 export function getExportLicense(q = '', link = '') {
   const params = new URLSearchParams()
   if (q) params.set('q', q)
@@ -16,17 +9,10 @@ export function getExportLicense(q = '', link = '') {
   return apiFetch(`/export-license${qs ? `?${qs}` : ''}`)
 }
 
-// ลากเส้นทางของ 1 แถวใบอนุญาตส่งออกแบบละเอียด (เปิดใน modal)
-// คืน { item, keys, importLicense?, mfgAssembly?, machineSpecs?, whStock? }
 export function getExportLicenseTrace(id) {
   return apiFetch(`/export-license/${id}/trace`)
 }
 
-// การแจ้งเตือนอายุใบอนุญาตส่งออก (อายุ 1 เดือน)
-//   getExportLicenseAlerts()                    -> ทั้งหมด (VALID/EXPIRING/EXPIRED/NO_DATE)
-//   getExportLicenseAlerts({ onlyAlert: true }) -> เฉพาะที่หมดอายุ/ใกล้หมดอายุ (ป้อน badge กระดิ่ง)
-//   getExportLicenseAlerts({ withinDays: 7 })   -> เปลี่ยนเกณฑ์ "ใกล้หมดอายุ" (ปริยาย 7 วัน)
-// คืน { generatedAt, withinDays, counts:{expired,expiring,valid,noDate,alert}, items:[...] }
 export function getExportLicenseAlerts({ withinDays, onlyAlert } = {}) {
   const params = new URLSearchParams()
   if (withinDays) params.set('within_days', String(withinDays))
@@ -43,8 +29,6 @@ export function clearExportLicense() {
   return apiFetch('/export-license', { method: 'DELETE' })
 }
 
-// ลองอ่านหัวตารางก่อนอัปโหลดจริง (ไม่บันทึกอะไร)
-// -> { file, headerFound, headerRow, matched:[...], extra:[...] }
 export async function previewExportLicense(file) {
   const token = getToken()
   const formData = new FormData()
@@ -63,9 +47,6 @@ export async function previewExportLicense(file) {
   return data
 }
 
-// ใช้ fetch ตรงแทน apiFetch เพราะเป็น multipart/form-data
-// (apiFetch ใส่ Content-Type: application/json ให้อัตโนมัติ ซึ่งจะทำให้
-// multipart boundary หายไปและ backend parse ไฟล์ไม่ได้)
 export async function uploadExportLicense(file) {
   const token = getToken()
   const formData = new FormData()

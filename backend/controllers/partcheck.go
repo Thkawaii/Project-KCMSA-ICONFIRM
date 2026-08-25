@@ -20,10 +20,6 @@ var tagTypeLabels = map[string]string{
 	"PH":  "Pump Assy HYD",
 }
 
-// GetPartChecks คืนประวัติการสแกนยืนยัน รองรับ query string
-//
-//	?invoice_no=TQ60610   เฉพาะล็อตนี้
-//	?part_type=ITC        เฉพาะชนิดพาร์ท
 func GetPartChecks(c *gin.Context) {
 
 	var rows []models.PartCheck
@@ -42,13 +38,6 @@ func GetPartChecks(c *gin.Context) {
 	c.JSON(200, rows)
 }
 
-// DeletePartCheck ลบรายการประวัติการสแกน 1 รายการ
-//
-// จำกัดไว้เฉพาะรายการที่ผลเทียบเป็น NOT_FOUND (ไม่พบในใบอนุญาต/ทะเบียนกลาง),
-// NOT_REQUIRED (ไม่ต้องเทียบ — พาร์ทชนิดอื่น) หรือ DUPLICATE (ยืนยันซ้ำ)
-// เพราะรายการที่ตรงกับบัญชีแล้ว (MATCH) ลบไม่ได้ — ต้องคงหลักฐานการยืนยันไว้
-// ส่วนสามสถานะข้างต้นมักเกิดจากสแกนผิด/ยิงเบอร์ผิด/สแกนซ้ำ จึงให้ลบทิ้งเพื่อ
-// ความสะอาดของประวัติได้ โดยยังคงบันทึกลง Audit Log ไว้เผื่อตรวจสอบย้อนหลัง
 func DeletePartCheck(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))
@@ -64,9 +53,9 @@ func DeletePartCheck(c *gin.Context) {
 	}
 
 	deletable := map[string]bool{
-		models.MatchStatusNotFound:    true, // ไม่พบในใบอนุญาต — มักเกิดจากสแกนผิด
-		models.MatchStatusNotRequired: true, // ไม่ต้องเทียบ — พาร์ทชนิดอื่นที่ไม่ผูกใบอนุญาต
-		models.MatchStatusDuplicate:   true, // ยืนยันซ้ำ — สแกนซ้ำรายการเดิม ลบทิ้งได้
+		models.MatchStatusNotFound:    true,
+		models.MatchStatusNotRequired: true,
+		models.MatchStatusDuplicate:   true,
 	}
 	if !deletable[row.MatchStatus] {
 		c.JSON(400, gin.H{"message": "ลบได้เฉพาะรายการที่ไม่พบในใบอนุญาต, ไม่ต้องเทียบ หรือยืนยันซ้ำเท่านั้น"})
@@ -84,14 +73,6 @@ func DeletePartCheck(c *gin.Context) {
 	c.JSON(200, gin.H{"deleted": true})
 }
 
-// resolveITControllerMaster ค้นทะเบียนกลาง (MasterData) ด้วย P/N + S/N ที่ WH
-// สแกน/กรอกเข้ามา แล้วคืนแถวที่ตรง เพื่อดึง "หมายเลขเครื่อง" (IT Controller No.)
-// และ IMEI ออกมาใช้ต่อ
-//
-// ลำดับการค้น (กันสแกนผิดช่อง / เผื่อ flow เก่าที่ยิงหมายเลขเครื่องตรง ๆ):
-//  1. ตรงทั้ง P/N และ S/N  — แม่นที่สุด
-//  2. ตรง S/N อย่างเดียว     — P/N ของ IT Controller ล็อตเดียวกันมักซ้ำกัน
-//  3. ตรง IT Controller No. หรือ IMEI — เผื่อยิงหมายเลขเครื่อง/IMEI มาที่ช่อง S/N
 func resolveITControllerMaster(pn, sn string) *models.MasterData {
 	sn = strings.TrimSpace(sn)
 	if sn == "" {
@@ -101,7 +82,6 @@ func resolveITControllerMaster(pn, sn string) *models.MasterData {
 
 	var m models.MasterData
 
-	// 1) P/N + S/N ตรงกันทั้งคู่
 	if pn != "" {
 		if err := config.DB.
 			Where("part_no = ? AND serial_no = ?", pn, sn).
@@ -110,20 +90,16 @@ func resolveITControllerMaster(pn, sn string) *models.MasterData {
 		}
 	}
 
-	// 2) S/N อย่างเดียว
 	if err := config.DB.Where("serial_no = ?", sn).First(&m).Error; err == nil {
 		return &m
 	}
 
-	// 3) เผื่อยิงหมายเลขเครื่อง / IMEI มาที่ช่อง S/N
 	if err := config.DB.
 		Where("it_controller_no = ? OR imei = ?", sn, sn).
 		First(&m).Error; err == nil {
 		return &m
 	}
 
-	// 4) เผื่อหน้างานเปลี่ยน format ของ S/N (หรือ P/N) — เทียบผ่านตาราง CodeAlias
-	//    ที่ลงทะเบียน "รหัสรูปแบบใหม่ → แถวมาตรฐานในทะเบียน" ไว้ล่วงหน้า
 	for _, raw := range []string{sn, pn} {
 		if strings.TrimSpace(raw) == "" {
 			continue
@@ -142,7 +118,6 @@ func resolveITControllerMaster(pn, sn string) *models.MasterData {
 	return nil
 }
 
-// derefStr คืนค่า string จาก *string (nil -> "")
 func derefStr(p *string) string {
 	if p == nil {
 		return ""
@@ -151,26 +126,15 @@ func derefStr(p *string) string {
 }
 
 type ScanPartCheckRequest struct {
-	MachineTag string `json:"machineTag"` // WH ไม่มี TAG เครื่อง — ปล่อยว่างได้
+	MachineTag string `json:"machineTag"`
 	PartType   string `json:"partType" binding:"required"`
 	PN         string `json:"pn"`
 	SN         string `json:"sn" binding:"required"`
 
-	// เฉพาะ ITC — ใช้เทียบกับบัญชีใบอนุญาตนำเข้า
-	ProductionNo string `json:"productionNo"` // หมายเลขการผลิต (IMEI) ถ้าสแกนเพิ่ม
-	InvoiceNo    string `json:"invoiceNo"`    // อินวอยซ์ของล็อตที่กำลังยืนยัน
+	ProductionNo string `json:"productionNo"`
+	InvoiceNo    string `json:"invoiceNo"`
 }
 
-// ScanPartCheck: WH เลือกชนิดพาร์ทก่อน แล้วยิงบาร์โค้ด tag เครื่อง (รูปแบบ
-// "MC-รหัส" เช่น "MC-LC14405563") จากนั้น frontend จะเด้ง popup ให้สแกน P/N
-// และ S/N ของพาร์ทที่เลือกไว้ -> บันทึกทั้งหมดในรายการเดียว
-//
-// ถ้าเป็นพาร์ทชนิด ITC ระบบจะเอา S/N (หมายเลขเครื่อง 12 หลัก) ไปเทียบกับบัญชี
-// ใบอนุญาตนำเข้าให้ทันที แล้วส่งผลกลับไปพร้อม response — หน้าเว็บจะได้ขึ้น
-// ในตารางเลยว่าตรงหรือไม่ตรง
-//
-// สำคัญ: ถึงจะไม่ตรงก็ยังบันทึกรายการไว้ ไม่ปัดทิ้ง เพราะการสแกนพลาดคือ
-// สิ่งที่ต้องมีหลักฐานย้อนหลังมากที่สุด
 func ScanPartCheck(c *gin.Context) {
 
 	var req ScanPartCheckRequest
@@ -179,8 +143,6 @@ func ScanPartCheck(c *gin.Context) {
 		return
 	}
 
-	// WH ไม่มี TAG เครื่อง — ยิงแค่ P/N / S/N ของพาร์ท ดังนั้น machineTag ว่างได้
-	// ถ้ามี TAG ส่งมาและขึ้นต้นด้วย prefix ที่รู้จัก (เช่น MC-) ก็แยกเก็บ type/refNo ไว้ให้
 	rawTag := strings.TrimSpace(req.MachineTag)
 	tagType := ""
 	refNo := rawTag
@@ -234,22 +196,15 @@ func ScanPartCheck(c *gin.Context) {
 		UserID:          userID,
 	}
 
-	// ── ใจกลางของฟีเจอร์: ITC ยิง/กรอกแค่ P/N + S/N ────────────────────────
-	// 1) เอา P/N + S/N ไปเทียบกับ master data เพื่อ "ดึงหมายเลขเครื่อง"
-	//    (IT Controller No.) และ IMEI ออกมา
-	// 2) เอาหมายเลขเครื่องที่ได้ไปลิงก์กับอินวอยซ์ + เทียบบัญชีใบอนุญาตนำเข้า
-	//    ผลเทียบจะขึ้นในตาราง WH ให้อัตโนมัติ
 	var matchedItem *models.ImportLicenseItem
 
 	if partType == "ITC" {
 		master := resolveITControllerMaster(check.PN, sn)
 
 		if master == nil {
-			// หา P/N + S/N นี้ในทะเบียนกลางไม่เจอ — บันทึกไว้เป็นหลักฐานว่าไม่ตรง
 			check.MatchStatus = models.MatchStatusNotFound
 			check.MatchMessage = "ไม่พบ S/N " + sn + " ใน master data (ทะเบียนกลาง)"
 		} else {
-			// ดึงหมายเลขเครื่อง (IT Controller No.) + IMEI จากทะเบียนกลาง
 			machineNo := derefStr(master.ITControllerNo)
 			imei := derefStr(master.IMEI)
 			check.MachineNo = machineNo
@@ -257,13 +212,6 @@ func ScanPartCheck(c *gin.Context) {
 				check.ProductionNo = imei
 			}
 
-			// ── กันช่อง S/N โชว์ "หมายเลขเครื่อง" แทน serial จริง ────────────────
-			// ถ้าผู้ใช้ยิงบาร์โค้ดหมายเลขเครื่อง 12 หลัก / IMEI มาที่ช่อง S/N
-			// (resolveITControllerMaster จับคู่ได้ด้วย it_controller_no/imei)
-			// ค่าที่บันทึกลง SN จะกลายเป็นเลขเครื่องซึ่งดูเหมือนบั๊ก — เมื่อรู้แน่ชัด
-			// แล้วว่าเป็นแถวไหนในทะเบียนกลาง จึงตั้ง SN ให้เป็น serial จริงของแถวนั้น
-			// (ถ้าทะเบียนกลางมี serial) ช่อง S/N จะได้ตรงกับ serial เสมอ ส่วนเลขเครื่อง
-			// ยังแสดงในคอลัมน์ "หมายเลขเครื่อง (IT Controller)" ตามเดิม
 			if master.SerialNo != "" && !strings.EqualFold(sn, master.SerialNo) {
 				check.SN = master.SerialNo
 			}
@@ -272,7 +220,6 @@ func ScanPartCheck(c *gin.Context) {
 				check.MatchStatus = models.MatchStatusNotFound
 				check.MatchMessage = "S/N " + sn + " ไม่มีหมายเลขเครื่อง (IT Controller) ในทะเบียนกลาง"
 			} else {
-				// เทียบบัญชีใบอนุญาตนำเข้าด้วย "หมายเลขเครื่อง" ที่ดึงมาได้
 				status, message, item := matchImportLicense(machineNo, invoiceNo, "")
 
 				check.MatchStatus = status
@@ -281,7 +228,6 @@ func ScanPartCheck(c *gin.Context) {
 				if item != nil {
 					check.ImportLicenseItemID = &item.ID
 					check.LicenseNo = item.LicenseNo
-					// อินวอยซ์ลิงก์ตามหมายเลขเครื่องที่จับคู่ได้ในบัญชี
 					if check.InvoiceNo == "" {
 						check.InvoiceNo = item.InvoiceNo
 					}
@@ -296,7 +242,6 @@ func ScanPartCheck(c *gin.Context) {
 		return
 	}
 
-	// ตรงกัน -> ปั๊มสถานะยืนยันลงบนแถวในบัญชี ตารางฝั่งใบอนุญาตจะได้ขึ้นเขียวทันที
 	if check.MatchStatus == models.MatchStatusMatch && matchedItem != nil {
 		config.DB.Model(&models.ImportLicenseItem{}).
 			Where("id = ?", matchedItem.ID).
@@ -307,7 +252,6 @@ func ScanPartCheck(c *gin.Context) {
 				"confirmed_datetime": now,
 			})
 
-		// อ่านกลับมาส่งให้ frontend ใช้อัปเดตแถวในตารางโดยไม่ต้องโหลดใหม่ทั้งหน้า
 		var refreshed models.ImportLicenseItem
 		if err := config.DB.First(&refreshed, matchedItem.ID).Error; err == nil {
 			matchedItem = &refreshed

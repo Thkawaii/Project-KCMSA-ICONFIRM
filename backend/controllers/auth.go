@@ -28,17 +28,11 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// username ใช้ร่วมกันได้หลายคน (ทั้งแผนกใช้ wh@kobelco.com เหมือนกัน) จึงต้อง
-	// ดึงทุก user ที่ตรง username มาก่อน แล้ว "วนเทียบ password ทีละคน" เพื่อหาว่า
-	// เป็นพนักงานคนไหนจริง ๆ — คนที่ password ตรงคือคนที่ login และจะถูกบันทึกเป็น
-	// Checked By ตอนสแกน (แต่ละคนมี id/ชื่อของตัวเอง แม้ username จะซ้ำกัน)
 	var candidates []models.User
 	err := config.DB.
 		Where("username = ?", req.Username).
 		Find(&candidates).Error
 
-	// ข้อความ error ต้องเหมือนกันทั้งกรณี "ไม่มี username นี้" กับ "password ผิด"
-	// เพื่อไม่ให้เดา username ที่มีอยู่จริงในระบบได้จากข้อความตอบกลับ
 	invalidCreds := func() {
 		c.JSON(401, gin.H{
 			"message": "Username or Password incorrect",
@@ -72,8 +66,6 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// สร้าง JWT token — เดิม endpoint นี้ไม่เคยออก token เลย
-	// ทำให้ request อื่นที่ผ่าน AuthMiddleware ไม่ผ่านทุกครั้ง
 	claims := jwt.MapClaims{
 		"id":        user.ID,
 		"role_name": user.RoleName,

@@ -16,7 +16,6 @@ import AppShell from '../components/AppShell.jsx'
 import SelectField from '../components/Selectfield.jsx'
 import { WH_NAV_ITEMS, WHMachineStockPanel } from './Importlicensepage.jsx'
 
-// แท็บของหน้า Matching Assembly — เพิ่มแท็บ "MC" เข้ามา (ย้ายมาจากหน้า Import License เดิม)
 const MATCHING_TABS = [
   { key: 'assembly', label: 'Matching Assembly' },
   { key: 'mc', label: 'MC' },
@@ -32,8 +31,6 @@ const EMPTY_FORM = {
   assemblyPartsName: '',
 }
 
-// Assembly Parts Number -> Assembly Parts Name (ข้อมูลคร่าวๆ — รอ master data จริง)
-// แก้ไข/เพิ่มรายการได้ที่นี่ทีเดียว ระบบจะใช้ list นี้ทั้ง dropdown เลือกและ auto-fill ชื่อ
 const ASSEMBLY_PARTS_OPTIONS = [
   { value: 'YN15', name: 'SK200-10/SK200XDL-10/SK220XD-10' },
   { value: 'YQ15', name: 'SK210(N)LC-10/SK220XD(LC)-10' },
@@ -54,14 +51,11 @@ export default function WHMatchingAssemblyPage() {
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
 
-  // ── โมดัลแก้ไข/เพิ่ม ───────────────────────────────────────────────────
   const [modalOpen, setModalOpen] = useState(false)
-  const [editId, setEditId] = useState(null) // null = เพิ่มใหม่
+  const [editId, setEditId] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
 
-  // แปลง error ให้ผู้ใช้เข้าใจง่าย — 404/405 = backend ยังไม่มี endpoint นี้
-  // (มักเกิดเมื่อยังไม่ได้ rebuild/restart backend หลังเพิ่มฟีเจอร์ Matching Assembly)
   function friendlyError(err, fallback) {
     if (err?.status === 404 || err?.status === 405) {
       return 'ยังไม่พบ API /matching-assembly ที่ฝั่งเซิร์ฟเวอร์ — ต้อง rebuild แล้ว restart backend ก่อน'
@@ -119,7 +113,6 @@ export default function WHMatchingAssemblyPage() {
     setForm((f) => ({ ...f, [key]: value }))
   }
 
-  // เลือก Assembly Parts Number จาก dropdown -> auto-fill Assembly Parts Name ให้ทันที
   function setAssemblyPartsNo(value) {
     const match = ASSEMBLY_PARTS_OPTIONS.find((o) => o.value === value)
     setForm((f) => ({
@@ -339,7 +332,6 @@ export default function WHMatchingAssemblyPage() {
         </>
       )}
 
-      {/* ── แก้ไข / เพิ่ม Matching Assembly ─────────────────────────────── */}
       {modalOpen && (
         <div className="wh-modal-overlay" onClick={closeModal}>
           <div className="wh-modal" onClick={(e) => e.stopPropagation()}>

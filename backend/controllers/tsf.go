@@ -20,8 +20,6 @@ func GetTSF(c *gin.Context) {
 	c.JSON(200, tsf)
 }
 
-// GetTSFByMachine returns the TSF checks already done for a machine — used
-// to badge each of the 5 part cards as "ตรวจแล้ว" (already checked) or not.
 func GetTSFByMachine(c *gin.Context) {
 
 	machineNo := c.Param("machineNo")
@@ -32,9 +30,6 @@ func GetTSFByMachine(c *gin.Context) {
 	c.JSON(200, rows)
 }
 
-// componentSpecField returns the merged MachineSpec's expected P/N and S/N
-// for a given part category. Only "it_controller" carries a separate P/N;
-// the rest are checked by S/N alone (matches the 5 upload button labels).
 func componentSpecField(spec models.MachineSpec, componentType string) (expectedPN string, expectedSN string) {
 	switch componentType {
 	case "it_controller":
@@ -56,15 +51,12 @@ type CreateTSFRequest struct {
 	ComponentType string `json:"ComponentType" binding:"required"`
 	Department    string `json:"Department"`
 	SerialNumber  string `json:"SerialNumber" binding:"required"`
-	ActualPartNo  string `json:"ActualPartNo"` // จำเป็นเฉพาะ it_controller
+	ActualPartNo  string `json:"ActualPartNo"`
 	InspectedBy   string `json:"InspectedBy" binding:"required"`
 	FileName      string `json:"FileName"`
 	PhotoURL      string `json:"PhotoURL"`
 }
 
-// CreateTSF: Scan Machine No. -> โหลด MachineSpec ของเครื่องนั้น -> เทียบค่าที่
-// สแกนได้กับ field ของหมวดที่เลือก -> PASS สร้างแถวใน QA ให้อัตโนมัติ,
-// FAIL ไม่สร้าง QA และคืนรายละเอียด mismatch กลับไปให้ frontend โชว์ error + RE-SCAN
 func CreateTSF(c *gin.Context) {
 
 	var req CreateTSFRequest
@@ -121,7 +113,6 @@ func CreateTSF(c *gin.Context) {
 		mismatchDetail = "P/N ไม่ตรงกับ Master Data (สแกนได้ \"" + scannedPN + "\" แต่ระบบคาดว่า \"" + expectedPN + "\")"
 	}
 
-	// เช็คว่าเคยตรวจหมวดนี้ของเครื่องนี้ไปแล้วหรือยัง (ไม่บล็อก แค่แจ้งเตือน)
 	var alreadyCount int64
 	config.DB.Model(&models.TSFOperator{}).
 		Where("machine_no = ? AND component_type = ?", req.MachineNo, req.ComponentType).
@@ -169,7 +160,7 @@ func CreateTSF(c *gin.Context) {
 			ActualPartNo:   scannedPN,
 			ExpectedSpec:   expectedSN,
 			ActualSpec:     scannedSN,
-			Result:         "", // รอ QA กด PASS/FAIL เอง (ขั้น QA ตรวจสอบและ Approve)
+			Result:         "",
 			UserID:         userID,
 		}
 		if err := config.DB.Create(&qa).Error; err == nil {
@@ -198,8 +189,6 @@ type UpdateTSFRequest struct {
 	FileName         string `json:"FileName"`
 }
 
-// UpdateTSF lets the TSF operator correct a scan they already submitted
-// (typo in S/N, wrong P/N, replace the photo, etc.) before QA confirms it.
 func UpdateTSF(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))

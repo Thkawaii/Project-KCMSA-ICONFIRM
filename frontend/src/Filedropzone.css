@@ -1,4 +1,3 @@
-/* ปุ่มเลือกไฟล์แบบลากวาง — โทนเดียวกับ Warehouse.css (teal var(--brand-500)) */
 
 .fdz {
   position: relative;
@@ -118,7 +117,6 @@
   display: none;
 }
 
-/* แถวเลือกไฟล์ + ปุ่มยืนยัน */
 .fdz-row {
   display: flex;
   align-items: center;

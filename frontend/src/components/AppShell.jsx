@@ -4,8 +4,6 @@ import { ArrowRightStartOnRectangleIcon } from './icons.jsx'
 import WHAlertBell from './WHAlertBell.jsx'
 import kobelcoLogo from '../assets/brand/kobelco-logo-white.png'
 
-// ป้ายชื่อ role ที่อ่านง่ายบน topbar (เดิมหน้าคลังส่งมาว่า "Warehouse" เหมือนกันหมด
-// จึงแยก WH Manager / WH User ให้ชัดจาก role จริงใน localStorage)
 const ROLE_LABELS = {
   ADMIN: 'Admin',
   LOG: 'LOG User',
@@ -22,16 +20,13 @@ export default function AppShell({ navItems, roleLabel, children }) {
 
   const role = (localStorage.getItem('iconfirm_role') || '').toUpperCase()
 
-  // กรองเมนูตามสิทธิ์: เมนูที่ระบุ roles ไว้จะโชว์เฉพาะ role ที่ตรง (ไม่ระบุ = โชว์ทุก role)
   const visibleNav = (navItems || []).filter((item) => !item.roles || item.roles.includes(role))
 
   const shownLabel = ROLE_LABELS[role] || roleLabel || 'User'
-  // ชื่อพนักงานจริงที่ล็อกอิน (จาก login) — ถ้าไม่มีก็ใช้ป้าย role แทน
   const personName = (localStorage.getItem('iconfirm_name') || '').trim()
   const displayName = personName || shownLabel
   const initial = (displayName || 'U').trim().charAt(0).toUpperCase() || 'U'
 
-  // กระดิ่งเตือนอายุใบอนุญาต (นำเข้า+ส่งออก รวมเป็นอันเดียว) แสดงเฉพาะ LOG (Logistic)
   const showLicenseBell = role === 'LOG'
 
   function handleLogout() {
@@ -67,8 +62,6 @@ export default function AppShell({ navItems, roleLabel, children }) {
       {visibleNav.length > 1 && (
         <nav className="shell-subnav" aria-label="เมนูภายในระบบ">
           {visibleNav.map((item) => {
-            // ป้ายเมนูปรับตาม role ได้ (labelByRole) เช่น LOG เห็น "Part Checklist"
-            // ส่วน role อื่นยังเห็น item.label เดิม — ไม่ต้องแยกเมนู/หน้าเป็นคนละไฟล์
             const navLabel = (item.labelByRole && item.labelByRole[role]) || item.label
             return (
               <button

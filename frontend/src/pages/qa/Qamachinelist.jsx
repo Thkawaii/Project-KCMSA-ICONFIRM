@@ -24,7 +24,6 @@ import { buildStyledXlsxBlob, downloadBlob } from '../../lib/xlsx.js'
 
 const navItems = [{ to: '/qa', label: 'ตรวจสอบ QA', icon: <CheckCircleIcon className="size-4" /> }]
 
-// ป้ายผลเทียบใบอนุญาต — ตารางสรุปจะมีแต่ MATCH แต่แม็พเผื่อค่าอื่นไว้ด้วย
 function licenseMatchMeta(status) {
   switch (status) {
     case 'MATCH':
@@ -46,7 +45,6 @@ const dash = (v) => (v && String(v).trim() !== '' ? v : '—')
 
 const pad2 = (n) => String(n).padStart(2, '0')
 
-// ลงทะเบียนฟอนต์ Sarabun (รองรับภาษาไทย) ให้ jsPDF — ฟอนต์ default ของ jsPDF ไม่มีตัวไทย
 function registerThaiFont(doc) {
   doc.addFileToVFS('Sarabun-Regular.ttf', SARABUN_REGULAR_BASE64)
   doc.addFont('Sarabun-Regular.ttf', 'Sarabun', 'normal')
@@ -55,7 +53,6 @@ function registerThaiFont(doc) {
   doc.setFont('Sarabun', 'normal')
 }
 
-// แปลง URL รูปเป็น data URL เพื่อฝังลง PDF (ล้มเหลวได้ ไม่ทำให้การสร้าง PDF ทั้งฉบับพัง)
 async function fetchImageAsDataURL(url) {
   try {
     const res = await fetch(url)
@@ -72,8 +69,6 @@ async function fetchImageAsDataURL(url) {
   }
 }
 
-// ดึงรูปมาเป็น bytes (Uint8Array) + ชนิด (jpeg/png) เพื่อฝังลง .xlsx ผ่าน DrawingML
-// รองรับเฉพาะ jpeg/png (ชนิดอื่นคืน null เพื่อข้ามไป ไม่ให้ไฟล์เสีย) — ล้มเหลวได้เงียบ ๆ
 async function fetchImageForXlsx(url) {
   try {
     const res = await fetch(url)
@@ -84,7 +79,6 @@ async function fetchImageForXlsx(url) {
     if (t.includes('png')) ext = 'png'
     else if (t.includes('jpeg') || t.includes('jpg')) ext = 'jpeg'
     if (!ext) {
-      // เผื่อ server ไม่ส่ง Content-Type — เดาจากนามสกุลใน URL
       if (/\.png(\?|$)/i.test(url)) ext = 'png'
       else if (/\.jpe?g(\?|$)/i.test(url)) ext = 'jpeg'
     }
@@ -96,24 +90,19 @@ async function fetchImageForXlsx(url) {
   }
 }
 
-// หา format รูปจาก data URL (jsPDF ต้องระบุ format ให้ตรงตอน addImage)
-// jsPDF ฝังได้เฉพาะ JPEG/PNG — ถ้าเป็นชนิดอื่น (webp, gif ฯลฯ) คืน null เพื่อให้ข้ามไป
-// จะได้ไม่เสี่ยงทำให้ไฟล์ PDF พัง
 function imageFormatFromDataURL(dataUrl) {
   const m = /^data:image\/(\w+);base64,/.exec(dataUrl || '')
   if (!m) return null
   const ext = m[1].toLowerCase()
   if (ext === 'jpg' || ext === 'jpeg') return 'JPEG'
   if (ext === 'png') return 'PNG'
-  return null // ชนิดที่ jsPDF ฝังไม่ได้ — ข้าม
+  return null
 }
 
-// วันที่วันนี้ในรูปแบบ YYYY-MM-DD (ตามเวลาเครื่องผู้ใช้) — ใช้กับ <input type="date">
 function toYMD(d) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
 
-// ป้ายวันที่ภาษาไทยจากสตริง YYYY-MM-DD (เช่น "6 สิงหาคม 2569")
 function thaiDateLabel(ymd) {
   const [y, m, d] = ymd.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString('th-TH', {
@@ -123,19 +112,14 @@ function thaiDateLabel(ymd) {
   })
 }
 
-// ดาวน์โหลด PDF แบบทนทาน — เดสก์ท็อปใช้ลิงก์ดาวน์โหลดปกติ,
-// มือถือ/เว็บวิวบางตัวสั่งดาวน์โหลด blob แล้วได้ไฟล์ว่าง จึงเปิดในแท็บใหม่ให้แทน
-// (ผู้ใช้กดบันทึก/แชร์/พิมพ์จากตัวเปิด PDF ได้เอง)
 function savePdf(doc, filename) {
   const blob = doc.output('blob')
   const url = URL.createObjectURL(blob)
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
 
   if (isMobile) {
-    // เปิดในแท็บ/ตัวอ่าน PDF ของเครื่อง — เชื่อถือได้กว่าการสั่งดาวน์โหลดตรงๆ บนมือถือ
     const win = window.open(url, '_blank')
     if (!win) {
-      // ป็อปอัปโดนบล็อก → ถอยไปใช้ลิงก์ดาวน์โหลด
       const a = document.createElement('a')
       a.href = url
       a.download = filename
@@ -152,7 +136,6 @@ function savePdf(doc, filename) {
     a.remove()
   }
 
-  // เผื่อตัวอ่าน PDF ยังต้องใช้ URL อยู่ ค่อยคืนหน่วยความจำหลังผ่านไปสักครู่
   setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
@@ -160,8 +143,8 @@ export default function QAMachineList() {
   const [confirmedRows, setConfirmedRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
-  const [photoView, setPhotoView] = useState(null) // URL รูปที่กำลังเปิดดู
-  const [detailRow, setDetailRow] = useState(null) // แถวที่กำลังเปิดดู modal รายละเอียด (ใคร-สแกน/ประกอบ)
+  const [photoView, setPhotoView] = useState(null)
+  const [detailRow, setDetailRow] = useState(null)
 
   const [search, setSearch] = useState('')
   const [pageSize, setPageSize] = useState(10)
@@ -169,12 +152,8 @@ export default function QAMachineList() {
   const [exportingPDF, setExportingPDF] = useState(false)
   const [exportingExcel, setExportingExcel] = useState(false)
 
-  // ตัวกรองช่วงเวลา (อิงวันที่ WH ยืนยัน) — เลือกได้ตามใจ ไม่บังคับ
-  //   periodMode  = 'all' | 'day' | 'week' | 'month' | 'year'
-  //   periodAnchor = วันอ้างอิง 'YYYY-MM-DD' (โหมด != all ใช้ระบุว่าช่วงไหน)
-  // 'all' = ออก Check Sheet ของทุกวันรวมกัน / โหมดอื่น = เฉพาะช่วงที่เลือก
   const [periodMode, setPeriodMode] = useState('all')
-  const [periodAnchor, setPeriodAnchor] = useState('') // 'YYYY-MM-DD' หรือ ''
+  const [periodAnchor, setPeriodAnchor] = useState('')
 
   async function loadConfirmed() {
     setLoading(true)
@@ -193,7 +172,6 @@ export default function QAMachineList() {
     loadConfirmed()
   }, [])
 
-  // รีเฟรชทุกครั้งที่กลับมาโฟกัสหน้านี้ (เผื่อ WH/MFG เพิ่งยืนยันเพิ่ม)
   useEffect(() => {
     function handleFocus() {
       loadConfirmed()
@@ -206,7 +184,6 @@ export default function QAMachineList() {
     setPage(1)
   }, [search, pageSize, periodMode, periodAnchor])
 
-  // ขอบเขตวันที่ที่มีข้อมูลจริง — ใช้กำหนด min/max ให้ปฏิทิน และปุ่ม "ล่าสุด"
   const dateBounds = useMemo(() => {
     let min = null
     let max = null
@@ -224,8 +201,6 @@ export default function QAMachineList() {
     setPeriodAnchor('')
   }
 
-  // เปลี่ยนโหมดช่วงเวลา — ถ้ายังไม่ได้เลือกวันอ้างอิง ให้ตั้งต้นเป็นวันล่าสุดที่มีข้อมูล
-  // (ไม่มีข้อมูลก็ใช้วันนี้) เพื่อให้ผู้ใช้เห็นผลทันทีโดยไม่ต้องกดปฏิทินก่อน
   function handlePeriodModeChange(next) {
     setPeriodMode(next)
     if (next !== 'all' && !periodAnchor) {
@@ -233,7 +208,6 @@ export default function QAMachineList() {
     }
   }
 
-  // ป้าย/ชื่อไฟล์ของช่วงที่เลือก — ใช้ซ้ำทั้งหัวเรื่อง PDF, ชื่อไฟล์, และคำอธิบาย
   const periodLabel = periodMode === 'all' ? 'ทั้งหมด' : periodRangeLabel(periodMode, periodAnchor)
   const periodTag = periodFileTag(periodMode, periodAnchor)
 
@@ -277,15 +251,12 @@ export default function QAMachineList() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize)
 
-  // Export เป็น PDF (Check Sheet) — สร้าง PDF จริงด้วย jsPDF + autoTable (ข้อความเป็น vector
-  // ไม่ใช่รูปถ่ายหน้าจอ) แล้วสั่งดาวน์โหลดไฟล์ทันที ไม่ต้องผ่านหน้าต่างพิมพ์ของเบราว์เซอร์
   async function handleExportPDF() {
-    const list = filtered // ส่งออกตามที่กรอง/ค้นหา/วันที่เลือกอยู่ (ทุกหน้า)
+    const list = filtered
     if (!list.length || exportingPDF) return
 
     setExportingPDF(true)
     try {
-      // ดึงรูปถ่ายทั้งหมดมาแปลงเป็น data URL ก่อน (ถ้าโหลดไม่สำเร็จ ข้ามรูปนั้นไปเฉยๆ ไม่ทำให้ทั้งไฟล์พัง)
       const photoDataUrls = await Promise.all(
         list.map((r) => (r.photoURL ? fetchImageAsDataURL(`${API_BASE_URL}${r.photoURL}`) : Promise.resolve(null)))
       )
@@ -332,7 +303,7 @@ export default function QAMachineList() {
         dash(r.itControllerNo),
         dash(r.exportCountry),
         licenseMatchMeta(r.matchStatus).label,
-        '', // รูปถ่ายวาดเองใน didDrawCell
+        '',
         'Matched',
       ])
 
@@ -383,7 +354,7 @@ export default function QAMachineList() {
           const dataUrl = photoDataUrls[data.row.index]
           if (!dataUrl) return
           const fmt = imageFormatFromDataURL(dataUrl)
-          if (!fmt) return // ชนิดรูปที่ฝังไม่ได้ — ข้าม ไม่ให้ไฟล์พัง
+          if (!fmt) return
           try {
             const pad = 1
             const size = Math.min(data.cell.height, data.cell.width) - pad * 2
@@ -391,12 +362,10 @@ export default function QAMachineList() {
             const y = data.cell.y + (data.cell.height - size) / 2
             doc.addImage(dataUrl, fmt, x, y, size, size)
           } catch {
-            // ข้ามรูปที่ฝังไม่สำเร็จ ไม่ทำให้ PDF ทั้งฉบับพัง
           }
         },
       })
 
-      // เส้นเซ็นชื่อท้ายเอกสาร — วางในหน้าสุดท้าย ถ้าที่ไม่พอให้ขึ้นหน้าใหม่
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
       let signY = doc.lastAutoTable.finalY + 18
@@ -428,22 +397,16 @@ export default function QAMachineList() {
     }
   }
 
-  // Export เป็น Excel (.xlsx) — ตารางข้อมูล + รูปถ่ายฝังในเซลล์จริง เปิดใน Excel/Sheets แก้ต่อได้
-  // ใช้ตัวสร้าง .xlsx แบบไม่มี dependency (ดู lib/xlsx.js)
   async function handleExportExcel() {
-    const list = filtered // ส่งออกตามที่กรอง/ค้นหา/วันที่เลือกอยู่ (ทุกหน้า)
+    const list = filtered
     if (!list.length || exportingExcel) return
 
     setExportingExcel(true)
     try {
-      // ดึงรูปถ่ายทั้งหมดมาเป็น bytes ก่อน (โหลดไม่สำเร็จก็ข้ามรูปนั้นไป ไม่ทำให้ทั้งไฟล์พัง)
       const photos = await Promise.all(
         list.map((r) => (r.photoURL ? fetchImageForXlsx(`${API_BASE_URL}${r.photoURL}`) : Promise.resolve(null)))
       )
 
-      // columns กำหนด type ให้ตรงกับข้อมูลจริง เพื่อให้ xlsx.js จัด Alignment/Number
-      // Format ให้เหมาะสมอัตโนมัติ (number = ตัวเลขจริงกึ่งกลาง, center = ข้อความสั้น
-      // จัดกึ่งกลาง เช่น สถานะ/วันที่, text = ข้อความทั่วไปจัดชิดซ้าย, image = รูปในเซลล์)
       const columns = [
         { key: 'item', header: 'ITEM', type: 'number', width: 8 },
         { key: 'partName', header: 'Part Name', type: 'text' },
@@ -482,7 +445,6 @@ export default function QAMachineList() {
         invoiceNo: dash(r.invoiceNo),
         exportCountry: dash(r.exportCountry),
         matchStatus: licenseMatchMeta(r.matchStatus).label,
-        // Format วันที่ให้เป็นรูปแบบเดียวกันทุกแถว (ใช้ฟังก์ชันเดียวกับที่หน้าจอแสดงผล)
         confirmedAt: r.confirmedAt ? thaiDateLabel(toYMD(new Date(r.confirmedAt))) : '—',
         photo: photos[i] || null,
         status: 'Matched',
@@ -755,7 +717,6 @@ export default function QAMachineList() {
         )}
       </div>
 
-      {/* ── Lightbox ดูรูปถ่ายป้าย ───────────────────────────────────────── */}
       {photoView && (
         <div className="wh-modal-overlay" onClick={() => setPhotoView(null)}>
           <div
@@ -777,7 +738,6 @@ export default function QAMachineList() {
         </div>
       )}
 
-      {/* ── รายละเอียด: ใครสแกน (WH) / ใครประกอบ (MFG) ─────────────────────── */}
       {detailRow && (
         <div className="wh-modal-overlay" onClick={() => setDetailRow(null)}>
           <div className="wh-modal wh-detail-modal" onClick={(e) => e.stopPropagation()}>
@@ -800,7 +760,6 @@ export default function QAMachineList() {
               </div>
             </div>
 
-            {/* ข้อมูลชิ้นงานสั้น ๆ ให้รู้ว่ากำลังดูเครื่องไหน */}
             <div className="wh-detail-section">
               <span className="wh-detail-section-title">
                 <DocumentTextIcon className="size-4" /> ข้อมูลชิ้นงาน
@@ -827,7 +786,6 @@ export default function QAMachineList() {
 
             <div className="wh-detail-divider" />
 
-            {/* ตอนสแกน — ใครสแกนยืนยันฝั่งคลัง (WH / Part Confirmation) */}
             <div className="wh-detail-section">
               <span className="wh-detail-section-title">
                 <QrCodeIcon className="size-4" /> ตอนสแกน (ยืนยันคลัง — WH)
@@ -850,7 +808,6 @@ export default function QAMachineList() {
 
             <div className="wh-detail-divider" />
 
-            {/* ตอนประกอบ — ใครประกอบ/สแกนฝั่งผลิต (MFG / Assembly) */}
             <div className="wh-detail-section">
               <span className="wh-detail-section-title">
                 <WrenchScrewdriverIcon className="size-4" /> ตอนประกอบ (ผลิต — MFG)

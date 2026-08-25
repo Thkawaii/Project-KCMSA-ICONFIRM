@@ -10,8 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetWHConfirm lists confirms, optionally filtered by ?status=SENT|RECEIVED
-// (used by the TSF page to show what's still waiting to be received).
 func GetWHConfirm(c *gin.Context) {
 
 	var confirms []models.WHConfirm
@@ -34,10 +32,6 @@ type IssueWarehouseRequest struct {
 	Remark         string `json:"remark"`
 }
 
-// IssueWarehouse handles "จ่ายของ" from the Warehouse page:
-// validates Scan P/N against the row, records Scan S/N, decrements the
-// Warehouse row, writes a WHConfirm record (status SENT, waiting for TSF
-// to receive it), and logs the action.
 func IssueWarehouse(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))
@@ -63,7 +57,6 @@ func IssueWarehouse(c *gin.Context) {
 		return
 	}
 
-	// Scan P/N ต้องตรงกับของจริงในคลังก่อนถึงจะจ่ายได้
 	if req.ScannedPartNo != wh.PartNo {
 		c.JSON(400, gin.H{"message": "Scan P/N ไม่ตรงกับรายการนี้ (สแกนได้ " + req.ScannedPartNo + " แต่รายการคือ " + wh.PartNo + ")"})
 		return
@@ -113,9 +106,6 @@ type ReceiveTransferRequest struct {
 	Remark string `json:"remark"`
 }
 
-// ReceiveWHConfirm is the "TSF Receive Material" step: TSF marks a WH
-// transfer as physically received, closing the loop that IssueWarehouse
-// opened with TransferStatus "SENT".
 func ReceiveWHConfirm(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))

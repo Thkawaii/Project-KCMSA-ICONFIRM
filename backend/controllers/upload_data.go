@@ -16,34 +16,18 @@ import (
 	"gorm.io/gorm"
 )
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Upload Data — อัปโหลดไฟล์ Excel วางแผน/คลัง 4 ชนิด (Planning / WH1 / WH2 / Engine)
-//
-// ต่อยอดจากการอัปโหลด IT Controller / Machine Spec เดิม (ยังอยู่ครบ ไม่แตะ) โดย
-// เก็บทุก dataset ลงตารางเดียว models.UploadDataRow แล้วแยกด้วยคอลัมน์ Dataset
-//
-// แต่ละ dataset นิยาม "คอลัมน์มาตรฐาน" (udColumn) พร้อม alias ของหัวตาราง เพื่อจับคู่
-// กับไฟล์จริงที่หัวตารางอาจสะกดยาว/สั้น/สลับตำแหน่ง/มีภาษาอังกฤษปนไทยได้ ค่าที่อ่านได้
-// ถูกเก็บทั้งแถวเป็น JSON (คีย์ = Label ของคอลัมน์มาตรฐาน) และดึงคอลัมน์สำคัญออกมาไว้ค้น
-// ─────────────────────────────────────────────────────────────────────────────
 
-// udColumn = 1 คอลัมน์มาตรฐานของ dataset หนึ่ง
-//
-//	Label   ชื่อที่ใช้เป็นคีย์ใน DataJSON + หัวตาราง export (ต้องไม่ซ้ำภายใน dataset)
-//	Aliases หัวตารางในไฟล์ (normalize แล้ว) ที่แม็ปมาที่คอลัมน์นี้ ตัวแรกคือ alias หลัก
 type udColumn struct {
 	Label   string
 	Aliases []string
 }
 
-// udDataset = นิยามของไฟล์ 1 ชนิด
 type udDataset struct {
-	Columns []udColumn // เรียงตามลำดับที่อยากให้แสดง/ export
-	MinHits int        // จำนวนคอลัมน์ที่รู้จักขั้นต่ำ เพื่อยอมรับว่าแถวนั้นคือหัวตาราง
-	Anchors []string   // ต้องเจอ alias อย่างน้อย 1 ตัวในหัวตาราง (normalize แล้ว)
+	Columns []udColumn
+	MinHits int
+	Anchors []string
 }
 
-// col ช่วยประกาศ udColumn สั้นลง — alias ตัวแรก default มาจาก normalizeHeader(label)
 func col(label string, aliases ...string) udColumn {
 	all := make([]string, 0, len(aliases)+1)
 	all = append(all, normalizeHeader(label))
@@ -66,7 +50,6 @@ func dedupStrings(in []string) []string {
 	return out
 }
 
-// udDatasets — นิยามคอลัมน์ของทั้ง 4 ชนิด (ลำดับตามสเปกที่ได้รับมา)
 var udDatasets = map[string]udDataset{
 
 	models.DatasetPlanning: {
@@ -211,8 +194,6 @@ var udDatasets = map[string]udDataset{
 		},
 	},
 
-	// Assembly — บัญชีการประกอบ: จับคู่ Machine No + IT Controller เข้ากับรุ่น/สเปกรถ
-	// ใช้ฝั่ง MFG เพื่อบอกว่า IT Controller ตัวนี้ประกอบกับ Machine No นี้ = รถรุ่นไหน
 	models.DatasetAssembly: {
 		MinHits: 2,
 		Anchors: []string{"machineno", "itcontroller", "speccode", "assemblypartsname"},
@@ -229,7 +210,6 @@ var udDatasets = map[string]udDataset{
 	},
 }
 
-// udDatasetLabels — ป้ายแสดงผลของแต่ละ dataset (ใช้ในไฟล์ export + audit)
 var udDatasetLabels = map[string]string{
 	models.DatasetPlanning: "Planning",
 	models.DatasetWH1:      "WH1",
@@ -238,15 +218,6 @@ var udDatasetLabels = map[string]string{
 	models.DatasetAssembly: "Assembly",
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Change detection (ทำเหมือน Master Data / IT Controller) — สำหรับ preview
-//
-//   udDatasetKeyFields  = คอลัมน์ที่ใช้เป็น "business key" จับคู่แถวใหม่กับของเดิม
-//                         (ต้องตรงกับที่ fillUploadDataKeys ใช้เป็นคีย์จริง)
-//   udDatasetCoreFields = คอลัมน์ "ค่าหลัก" ถ้าเปลี่ยน = CHANGED (ต้องยืนยันก่อน)
-//                         ฟิลด์อื่นที่เปลี่ยน = UPDATED (อัปเดตทั่วไป)
-//   udDatasetKeyLabel   = ป้ายหัวคอลัมน์คีย์ที่โชว์ในตาราง preview
-// ─────────────────────────────────────────────────────────────────────────────
 var udDatasetKeyFields = map[string][]string{
 	models.DatasetPlanning: {"Machine"},
 	models.DatasetWH1:      {"Order No", "Parts No", "Work order"},
@@ -271,7 +242,6 @@ var udDatasetKeyLabel = map[string]string{
 	models.DatasetAssembly: "Machine No",
 }
 
-// uploadDataDiffKey สร้าง business key จากค่าในแถว (normalize: trim + lower)
 func uploadDataDiffKey(dataset string, data map[string]string) string {
 	fields := udDatasetKeyFields[dataset]
 	parts := make([]string, 0, len(fields))
@@ -281,8 +251,6 @@ func uploadDataDiffKey(dataset string, data map[string]string) string {
 	return strings.Join(parts, "|")
 }
 
-// buildStandardRowData แปลง raw 1 แถว → map{ Label: value } เฉพาะคอลัมน์มาตรฐาน
-// (ใช้ตอน preview เพื่อเทียบกับของเดิม — คืน anyValue=false ถ้าแถวว่างล้วน)
 func buildStandardRowData(ds udDataset, headerMap map[string]int, raw []string) (map[string]string, bool) {
 	data := map[string]string{}
 	occSeen := map[string]int{}
@@ -303,8 +271,6 @@ func buildStandardRowData(ds udDataset, headerMap map[string]int, raw []string) 
 	return data, anyValue
 }
 
-// buildHeaderIndex map หัวตารางไฟล์ (normalize แล้ว) -> เลข column
-// รองรับหัวตารางซ้ำกัน (เช่น Planning มี "Product Spec" 2 ช่อง) โดยเติม #n ต่อท้าย
 func buildHeaderIndex(headerRow []string) map[string]int {
 	idx := map[string]int{}
 	count := map[string]int{}
@@ -323,8 +289,6 @@ func buildHeaderIndex(headerRow []string) map[string]int {
 	return idx
 }
 
-// resolveColumn หา column index ในไฟล์ที่ตรงกับ udColumn (ไล่ตาม alias)
-// occ = ครั้งที่เท่าไรของ alias นั้น (>1 = คอลัมน์ซ้ำ เช่น Product Spec ช่องที่ 2)
 func resolveColumn(headerIdx map[string]int, c udColumn, occ int) (int, bool) {
 	for _, a := range c.Aliases {
 		key := a
@@ -338,11 +302,6 @@ func resolveColumn(headerIdx map[string]int, c udColumn, occ int) (int, bool) {
 	return -1, false
 }
 
-// withRuntimeAliases คืน dataset สำเนาที่เสริม alias จากตาราง ColumnAlias (ตั้งค่าตอนรัน)
-//
-// นี่คือหัวใจของการ "รองรับการเปลี่ยนชื่อ/สลับหัวคอลัมน์แบบไดนามิก" — เมื่อหน้างานเปลี่ยน
-// ชื่อหัวคอลัมน์ในไฟล์ ผู้ใช้สิทธิ์ UPLOAD เพิ่ม ColumnAlias (source=หัวใหม่, target=Label เดิม)
-// ได้ทันทีผ่านหน้าเว็บ โดยไม่ต้องแก้โค้ด udDatasets แล้ว build/deploy ใหม่
 func withRuntimeAliases(ds udDataset, dataset string) udDataset {
 	extra := loadColumnAliases(dataset)
 	if len(extra) == 0 {
@@ -361,11 +320,8 @@ func withRuntimeAliases(ds udDataset, dataset string) udDataset {
 	return ds
 }
 
-// extraColumnPrefix นำหน้าคีย์ของ "คอลัมน์นอกสเปก" (คอลัมน์ใหม่ที่ไฟล์เพิ่มมาเอง)
-// เพื่อให้แยกออกจากคอลัมน์มาตรฐานได้ชัดเจนทั้งในตารางและไฟล์ export
 const extraColumnPrefix = "[+] "
 
-// knownAliasSet รวม alias ที่ระบบรู้จักทั้งหมดของ dataset (normalize แล้ว)
 func knownAliasSet(ds udDataset) map[string]bool {
 	known := map[string]bool{}
 	for _, cdef := range ds.Columns {
@@ -376,9 +332,6 @@ func knownAliasSet(ds udDataset) map[string]bool {
 	return known
 }
 
-// captureExtraColumns เก็บ "คอลัมน์ที่ไฟล์เพิ่มเข้ามาใหม่/ไม่รู้จัก" ลงใน data ด้วย
-// เพื่อไม่ให้ข้อมูลหายเวลาไฟล์เปลี่ยน format (เดิมคอลัมน์นอกสเปกจะถูกทิ้งเงียบ ๆ)
-// คีย์ = extraColumnPrefix + ชื่อหัวคอลัมน์จริง ผู้ใช้จึงเห็นในตาราง/ไฟล์ export ได้เลย
 func captureExtraColumns(ds udDataset, headerRow, raw []string, data map[string]string) {
 	known := knownAliasSet(ds)
 	for j, cell := range headerRow {
@@ -400,8 +353,6 @@ func captureExtraColumns(ds udDataset, headerRow, raw []string, data map[string]
 	}
 }
 
-// collectExtraLabels รวบรวมคีย์ของคอลัมน์นอกสเปกที่โผล่ในชุดแถวที่โหลดมา (เรียงคงที่)
-// ใช้ต่อท้ายรายชื่อคอลัมน์มาตรฐาน เพื่อให้ตาราง/ไฟล์ export แสดงคอลัมน์ใหม่ด้วย
 func collectExtraLabels(rows []models.UploadDataRow, standard []string) []string {
 	std := map[string]bool{}
 	for _, l := range standard {
@@ -426,15 +377,6 @@ func collectExtraLabels(rows []models.UploadDataRow, standard []string) []string
 	return extras
 }
 
-// PreviewUploadDataMapping อ่านไฟล์แบบ "ทดลอง" (dry-run) โดยไม่บันทึกลง DB
-// แล้วรายงานว่าหัวคอลัมน์ในไฟล์แม็ปกับคอลัมน์มาตรฐานอย่างไร:
-//
-//	matched  = คอลัมน์มาตรฐานที่จับคู่กับไฟล์ได้ (พร้อมหัวคอลัมน์ต้นทางในไฟล์)
-//	missing  = คอลัมน์มาตรฐานที่ไฟล์นี้ "ไม่มี"
-//	extra    = หัวคอลัมน์ในไฟล์ที่ระบบ "ไม่รู้จัก" (คอลัมน์ใหม่/เปลี่ยนชื่อ)
-//
-// ใช้ก่อนอัปโหลดจริง เพื่อให้ผู้ใช้เห็นผลกระทบของการเปลี่ยน format และตัดสินใจว่า
-// จะเพิ่ม ColumnAlias ก่อนไหม — ตอบโจทย์ข้อ 1 โดยตรง
 func PreviewUploadDataMapping(c *gin.Context) {
 	dataset := strings.ToLower(strings.TrimSpace(c.Param("dataset")))
 	ds, ok := udDatasets[dataset]
@@ -482,7 +424,6 @@ func PreviewUploadDataMapping(c *gin.Context) {
 		}
 	}
 
-	// หัวคอลัมน์ในไฟล์ที่ระบบไม่รู้จัก
 	known := knownAliasSet(ds)
 	var extra []string
 	for _, cell := range rows[headerIdx] {
@@ -493,14 +434,11 @@ func PreviewUploadDataMapping(c *gin.Context) {
 		extra = append(extra, strings.TrimSpace(cell))
 	}
 
-	// ── Change detection (NEW / UNCHANGED / UPDATED / CHANGED) ──────────────────
-	// จับคู่แต่ละแถวใหม่กับของเดิมด้วย business key แล้วจำแนกสถานะ + เก็บค่า old→new
 	coreSet := map[string]bool{}
 	for _, f := range udDatasetCoreFields[dataset] {
 		coreSet[f] = true
 	}
 
-	// โหลดของเดิมทั้ง dataset แล้ว index ด้วย business key (parse DataJSON)
 	var existingJSON []string
 	config.DB.Model(&models.UploadDataRow{}).
 		Where("dataset = ?", dataset).Pluck("data_json", &existingJSON)
@@ -529,7 +467,6 @@ func PreviewUploadDataMapping(c *gin.Context) {
 
 	for i := headerIdx + 1; i < len(rows); i++ {
 		raw := rows[i]
-		// ข้ามแถวว่างล้วน + แถวคำอธิบาย (คอลัมน์แรกยาวผิดปกติ) เหมือนตอนอัปโหลดจริง
 		if len(raw) > 0 && len([]rune(raw[0])) > 60 {
 			continue
 		}
@@ -604,8 +541,6 @@ func PreviewUploadDataMapping(c *gin.Context) {
 	})
 }
 
-// findUploadDataHeader ไล่หาแถวหัวตารางใน 30 แถวแรก (ไฟล์จริงมักมีบรรทัดชื่อเรื่อง/
-// แถวว่างคั่นด้านบน) คืน index แถวหัวตาราง + header index ที่ normalize แล้ว
 func findUploadDataHeader(rows [][]string, ds udDataset) (int, map[string]int) {
 	limit := 30
 	if len(rows) < limit {
@@ -640,7 +575,6 @@ func findUploadDataHeader(rows [][]string, ds udDataset) (int, map[string]int) {
 	return -1, nil
 }
 
-// readUploadedRowsFromForm อ่านไฟล์ที่แนบมาเป็น [][]string (Excel เท่านั้น พอสำหรับหน้านี้)
 func readUploadedRowsFromForm(c *gin.Context) ([][]string, string, error) {
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
@@ -653,16 +587,6 @@ func readUploadedRowsFromForm(c *gin.Context) ([][]string, string, error) {
 	return rows, fileHeader.Filename, nil
 }
 
-// GetUploadData คืนรายการที่อัปโหลดไว้ กรองด้วย ?dataset= และ ?keyword= แบบแบ่งหน้า
-//
-//	?dataset=planning|wh1|wh2|engine   (จำเป็น — คนละชุดคอลัมน์กันคนละ dataset)
-//	?keyword=...                       ค้นจาก machine_no / lot_no / order_no / parts_no
-//	?page=1                            หน้าที่ (เริ่ม 1) — default 1
-//	?limit=100                         จำนวนแถวต่อหน้า — default 100, เพดาน 500
-//
-// ก่อนหน้านี้ดึงทั้ง dataset ในครั้งเดียว (เช่น WH1 มี ~16k แถว) ทำให้ query ช้า
-// (SELECT * ลาก DataJSON ทุกแถว) + payload หนักฝั่ง browser จึงเปลี่ยนเป็นแบ่งหน้า
-// พร้อมคืน total ให้ frontend ทำตัวแบ่งหน้าได้
 func GetUploadData(c *gin.Context) {
 
 	dataset := strings.ToLower(strings.TrimSpace(c.Query("dataset")))
@@ -671,7 +595,6 @@ func GetUploadData(c *gin.Context) {
 		return
 	}
 
-	// ── pagination params (กันค่าเพี้ยน) ──
 	page, _ := strconv.Atoi(strings.TrimSpace(c.Query("page")))
 	if page < 1 {
 		page = 1
@@ -684,9 +607,6 @@ func GetUploadData(c *gin.Context) {
 		limit = 500
 	}
 
-	// filter ร่วม (dataset + keyword) — ใช้ closure สร้าง query ใหม่แยกกันสำหรับนับ
-	// total กับดึงหน้าปัจจุบัน กัน clause (count/order/limit) รั่วข้ามกันเมื่อ reuse
-	// chain เดียว
 	kw := strings.TrimSpace(c.Query("keyword"))
 	applyFilter := func(q *gorm.DB) *gorm.DB {
 		q = q.Where("dataset = ?", dataset)
@@ -714,7 +634,6 @@ func GetUploadData(c *gin.Context) {
 		totalPages = int((total + int64(limit) - 1) / int64(limit))
 	}
 
-	// รายชื่อคอลัมน์ = คอลัมน์มาตรฐาน + คอลัมน์นอกสเปกที่พบในหน้านี้ (ถ้ามี)
 	columns := udDatasetColumnLabels(dataset)
 	columns = append(columns, collectExtraLabels(rows, columns)...)
 
@@ -729,7 +648,6 @@ func GetUploadData(c *gin.Context) {
 	})
 }
 
-// udDatasetColumnLabels คืนรายชื่อคอลัมน์ (ตามลำดับ) ให้ frontend เอาไปวางหัวตาราง
 func udDatasetColumnLabels(dataset string) []string {
 	ds := udDatasets[dataset]
 	labels := make([]string, 0, len(ds.Columns))
@@ -739,11 +657,6 @@ func udDatasetColumnLabels(dataset string) []string {
 	return labels
 }
 
-// UploadDataFile นำเข้าไฟล์ Excel ของ dataset ที่ระบุ (path param :dataset)
-//
-// พฤติกรรม "แทนที่ทั้งชุด": อัปโหลดไฟล์ใหม่ของ dataset ไหน = ล้างของเดิม dataset นั้น
-// แล้วใส่ของใหม่ทั้งหมด เพราะไฟล์เหล่านี้เป็น "สแนปช็อตแผน/คลังล่าสุด" ไม่ใช่ทะเบียน
-// สะสม การอัปโหลดทับจึงควรเห็นเฉพาะไฟล์ล่าสุด ไม่ปนของเก่า
 func UploadDataFile(c *gin.Context) {
 
 	dataset := strings.ToLower(strings.TrimSpace(c.Param("dataset")))
@@ -752,7 +665,6 @@ func UploadDataFile(c *gin.Context) {
 		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine | assembly)"})
 		return
 	}
-	// เสริม alias หัวคอลัมน์ที่ตั้งค่าไว้ตอนรัน (รองรับหน้างานเปลี่ยนชื่อ/เพิ่มหัวคอลัมน์)
 	ds = withRuntimeAliases(ds, dataset)
 
 	rows, fileName, err := readUploadedRowsFromForm(c)
@@ -782,7 +694,6 @@ func UploadDataFile(c *gin.Context) {
 	for i := headerIdx + 1; i < len(rows); i++ {
 		raw := rows[i]
 
-		// แถวว่างล้วน = ข้าม
 		empty := true
 		for _, cell := range raw {
 			if strings.TrimSpace(cell) != "" {
@@ -795,14 +706,11 @@ func UploadDataFile(c *gin.Context) {
 			continue
 		}
 
-		// แถวคำอธิบาย/legend (คอลัมน์แรกยาวผิดปกติ) = ข้าม
 		if len(raw) > 0 && len([]rune(raw[0])) > 60 {
 			skipped++
 			continue
 		}
 
-		// สร้าง map ค่า { Label: value } ตามคอลัมน์มาตรฐานของ dataset
-		// occSeen นับว่าแต่ละ alias โผล่กี่ครั้ง เพื่อจับคู่คอลัมน์ที่ซ้ำ (เช่น Product Spec)
 		data := map[string]string{}
 		occSeen := map[string]int{}
 		anyValue := false
@@ -814,8 +722,6 @@ func UploadDataFile(c *gin.Context) {
 			j, found := resolveColumn(headerMap, cdef, occ)
 			val := ""
 			if found && j < len(raw) {
-				// unwrapExcelText ถอดปลอก ="..." ที่ไฟล์ CSV (export จาก Excel) ครอบค่าไว้
-				// กัน IMEI/Serial โดนอ่านมาทั้ง =\"...\" — ไฟล์ .xlsx จะไม่มีปลอกนี้อยู่แล้ว
 				val = unwrapExcelText(raw[j])
 			}
 			data[cdef.Label] = val
@@ -824,10 +730,8 @@ func UploadDataFile(c *gin.Context) {
 			}
 		}
 
-		// เก็บคอลัมน์นอกสเปก (คอลัมน์ใหม่ที่ไฟล์เพิ่มมา) ไว้ด้วย ไม่ให้ข้อมูลหาย
 		captureExtraColumns(ds, rows[headerIdx], raw, data)
 		if !anyValue {
-			// เผื่อแถวมีค่าเฉพาะในคอลัมน์นอกสเปกล้วน
 			for _, v := range data {
 				if v != "" {
 					anyValue = true
@@ -860,9 +764,6 @@ func UploadDataFile(c *gin.Context) {
 		return
 	}
 
-	// อัปโหลดเพิ่ม = ต่อท้ายข้อมูลเดิม (ไม่ล้างทับของเก่า)
-	// กันแถวซ้ำเป๊ะ ๆ ด้วยการเทียบ DataJSON กับที่มีอยู่แล้ว (อัปโหลดไฟล์เดิมซ้ำ =
-	// ไม่เพิ่มซ้ำ) — json.Marshal ของ Go เรียงคีย์ map เสมอ จึงเทียบสตริงตรง ๆ ได้
 	existingSet := map[string]bool{}
 	var existingJSON []string
 	config.DB.Model(&models.UploadDataRow{}).
@@ -895,8 +796,6 @@ func UploadDataFile(c *gin.Context) {
 		return
 	}
 
-	// insert ทีละ batch — ตาราง 13 คอลัมน์ × แถวเยอะ จะทะลุลิมิต 65535 bind params
-	// ของ PostgreSQL ถ้ายัด statement เดียว (batch 1000 = ~13,000 params ปลอดภัย)
 	tx := config.DB.Begin()
 	if err := tx.CreateInBatches(&toInsert, 1000).Error; err != nil {
 		tx.Rollback()
@@ -916,7 +815,6 @@ func UploadDataFile(c *gin.Context) {
 	})
 }
 
-// fillUploadDataKeys ดึงคอลัมน์สำคัญออกจาก data map มาไว้บนคอลัมน์จริง (ค้น/เรียง)
 func fillUploadDataKeys(row *models.UploadDataRow, dataset string, data map[string]string) {
 	switch dataset {
 	case models.DatasetPlanning:
@@ -939,7 +837,6 @@ func fillUploadDataKeys(row *models.UploadDataRow, dataset string, data map[stri
 	}
 }
 
-// DeleteUploadDataRow ลบทีละแถว
 func DeleteUploadDataRow(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))
@@ -965,9 +862,6 @@ func DeleteUploadDataRow(c *gin.Context) {
 	c.JSON(200, gin.H{"deleted": true})
 }
 
-// UpdateUploadDataRow แก้ไขข้อมูล 1 แถวของ dataset (Planning/WH1/WH2/Engine/Assembly)
-// body: { "data": { "ชื่อคอลัมน์มาตรฐาน": "ค่า", ... } } — เขียนทับ DataJSON ทั้งแถว
-// แล้ว sync คอลัมน์ค้น/เรียง (MachineNo/OrderNo/PartsNo/...) ให้ตรงกับค่าใหม่
 func UpdateUploadDataRow(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))
@@ -994,7 +888,6 @@ func UpdateUploadDataRow(c *gin.Context) {
 		return
 	}
 
-	// trim ค่าทุกช่อง แล้วเขียนทับทั้งแถว
 	clean := map[string]string{}
 	for k, v := range body.Data {
 		clean[strings.TrimSpace(k)] = strings.TrimSpace(v)
@@ -1003,7 +896,6 @@ func UpdateUploadDataRow(c *gin.Context) {
 	jsonBytes, _ := json.Marshal(clean)
 	row.DataJSON = string(jsonBytes)
 
-	// ล้างคีย์ค้น/เรียงเดิมก่อน sync ใหม่ (กันค่าค้างเมื่อผู้ใช้ลบค่าออกจากช่อง)
 	row.MachineNo = ""
 	row.LotNo = ""
 	row.OrderNo = ""
@@ -1023,7 +915,6 @@ func UpdateUploadDataRow(c *gin.Context) {
 	c.JSON(200, gin.H{"updated": true})
 }
 
-// ClearUploadData ล้างทั้ง dataset (ต้องส่ง ?dataset= มาเสมอ กันลบยกตาราง)
 func ClearUploadData(c *gin.Context) {
 
 	dataset := strings.ToLower(strings.TrimSpace(c.Query("dataset")))
@@ -1044,7 +935,6 @@ func ClearUploadData(c *gin.Context) {
 	c.JSON(200, gin.H{"deleted": res.RowsAffected})
 }
 
-// ExportUploadData ส่งออกไฟล์ Excel ของ dataset ที่ระบุ (?dataset=) ตามลำดับคอลัมน์มาตรฐาน
 func ExportUploadData(c *gin.Context) {
 
 	dataset := strings.ToLower(strings.TrimSpace(c.Query("dataset")))
@@ -1059,7 +949,6 @@ func ExportUploadData(c *gin.Context) {
 		Find(&rows)
 
 	labels := udDatasetColumnLabels(dataset)
-	// ต่อท้ายด้วยคอลัมน์นอกสเปก เพื่อไม่ให้คอลัมน์ใหม่หายตอน export
 	labels = append(labels, collectExtraLabels(rows, labels)...)
 
 	xl := excelize.NewFile()
@@ -1069,7 +958,6 @@ func ExportUploadData(c *gin.Context) {
 	}
 	xl.SetSheetName("Sheet1", sheet)
 
-	// เก็บเลขยาวเป็นข้อความ กัน Excel แปลงเป็น scientific notation ตอนเปิดไฟล์
 	textStyle, _ := xl.NewStyle(&excelize.Style{NumFmt: 49})
 
 	for col, h := range labels {

@@ -24,7 +24,6 @@ type ConfirmTSFRequest struct {
 	Remark string `json:"remark"`
 }
 
-// ConfirmTSF turns a raw TSFOperator scan into a confirmed TSFConfirm row.
 func ConfirmTSF(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))

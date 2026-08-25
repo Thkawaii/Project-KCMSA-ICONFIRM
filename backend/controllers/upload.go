@@ -10,9 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// UploadPhoto saves an uploaded image to ./uploads (served statically at
-// /uploads/... — see main.go) and returns the URL to store on whichever
-// record the photo belongs to (TSFOperator.PhotoURL, etc.)
 func UploadPhoto(c *gin.Context) {
 
 	fileHeader, err := c.FormFile("file")

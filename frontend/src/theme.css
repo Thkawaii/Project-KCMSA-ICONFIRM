@@ -1,18 +1,3 @@
-/* ============================================================================
-   theme.css — ชั้นตกแต่งด้วย Tailwind CSS v4
-   ----------------------------------------------------------------------------
-   ไฟล์นี้ต้อง import "ท้ายสุด" ใน main.jsx เสมอ เพราะทำหน้าที่ 3 อย่าง
-
-     1) ประกาศ design token (สี / ฟอนต์ / เงา / มุมโค้ง) ให้ Tailwind
-     2) สร้างคลาสกลาง .ui-* (ปุ่ม, การ์ด, alert, input, badge) ไว้ใช้กับหน้าใหม่
-     3) ทับสไตล์ของคลาสเดิม (.submit-btn, .wh-*, .fdz-*, .swal2-*) ให้หน้าเดิม
-        ทุกหน้าสวยขึ้นทันที โดยไม่ต้องแก้ JSX ทีละไฟล์
-
-   หมายเหตุ: ตั้งใจ "ไม่โหลด" preflight ของ Tailwind (ตัว reset) เพราะโปรเจกต์นี้
-   มี CSS เดิมอยู่ ~4,000 บรรทัด ถ้า reset ทั้งหมดหน้าเดิมจะเพี้ยน
-   ถ้าวันหนึ่งย้ายมาเป็น Tailwind ล้วนแล้ว ค่อยเปลี่ยน 3 บรรทัดล่างนี้เป็น
-   @import "tailwindcss";
-   ============================================================================ */
 
 @layer theme, base, components, utilities;
 @import 'tailwindcss/theme.css' layer(theme);
@@ -21,15 +6,10 @@
 @source './';
 @source '../index.html';
 
-/* ── 1. Design tokens ────────────────────────────────────────────────────── */
 @theme {
-  /* ฟอนต์: Latin = Inter, ไทย = IBM Plex Sans Thai (ตกไปใช้ตัวถัดไปอัตโนมัติ)
-     ตัวเลข serial / part no. ใช้ mono ให้อ่านทีละหลักได้ */
   --font-sans: 'Inter', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
 
-  /* แบรนด์ teal เดิม (#06e0d4) ขยายเป็นสเกลเต็ม
-     เฉดเข้ม 600–800 มีไว้ใช้กับ "ตัวอักษรบนพื้นขาว" ให้ผ่านเกณฑ์ contrast */
   --color-brand-50: #eafcfb;
   --color-brand-100: #cdf6f4;
   --color-brand-200: #9deeea;
@@ -40,10 +20,8 @@
   --color-brand-700: #0f8580;
   --color-brand-800: #146a66;
   --color-brand-900: #14504e;
-  /* หมึกบนพื้นแบรนด์ — ดู comment ใน styles.css (ต้องมีค่าตรงกับ --brand-ink) */
   --color-brand-ink: #06312f;
 
-  /* สีสถานะ — ใช้ชุดเดียวทั้งระบบ ทั้ง badge / alert / แถบผลสแกน */
   --color-ok-50: #ecfdf3;
   --color-ok-500: #12b76a;
   --color-ok-700: #027a48;
@@ -54,11 +32,9 @@
   --color-bad-500: #f04438;
   --color-bad-700: #b42318;
 
-  /* พื้นหลัง / เส้นขอบ */
   --color-canvas: #f2f5f8;
   --color-line: #e3e8ef;
 
-  /* เงาแบบซ้อนชั้น อ่อนกว่าเงาเดิมมาก (ของเดิมดำ 60% ทำให้ดูทึบ) */
   --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 8px 24px -14px rgb(16 24 40 / 0.22);
   --shadow-pop: 0 1px 2px rgb(16 24 40 / 0.06), 0 24px 48px -24px rgb(16 24 40 / 0.35);
   --shadow-press: inset 0 1px 0 rgb(255 255 255 / 0.18);
@@ -66,7 +42,6 @@
   --radius-ui: 0.75rem;
 }
 
-/* ── 2. ฐานร่วม ──────────────────────────────────────────────────────────── */
 @layer base {
   body {
     font-family: var(--font-sans);
@@ -74,7 +49,6 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* ตัวเลข part no. / serial / จำนวน ให้เรียงหลักตรงกันทุกแถวในตาราง */
   .tabular,
   td,
   th {
@@ -86,7 +60,6 @@
     color: var(--color-brand-900);
   }
 
-  /* scrollbar ให้กลืนไปกับพื้น ไม่แย่งสายตาบนหน้าที่มีตารางยาว */
   * {
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
@@ -116,9 +89,7 @@
   }
 }
 
-/* ── 3. คลาสกลางสำหรับหน้าใหม่ (.ui-*) ───────────────────────────────────── */
 @layer components {
-  /* ปุ่ม ------------------------------------------------------------------ */
   .ui-btn {
     @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border
            border-transparent px-4 py-2.5 text-sm leading-none font-semibold
@@ -181,7 +152,6 @@
     @apply w-full;
   }
 
-  /* การ์ด / แผง ---------------------------------------------------------- */
   .ui-card {
     @apply rounded-2xl border border-slate-200 bg-white;
     box-shadow: var(--shadow-card);
@@ -190,7 +160,6 @@
     @apply p-5 sm:p-6;
   }
 
-  /* หัวเรื่อง ------------------------------------------------------------- */
   .ui-title {
     @apply text-xl font-bold tracking-tight text-slate-900;
   }
@@ -201,7 +170,6 @@
     @apply text-brand-700 font-mono text-[11px] tracking-[0.14em] uppercase;
   }
 
-  /* ช่องกรอก -------------------------------------------------------------- */
   .ui-label {
     @apply mb-1.5 block text-[13px] font-semibold text-slate-700;
   }
@@ -228,7 +196,6 @@
     @apply mt-1.5 text-xs text-slate-500;
   }
 
-  /* ป้ายสถานะ ------------------------------------------------------------- */
   .ui-badge {
     @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold
            whitespace-nowrap;
@@ -249,7 +216,6 @@
     @apply bg-brand-50 text-brand-800;
   }
 
-  /* กรอบแจ้งเตือน — ใช้ "แถบสีด้านซ้าย" เป็นตัวบอกสถานะ อ่านออกเร็วแม้มองผ่าน */
   .ui-alert {
     @apply flex items-start gap-3 rounded-xl border border-l-4 px-4 py-3.5 text-sm
            leading-relaxed;
@@ -273,7 +239,6 @@
     @apply mt-0.5 flex size-5 shrink-0 items-center justify-center;
   }
 
-  /* ตาราง ----------------------------------------------------------------- */
   .ui-table-card {
     @apply overflow-hidden rounded-2xl border border-slate-200 bg-white;
     box-shadow: var(--shadow-card);
@@ -300,19 +265,12 @@
   }
 }
 
-/* ============================================================================
-   4. ทับสไตล์ของเดิม — เขียนนอก @layer โดยตั้งใจ
-      กฎที่อยู่นอก layer จะชนะกฎใน layer เสมอ จึงมั่นใจได้ว่าทับ CSS เก่าติด
-   ============================================================================ */
 
-/* ── โครงหน้า / topbar ───────────────────────────────────────────────────── */
 .shell {
   background: var(--color-canvas);
   font-family: var(--font-sans);
 }
 
-/* topbar ทุก role ใช้เทียลสว่าง #06e0d4 ล้วน (ไม่มี gradient — เดิมไล่ไป
-   brand-600 #00a39d ด้านขวาทำให้ดูเข้ม) ตรงกับ logo tile หน้า Login เป๊ะ */
 .shell-topbar,
 .wh-topbar {
   background: var(--color-brand-500);
@@ -322,8 +280,6 @@
   z-index: 40;
 }
 
-/* โลโก้ KOBELCO ตัวจริง (wordmark สีขาวพื้นโปร่ง) แทนป้ายตัวอักษรเดิม
-   ใช้กับ topbar ทุก role — ทั้ง .shell-topbar (AppShell) และ .wh-topbar (Dashboard) */
 .shell-topbar .brand-logo-topbar,
 .wh-topbar .brand-logo-topbar {
   height: 26px;
@@ -331,11 +287,9 @@
   display: block;
   flex-shrink: 0;
   user-select: none;
-  /* เงาบางๆ ให้ wordmark ลอยจากพื้นเทียลนุ่มๆ ไม่จมไปกับ gradient */
   filter: drop-shadow(0 1px 2px rgb(16 24 40 / 0.18));
 }
 
-/* เส้นคั่นบางๆ ระหว่างโลโก้กับชื่อระบบ ให้ดูเป็น lockup เดียวกัน */
 .shell-topbar .brand-divider-topbar,
 .wh-topbar .brand-divider-topbar {
   width: 1.5px;
@@ -351,7 +305,6 @@
   );
 }
 
-/* เผื่อยังมีป้ายตัวอักษรเดิมค้างที่ไหน ให้ซ่อนไม่ให้โผล่ */
 .shell-topbar .brand-badge,
 .wh-topbar .brand-badge {
   display: none;
@@ -409,9 +362,7 @@
   background: var(--color-brand-50);
 }
 
-/* ── ปุ่มทั้งหมดในระบบ ───────────────────────────────────────────────────── */
 
-/* ปุ่มหลัก: ลงชื่อเข้าใช้ / จ่ายของ / ยืนยันใน modal / อัปโหลด */
 .submit-btn,
 .wh-issue-btn,
 .wh-modal-confirm,
@@ -488,7 +439,6 @@
   cursor: not-allowed;
 }
 
-/* ปุ่มรอง: ยกเลิก / ปุ่มโปร่ง */
 .wh-modal-cancel,
 .itc-ghost-btn {
   display: inline-flex;
@@ -518,7 +468,6 @@
   transform: translateY(1px);
 }
 
-/* ปุ่มอันตราย: ลบรายการประวัติการสแกนที่ไม่พบในใบอนุญาต */
 .tsf-action-btn-danger,
 .tsf-action-btn-danger:hover:not(:disabled),
 .tsf-action-btn-danger:active:not(:disabled) {
@@ -529,7 +478,6 @@
   background: var(--color-bad-700);
 }
 
-/* ปุ่มเตือน (สีเหลือง): แก้ไขรูปถ่ายของรายการที่ตรงกับใบอนุญาตแล้ว */
 .tsf-action-btn-warn,
 .tsf-action-btn-warn:active:not(:disabled) {
   background: var(--color-warn-500);
@@ -540,7 +488,6 @@
   color: #fff;
 }
 
-/* ปุ่มอันตราย: แจ้งไม่ผ่าน */
 .qa-fail-btn {
   border-radius: 12px;
   border: 1px solid transparent;
@@ -558,7 +505,6 @@
   transform: translateY(1px);
 }
 
-/* แท็บ */
 .vr-tabs {
   background: #eef2f6;
   border-radius: 12px;
@@ -577,7 +523,6 @@
   box-shadow: 0 1px 2px rgb(16 24 40 / 0.1), 0 0 0 1px rgb(16 24 40 / 0.04);
 }
 
-/* ── ช่องกรอก ────────────────────────────────────────────────────────────── */
 .wh-search,
 .wh-modal-input,
 .upload-panel-select,
@@ -612,7 +557,6 @@
   box-shadow: 0 0 0 4px rgb(0 206 200 / 0.22);
 }
 
-/* ── การ์ด / ตาราง ───────────────────────────────────────────────────────── */
 .wh-table-card,
 .itc-card,
 .dash-stat-card,
@@ -651,12 +595,7 @@
   background: #f8fafc;
 }
 
-/* หมายเหตุ: สไตล์การ์ดล็อกอิน (.auth-card) ย้ายไปคุมที่ styles.css ทั้งหมดแล้ว
-   เพื่อให้ดีไซน์หน้า Login ใหม่ (กระจกฝ้า + เงาหลายชั้น + เส้น accent) ไม่ถูกทับ */
 
-/* ── กรอบแจ้งเตือน (alert) ───────────────────────────────────────────────
-   ทุกกล่องแจ้งเตือนใช้ภาษาเดียวกัน: แถบสีหนา 4px ด้านซ้าย + พื้นอ่อน
-   มองปราดเดียวรู้ว่าผ่าน / รอ / ไม่ผ่าน ────────────────────────────────── */
 .upload-card-msg,
 .il-result-bar,
 .itc-warn,
@@ -723,7 +662,6 @@
   color: #93370d;
 }
 
-/* toast มุมจอ */
 .wh-toast {
   border-radius: 12px;
   box-shadow: var(--shadow-pop);
@@ -737,7 +675,6 @@
   }
 }
 
-/* ป้ายสถานะเดิม */
 .il-badge {
   padding: 3px 10px;
   font-size: 11.5px;
@@ -757,7 +694,6 @@
   color: var(--color-bad-700);
 }
 
-/* ── modal ───────────────────────────────────────────────────────────────── */
 .wh-modal-overlay {
   background: rgb(15 23 42 / 0.45);
   backdrop-filter: blur(3px);
@@ -784,9 +720,6 @@
   }
 }
 
-/* ── กล่องอัปโหลด (FileDropZone) ─────────────────────────────────────────
-   สถานะลากไฟล์มาวางใช้ลายทางเฉียงแบบป้ายเตือนในโรงงาน — เป็นจุดเด่นจุดเดียว
-   ของธีมนี้ ที่เหลือเก็บให้เรียบทั้งหมด ────────────────────────────────── */
 .fdz {
   position: relative;
   display: flex;
@@ -867,7 +800,6 @@
   color: #64748b;
 }
 
-/* ป้ายนามสกุลไฟล์ */
 .fdz-badge {
   display: inline-flex;
   align-items: center;
@@ -889,7 +821,6 @@
   background: #b42318;
 }
 
-/* ปุ่ม "เลือกไฟล์" ในตัวกล่อง */
 .fdz-cta {
   flex: 0 0 auto;
   display: inline-flex;
@@ -935,7 +866,6 @@
   box-shadow: 0 0 0 3px rgb(240 68 56 / 0.25);
 }
 
-/* dropzone ตัวเก่าในหน้า Upload View */
 .upload-dropzone {
   border-radius: 14px;
   border: 1.5px dashed #cbd5e1;
@@ -955,7 +885,6 @@
   box-shadow: 0 0 0 4px rgb(0 206 200 / 0.22);
 }
 
-/* ── SweetAlert2 (popup สแกน / แจ้งผล) ──────────────────────────────────── */
 .swal2-popup {
   border-radius: 18px !important;
   padding: 26px 24px 22px !important;
@@ -995,7 +924,6 @@
   box-shadow: 0 0 0 4px rgb(0 206 200 / 0.22) !important;
 }
 
-/* ช่องสแกน: ใช้ฟอนต์ mono ตัวโต จัดกลาง อ่านรหัสยาว 15 หลักได้ทีละหลัก */
 .scan-popup-input {
   font-family: var(--font-mono) !important;
   font-size: 20px !important;
@@ -1032,7 +960,6 @@
   box-shadow: 0 0 0 4px rgb(0 206 200 / 0.35) !important;
 }
 
-/* ปุ่มยืนยันของกล่อง "ลบ" — ใช้สีอันตราย ไม่ใช่สีแบรนด์ เพราะเป็นงานที่กู้คืนไม่ได้ */
 .swal2-popup .swal2-styled.swal2-confirm.swal2-confirm-danger {
   background-color: var(--color-bad-500) !important;
   color: #fff !important;
@@ -1059,21 +986,11 @@
   font-weight: 500 !important;
 }
 
-/* ฉากหลังมืด+เบลอ ใช้กับ popup กลางจอเท่านั้น
-   สำคัญ: SweetAlert ใส่คลาส swal2-toast-shown ไว้ที่ <html>/<body> ไม่ใช่ที่
-   ตัว container (ดู addClasses$1 ใน sweetalert2.js) ตัวไลบรารีมีกฎ
-   body.swal2-toast-shown .swal2-container { background: transparent }
-   ของมันเองอยู่แล้ว แต่เดิมเราเขียน !important ทับไป toast เลยลากฉากหลัง
-   มืดทั้งจอมาด้วย — จึงต้องกันที่ body ไม่ใช่ที่ container */
 body:not(.swal2-toast-shown) .swal2-container.swal2-backdrop-show {
   background: rgb(15 23 42 / 0.45) !important;
   backdrop-filter: blur(3px);
 }
 
-/* toast มุมขวาบน
-   แถบนับเวลาของ SweetAlert default เป็น rgba(0,0,0,.3) จึงโผล่มาเป็นแถบเทา
-   ทึบใต้ข้อความ เปลี่ยนผ่านตัวแปรที่ไลบรารีเปิดให้ (เผื่อกรณีที่ selector
-   ของเราสู้ specificity ไม่ได้ ใส่กฎตรงๆ ซ้ำอีกชั้น) */
 .swal2-popup.swal2-toast {
   --swal2-timer-progress-bar-background: var(--color-brand-500);
   padding: 12px 16px !important;
@@ -1087,22 +1004,15 @@ body:not(.swal2-toast-shown) .swal2-container.swal2-backdrop-show {
   font-weight: 600 !important;
 }
 
-/* ── 5. คงพฤติกรรม responsive ของ CSS เดิมไว้ ────────────────────────────
-   กฎด้านบนอยู่ท้ายไฟล์จึงชนะ media query ของไฟล์เก่า ต้องประกาศซ้ำตรงนี้ */
 @media (max-width: 640px) {
   .fdz {
     padding: 14px;
     gap: 12px;
   }
   .fdz-cta {
-    display: none; /* จอเล็กแตะทั้งกล่องได้อยู่แล้ว ไม่ต้องมีปุ่มซ้ำ */
+    display: none;
   }
 
-  /* ── Toast บนมือถือ ──────────────────────────────────────────────────
-     ปัญหาเดิม: SweetAlert ตั้ง container ของ toast เป็น width: 360px วางชิด
-     มุมขวาบนสุด (inset: 0 0 auto auto) บนจอ ~380px จึงกว้างเกือบเต็มจอ ทับ
-     header/โลโก้ และดูยาวผิดสัดส่วน
-     แก้เป็น: แถบกะทัดรัดพอดีข้อความ เว้นระยะจากขอบบน/ขวา ไม่ทับ header */
   body.swal2-toast-shown .swal2-container {
     width: auto !important;
     max-width: calc(100vw - 24px) !important;
@@ -1116,16 +1026,12 @@ body:not(.swal2-toast-shown) .swal2-container.swal2-backdrop-show {
     width: auto !important;
     max-width: 100% !important;
   }
-  /* ลดช่องว่างระหว่างไอคอนกับข้อความให้เป็นแถบกะทัดรัด */
   .swal2-popup.swal2-toast .swal2-title {
     margin: 0.4em 0.85em 0.4em 0.25em !important;
   }
 }
 
 @media (max-width: 720px) {
-  /* เซลล์ปุ่มดำเนินการบนมือถือ: บังคับให้ปุ่มอยู่ "บรรทัดเดียวกัน" (ไม่ตกบรรทัด)
-     แล้วแบ่งความกว้างเท่า ๆ กัน — เดิมใช้ flex-wrap + ปุ่มกว้าง ทำให้ปุ่มที่ 2
-     ตกลงไปซ้อนใต้ปุ่มแรก (เช่น รายละเอียด / ลบ) */
   .wh-table tbody td.wh-cell-action {
     flex-wrap: nowrap;
     gap: 8px;
@@ -1149,7 +1055,6 @@ body:not(.swal2-toast-shown) .swal2-container.swal2-backdrop-show {
     white-space: nowrap;
   }
 
-  /* iOS จะซูมหน้าจอเองถ้าช่องกรอกเล็กกว่า 16px */
   .wh-search,
   .wh-modal-input,
   .itc-card input,
@@ -1163,16 +1068,10 @@ body:not(.swal2-toast-shown) .swal2-container.swal2-backdrop-show {
     top: 56px;
   }
 }
-/* ============================================================================
-   [FIX] ปุ่มในตาราง (รายละเอียด / แก้ไข / ลบ) ต้องอยู่ "บรรทัดเดียวกัน"
-   ทั้งเดสก์ท็อปและมือถือ — วางไว้ท้ายไฟล์สุด + ใช้ !important ให้ชนะทุกกฎเดิม/บิลด์เก่า
-   ถ้าแก้แล้วยังตกบรรทัด = เบราว์เซอร์/เซิร์ฟเวอร์ยัง cache ไฟล์ CSS เก่าอยู่
-   -> rebuild frontend ใหม่ แล้ว hard refresh (Ctrl/Cmd + Shift + R)
-   ========================================================================== */
 .wh-table tbody td.wh-cell-action {
   display: flex !important;
   flex-direction: row !important;
-  flex-wrap: nowrap !important;        /* ห้ามตกบรรทัด ทุกขนาดจอ */
+  flex-wrap: nowrap !important;
   align-items: center !important;
   gap: 8px !important;
 }
@@ -1180,13 +1079,12 @@ body:not(.swal2-toast-shown) .swal2-container.swal2-backdrop-show {
 .wh-table tbody td.wh-cell-action > button,
 .wh-table tbody td.wh-cell-action .tsf-action-btn,
 .wh-table tbody td.wh-cell-action .wh-issue-btn {
-  flex: 0 0 auto !important;           /* กว้างตามเนื้อหา ไม่ตกบรรทัด */
+  flex: 0 0 auto !important;
   width: auto !important;
   white-space: nowrap !important;
 }
 
 @media (max-width: 720px) {
-  /* มือถือ (การ์ด): ปุ่มแบ่งความกว้างเท่า ๆ กัน (ปุ่มละครึ่ง) เต็มความกว้างการ์ด */
   .wh-table tbody td.wh-cell-action {
     justify-content: stretch !important;
   }
@@ -1200,13 +1098,6 @@ body:not(.swal2-toast-shown) .swal2-container.swal2-backdrop-show {
   }
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   แก้บั๊ก: ปุ่มในคอลัมน์ดำเนินการ (.wh-cell-action) "ลอย" หลุดจากแถวเมื่อ
-   ตารางกว้างเกินจอแล้วเลื่อนแนวนอน (overflow-x) — เกิดจากการตั้ง td เป็น
-   display:flex ซึ่งทำให้เซลล์หลุดจาก table layout พอ container เลื่อน
-   วิธีแก้ (เฉพาะเดสก์ท็อป ≥721px): คืน td เป็น table-cell ปกติ จัดปุ่มบรรทัด
-   เดียวชิดขวา + กึ่งกลางแนวตั้ง (มือถือ ≤720px ยังใช้การ์ดเต็มความกว้างเหมือนเดิม)
-   ───────────────────────────────────────────────────────────────────────── */
 @media (min-width: 721px) {
   .wh-table tbody td.wh-cell-action {
     display: table-cell !important;

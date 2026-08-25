@@ -10,25 +10,14 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// hashPassword ใช้ bcrypt แปลง plaintext -> hash ก่อนเก็บลง DB เสมอ
-// (ห้ามเก็บ password เป็น plaintext แม้แต่ในข้อมูล seed สำหรับ dev)
 func hashPassword(plain string) string {
 	hash, err := bcrypt.GenerateFromPassword([]byte(plain), bcrypt.DefaultCost)
 	if err != nil {
-		// ไม่ควรเกิดขึ้นจริง (bcrypt.GenerateFromPassword พังแทบไม่มีทาง) แต่ถ้าพัง
-		// ให้ fail ดังๆ ตอน seed แทนที่จะแอบเก็บ plaintext ลง DB เงียบๆ
 		log.Fatalf("[seed] hash password ไม่สำเร็จ: %v", err)
 	}
 	return string(hash)
 }
 
-// MigratePlaintextPasswords แปลง password เก่าที่ยังเป็น plaintext อยู่ (จากก่อน
-// ที่ auth.go จะเปลี่ยนมาใช้ bcrypt) ให้เป็น bcrypt hash ทั้งหมด
-//
-// เช็คง่าย ๆ ว่า hash bcrypt ทุกตัวขึ้นต้นด้วย "$2a$"/"$2b$"/"$2y$" เสมอ
-// (plaintext ทั่วไปแบบ "wh.kobelco" ไม่มีทางขึ้นต้นแบบนี้) ถ้าเจอแถวไหนที่ยัง
-// ไม่ใช่ bcrypt hash ก็ hash แล้ว update กลับเข้าไปแทนที่ — รันซ้ำได้เรื่อย ๆ
-// ไม่มีผลข้างเคียง เพราะรอบถัดไปทุกแถวจะเป็น bcrypt hash แล้วเลยข้ามหมด
 func MigratePlaintextPasswords() {
 	var users []models.User
 	if err := DB.Find(&users).Error; err != nil {
@@ -55,7 +44,6 @@ func MigratePlaintextPasswords() {
 	}
 }
 
-// orgUser = สเปคผู้ใช้สำหรับ seed (idempotent) — ระบุ role/username/password/ชื่อ
 type orgUser struct {
 	Role     string
 	Username string
@@ -63,15 +51,7 @@ type orgUser struct {
 	Name     string
 }
 
-// SeedOrgUsers เติมผู้ใช้ทั้งหมดขององค์กร (admin + LOG + พนักงาน WH/MFG รายคน)
-// แบบ idempotent — รันทุกครั้งตอน start เพื่อให้ฐานข้อมูลเดิมที่ติดตั้งไปก่อนแล้ว
-// ได้ผู้ใช้ครบ โดยไม่สร้างซ้ำ (เช็คด้วยคู่ username+name)
-//
-// พนักงานในแผนกเดียวใช้ username ร่วมกัน (wh@kobelco.com / mfg@kobelco.com) แต่
-// แยกคนด้วยรหัสผ่านเฉพาะคน — ตอน login ระบบ match password เพื่อรู้ว่าใครสแกน
 func SeedOrgUsers() {
-	// 1) ย้าย role เดิม WH_MANAGER -> LOG (เปลี่ยนชื่อ role เป็นฝั่ง Logistic)
-	//    และแปลงบัญชี whmanage@ เดิมให้เป็น log@ ถ้ายังมีอยู่
 	DB.Model(&models.User{}).Where("role_name = ?", "WH_MANAGER").Update("role_name", "LOG")
 	DB.Model(&models.User{}).
 		Where("username = ?", "whmanage@kobelco.com").
@@ -82,12 +62,10 @@ func SeedOrgUsers() {
 			"password":  hashPassword("log.kobelco"),
 		})
 
-	// 2) รายชื่อผู้ใช้ที่ต้องมี
 	list := []orgUser{
 		{"ADMIN", "admin", "iconfirm", "Administrator"},
 		{"LOG", "log@kobelco.com", "log.kobelco", "LOG User"},
 
-		// ── WH (คลัง / คนหน้างานจ่าย) ──
 		{"WH", "wh@kobelco.com", "wh01.kobelco", "นายวสันต์ มีฤทธิ์"},
 		{"WH", "wh@kobelco.com", "wh02.kobelco", "นายอัมรินทร์ สุขแสวง"},
 		{"WH", "wh@kobelco.com", "wh03.kobelco", "นายบุญมี บุญทาทอง"},
@@ -95,7 +73,6 @@ func SeedOrgUsers() {
 		{"WH", "wh@kobelco.com", "wh05.kobelco", "นายกิตติศักดิ์ ศรีบุญเรือง"},
 		{"WH", "wh@kobelco.com", "wh06.kobelco", "นายอนันตเดช เอี่ยมสะอาด"},
 
-		// ── MFG (ฝ่ายผลิต / ประกอบ) ──
 		{"MFG", "mfg@kobelco.com", "mfg01.kobelco", "นายหนูวิน ใจเรา"},
 		{"MFG", "mfg@kobelco.com", "mfg02.kobelco", "นายวิชัย นิลนามะ"},
 		{"MFG", "mfg@kobelco.com", "mfg03.kobelco", "นายอนุกูล วงแสนสุข"},
@@ -191,39 +168,17 @@ func SeedData() {
 
 	DB.Create(&users)
 
-	// สำคัญ: หลัง DB.Create(&users) แล้ว GORM จะเติม ID จริงกลับเข้ามาใน
-	// slice users ให้อัตโนมัติ (users[0].ID, users[1].ID, ...) เอาไว้ผูกกับ
-	// UserID ของตารางอื่น — ถ้าไม่ทำแบบนี้ UserID จะเป็น 0 ตาม zero-value
-	// ของ Go แล้วชน FK constraint (fk_master_data_user, fk_qas_user ฯลฯ)
 
-	// ── Master Data / QA เริ่มต้น "ว่างเปล่า" ──────────────────────────────────
-	// ตามข้อกำหนด (ดูหมายเหตุใน config/database.go): ตอนเริ่มต้นระบบ Master Data
-	// ต้องว่างเปล่า และให้โหลดข้อมูลจริงผ่านการอัปโหลด Serial List / Master Data เท่านั้น
-	//
-	// แถวตัวอย่างของเดิม (IT Controller: YN02P00133F2G1 / J05ETG63544 และ
-	// Control Valve: CV001 / SN10001) รวมถึงแถว QA ตัวอย่างที่อ้างถึงมัน ถูกเอาออก
-	// ทั้งหมดตามที่ร้องขอ — ทะเบียน IT Controller ตัวจริง 36 เครื่องยังอยู่ใน
-	// SeedMasterITController() (เปิดด้วย env SEED_SAMPLE_ITC=1) ต่างหาก ไม่กระทบกัน
 }
 
-// SeedMasterITController เติมทะเบียน IT Controller 36 เครื่องตามเอกสาร TQ60610
-// ลงตาราง master_data
-//
-// ตั้งใจแยกออกมาจาก SeedData() เพราะ SeedData() จะ return ทิ้งทันทีถ้ามี user
-// อยู่แล้ว — ฐานข้อมูลที่ใช้งานอยู่จึงไม่มีวันได้ข้อมูลชุดนี้ ฟังก์ชันนี้เลย
-// ถูกเรียกทุกครั้งที่ start และเช็ครายตัวว่ามี Serial No. นั้นแล้วหรือยัง
-// จึงรันซ้ำกี่รอบก็ไม่เกิดข้อมูลซ้ำ
 func SeedMasterITController() {
 
-	// ผูกเจ้าของข้อมูลไว้กับ user ฝั่งคลัง เพราะคอลัมน์ user_id มี FK ไปตาราง
-	// users (fk_master_data_user) ใส่ 0 ไม่ได้ จะติด constraint
 	var owner models.User
 	if err := DB.Where("role_name = ?", "WH").First(&owner).Error; err != nil {
 		log.Println("[seed] ข้ามทะเบียน IT Controller: ยังไม่มี user role WH ในระบบ")
 		return
 	}
 
-	// ดึง serial ที่มีอยู่แล้วมาทีเดียว แล้วค่อยเติมเฉพาะตัวที่ยังขาด
 	var existing []string
 	DB.Model(&models.MasterData{}).
 		Where("component_type = ?", "it_controller").
@@ -264,8 +219,6 @@ func SeedMasterITController() {
 		return
 	}
 
-	// DoNothing กันกรณีที่ IT Controller no. หรือ IMEI ตัวนั้นถูกใส่ไว้แล้ว
-	// ด้วย serial คนละตัว — ให้ข้ามแถวนั้นแทนที่จะ error ทั้งชุด
 	if err := DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error; err != nil {
 		log.Println("[seed] เพิ่มทะเบียน IT Controller ไม่สำเร็จ:", err)
 		return

@@ -23,17 +23,10 @@ import './AppShell.css'
 import './ImportLicense.css'
 import './Filedropzone.css'
 import './Selectfield.css'
-// theme.css = ชั้น Tailwind + ธีมใหม่ ต้องอยู่ท้ายสุดเสมอ (ทับสไตล์เก่า)
 import './theme.css'
 
-// role_name ที่ backend ส่งมา (ดู seed.go): QA / WH / MFG / LOG / UPLOAD / ADMIN
-// role อื่น ๆ ที่ไม่ตรงกับ 4 ตัวนี้ (เช่น LOG, Coding) จะถูกส่งไป /dashboard เป็น fallback
-// หน้าแรกของแต่ละ role — ใช้ตัวเดียวกับ LoginPage (ดู lib/roleRoutes.js)
 const resolveHomeRoute = homeRouteForRole
 
-// ตารางหน้าทั้งหมดของระบบ + role ที่อนุญาต (roles: null = แค่ login ก็เข้าได้ ไม่จำกัด role)
-// หมายเหตุ: ค่า key พวกนี้ (เช่น '/warehouse') เป็นแค่ "ชื่อหน้า" ภายใน state เท่านั้น
-// ไม่ใช่ path จริงของ browser แล้ว — address bar จะไม่เปลี่ยนตามค่านี้อีกต่อไป
 const ROUTE_CONFIG = {
   '/login': { component: LoginPage, public: true },
   '/warehouse': { component: ImportLicensePage, roles: ['LOG'] },
@@ -51,8 +44,6 @@ const ROUTE_CONFIG = {
   '/ui-kit': { component: UiKitPage, roles: null },
 }
 
-// เช็คสิทธิ์จริงทุกครั้งที่มีการ "เปลี่ยนหน้า" (ไม่ว่าจะเปลี่ยนโดยคลิกเมนู หรือโดย state ใด ๆ)
-// ไม่มี token -> เด้งไป login เสมอ, role ไม่ตรงกับหน้าที่ขอ -> เด้งไป home ของ role ตัวเอง
 function resolveEffectiveView(requestedView) {
   const token = getToken()
   const role = (localStorage.getItem('iconfirm_role') || '').toUpperCase()
@@ -63,7 +54,6 @@ function resolveEffectiveView(requestedView) {
 
   const entry = ROUTE_CONFIG[requestedView]
   if (!entry) {
-    // ไม่รู้จักหน้านี้ -> ถ้า login แล้วพากลับ home ของตัวเอง ถ้ายัง -> login
     return token ? resolveHomeRoute(role) : '/login'
   }
 
@@ -79,8 +69,6 @@ function AppScreen() {
   const navigate = useAppNavigate()
   const effectiveView = resolveEffectiveView(requestedView)
 
-  // ถ้าหน้าที่ขอไม่ตรงกับสิทธิ์จริง ให้ sync state view ให้ตรงกับหน้าที่ถูกเด้งไปจริง ๆ
-  // (แค่ sync state ภายใน ไม่แตะ URL ใด ๆ ทั้งสิ้น)
   React.useEffect(() => {
     if (effectiveView !== requestedView) {
       navigate(effectiveView)
@@ -90,10 +78,6 @@ function AppScreen() {
   const entry = ROUTE_CONFIG[effectiveView] || ROUTE_CONFIG['/login']
   const Component = entry.component
 
-  // ── ป๊อปอัปแจ้งเตือนอายุใบอนุญาตประจำสัปดาห์ ──
-  // แสดงเฉพาะผู้ใช้ที่ล็อกอินแล้วและเป็น role LOG (คนเดียวกับที่เห็นกระดิ่งเตือน)
-  // วางไว้เป็น sibling ของหน้า -> mount ครั้งเดียวตอนเข้าระบบ และอยู่ข้ามหน้า
-  // (ไม่ remount ทุกครั้งที่สลับเมนู) ตัวป๊อปอัปเองคุมให้เด้ง "สัปดาห์ละครั้ง"
   const token = getToken()
   const role = (localStorage.getItem('iconfirm_role') || '').toUpperCase()
   const showWeeklyPopup = Boolean(token) && role === 'LOG' && effectiveView !== '/login'

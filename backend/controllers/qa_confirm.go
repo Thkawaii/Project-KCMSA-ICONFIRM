@@ -20,11 +20,10 @@ func GetQAConfirm(c *gin.Context) {
 }
 
 type ConfirmQARequest struct {
-	Result string `json:"result" binding:"required"` // "PASS" or "FAIL"
+	Result string `json:"result" binding:"required"`
 	Remark string `json:"remark"`
 }
 
-// ConfirmQA turns a pending QA comparison row into a confirmed QAConfirm row.
 func ConfirmQA(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))

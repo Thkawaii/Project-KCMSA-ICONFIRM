@@ -7,17 +7,6 @@ import {
 } from '../lib/dateRange.js'
 import './PeriodRangePicker.css'
 
-// ตัวเลือกช่วงเวลาใช้ซ้ำได้ — โหมด (ทั้งหมด/รายวัน/รายสัปดาห์/รายเดือน/รายปี)
-// + ปฏิทินเลือก "วันอ้างอิง" (anchor) เพื่อระบุว่าจะดู/Export ของช่วงไหน
-//
-// props:
-//   mode           'all' | 'day' | 'week' | 'month' | 'year'
-//   onModeChange   (mode) => void
-//   anchor         'YYYY-MM-DD' — วันอ้างอิง (โหมด != all ต้องมี)
-//   onAnchorChange (ymd) => void
-//   min / max      'YYYY-MM-DD' ขอบเขตปฏิทิน (ไม่ใส่ = ไม่จำกัด)
-//   label          ป้ายหัวข้อด้านซ้าย (เช่น "ช่วงเวลา")
-//   countLabel     ข้อความจำนวนผลลัพธ์ (แสดงต่อท้ายชิปช่วง) — ไม่ใส่ก็ได้
 export default function PeriodRangePicker({
   mode = 'all',
   onModeChange,

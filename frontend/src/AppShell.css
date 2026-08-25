@@ -1,4 +1,3 @@
-/* ===== AppShell: topbar + inline subnav (WH / TSF / QA) — no sidebar drawer ===== */
 
 .shell {
   min-height: 100vh;
@@ -113,7 +112,6 @@
   padding: 32px 28px 60px;
 }
 
-/* Inline sub-navigation (replaces the old drawer nav) */
 
 .shell-subnav {
   display: flex;
@@ -213,7 +211,6 @@
   }
 }
 
-/* จอแคบมาก (มือถือเล็ก) — ย่อกระดิ่ง/หัวข้อ/avatar ลงอีกให้ครบทุกปุ่มในบรรทัดเดียว */
 @media (max-width: 400px) {
   .shell-topbar {
     padding: 10px 12px;
@@ -244,7 +241,6 @@
   }
 }
 
-/* ===== Validation Results: filter tabs + expandable table ===== */
 
 .vr-tabs {
   display: inline-flex;
@@ -272,7 +268,6 @@
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
 
-/* ===== Upload View: single upload panel (category chosen via dropdown) ===== */
 
 .upload-panel {
   background: #ffffff;
@@ -339,9 +334,6 @@
   width: 100%;
 }
 
-/* ── การ์ดอัปโหลดแบบเต็มความกว้าง (หน้า Upload Master Data) ─────────────────
-   ตัวเดิม max-width 420px ทำให้เหลือที่ว่างด้านขวาเกือบครึ่งจอ ไม่สมดุลกับ
-   แถวการ์ดสรุปด้านล่างที่กว้างเต็ม — ตัวนี้แบ่งเป็น ช่องวางไฟล์ | คำอธิบาย+ปุ่ม */
 .upload-panel-wide {
   max-width: none;
   text-align: left;
@@ -351,10 +343,6 @@
   align-items: stretch;
 }
 
-/* grid item ทั้งสองต้องมี min-width: 0 — ค่าเริ่มต้นของ grid item คือ min-width: auto
-   ซึ่งหมายความว่าถ้าเนื้อหาข้างในหด/wrap ไม่ได้ (เช่นปุ่มสองปุ่มในแถวเดียวที่ข้อความยาว)
-   ตัว grid track จะยอมขยายกว้างเกิน 1fr ที่ตั้งไว้ ดันทั้งการ์ดล้นขวาจอ โดยเฉพาะบนมือถือ
-   ที่พับเป็น 1 คอลัมน์แล้วก็ยังล้นได้ถ้าไม่ตั้งค่านี้ */
 .upload-panel-wide .upload-panel-dropzone,
 .upload-panel-wide .upload-panel-side {
   min-width: 0;
@@ -362,8 +350,6 @@
   height: 100%;
 }
 
-/* ไอคอนเมฆอัปโหลดในหน้า Upload Master Data ใช้สีแบรนด์ #06e0d4 เป็นสีเน้น
-   (เดิมเป็นสีเทากลืนกับพื้น) — ตัวอักษร/กรอบ hover/ปุ่ม ใช้แบรนด์อยู่แล้ว */
 .upload-panel-wide .upload-dropzone svg {
   color: var(--brand-500);
 }
@@ -387,7 +373,6 @@
   margin-bottom: 4px;
 }
 
-/* ข้อความผลลัพธ์ให้กินเต็มสองคอลัมน์ ไม่ไปเบียดอยู่ในช่องเดียว */
 .upload-panel-wide > .upload-card-msg {
   grid-column: 1 / -1;
   text-align: left;
@@ -532,7 +517,6 @@
   margin: 4px 0 14px;
 }
 
-/* ===== TSF photo thumbnail + lightbox ===== */
 
 .tsf-thumb-btn {
   border: none;
@@ -586,7 +570,6 @@
   color: #b91c1c;
 }
 
-/* ===== TSF history: toolbar + pagination ===== */
 
 .tsf-history-toolbar {
   display: flex;
@@ -649,7 +632,6 @@
   padding: 0 6px;
 }
 
-/* ===== TSF detail/edit modal ===== */
 
 .tsf-detail-modal {
   background: #ffffff;
@@ -700,7 +682,6 @@
   max-height: 260px;
 }
 
-/* ===== TSF Scan-first: SCAN HERE hero + capture + result ===== */
 
 .scan-hero {
   display: flex;
@@ -769,7 +750,6 @@
   color: var(--brand-600);
 }
 
-/* การ์ดผลลัพธ์: PASS ใช้สีเขียว FAIL ใช้สีแดง (สื่อสถานะ ไม่ใช่สีแบรนด์) */
 .scan-result-pass .scan-result-icon {
   color: #16a34a;
 }

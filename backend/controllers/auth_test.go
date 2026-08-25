@@ -27,7 +27,6 @@ func TestLoginSuccessIssuesJWT(t *testing.T) {
 		t.Errorf("name = %v, want นายวสันต์", resp["name"])
 	}
 
-	// token ต้อง verify ได้ด้วย key เดียวกับ middleware
 	parsed, err := jwt.Parse(tokenStr, func(tk *jwt.Token) (interface{}, error) {
 		return middleware.JwtKey, nil
 	})
@@ -54,13 +53,11 @@ func TestLoginUnknownUser(t *testing.T) {
 	c, rec := newContext("POST", body, 0, "")
 	Login(c)
 
-	// ข้อความ/สถานะต้องเหมือนกรณี password ผิด (กันเดา username)
 	mustStatus(t, rec, 401)
 }
 
 func TestLoginSharedUsernameResolvesByPassword(t *testing.T) {
 	db := newTestDB(t)
-	// username เดียวกันหลายคน แยกด้วยรหัสผ่าน → ต้อง login เป็นคนที่รหัสผ่านตรง
 	makeUser(t, db, "wh@kobelco.com", "pass-A", "พนักงาน A", "WH")
 	makeUser(t, db, "wh@kobelco.com", "pass-B", "พนักงาน B", "WH")
 

@@ -16,9 +16,6 @@ type UserSummary struct {
 	RoleName string `json:"RoleName"`
 }
 
-// GetUsers lists active users (id/name/role only — never password), used to
-// populate "เลือกรายชื่อพนักงานที่ตรวจสอบ" and similar pickers.
-// Optional ?role=TSF to filter to one role.
 func GetUsers(c *gin.Context) {
 
 	var users []models.User
@@ -37,8 +34,6 @@ func GetUsers(c *gin.Context) {
 	c.JSON(200, summaries)
 }
 
-// ───────────────────────── Admin user management ────────────────────────────
-// ใช้เฉพาะ role ADMIN — ไม่ส่ง password กลับไปไม่ว่ากรณีใด
 
 type AdminUserView struct {
 	ID       uint   `json:"id"`
@@ -48,8 +43,6 @@ type AdminUserView struct {
 	Status   string `json:"status"`
 }
 
-// GetAdminUsers = รายชื่อผู้ใช้ทั้งหมด (ทุกสถานะ) สำหรับหน้าจัดการผู้ใช้ของ Admin
-// ?role=WH|MFG|... กรองตามแผนก, ?q= ค้นหาชื่อ/username
 func GetAdminUsers(c *gin.Context) {
 	var users []models.User
 	q := config.DB.Model(&models.User{})
@@ -80,8 +73,6 @@ type CreateUserRequest struct {
 	Status   string `json:"status"`
 }
 
-// CreateUser = เพิ่มผู้ใช้ใหม่ (Admin) — username ซ้ำกันได้ (คนละคนในแผนกเดียวกัน)
-// แต่กันไม่ให้ (username + password) ซ้ำกับคนเดิม เพราะจะแยกคนตอน login ไม่ได้
 func CreateUser(c *gin.Context) {
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -99,7 +90,6 @@ func CreateUser(c *gin.Context) {
 		req.Status = "Active"
 	}
 
-	// กัน password ซ้ำภายใน username เดียวกัน (ไม่งั้น login แยกคนไม่ออก)
 	var same []models.User
 	config.DB.Where("username = ?", req.Username).Find(&same)
 	for _, u := range same {
@@ -139,10 +129,9 @@ type UpdateUserRequest struct {
 	Name     string `json:"name"`
 	RoleName string `json:"role_name"`
 	Status   string `json:"status"`
-	Password string `json:"password"` // ถ้าเว้นว่าง = ไม่เปลี่ยนรหัสผ่าน
+	Password string `json:"password"`
 }
 
-// UpdateUser = แก้ไขผู้ใช้ (Admin) — ชื่อ/แผนก/สถานะ/รหัสผ่าน (เว้นว่างถ้าไม่เปลี่ยน)
 func UpdateUser(c *gin.Context) {
 	id := c.Param("id")
 	var user models.User
@@ -192,7 +181,6 @@ func UpdateUser(c *gin.Context) {
 	})
 }
 
-// DeleteUser = ลบผู้ใช้ (Admin) — กันลบตัวเอง
 func DeleteUser(c *gin.Context) {
 	id := c.Param("id")
 	adminID, adminName := lookupUserName(c)

@@ -13,24 +13,9 @@ import {
 } from './icons.jsx'
 import './LicenseWeeklyPopup.css'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LicenseWeeklyPopup — ป๊อปอัปสรุป "สถานะอายุใบอนุญาต" (นำเข้า + ส่งออก)
-//
-// พฤติกรรม:
-//   • เด้งขึ้นเอง "สัปดาห์ละครั้ง" เมื่อผู้ใช้ (role LOG) เข้าระบบครั้งแรกของสัปดาห์
-//     เข้าวันไหนก็ได้ในสัปดาห์นั้น จะเห็นแค่ครั้งเดียว (จำผ่าน weeklyPopupDismiss)
-//   • เด้งเฉพาะเมื่อมีใบ "หมดอายุ/ใกล้หมดอายุ" จริง ๆ — ถ้าไม่มีก็ไม่รบกวน
-//     และยัง "ไม่เผา" สิทธิ์ของสัปดาห์นั้น (ค่อยเด้งเมื่อมีรายการโผล่ในสัปดาห์เดียวกัน)
-//   • ไม่มีปุ่ม "เตือนอีกทีสัปดาห์หน้า" — เพราะระบบเตือนรายสัปดาห์ให้อยู่แล้ว
-//     มีแค่ปุ่มเดียว "ไปจัดการใบอนุญาต"
-//
-// การ์ด/สไตล์ยกเครื่องให้ smooth: หัวการ์ดไล่มินต์อ่อนบนพื้นขาว, มุมโค้ง 28px,
-//   ไอคอนวงกลมลอยตัว, ชิปพาสเทล 3 ช่อง, การ์ดรายการ hover ลอยขึ้น, ปุ่มไล่เขียวมินต์
-//   ทุก easing ใช้ cubic-bezier(0.22,1,0.36,1) ให้ลื่นเป็นธรรมชาติ
-// ─────────────────────────────────────────────────────────────────────────────
 
-const CLOSE_MS = 320 // ให้ตรงกับ transition ตอนปิดใน CSS
-const MAX_ROWS = 3 // แสดงรายการด่วนสุดกี่แถวในป๊อปอัป (ที่เหลือชี้ไปดูที่กระดิ่ง)
+const CLOSE_MS = 320
+const MAX_ROWS = 3
 
 const isAlert = (i) => i.Status === 'EXPIRED' || i.Status === 'EXPIRING'
 
@@ -40,11 +25,9 @@ export default function LicenseWeeklyPopup() {
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)
 
-  // โหลดข้อมูลรวมสองฝั่ง แล้วตัดสินใจว่าจะเด้งป๊อปอัปไหม (ครั้งเดียว ตอน mount)
   useEffect(() => {
     let alive = true
     async function load() {
-      // ถ้าสัปดาห์นี้เคยเห็นแล้ว ไม่ต้องยิง API ให้เปลืองเลย
       if (wasShownThisWeek()) return
 
       const [imp, exp] = await Promise.allSettled([
@@ -61,10 +44,8 @@ export default function LicenseWeeklyPopup() {
         .map((it) => ({ ...it, kind: 'export' }))
 
       const merged = [...impList, ...expList]
-      // ไม่มีอะไรต้องเตือน -> ไม่เด้ง และไม่เผาสิทธิ์ของสัปดาห์นี้
       if (merged.length === 0) return
 
-      // กันเด้งซ้ำ (เช่น StrictMode/สลับหน้า): เช็ค + ปั๊มความจำแบบ synchronous
       if (wasShownThisWeek()) return
       markShownThisWeek()
 
@@ -77,7 +58,6 @@ export default function LicenseWeeklyPopup() {
     }
   }, [])
 
-  // ปิดแบบนุ่ม: เล่นแอนิเมชันออกก่อน แล้วค่อยถอดออกจริง
   const handleClose = useCallback(() => {
     setClosing(true)
     const id = setTimeout(() => {
@@ -87,7 +67,6 @@ export default function LicenseWeeklyPopup() {
     return () => clearTimeout(id)
   }, [])
 
-  // ปิดด้วยปุ่ม Esc
   useEffect(() => {
     if (!open) return
     const onKey = (e) => {
@@ -100,7 +79,6 @@ export default function LicenseWeeklyPopup() {
   const { expired, expiring, total, rows } = useMemo(() => {
     const exp = items.filter((i) => i.Status === 'EXPIRED')
     const near = items.filter((i) => i.Status === 'EXPIRING')
-    // เรียงด่วนสุดก่อน: DaysLeft น้อย/ติดลบมากขึ้นมาก่อน
     const sorted = [...items].sort((a, b) => (a.DaysLeft ?? 0) - (b.DaysLeft ?? 0))
     return {
       expired: exp.length,
@@ -119,7 +97,6 @@ export default function LicenseWeeklyPopup() {
       ? `นำเข้า · Invoice ${it.InvoiceNo || '—'}${it.Model ? ` · ${it.Model}` : ''}`
       : `ส่งออก · Exception ${it.ExceptionLicense || '—'}`
 
-  // คลิกรายการ -> เปิดหน้าใบอนุญาตของฝั่งนั้น พร้อม auto-focus แถวที่คลิก
   const openItem = (it) => {
     handleClose()
     if (it.kind === 'import') {
@@ -155,7 +132,6 @@ export default function LicenseWeeklyPopup() {
         aria-labelledby="lwp-title"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── หัวการ์ด: ไล่มินต์อ่อนบนพื้นขาว ── */}
         <div className="lwp-head">
           <button className="lwp-close" onClick={handleClose} aria-label="ปิด">
             <XMarkIcon className="size-4" />
@@ -172,7 +148,6 @@ export default function LicenseWeeklyPopup() {
             สถานะอายุใบอนุญาต
           </h2>
 
-          {/* ── ชิปสรุป 3 ช่อง ── */}
           <div className="lwp-chips">
             <div className="lwp-chip lwp-chip-expired">
               <span className="lwp-chip-num">{expired}</span>
@@ -189,7 +164,6 @@ export default function LicenseWeeklyPopup() {
           </div>
         </div>
 
-        {/* ── รายการที่ต้องดำเนินการ ── */}
         <div className="lwp-body">
           <p className="lwp-section-label">รายการที่ต้องดำเนินการ</p>
 
@@ -239,7 +213,6 @@ export default function LicenseWeeklyPopup() {
           )}
         </div>
 
-        {/* ── ปุ่มหลักปุ่มเดียว ── */}
         <div className="lwp-foot">
           <button type="button" className="lwp-cta" onClick={goManage}>
             <span>ไปจัดการใบอนุญาต</span>

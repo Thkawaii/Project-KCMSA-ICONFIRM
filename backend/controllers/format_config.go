@@ -12,23 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Format Config controller — จัดการการรองรับ "การเปลี่ยน format" ตอนรัน
-//
-// 2 กลุ่มงาน:
-//   A) Column Alias  — หัวคอลัมน์ในไฟล์เปลี่ยน/เพิ่ม → แม็ปไปคอลัมน์มาตรฐานได้เอง
-//   B) Code Alias    — ค่า P/N / S/N / Machine No. เปลี่ยน format → แม็ปกลับไปทะเบียนกลาง
-//
-// ทั้งหมดใช้ helper ที่มีอยู่แล้วในแพ็กเกจ (normalizeHeader / unwrapExcelText /
-// readUploadedRowsFromForm / lookupUserName / CreateAuditLog) เพื่อพฤติกรรมสอดคล้องกับ
-// การนำเข้าไฟล์ส่วนอื่น ๆ
-// ─────────────────────────────────────────────────────────────────────────────
 
-// NormalizeCodeValue ทำค่ารหัส (P/N, S/N, Machine No.) ให้เป็นรูปเทียบมาตรฐานเดียวกัน
-//
-// ใช้ "เฉพาะตอนเปรียบเทียบ" ไม่ใช่ตอนแสดงผล — ตัดทุกอย่างที่ไม่ใช่ตัวอักษร/ตัวเลขทิ้ง
-// แล้วพิมพ์ใหญ่ทั้งหมด จึงทำให้ "KQ-3000 045093" / "kq3000045093" / "KQ3000045093"
-// ถือเป็นค่าเดียวกัน = รองรับการเปลี่ยน format แบบคอสเมติก (เว้นวรรค/ขีด/จุด/ตัวพิมพ์) เอง
 func NormalizeCodeValue(s string) string {
 	s = unwrapExcelText(strings.TrimSpace(s))
 	var b strings.Builder
@@ -40,8 +24,6 @@ func NormalizeCodeValue(s string) string {
 	return b.String()
 }
 
-// loadColumnAliases อ่าน ColumnAlias ของ scope หนึ่งออกมาเป็น map[Target][]normalizedSource
-// เพื่อเอาไปเสริม alias ของคอลัมน์มาตรฐานตอนอ่านไฟล์ (ดู withRuntimeAliases ใน upload_data.go)
 func loadColumnAliases(scope string) map[string][]string {
 	var rows []models.ColumnAlias
 	config.DB.Where("scope = ?", scope).Find(&rows)
@@ -58,11 +40,6 @@ func loadColumnAliases(scope string) map[string][]string {
 	return out
 }
 
-// loadColumnAliasReverse คืน map[normalizedSource]normalizedTarget สำหรับ scope หนึ่ง
-//
-// ใช้กับ importer ที่แม็ปคอลัมน์แบบ "หัวคอลัมน์ (normalize) → setter" เช่น import/export
-// license — ต่างจาก upload_data ที่แม็ปผ่านรายการ Aliases ของแต่ละคอลัมน์
-// ตัวนี้จึงให้ "ชื่อหัวในไฟล์ (ที่ถูกเปลี่ยน) → คีย์มาตรฐานที่ setter รู้จัก"
 func loadColumnAliasReverse(scope string) map[string]string {
 	var rows []models.ColumnAlias
 	config.DB.Where("scope = ?", scope).Find(&rows)
@@ -79,10 +56,6 @@ func loadColumnAliasReverse(scope string) map[string]string {
 	return out
 }
 
-// loadColumnAliasReverseMerged รวม reverse alias หลาย scope เข้าด้วยกัน
-// (scope ที่อยู่หลังจะทับ scope ที่อยู่หน้าเมื่อ key ชนกัน) — ใช้กับ master_data
-// ที่มีทั้ง scope รวม "master_data" (ทุกชนิด) + scope ราย component เช่น
-// "master_data:it_controller"
 func loadColumnAliasReverseMerged(scopes ...string) map[string]string {
 	out := map[string]string{}
 	for _, sc := range scopes {
@@ -96,8 +69,6 @@ func loadColumnAliasReverseMerged(scopes ...string) map[string]string {
 	return out
 }
 
-// aliasHeaderKey แปลหัวคอลัมน์ที่ normalize แล้วให้กลายเป็น "คีย์มาตรฐาน" ตาม ColumnAlias
-// ถ้าไม่มี alias ตรงกับ normHeader ก็คืนค่าเดิม (พฤติกรรมไม่เปลี่ยนกับไฟล์ปกติ)
 func aliasHeaderKey(reverse map[string]string, normHeader string) string {
 	if reverse == nil {
 		return normHeader
@@ -108,20 +79,6 @@ func aliasHeaderKey(reverse map[string]string, normHeader string) string {
 	return normHeader
 }
 
-// findDuplicateKnownColumns หา index ของ "คอลัมน์รู้จักที่ normalize แล้วซ้ำกับคอลัมน์ก่อนหน้า"
-//
-// ใช้กับ importer ที่แม็ปคอลัมน์แบบ header→setter (import/export license) ที่ลูปเดิมเป็น
-// last-wins — ถ้าไฟล์เผลอมี 2 คอลัมน์ที่ normalize แล้วเป็นช่องเดียวกัน (เช่น "Part No"
-// กับ "PartNo" หรือหัวซ้ำกันเป๊ะ) คอลัมน์ขวาจะทับคอลัมน์ซ้ายเงียบ ๆ และถ้าเซลล์ขวาว่าง
-// ก็จะล้างค่าดีทิ้ง
-//
-// คืน:
-//   - skip[col]=true สำหรับคอลัมน์รู้จักที่ซ้ำ (ตัวที่ 2 เป็นต้นไป) ให้ผู้เรียก "ข้าม" →
-//     กลายเป็น first-wins เหมือนที่ master_data ทำ
-//   - problems รายการคำเตือน (อิงชื่อหัวเดิมจากไฟล์) เตือนครั้งเดียวต่อคีย์
-//
-// isKnown บอกว่า key (normalize แล้ว) เป็นคอลัมน์มาตรฐานของ importer นั้นไหม
-// headerRow = แถวหัวตารางดิบ (ก่อน normalize) ไว้ทำข้อความให้อ่านง่าย
 func findDuplicateKnownColumns(headers []string, isKnown func(string) bool, headerRow []string) (map[int]bool, []string) {
 	skip := map[int]bool{}
 	seen := map[string]bool{}
@@ -151,21 +108,12 @@ func findDuplicateKnownColumns(headers []string, isKnown func(string) bool, head
 	return skip, problems
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// registryIndex — ดัชนีค่ารหัสที่ "มีอยู่จริงในระบบ" (normalize แล้ว) แยกตามชนิดช่อง
-// ไว้ตรวจว่า "Old (ค่าเดิม)" ของ Change Format Part มีของให้ชี้ไปหาจริงหรือไม่
-//
-// สร้างครั้งเดียวด้วย buildRegistryIndex() แล้ว hasOld() ได้เร็ว (map lookup) —
-// ตอนอัปโหลดหลายร้อยแถวจึงไม่ต้อง scan ตารางซ้ำทุกแถว
-//
-// รวมค่าจากทั้งทะเบียน IT Controller (ITControllerUnit) และทะเบียนกลาง (MasterData)
 type registryIndex struct {
-	machine map[string]bool // it_controller_no / imei / machine_no
-	sn      map[string]bool // serial_no (+ it_controller_no / imei เป็นทางเข้าสำรอง)
-	pn      map[string]bool // part_no
+	machine map[string]bool
+	sn      map[string]bool
+	pn      map[string]bool
 }
 
-// buildRegistryIndex อ่านค่ารหัสจากทะเบียนทั้งสอง มา normalize ใส่ map ครั้งเดียว
 func buildRegistryIndex() *registryIndex {
 	idx := &registryIndex{
 		machine: map[string]bool{},
@@ -178,7 +126,6 @@ func buildRegistryIndex() *registryIndex {
 		}
 	}
 
-	// 1) ทะเบียน IT Controller (unit 1 แถว = เครื่อง 1 เครื่อง)
 	var units []models.ITControllerUnit
 	config.DB.Select("it_controller_no", "imei", "serial_no", "part_no", "machine_no").Find(&units)
 	for _, u := range units {
@@ -191,7 +138,6 @@ func buildRegistryIndex() *registryIndex {
 		add(idx.pn, u.PartNo)
 	}
 
-	// 2) ทะเบียนกลาง MasterData (it_controller_no/imei เป็น *string จึง deref ก่อน)
 	var mds []models.MasterData
 	config.DB.Select("it_controller_no", "imei", "serial_no", "part_no").Find(&mds)
 	for _, m := range mds {
@@ -207,12 +153,6 @@ func buildRegistryIndex() *registryIndex {
 	return idx
 }
 
-// hasOld ตรวจว่า "Old (ค่าเดิม)" มีอยู่จริงในระบบไหม เทียบตามชนิด (kind)
-//
-//	machine (Machine No.) → it_controller_no / imei / machine_no
-//	sn      (S/N)         → serial_no / it_controller_no / imei
-//	pn      (P/N)         → part_no
-//	""      (ไม่ระบุ)      → เทียบทุกช่องข้างต้น
 func (idx *registryIndex) hasOld(kind, oldValue string) bool {
 	norm := NormalizeCodeValue(oldValue)
 	if norm == "" {
@@ -230,15 +170,10 @@ func (idx *registryIndex) hasOld(kind, oldValue string) bool {
 	}
 }
 
-// oldValueExistsInRegistry — helper สำหรับเช็คค่าเดียว (สร้าง index แล้วเช็คทันที)
-// ใช้ตอนกรอกมือ (เพิ่มทีละรายการ) — ตอนอัปโหลดหลายแถวให้สร้าง index ครั้งเดียวแล้ว
-// เรียก hasOld() เอง เพื่อไม่ให้ scan ตารางซ้ำทุกแถว
 func oldValueExistsInRegistry(kind, oldValue string) bool {
 	return buildRegistryIndex().hasOld(kind, oldValue)
 }
 
-// lookupCodeAlias ค้น CodeAlias จากค่ารหัสดิบที่หน้างานยิงมา (เทียบด้วย FromNorm)
-// componentType เว้นว่างได้ = ไม่กรองชนิด
 func lookupCodeAlias(componentType, rawCode string) *models.CodeAlias {
 	norm := NormalizeCodeValue(rawCode)
 	if norm == "" {
@@ -257,8 +192,6 @@ func lookupCodeAlias(componentType, rawCode string) *models.CodeAlias {
 	return nil
 }
 
-// lookupCodeAliasKind เหมือน lookupCodeAlias แต่กรองตาม kind (sn|pn|machine) เพิ่ม
-// ใช้ตอนต้องการเจาะจงว่าเป็นการ map ของ Machine No. เท่านั้น (กันไปชนกับ alias ของ S/N)
 func lookupCodeAliasKind(componentType, kind, rawCode string) *models.CodeAlias {
 	norm := NormalizeCodeValue(rawCode)
 	if norm == "" {
@@ -280,9 +213,7 @@ func lookupCodeAliasKind(componentType, kind, rawCode string) *models.CodeAlias 
 	return nil
 }
 
-// ===================== A) Column Alias =====================
 
-// GetColumnAliases คืนรายการ column alias ทั้งหมด กรองด้วย ?scope= ได้
 func GetColumnAliases(c *gin.Context) {
 	var rows []models.ColumnAlias
 	q := config.DB.Order("scope asc").Order("id asc")
@@ -293,7 +224,6 @@ func GetColumnAliases(c *gin.Context) {
 	c.JSON(200, rows)
 }
 
-// CreateColumnAlias เพิ่มการจับคู่หัวคอลัมน์ 1 รายการ
 func CreateColumnAlias(c *gin.Context) {
 	var in models.ColumnAlias
 	if err := c.ShouldBindJSON(&in); err != nil {
@@ -326,7 +256,6 @@ func CreateColumnAlias(c *gin.Context) {
 	c.JSON(201, in)
 }
 
-// DeleteColumnAlias ลบการจับคู่หัวคอลัมน์
 func DeleteColumnAlias(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -342,9 +271,7 @@ func DeleteColumnAlias(c *gin.Context) {
 	c.JSON(200, gin.H{"deleted": true})
 }
 
-// ===================== B) Code Alias =====================
 
-// GetCodeAliases คืนรายการ code alias ทั้งหมด กรองด้วย ?component_type= / ?kind= ได้
 func GetCodeAliases(c *gin.Context) {
 	var rows []models.CodeAlias
 	q := config.DB.Order("id asc")
@@ -358,7 +285,6 @@ func GetCodeAliases(c *gin.Context) {
 	c.JSON(200, rows)
 }
 
-// CreateCodeAlias เพิ่มการจับคู่ค่ารหัส 1 รายการ (คำนวณ FromNorm ให้เอง)
 func CreateCodeAlias(c *gin.Context) {
 	var in models.CodeAlias
 	if err := c.ShouldBindJSON(&in); err != nil {
@@ -377,8 +303,6 @@ func CreateCodeAlias(c *gin.Context) {
 	}
 	in.FromNorm = NormalizeCodeValue(in.FromCode)
 
-	// เช็คว่า "Old (ค่าเดิม)" มีอยู่จริงในระบบก่อน — ถ้าไม่มี ห้ามเพิ่ม
-	// (Machine No./S/N/P/N เดิมต้องมีอยู่ในทะเบียนก่อน จึงจะจับคู่ค่าใหม่ไปหาได้)
 	if !oldValueExistsInRegistry(in.Kind, in.ToSerialNo) {
 		c.JSON(400, gin.H{"message": "ไม่พบ Old (ค่าเดิม) \"" + in.ToSerialNo + "\" ในระบบ — ต้องมีค่าเดิมอยู่ในทะเบียนก่อนจึงจะเพิ่มได้"})
 		return
@@ -397,7 +321,6 @@ func CreateCodeAlias(c *gin.Context) {
 	c.JSON(201, in)
 }
 
-// DeleteCodeAlias ลบการจับคู่ค่ารหัส
 func DeleteCodeAlias(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -413,22 +336,17 @@ func DeleteCodeAlias(c *gin.Context) {
 	c.JSON(200, gin.H{"deleted": true})
 }
 
-// codeAliasFileColumns จับคู่หัวคอลัมน์ในไฟล์ (normalize แล้ว) กับฟิลด์ CodeAlias
-//
-// รองรับหัวตารางทั้งแบบเดิม (from_code / to_serial_no ฯลฯ) และแบบใหม่ที่ไฟล์ตัวอย่าง
-// ใช้แล้ว — "New (ค่าใหม่)" = ค่าใหม่ (FromCode) และ "Old (ค่าเดิม)" = ค่าเดิม (ToSerialNo)
-// เพื่อให้ดาวน์โหลดไฟล์ตัวอย่างไปกรอกแล้วอัปโหลดกลับได้ทันที
 var codeAliasFileColumns = map[string]func(*models.CodeAlias, string){
 	"fromcode":      func(a *models.CodeAlias, v string) { a.FromCode = v },
 	"from":          func(a *models.CodeAlias, v string) { a.FromCode = v },
-	"new":           func(a *models.CodeAlias, v string) { a.FromCode = v }, // New (ค่าใหม่)
+	"new":           func(a *models.CodeAlias, v string) { a.FromCode = v },
 	"oldcode":       func(a *models.CodeAlias, v string) { a.FromCode = v },
 	"newcode":       func(a *models.CodeAlias, v string) { a.FromCode = v },
 	"scancode":      func(a *models.CodeAlias, v string) { a.FromCode = v },
 	"toserialno":    func(a *models.CodeAlias, v string) { a.ToSerialNo = v },
 	"serialno":      func(a *models.CodeAlias, v string) { a.ToSerialNo = v },
 	"sn":            func(a *models.CodeAlias, v string) { a.ToSerialNo = v },
-	"old":           func(a *models.CodeAlias, v string) { a.ToSerialNo = v }, // Old (ค่าเดิม)
+	"old":           func(a *models.CodeAlias, v string) { a.ToSerialNo = v },
 	"topartno":      func(a *models.CodeAlias, v string) { a.ToPartNo = v },
 	"partno":        func(a *models.CodeAlias, v string) { a.ToPartNo = v },
 	"pn":            func(a *models.CodeAlias, v string) { a.ToPartNo = v },
@@ -438,15 +356,11 @@ var codeAliasFileColumns = map[string]func(*models.CodeAlias, string){
 	"note":          func(a *models.CodeAlias, v string) { a.Note = v },
 }
 
-// หัวตารางแบบใหม่ของไฟล์ตัวอย่าง (normalize แล้ว) — คำนวณครั้งเดียวตอนโหลดแพ็กเกจ
-// เพื่อไม่ต้องเดา byte ของภาษาไทยเอง: "New (ค่าใหม่)" → FromCode, "Old (ค่าเดิม)" → ToSerialNo
 var (
 	hdrChangeFormatNew = normalizeHeader("New (ค่าใหม่)")
 	hdrChangeFormatOld = normalizeHeader("Old (ค่าเดิม)")
 )
 
-// codeAliasSetterFor คืน setter ของหัวคอลัมน์ที่ normalize แล้ว รองรับทั้งหัวแบบใหม่
-// (New/Old ที่มีภาษาไทยกำกับ) และหัวแบบเดิมในตาราง codeAliasFileColumns
 func codeAliasSetterFor(header string) func(*models.CodeAlias, string) {
 	switch header {
 	case hdrChangeFormatNew:
@@ -460,7 +374,6 @@ func codeAliasSetterFor(header string) func(*models.CodeAlias, string) {
 	return nil
 }
 
-// findCodeAliasHeader หาแถวหัวตารางของไฟล์ code alias — ต้องเจอ from + to อย่างน้อย
 func findCodeAliasHeader(rows [][]string) (int, []string) {
 	limit := 30
 	if len(rows) < limit {
@@ -489,11 +402,6 @@ func findCodeAliasHeader(rows [][]string) (int, []string) {
 	return -1, nil
 }
 
-// UploadCodeAliases นำเข้า code alias จำนวนมากจากไฟล์ Excel/CSV ทีเดียว
-//
-// รูปแบบไฟล์ (หัวคอลัมน์แถวไหนก็ได้ใน 30 แถวแรก): from_code, to_serial_no,
-// [to_part_no], [component_type], [kind], [note]
-// เหมาะกับกรณีหน้างานส่งไฟล์ "รายการที่เปลี่ยน format" มาให้อัปเดตทีเดียว
 func UploadCodeAliases(c *gin.Context) {
 	rows, fileName, err := readUploadedRowsFromForm(c)
 	if err != nil {
@@ -511,15 +419,11 @@ func UploadCodeAliases(c *gin.Context) {
 		return
 	}
 
-	// ชนิดอะไหล่เริ่มต้น (ส่งมาจากหน้าที่กดอัปโหลด เช่น it_controller) — ใช้เติมให้แถวที่
-	// ไม่ได้ระบุ component_type มาในไฟล์ เพื่อให้รายการที่นำเข้าโผล่ในตารางของหน้านั้น
-	// (หน้า Change Format Part กรองด้วย component_type อยู่)
 	defaultComponentType := strings.TrimSpace(c.PostForm("component_type"))
 
 	userID, userName := lookupUserName(c)
 	now := time.Now()
 
-	// สร้างดัชนีทะเบียนครั้งเดียว ไว้เช็คว่า "Old (ค่าเดิม)" ของแต่ละแถวมีอยู่จริงไหม
 	registry := buildRegistryIndex()
 
 	var imported, updated, skipped int
@@ -551,15 +455,12 @@ func UploadCodeAliases(c *gin.Context) {
 		a.UserID = userID
 		a.UploadDate = now
 
-		// เช็คว่า "Old (ค่าเดิม)" มีอยู่จริงในระบบก่อน — ถ้าไม่มี ข้ามแถวนี้ + แจ้งเตือน
-		// (กติกาเดียวกับตอนกรอกมือ: ค่าเดิมต้องมีในทะเบียนก่อนจึงจะจับคู่ได้)
 		if !registry.hasOld(a.Kind, a.ToSerialNo) {
 			skipped++
 			problems = append(problems, a.FromCode+": ไม่พบ Old (ค่าเดิม) \""+a.ToSerialNo+"\" ในระบบ — ข้ามแถวนี้")
 			continue
 		}
 
-		// อัปเดตทับถ้ามี FromNorm เดิมอยู่แล้ว (ไฟล์เดิมยิงซ้ำจะไม่บาน)
 		var old models.CodeAlias
 		if err := config.DB.Where("from_norm = ?", a.FromNorm).First(&old).Error; err == nil {
 			if err := config.DB.Model(&models.CodeAlias{}).Where("id = ?", old.ID).

@@ -1,15 +1,9 @@
-/* ============================================================
-   Import License — บัญชีแนบใบอนุญาตนำเข้า + ผลการเทียบตอนสแกน
-   ใช้ร่วมกัน 2 หน้า: Importlicensepage.jsx และ Whpartconfirmationpage.jsx
-   ============================================================ */
 
-/* ── เลขยาว 12/15 หลัก อ่านง่ายขึ้นด้วยฟอนต์ mono ─────────────────────── */
 .il-mono {
   font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
   letter-spacing: 0.4px;
 }
 
-/* ── ป้ายสถานะ ───────────────────────────────────────────────────────── */
 .il-badge {
   display: inline-block;
   padding: 3px 10px;
@@ -44,7 +38,6 @@
   color: #64748b;
 }
 
-/* ── ชิปเลือกล็อต (ใบอนุญาต + อินวอยซ์) ──────────────────────────────── */
 .il-lot-row {
   display: flex;
   flex-wrap: wrap;
@@ -85,7 +78,6 @@
   color: #64748b;
 }
 
-/* ── แถบผลสแกนล่าสุด ─────────────────────────────────────────────────── */
 .il-result-bar {
   display: flex;
   flex-wrap: wrap;
@@ -118,7 +110,6 @@
   font-weight: 600;
 }
 
-/* ── แก้ไขรูปถ่าย (ถ่ายใหม่/อัปโหลดแทน) ในแถบผลสแกนล่าสุด ────────────── */
 .pc-photo-edit {
   display: flex;
   align-items: center;
@@ -163,7 +154,6 @@
   cursor: not-allowed;
 }
 
-/* ── โมดัลแก้ไข/เพิ่มรูป ฝั่ง MFG (เลือกถ่ายใหม่ / อัปโหลด) ─────────────── */
 .mfg-photo-modal {
   max-width: 380px;
 }
@@ -261,8 +251,6 @@
   color: #94a3b8;
 }
 
-/* วันที่อินวอยซ์ในส่วน LOG (Export License) — ชิปสีเขียวอมฟ้า (brand teal)
-   ให้เด่นและเข้าธีมแอป (เดิมเป็นเทาจาง มองข้ามง่าย / เคยลองสีเหลืองอำพันแล้วไม่เข้ากับธีม) */
 .il-invoice-date {
   display: inline-block;
   margin-top: 3px;
@@ -277,7 +265,6 @@
   letter-spacing: 0.2px;
 }
 
-/* ── Modal รายละเอียดใบอนุญาตส่งออก (แทน "การเชื่อมโยงของเครื่องนี้" เดิม) ── */
 .il-detail-modal {
   max-width: 560px;
   max-height: 88vh;
@@ -287,7 +274,6 @@
   overflow: hidden;
 }
 
-/* หัวโมดัล — อยู่กับที่ ไม่เลื่อนตามเนื้อหา */
 .il-detail-modal .wh-modal-title {
   margin: 0;
   padding: 20px 24px 14px;
@@ -295,7 +281,6 @@
   flex-shrink: 0;
 }
 
-/* เนื้อหาตรงกลาง — เลื่อนได้เมื่อข้อมูลยาวเกินจอ */
 .il-detail-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -306,7 +291,6 @@
   gap: 12px;
 }
 
-/* แถบปุ่มด้านล่าง — อยู่กับที่ */
 .il-detail-modal .wh-modal-actions {
   margin: 0;
   padding: 14px 24px;
@@ -314,7 +298,6 @@
   flex-shrink: 0;
 }
 
-/* ภายใน body ใช้ gap จัดระยะแล้ว จึงล้าง margin ซ้ำของการ์ด/กลุ่ม */
 .il-detail-body .il-detail-card {
   margin-top: 0;
 }
@@ -323,7 +306,6 @@
   margin-top: 0;
 }
 
-/* การ์ดข้อมูลหลักของเครื่อง */
 .il-detail-card {
   padding: 14px 16px;
   background: var(--color-brand-50, #eafcfb);
@@ -331,7 +313,6 @@
   border-radius: 12px;
 }
 
-/* ตารางคู่ label/value 2 คอลัมน์ (พับเป็น 1 คอลัมน์บนจอแคบ) */
 .il-detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -359,7 +340,6 @@
   word-break: break-word;
 }
 
-/* กลุ่มข้อมูลที่เชื่อมโยงได้ (แสดงเฉพาะที่มีข้อมูลจริง) */
 .il-detail-links {
   margin-top: 14px;
   display: flex;
@@ -383,7 +363,6 @@
   border-bottom: 1px dashed #cbd5e1;
 }
 
-/* สถานะอายุในหน้ารายละเอียด — ป้ายสถานะ + วันคงเหลือ วางแนวนอน */
 .il-detail-status {
   display: inline-flex;
   align-items: center;
@@ -407,9 +386,6 @@
   color: #b42318;
 }
 
-/* ปุ่มในเซลล์ action ของตาราง Import/Export License (รายละเอียด + ลบ)
-   จัดให้กว้างเท่ากันด้วย grid 2 ช่องเท่ากัน — ช่อง "ลบ" จะกว้างเท่า "รายละเอียด"
-   (บนมือถือกฎ .wh-cell-action > div เดิมจะ override เป็น flex เต็มแถวให้อยู่แล้ว) */
 .il-row-actions {
   display: inline-grid;
   grid-template-columns: 1fr 1fr;
@@ -423,9 +399,6 @@
   text-align: center;
 }
 
-/* ── รองรับมือถือ ─────────────────────────────────────────────────────────
-   จอแคบ (≤640px): โมดัลกินเต็มความกว้างโดยเว้นขอบเล็กน้อย, ลด padding ภายใน,
-   ใช้ dvh เพื่อไม่ให้แถบ address bar ของ Safari ดันเนื้อหาล้น */
 @media (max-width: 640px) {
   .il-detail-modal {
     max-width: calc(100% - 24px);
@@ -461,15 +434,12 @@
   }
 }
 
-/* จอแคบมาก (≤480px): เลขยาว (หมายเลขเครื่อง/การผลิต) จะชนกันถ้าแบ่ง 2 คอลัมน์
-   จึงยุบเหลือคอลัมน์เดียว อ่านง่ายและไม่ตัดคำกลางตัวเลข */
 @media (max-width: 480px) {
   .il-detail-grid {
     grid-template-columns: 1fr;
   }
 }
 
-/* แถบเด่นรุ่นรถ ในโมดัลรายละเอียดการประกอบ (ฝั่ง MFG) */
 .mfg-detail-hero {
   display: flex;
   flex-direction: column;
@@ -500,10 +470,6 @@
   word-break: break-word;
 }
 
-/* ── ปรับ layout โมดัล "รายละเอียดการประกอบ" (MFG) ให้โปร่งขึ้น ────────────
-   เดิม label/value อยู่ชิดกันจนดูชน โดยเฉพาะข้อความไทยที่มีวรรณยุกต์บน-ล่าง
-   จึงเพิ่มระยะห่างแนวตั้ง + line-height เฉพาะโมดัลนี้ (ไม่กระทบโมดัลอื่นที่ใช้
-   คลาส il-detail-* ร่วมกัน) */
 .mfg-assembly-detail .mfg-detail-hero {
   gap: 4px;
   padding: 16px 18px;
@@ -535,7 +501,6 @@
   line-height: 1.4;
 }
 
-/* รุ่นรถที่เชื่อมโยงจากทะเบียน Assembly (แสดงในตาราง MFG) */
 .mfg-model-link {
   display: inline-block;
   font-weight: 600;
@@ -548,7 +513,6 @@
   white-space: nowrap;
 }
 
-/* Model เป็นปุ่มกดดูรายละเอียดได้ (รีเซ็ตสไตล์ปุ่มให้เหมือนชิปเดิม) */
 .mfg-model-link-btn {
   cursor: pointer;
   font: inherit;
@@ -561,7 +525,6 @@
   box-shadow: 0 1px 4px rgba(0, 163, 157, 0.18);
 }
 
-/* โมดัลรายละเอียดการประกอบฝั่ง MFG */
 .mfg-detail-modal {
   max-width: 440px;
 }
@@ -569,7 +532,6 @@
   gap: 16px;
 }
 
-/* ── ไฮไลต์แถวที่เพิ่งสแกนโดน ────────────────────────────────────────── */
 .il-row-hit {
   animation: il-hit-flash 6s ease-out;
 }
@@ -583,7 +545,6 @@
   }
 }
 
-/* ── รายการปัญหาที่เจอตอนอัปโหลด ─────────────────────────────────────── */
 .il-problem-list {
   margin: 6px 0 0;
   padding-left: 20px;
@@ -592,14 +553,9 @@
   line-height: 1.7;
 }
 
-/* WH page tabs (Serial / MC / Inv) */
 .il-wh-tabs { margin: 4px 0 18px; flex-wrap: wrap; }
 
-/* toolbar ของ Serial: ให้กลุ่ม filter แบบ/รุ่น + ช่องค้นหา ไปอยู่ "ชิดขวา" ติดกัน
-   แบบเดียวกับหน้า Master Data (pagesize อยู่ซ้าย, filter+ค้นหาอยู่ขวา)
-   ปล่อยให้ .tsf-history-toolbar ใช้ justify-content: space-between เดิม */
 
-/* การ์ดเลือกช่วงเวลาสำหรับ Export แยกประเทศ (LOG) — เข้าชุดกับการ์ดทั้งระบบ */
 .il-export-filter-card {
   background: var(--card-bg, #ffffff);
   border: 1px solid var(--card-border, #e2e8f0);
@@ -645,7 +601,6 @@
   }
 }
 
-/* กลุ่ม filter แบบ/รุ่น + ช่องค้นหา ให้อยู่ข้างกัน */
 .il-filter-search-group {
   display: flex;
   align-items: center;
@@ -675,7 +630,6 @@
   }
 }
 
-/* ตัวกรองใบอนุญาต (ล็อต) — เปลี่ยนจากแถวชิปเป็น dropdown */
 .il-lot-filter {
   display: flex;
   align-items: center;
@@ -703,16 +657,11 @@
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   กระดิ่งแจ้งเตือนอายุใบอนุญาต (LicenseAlertBell) บน topbar + panel dropdown
-   ═══════════════════════════════════════════════════════════════════════════ */
 .lab-root {
   position: relative;
   display: inline-flex;
 }
 
-/* ── ปุ่มกระดิ่ง ─────────────────────────────────────────────────────────── */
-/* พื้นขาวทึบ + ไอคอนสีแบรนด์ ให้เด่นชัดบน topbar ไล่สีเขียวอมฟ้า (เข้าชุดกับปุ่ม Log out) */
 .lab-bell {
   position: relative;
   display: inline-flex;
@@ -738,7 +687,6 @@
   transform: translateY(0);
 }
 
-/* มีรายการเตือน: ไอคอนเป็นแดง + พื้นแดงจาง ๆ แบบเรียบ ไม่มีวงเรืองแสง/สั่น */
 .lab-bell-active {
   color: #dc2626;
   background: #fef2f2;
@@ -754,7 +702,6 @@
   display: inline-flex;
 }
 
-/* badge จำนวนที่ต้องจัดการ — กลม คมชัด เรียบ */
 .lab-badge {
   position: absolute;
   top: -6px;
@@ -773,7 +720,6 @@
   box-shadow: 0 1px 2px rgba(153, 27, 27, 0.35);
 }
 
-/* มีของใหม่ตั้งแต่เปิดดูครั้งก่อน: วงกระเพื่อมเบา ๆ รอบปุ่ม (เตือนแบบไม่กวน) */
 .lab-bell-pulse::after {
   content: '';
   position: absolute;
@@ -789,15 +735,12 @@
   100% { opacity: 0; transform: scale(1.3); }
 }
 
-/* เคารพผู้ใช้ที่ตั้งค่าลดการเคลื่อนไหว */
 @media (prefers-reduced-motion: reduce) {
   .lab-bell-pulse::after {
     animation: none;
   }
 }
 
-/* ── ธีมกระดิ่ง "ส่งออก" (amber) — แยกจากกระดิ่งนำเข้า (แดง) ที่วางข้างกัน ──── */
-/* พักปกติ: ไอคอนโทนอำพัน ให้ต่างจากกระดิ่งนำเข้าโทนแบรนด์ตั้งแต่ยังไม่มีเตือน */
 .lab-export .lab-bell {
   color: #b45309;
 }
@@ -806,7 +749,6 @@
   background: #fffbeb;
   box-shadow: 0 4px 12px rgba(180, 83, 9, 0.18);
 }
-/* มีรายการเตือน: โทนอำพันเข้ม (แทนแดงของฝั่งนำเข้า) */
 .lab-export .lab-bell-active {
   color: #d97706;
   background: #fffbeb;
@@ -828,7 +770,6 @@
   color: #ffffff;
 }
 
-/* ป้ายชนิดเล็ก ๆ (ลูกศรส่งออก) มุมล่างซ้ายของกระดิ่ง บอกว่านี่คือ "ส่งออก" */
 .lab-kind {
   position: absolute;
   bottom: -5px;
@@ -849,13 +790,11 @@
   height: 9px;
 }
 
-/* ป้ายชนิด "นำเข้า" (ลูกศรลง) — ใช้สีแบรนด์เขียวอมฟ้า แยกจากป้าย "ส่งออก" (อำพัน) ด้านบน */
 .lab-kind-import {
   background: var(--color-brand-700, #0f8580);
   box-shadow: 0 1px 2px rgba(15, 133, 128, 0.35);
 }
 
-/* ── panel dropdown ─────────────────────────────────────────────────────── */
 .lab-panel {
   position: absolute;
   top: calc(100% + 12px);
@@ -874,7 +813,6 @@
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-/* ลูกศรชี้ขึ้นไปหากระดิ่ง */
 .lab-panel::before {
   content: '';
   position: absolute;
@@ -894,7 +832,6 @@
   justify-content: space-between;
   gap: 12px;
   padding: 16px 16px 12px;
-  /* สีเดี่ยว (ไม่ไล่เฉด) โทน tab bar #00cec8 */
   background: #00cec8;
   color: #ffffff;
 }
@@ -925,12 +862,10 @@
   background: rgba(255, 255, 255, 0.32);
 }
 
-/* หัว panel กระดิ่ง "ส่งออก" ใช้สีแดงแทนสีแบรนด์เขียวอมฟ้า ให้ต่างจากกระดิ่งนำเข้าชัดเจน */
 .lab-export .lab-panel-head {
   background: linear-gradient(135deg, #b91c1c, #dc2626);
 }
 
-/* แถบสรุปตัวเลข */
 .lab-summary {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -964,7 +899,6 @@
   color: #c2410c;
 }
 
-/* รายการ */
 .lab-list {
   max-height: 340px;
   overflow-y: auto;
@@ -990,7 +924,6 @@
 .lab-item:hover {
   background: #f8fafc;
 }
-/* พื้นที่กดเพื่อไปหน้าใบอนุญาต (กินพื้นที่ส่วนใหญ่ของแถว) */
 .lab-item-main {
   display: flex;
   flex: 1;
@@ -1003,7 +936,6 @@
   text-align: left;
   cursor: pointer;
 }
-/* ปุ่ม ซ่อน / คืนค่า ท้ายแถว */
 .lab-item-action {
   flex-shrink: 0;
   display: flex;
@@ -1031,7 +963,6 @@
   color: var(--brand-700);
   background: var(--brand-50);
 }
-/* รายการที่ถูกซ่อน — จางลงให้เห็นว่าไม่ active */
 .lab-item-hidden .lab-item-main {
   opacity: 0.55;
 }
@@ -1085,7 +1016,6 @@
   color: var(--text-muted);
 }
 
-/* สถานะว่าง / ทุกอย่างปกติ */
 .lab-empty {
   padding: 26px 20px;
   text-align: center;
@@ -1136,7 +1066,6 @@
   background: var(--brand-50);
 }
 
-/* ── แถวจัดการรายการที่ซ่อนไว้ (Dismiss) ───────────────────────────────── */
 .lab-hidden-bar {
   display: flex;
   align-items: center;
@@ -1174,7 +1103,6 @@
   background: var(--brand-50);
 }
 
-/* ── ป้ายสถานะอายุในตาราง Import License ───────────────────────────────── */
 .il-expiry-cell {
   display: flex;
   flex-direction: column;
@@ -1198,9 +1126,6 @@
     right: 18px;
   }
 }
-/* ─────────────────────────────────────────────────────────────────────────
-   กระดิ่งรวม (WHAlertBell) — panel กว้างขึ้น + แบ่ง 2 ส่วน นำเข้า/ส่งออก
-   ───────────────────────────────────────────────────────────────────────── */
 .lab-panel-wide {
   width: 430px;
   max-height: min(72vh, 620px);
@@ -1274,9 +1199,6 @@
   font-size: 10.5px;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   LicenseAlertBanner — แถบสถานะอายุใบอนุญาตแบบถาวรบนหน้า License
-   ───────────────────────────────────────────────────────────────────────── */
 .lab-banner {
   display: flex;
   gap: 12px;
@@ -1362,7 +1284,6 @@
 .lab-banner-item-days.is-expiring { color: #b45309; }
 .lab-banner-more { font-size: 12.5px; color: #94a3b8; padding: 2px 8px; }
 
-/* โทนสีของแถบตามความรุนแรง */
 .lab-banner-danger { border-color: #fecaca; background: linear-gradient(0deg, #fff, #fef2f2); }
 .lab-banner-danger .lab-banner-icon { background: #dc2626; }
 .lab-banner-warn { border-color: #fde68a; background: linear-gradient(0deg, #fff, #fffbeb); }
@@ -1375,7 +1296,6 @@
   .lab-banner-item-meta { flex-basis: 100%; }
 }
 
-/* หมายเหตุท้าย panel กระดิ่ง — อธิบายว่า badge ลดเมื่อจัดการจริงเท่านั้น */
 .lab-resolve-note {
   margin: 8px 12px 12px;
   padding: 9px 11px;
@@ -1388,7 +1308,6 @@
 }
 .lab-resolve-note strong { color: #0f172a; font-weight: 700; }
 
-/* ── filter "แสดงล่าสุด N รายการ" ในกระดิ่ง (2/5/10/ทั้งหมด) ────────────────── */
 .lab-limit-filter {
   display: flex;
   align-items: center;
@@ -1425,7 +1344,6 @@
   box-shadow: 0 1px 2px rgba(15, 118, 110, 0.12);
 }
 
-/* ปุ่ม "+ ดูอีก N รายการ" เมื่อ filter ตัดรายการบางส่วนออก */
 .lab-more-btn {
   display: block;
   width: calc(100% - 24px);
@@ -1444,12 +1362,6 @@
   color: #0f172a;
 }
 
-/* ═════════════════════════════════════════════════════════════════════════
-   ปรับสีสัน panel กระดิ่งให้ "น่าใช้ + คลิกได้ชัด" ขึ้น
-   • แต่ละแถวเป็นการ์ดโค้งมนเบา ๆ ยกตัวตอน hover
-   • มี chevron โผล่ตอน hover บอกว่า "คลิกเพื่อเปิด/ค้นหาใบนี้"
-   • เส้นซ้ายหนาขึ้นเล็กน้อยเพื่อบอกความรุนแรง (แดง=หมดอายุ, อำพัน=ใกล้หมด)
-   ═════════════════════════════════════════════════════════════════════════ */
 .lab-list .lab-item {
   width: auto;
   margin: 3px 10px;
@@ -1467,11 +1379,9 @@
   border-radius: 12px;
   position: relative;
 }
-/* เส้นบอกสถานะซ้ายสุด — หนา/มนขึ้น อ่านง่ายขึ้น */
 .lab-item-bar {
   width: 5px;
 }
-/* chevron บอกว่าคลิกได้ — ซ่อนไว้ปกติ โผล่จาง ๆ ตอน hover ทั้งแถว */
 .lab-item-main::after {
   content: '';
   position: absolute;
@@ -1491,12 +1401,10 @@
   right: 4px;
   border-color: var(--brand-500, #14b8a6);
 }
-/* เลขใบอนุญาตเด่นขึ้นตอน hover */
 .lab-item:hover .lab-item-license {
   color: var(--brand-700, #0f766e);
 }
 
-/* ป้ายจำนวนวัน — คอนทราสต์สูงขึ้น อ่านชัดขึ้น */
 .lab-days-expired {
   background: #fee2e2;
   color: #b42318;
@@ -1508,7 +1416,6 @@
   box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.28);
 }
 
-/* หัวข้อกลุ่ม (หมดอายุแล้ว / ใกล้หมดอายุ) — มีจุดสีนำหน้าให้ไล่สายตาง่าย */
 .lab-group-label {
   display: flex;
   align-items: center;
@@ -1525,7 +1432,6 @@
 .lab-group-expiring::before { background: #f59e0b; }
 .lab-group-hidden::before { background: #94a3b8; }
 
-/* section header (นำเข้า/ส่งออก) — ไล่เฉดพื้นหลังบาง ๆ ตามธีมของฝั่ง */
 .lab-section-import .lab-section-head {
   background: linear-gradient(90deg, #fef2f2, #f8fafc 60%);
 }
@@ -1533,7 +1439,6 @@
   background: linear-gradient(90deg, #fffbeb, #f8fafc 60%);
 }
 
-/* ป้ายสรุปตัวเลขในหัว section — โค้งมน มีเส้นขอบบาง ๆ ให้ดูเป็นชิป */
 .lab-section-count .lab-sum-expired {
   box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.18);
 }
@@ -1541,32 +1446,23 @@
   box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.22);
 }
 
-/* ═════════════════════════════════════════════════════════════════════════
-   ซ่อนแถบ scroll ในกระดิ่งแจ้งเตือน — ยังเลื่อนดูได้ปกติ แค่ไม่โชว์แถบให้เกะกะ
-   (ครอบทั้ง WebKit/Chrome/Safari, Firefox, Edge เก่า)
-   ═════════════════════════════════════════════════════════════════════════ */
 .lab-panel,
 .lab-panel-wide,
 .lab-list {
-  scrollbar-width: none;        /* Firefox */
-  -ms-overflow-style: none;     /* IE / Edge เก่า */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 .lab-panel::-webkit-scrollbar,
 .lab-panel-wide::-webkit-scrollbar,
 .lab-list::-webkit-scrollbar {
   width: 0;
   height: 0;
-  display: none;                /* Chrome / Safari / Edge ใหม่ */
+  display: none;
 }
 
-/* ═════════════════════════════════════════════════════════════════════════
-   จัดระยะขวาให้ "พอดี" ไม่ชิดขอบ — เพิ่ม padding ขวาของแถว/หัว section
-   เพื่อให้ป้าย "เลขกำหนด X วัน" และชิปสรุปไม่เบียดขอบ panel
-   ═════════════════════════════════════════════════════════════════════════ */
 .lab-item-main {
   padding-right: 14px;
 }
-/* กัน chevron (คลิกได้) ไม่ให้ทับป้ายจำนวนวันตอน hover */
 .lab-item-main::after {
   right: 4px;
 }
@@ -1576,17 +1472,10 @@
 .lab-section-head {
   padding-right: 16px;
 }
-/* หัว panel (ปุ่มปิด) ให้มีระยะขวาสมดุลกับเนื้อหา */
 .lab-panel-head {
   padding-right: 16px;
 }
 
-/* ═════════════════════════════════════════════════════════════════════════
-   Hover รายการแจ้งเตือน — กรอบมี "สีตามความรุนแรง"
-   • หมดอายุแล้ว  → กรอบ/พื้นโทนแดง
-   • ใกล้หมดอายุ  → กรอบ/พื้นโทนอำพัน
-   ใช้ inset ring เป็นกรอบสี (ไม่ดันเลย์เอาต์) + เงานุ่มโทนเดียวกัน
-   ═════════════════════════════════════════════════════════════════════════ */
 .lab-list .lab-item-expired:hover {
   background: #fff5f5;
   box-shadow: 0 6px 16px rgba(220, 38, 38, 0.14),
@@ -1597,14 +1486,12 @@
   box-shadow: 0 6px 16px rgba(245, 158, 11, 0.16),
     inset 0 0 0 1.5px rgba(245, 158, 11, 0.5);
 }
-/* chevron "คลิกได้" ให้สีเข้าชุดกับกรอบ */
 .lab-item-expired:hover .lab-item-main::after {
   border-color: #dc2626;
 }
 .lab-item-expiring:hover .lab-item-main::after {
   border-color: #f59e0b;
 }
-/* เลขใบอนุญาตตอน hover — โทนเข้มขึ้นตามสถานะ (แทนสีแบรนด์กลาง ๆ เดิม) */
 .lab-item-expired:hover .lab-item-license {
   color: #b42318;
 }

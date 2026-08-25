@@ -1,14 +1,6 @@
-// ===== Machine QA — ส่วนกลาง (ใช้ร่วมกันระหว่างหน้า List และหน้า Detail) =====
-//
-// เก็บผลตรวจ (approve / reject) ของแต่ละ "หมวด" ของสเปกเครื่องจักรไว้ใน localStorage
-// เพราะฝั่ง backend ยังไม่มีตาราง/endpoint สำหรับ per-section QA status ของ MachineSpec
-// (มีแต่ QA/QAConfirm ที่ทำงานระดับ part_no ไม่ใช่ระดับ machine) — ถ้าจะทำให้ผลตรวจ
-// sync ข้ามอุปกรณ์ได้จริง ต้องเพิ่มตาราง MachineQAStatus ฝั่ง backend แล้วเปลี่ยนมาเรียก API แทนจุดนี้
 
 const STORAGE_KEY = 'iconfirm_qa_machine_approvals'
 
-// นิยาม "หมวด" ที่จะโชว์ในหน้า detail — แต่ละหมวดมีหลายฟิลด์จาก MachineSpec
-// หมวดไหนไม่มีข้อมูลเลย (ทุกฟิลด์ว่าง/เป็น "-") จะไม่โชว์ในหน้า detail และไม่นับตอนคำนวณสถานะ
 export const SECTION_DEFS = [
   {
     key: 'machine',
@@ -113,7 +105,6 @@ function hasValue(v) {
   return v !== null && v !== undefined && String(v).trim() !== '' && v !== '-'
 }
 
-// คืนเฉพาะหมวดที่มีข้อมูลจริงอย่างน้อย 1 ฟิลด์ (ไม่นับ field ว่าง/"-")
 export function getRelevantSections(spec) {
   if (!spec) return []
   return SECTION_DEFS.map((section) => ({
@@ -134,7 +125,6 @@ function saveAll(all) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
 }
 
-// approvals ของเครื่องเดียว: { [sectionKey]: 'approved' | 'rejected' }
 export function getApprovals(machineNo) {
   const all = loadAll()
   return all[machineNo] || {}
@@ -148,7 +138,6 @@ export function setApproval(machineNo, sectionKey, value) {
   return all[machineNo]
 }
 
-// สถานะรวมของเครื่อง: OK (ตรวจครบและผ่านหมด) / FIX (มีอย่างน้อย 1 หมวดถูกตีกลับ) / PENDING (ยังตรวจไม่ครบ)
 export function computeStatus(spec, approvals) {
   const sections = getRelevantSections(spec)
   if (sections.length === 0) return 'PENDING'

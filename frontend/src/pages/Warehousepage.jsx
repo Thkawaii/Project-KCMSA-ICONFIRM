@@ -31,7 +31,6 @@ export default function WarehousePage() {
   const [issueError, setIssueError] = useState('')
   const [toast, setToast] = useState('')
 
-  // ===== อัปโหลด SO / สต็อกเข้าคลัง =====
   const [soFile, setSoFile] = useState(null)
   const [soUploading, setSoUploading] = useState(false)
   const [soMsg, setSoMsg] = useState(null)
@@ -53,7 +52,6 @@ export default function WarehousePage() {
     loadAll()
   }, [])
 
-  // ปิด dropdown เลือก Sales Order เมื่อคลิก/แตะนอกกล่อง (กันปัญหา option ยืดเต็มจอบนมือถือจาก native select)
   useEffect(() => {
     if (!soDropdownOpen) return
     function onOutside(e) {
@@ -109,13 +107,9 @@ export default function WarehousePage() {
     if (stockTab === 'issued') rows = rows.filter((r) => Boolean(r.StockOutNo))
     if (stockTab === 'not_issued') rows = rows.filter((r) => !r.StockOutNo)
 
-    // เรียงตาม UploadDate (เก่าสุดก่อน) เพื่อบังคับใช้หลัก FIFO
     return [...rows].sort((a, b) => new Date(a.UploadDate) - new Date(b.UploadDate))
   }, [stock, search, selectedSO, stockTab])
 
-  // รายชื่อ S/O ทั้งหมด พร้อมสรุปว่าจ่ายไปแล้วกี่รายการ/ทั้งหมดกี่รายการ —
-  // ใช้ตอบโจทย์ "WH: supply following FIFO & S/O" ให้เลือก S/O ก่อนแล้วดู
-  // เฉพาะของที่ต้องจ่ายให้ S/O นั้น เรียง FIFO ในตัว
   const salesOrders = useMemo(() => {
     const map = new Map()
     for (const r of stock) {
@@ -165,7 +159,6 @@ export default function WarehousePage() {
     setIssueError('')
 
     try {
-      // ไม่ต้อง scan P/N หรือ S/N อีกต่อไป — ใช้ P/N ของรายการที่กด "จ่ายของ" ส่งไปยืนยันแทนอัตโนมัติ
       const result = await issueWarehouseStock(issuingRow.ID, {
         qty,
         scannedPartNo: issuingRow.PartNo,

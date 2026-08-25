@@ -1,4 +1,3 @@
-/* ===== Warehouse / shared app-shell styles ===== */
 
 .wh-page {
   min-height: 100vh;
@@ -129,9 +128,6 @@
   white-space: nowrap;
 }
 
-/* เซลล์ปุ่มดำเนินการ ("รายละเอียด" / "แก้ไข" / "ลบ") — ให้ปุ่มอยู่บรรทัดเดียวกัน
-   ใช้ nowrap เพื่อให้คอลัมน์ในตารางขยายพอดีปุ่ม ไม่บีบจนปุ่มตกบรรทัด (เดสก์ท็อป)
-   ส่วนบนมือถือ (การ์ด) มีกฎเฉพาะที่ media query อีกชั้น */
 .wh-table tbody td.wh-cell-action {
   display: flex;
   align-items: center;
@@ -183,7 +179,6 @@
   padding: 32px 0 !important;
 }
 
-/* ===== Issue confirmation modal ===== */
 
 .wh-modal-overlay {
   position: fixed;
@@ -270,8 +265,6 @@
   background: var(--brand-600);
 }
 
-/* ปุ่มลบแบบเด่น (สีแดง) — กันกดผิดกับปุ่มขาว/โปร่งใส
-   ใช้กับ "ลบทุกใบอนุญาต" และปุ่ม "ลบ" รายรายการในตาราง */
 .wh-btn-danger {
   background: #dc2626;
   border: 1px solid #dc2626;
@@ -287,13 +280,11 @@
   background: #b91c1c;
   border-color: #b91c1c;
 }
-/* ปุ่มลบขนาดเล็กในเซลล์ตาราง (compact) */
 .wh-btn-danger.wh-btn-danger-sm {
   padding: 6px 14px;
   font-size: 13px;
 }
 
-/* ===== Warehouse issue page — redesign ===== */
 
 .wh-stats-row {
   margin-bottom: 22px;
@@ -376,7 +367,6 @@
   color: #ffffff;
 }
 
-/* กลุ่มปุ่ม ต่ออายุ + ลบทั้งใบ บนแถบล็อต */
 .il-lot-actions {
   display: inline-flex;
   align-items: center;
@@ -465,7 +455,6 @@
   cursor: not-allowed;
 }
 
-/* ===== QA machine list page ===== */
 
 .qa-stat-sub {
   font-size: 12px;
@@ -659,7 +648,6 @@
   cursor: not-allowed;
 }
 
-/* ===== QA machine detail page ===== */
 
 .qa-detail-topbar {
   display: flex;
@@ -813,7 +801,6 @@
   color: #15803d;
 }
 
-/* ===== Dashboard stat cards (QA / TSF overview) ===== */
 
 .dash-stats-row {
   display: grid;
@@ -896,11 +883,7 @@
   text-align: center;
 }
 
-/* =========================================================
-   App-wide mobile / responsive layer (all roles & pages)
-   ========================================================= */
 
-/* ---- Stat card grids: 2-up on phones (used by WH / QA / TSF) ---- */
 @media (max-width: 560px) {
   .dash-stats-row {
     grid-template-columns: repeat(2, 1fr);
@@ -917,7 +900,6 @@
 
 }
 
-/* ---- Heading rows with inline tool clusters ---- */
 @media (max-width: 640px) {
   .wh-heading-row {
     margin-bottom: 16px;
@@ -927,7 +909,6 @@
     font-size: 20px;
   }
 
-  /* generic inline tool group placed on the right of a heading row */
   .wh-heading-row > div:last-child {
     width: 100%;
   }
@@ -944,7 +925,6 @@
 
 }
 
-/* ---- Master Data page: type filter + search + export toolbar ---- */
 @media (max-width: 640px) {
   .md-list-tools {
     flex-wrap: wrap;
@@ -966,7 +946,6 @@
 
 }
 
-/* ---- QA filter card: stack date pickers + button ---- */
 @media (max-width: 640px) {
   .qa-filter-card {
     padding: 16px;
@@ -994,7 +973,6 @@
 
 }
 
-/* ---- Table toolbars (QA list / TSF history / part confirmation) ---- */
 @media (max-width: 640px) {
   .qa-table-toolbar {
     flex-direction: column;
@@ -1025,7 +1003,6 @@
 
 }
 
-/* ---- Tabs: allow horizontal scroll instead of overflow ---- */
 @media (max-width: 640px) {
   .vr-tabs {
     display: flex;
@@ -1040,7 +1017,6 @@
 
 }
 
-/* ---- QA detail header: let status badge sit inline on phones ---- */
 @media (max-width: 560px) {
   .qa-detail-header-status {
     position: static;
@@ -1055,12 +1031,6 @@
 
 }
 
-/* =========================================================
-   Universal table -> stacked cards on phones
-   Any .wh-table becomes cards; cells use data-label for
-   their field name. Mark the primary cell .wh-cell-head and
-   the action cell .wh-cell-action in the markup.
-   ========================================================= */
 @media (max-width: 720px) {
   .wh-table-card {
     overflow-x: visible;
@@ -1101,7 +1071,6 @@
     border-bottom: 1px solid #f1f4f6;
   }
 
-  /* Field label pulled from data-label */
   .wh-table tbody td[data-label]::before {
     content: attr(data-label);
     flex-shrink: 0;
@@ -1111,12 +1080,10 @@
     font-weight: 600;
   }
 
-  /* Cells without a label (and not special) show no empty label box */
   .wh-table tbody td:not([data-label]):not(.wh-cell-action):not(.wh-empty-cell)::before {
     content: none;
   }
 
-  /* Primary identifier -> card header */
   .wh-table tbody td.wh-cell-head {
     justify-content: flex-start;
     gap: 8px;
@@ -1139,7 +1106,6 @@
     font-weight: 700;
   }
 
-  /* Action cell -> full-width footer buttons, บรรทัดเดียวกัน แบ่งกว้างเท่า ๆ กัน */
   .wh-table tbody td.wh-cell-action {
     padding: 12px 16px 14px;
     border-bottom: none;
@@ -1161,11 +1127,6 @@
     white-space: nowrap;
   }
 
-  /* หลายหน้า (เช่น User Management, Master Data) ห่อปุ่มด้วย <div> เพิ่มอีกชั้น
-     เพื่อจัดชิดขวาบน desktop (justifyContent: 'flex-end') — ตัวเลือกด้านบนจับได้แค่
-     ปุ่มที่เป็นลูกตรงของ .wh-cell-action เท่านั้น พอมี div คั่น ปุ่มเลยไม่โดน flex:1 1 0
-     ผลคือบนมือถือปุ่มเล็กชิดขวา ไม่ใช่แบ่งครึ่งซ้าย-ขวาเต็มการ์ดเหมือนที่อื่น
-     กฎนี้ทำให้ div ห่อนั้นกางเต็มความกว้าง แล้วแบ่งปุ่มข้างในเท่า ๆ กัน (ซ้าย/ขวา) แทน */
   .wh-table tbody td.wh-cell-action > div {
     display: flex;
     width: 100%;
@@ -1181,7 +1142,6 @@
     justify-content: center;
   }
 
-  /* Two-button decision cells (QA PASS / FAIL) */
   .wh-table tbody td.qa-action-cell {
     justify-content: stretch;
     gap: 10px;
@@ -1200,12 +1160,10 @@
     font-size: 14px;
   }
 
-  /* Inline remark input becomes full width */
   .wh-table tbody td .qa-remark-input {
     width: 100%;
   }
 
-  /* Loading / empty spans whole card, centered */
   .wh-table tbody td.wh-empty-cell {
     display: block;
     text-align: center;
@@ -1216,7 +1174,6 @@
     content: none;
   }
 
-  /* Tables nested inside a summary card: lighter, no double shadow */
   .dash-summary-card .wh-table tr {
     box-shadow: none;
     border: 1px solid #eef1f4;
@@ -1231,7 +1188,6 @@
 .pc-scan-summary .wh-modal-line:last-child {
   margin-bottom: 0;
 }
-/* ===== SweetAlert scan popup (Part Confirmation) ===== */
 .scan-popup {
   border-radius: 18px;
 }
@@ -1258,9 +1214,6 @@
   box-shadow: 0 0 0 4px rgba(6, 224, 212, 0.15);
 }
 
-/* ===== Part Confirmation — การ์ดบาร์โค้ด (white label cards) =====
-   สไตล์ป้ายฉลากจริง: การ์ดขาว มุมมน มีขอบบาง แถบสีบนหัวการ์ดบอกชนิดพาร์ท
-   ด้านในเรียงจากบน = ชื่อพาร์ท, บาร์โค้ด, คำอธิบายใต้บาร์โค้ด (human-readable) */
 .pc-barcode-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -1282,7 +1235,6 @@
   overflow: hidden;
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
 }
-/* แถบสีบนหัวการ์ด = สีประจำชนิดพาร์ท (ดึงจาก --pc-accent) */
 .pc-barcode-card::before {
   content: '';
   position: absolute;
@@ -1304,8 +1256,6 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--pc-accent, #06e0d4) 22%, transparent);
 }
 
-/* การ์ดที่เป็น "โหมดสแกนปัจจุบัน" (armed) — ผู้ใช้แตะเลือกไว้ล่าสุด
-   ยิงบาร์โค้ดที่ระบุชนิดไม่ได้จะเข้าโหมดนี้ให้เอง ไม่ต้องเลือกซ้ำ */
 .pc-barcode-card-armed {
   border-color: var(--pc-accent, #06e0d4);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc-accent, #06e0d4) 30%, transparent),
@@ -1335,15 +1285,13 @@
   line-height: 1.5;
 }
 
-/* ─── สีประจำแต่ละชนิดพาร์ท (คุมแถบหัวการ์ด + เส้นตอน hover/focus) หาเจอง่าย ─── */
-.pc-card-itc { --pc-accent: #4f46e5; } /* IT Controller — indigo */
-.pc-card-sm  { --pc-accent: #00a39d; } /* Swing Motor — teal (สีแบรนด์) */
-.pc-card-ph  { --pc-accent: #d97706; } /* Pump Assy HYD — amber */
-.pc-card-mp  { --pc-accent: #7c3aed; } /* Motor Propel — violet */
-.pc-card-cv  { --pc-accent: #e11d48; } /* Control Valve — rose */
-.pc-card-mc  { --pc-accent: #0891b2; } /* Machine — cyan */
+.pc-card-itc { --pc-accent: #4f46e5; }
+.pc-card-sm  { --pc-accent: #00a39d; }
+.pc-card-ph  { --pc-accent: #d97706; }
+.pc-card-mp  { --pc-accent: #7c3aed; }
+.pc-card-cv  { --pc-accent: #e11d48; }
+.pc-card-mc  { --pc-accent: #0891b2; }
 
-/* ป้ายชนิดโค้ดที่ต้องยิง (S/N หรือ P/N + S/N) มุมขวาบน */
 .pc-barcode-kind {
   position: absolute;
   top: 12px;
@@ -1381,14 +1329,11 @@
   object-fit: contain;
   display: block;
 }
-/* การ์ดบาร์โค้ดใบเดียว (หน้า MFG — Machine Part Confirmation) จัดกึ่งกลาง
-   ย้ายมาจาก Warehouse.append.css ที่ไม่เคยถูก import จึงไม่เคยมีผลกับหน้าจอ */
 .pc-barcode-grid--single {
   grid-template-columns: minmax(0, 560px);
   justify-content: center;
 }
 
-/* ===== ตัวกรอง (dropdown แบบ SelectField) ในแถบเครื่องมือ ===== */
 .wh-history-filters {
   display: flex;
   align-items: flex-end;
@@ -1420,27 +1365,22 @@
   }
 }
 
-/* ===== ขนาด dropdown (SelectField) ในแถบเครื่องมือของตาราง ===== */
-/* กล่องเลือกจำนวนแถวต่อหน้า — เล็ก พอดีตัวเลข ให้ข้อความ "entries per page" อยู่ข้างๆ */
 .wh-pagesize-select {
   width: 84px;
   flex: 0 0 auto;
 }
 
-/* ตัวกรองชนิดอะไหล่หน้า Master Data — กว้างคงที่ ไม่ยืดจนดันช่องค้นหา */
 .md-type-field {
   width: 170px;
   flex: 0 0 auto;
 }
 
-/* ===== QA toolbar: จัด "แสดง [dropdown] รายการต่อหน้า" ให้อยู่บรรทัดเดียว ===== */
 .qa-table-toolbar-left {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
 }
-/* ===== รูปถ่ายป้าย: รูปย่อในตาราง + viewer ขยาย (ย้ายมาจาก append ที่ไม่เคยถูก import) ===== */
 .wh-photo-thumb {
   padding: 0;
   border: 1px solid #d0d5dd;
@@ -1468,7 +1408,6 @@
   height: 64px;
 }
 
-/* หน้าต่างขยายรูป */
 .wh-photo-modal {
   max-width: min(92vw, 560px);
 }
@@ -1489,7 +1428,6 @@
   display: block;
 }
 
-/* กรอบพรีวิวกล้องตอนถ่าย (ทำเป็นสี่เหลี่ยมจัตุรัส) */
 .scan-popup .scan-photo-video {
   width: 100%;
   max-width: 360px;
@@ -1500,7 +1438,6 @@
   object-fit: cover;
 }
 
-/* ===== รายละเอียดการตรวจสอบ (modal ประวัติสแกน) — จัด layout ใหม่เป็นบล็อกๆ ===== */
 .wh-detail-modal {
   max-width: 420px;
   max-height: 88vh;
@@ -1708,13 +1645,7 @@
   }
 }
 
-/* ============================================================================
-   Mobile toolbar refinements — WH / MFG / QA
-   ปรับ toolbar (pagesize / ปุ่ม export / ช่องค้นหา) ให้เรียงตัวเหมาะกับจอมือถือ
-   ใช้งานง่าย กดง่าย ไม่มีปุ่มลอยหรือกล่องบานผิดสัดส่วน
-   ========================================================================== */
 
-/* กล่อง "N entries per page" — บีบให้พอดีเลข อยู่บรรทัดเดียวทุกขนาดจอ */
 .tsf-history-pagesize,
 .qa-table-toolbar-left {
   flex-wrap: nowrap;
@@ -1726,7 +1657,6 @@
   flex: 0 0 72px;
 }
 
-/* QA: การ์ดกรองช่วงเวลา (โหมด + ปฏิทิน) + ปุ่ม Export — ดีไซน์ใหม่ให้เข้าชุดการ์ดทั้งระบบ */
 .qa-filter-card {
   background: var(--card-bg, #ffffff);
   border: 1px solid var(--card-border, #e2e8f0);
@@ -1797,7 +1727,6 @@
   }
 }
 
-/* QA: แถววันที่ + ปุ่ม export (เลย์เอาต์ desktop — ย้ายมาจาก inline style เดิม) */
 .qa-date-filter-row {
   display: flex;
   align-items: flex-end;
@@ -1814,12 +1743,9 @@
   color: #475569;
   margin-bottom: 4px;
 }
-/* บน desktop ดันปุ่ม Export ไปชิดขวา */
 .qa-date-filter-row .qa-export-btn {
   margin-left: auto;
 }
-/* ปุ่ม Excel วางชิดปุ่ม PDF (ไม่ต้อง push ซ้ำ) — ใช้ธีม teal ของระบบให้เข้าชุด
-   แยกจากปุ่ม PDF ด้วยโทนอ่อนกว่าเล็กน้อย (outline) กันสับสนแต่ยังเข้าธีม */
 .qa-date-filter-row .qa-export-btn-excel {
   margin-left: 0;
   background: var(--brand-50, #f0fdfa);
@@ -1831,7 +1757,6 @@
   border-color: var(--brand-600);
 }
 
-/* MFG: ช่องค้นหา + ปุ่มเพิ่มรายการ (เลย์เอาต์ desktop — ย้ายมาจาก inline style เดิม) */
 .mfg-search-actions {
   display: flex;
   gap: 8px;
@@ -1839,7 +1764,6 @@
 }
 
 @media (max-width: 640px) {
-  /* แถว pagesize ชิดซ้าย ไม่ยืดเต็มแถว */
   .tsf-history-toolbar > .tsf-history-pagesize,
   .wh-history-filters > .tsf-history-pagesize,
   .qa-table-toolbar .qa-table-toolbar-left {
@@ -1847,7 +1771,6 @@
     justify-content: flex-start;
   }
 
-  /* MFG: ช่องค้นหา + ปุ่มเพิ่มรายการ วางซ้อนกันเต็มความกว้าง */
   .mfg-search-actions {
     flex-direction: column;
     align-items: stretch;
@@ -1863,7 +1786,6 @@
     font-size: 13px;
   }
 
-  /* QA: แถววันที่ + ปุ่ม export วางซ้อนเต็มความกว้าง ไม่ให้ปุ่มลอยชิดขวา */
   .qa-date-filter-row {
     flex-direction: column;
     align-items: stretch;
@@ -1880,7 +1802,6 @@
     padding: 12px 16px;
   }
 
-  /* QA: ช่องค้นหาในตารางเต็มความกว้าง อยู่ใต้ pagesize */
   .qa-table-toolbar-right {
     width: 100%;
   }

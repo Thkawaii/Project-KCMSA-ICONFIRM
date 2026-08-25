@@ -15,19 +15,12 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-// ─────────────────────────────────────────────────────────────────────────────
-// helper
-// ─────────────────────────────────────────────────────────────────────────────
 
-// normHeader ทำหัวคอลัมน์ให้เทียบง่าย: ตัดช่องว่าง จุด และ case ทิ้ง
-// "Serail No." / "SERIAL NO" / "serialno" -> "serialno"
 func normHeader(s string) string {
 	r := strings.NewReplacer(" ", "", ".", "", "_", "", "-", "", "\n", "", "\t", "")
 	return strings.ToLower(r.Replace(strings.TrimSpace(s)))
 }
 
-// keepDigits ป้องกันปัญหาคลาสสิกของ Excel: เลข 12/15 หลักที่ถูกเก็บเป็นตัวเลข
-// แล้วโชว์เป็น 8.7825E+11 — ถ้าเจอรูปแบบนั้นให้แปลงกลับเป็นเลขเต็มก่อน
 func keepDigits(raw string) string {
 	v := strings.TrimSpace(raw)
 	if v == "" {
@@ -41,7 +34,6 @@ func keepDigits(raw string) string {
 	return strings.ReplaceAll(v, " ", "")
 }
 
-// addMonths บวกเดือนแบบไม่ให้ล้นวัน (31 ม.ค. + 1 เดือน = 28/29 ก.พ. ไม่ใช่ 3 มี.ค.)
 func addMonths(t time.Time, months int) time.Time {
 	y, m, d := t.Date()
 	first := time.Date(y, m, 1, 0, 0, 0, 0, t.Location()).AddDate(0, months, 0)
@@ -75,20 +67,12 @@ func daysLeft(expire time.Time) int {
 	return int(time.Until(expire).Hours() / 24)
 }
 
-// scanKey ล้างค่าที่ยิงมาจากเครื่องสแกน
-//
-// ฉลากจริงมี 2 ใบต่อ 1 เครื่อง (ป้ายบน = S/N + IMEI, ป้ายล่าง = P/N + IT Controller no.)
-// พนักงานยิงโดนใบไหนก็ได้ บางเครื่องสแกนยังแถม CR/LF หรือช่องว่างมาท้ายค่า
 func scanKey(raw string) string {
 	cleaned := strings.TrimSpace(raw)
 	cleaned = strings.Trim(cleaned, "\r\n\t ")
 	return keepDigits(cleaned)
 }
 
-// normalizeCountry ทำชื่อประเทศให้เป็นรูปเดียวกันเสมอ
-//
-// ถ้าปล่อยให้พิมพ์อิสระ "indonesia" / "INDONESIA" / " Indonesia " จะกลายเป็น
-// 3 กองคนละกอง แล้วตอนขอใบอนุญาตจะนับจำนวนผิด
 func normalizeCountry(raw string) string {
 
 	fields := strings.Fields(raw)
@@ -104,10 +88,6 @@ func normalizeCountry(raw string) string {
 	return strings.Join(fields, " ")
 }
 
-// findUnitByAnyKey หา unit จากเลขอะไรก็ได้บนฉลาก — IT Controller no. / IMEI / S/N
-//
-// ลำดับความสำคัญ: IT Controller no. มาก่อนเสมอ เพราะเป็น Key หลักของระบบ
-// ที่เหลือเป็นทางเข้าสำรองเวลาป้ายล่างโดนกล่องบัง
 func findUnitByAnyKey(key string) (models.ITControllerUnit, error) {
 
 	var unit models.ITControllerUnit
@@ -127,12 +107,6 @@ func findUnitByAnyKey(key string) (models.ITControllerUnit, error) {
 	return unit, fmt.Errorf("ไม่พบเลข %s ในระบบ (ลองยิงป้ายอีกใบ หรือตรวจว่านำเข้า Serial List ครบหรือยัง)", key)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. เอกสาร PDF — Invoice / PO / Import License / Export License
-//
-// เอกสารพวกนี้มาเป็น PDF ระบบจึงไม่อ่านค่าในไฟล์ แต่ให้ WH คีย์เลขที่กำกับ
-// แล้วเก็บไฟล์ไว้เป็นหลักฐานผูกกับเลขนั้น
-// ─────────────────────────────────────────────────────────────────────────────
 
 func UploadITCDocument(c *gin.Context) {
 
@@ -221,9 +195,6 @@ func GetITCDocuments(c *gin.Context) {
 	c.JSON(200, docs)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. ใบอนุญาตนำเข้า — WH คีย์หัวใบเอง (เลข + วันที่ออก) ระบบคิดวันหมดอายุให้
-// ─────────────────────────────────────────────────────────────────────────────
 
 type importLicenseRequest struct {
 	LicenseNo     string `json:"license_no" binding:"required"`
@@ -234,7 +205,7 @@ type importLicenseRequest struct {
 	Model         string `json:"model"`
 	PartNo        string `json:"part_no"`
 	Qty           int    `json:"qty" binding:"required"`
-	IssueDate     string `json:"issue_date" binding:"required"` // YYYY-MM-DD
+	IssueDate     string `json:"issue_date" binding:"required"`
 	DocumentID    *uint  `json:"document_id"`
 	Remark        string `json:"remark"`
 }
@@ -290,8 +261,8 @@ func GetImportLicenses(c *gin.Context) {
 
 	type row struct {
 		models.ImportLicense
-		UnitCount     int64 `json:"unit_count"`     // จำนวน unit ที่ผูกกับใบนี้จริง
-		ExportedCount int64 `json:"exported_count"` // ส่งออกไปแล้วกี่ตัว
+		UnitCount     int64 `json:"unit_count"`
+		ExportedCount int64 `json:"exported_count"`
 		DaysLeft      int   `json:"days_left"`
 	}
 
@@ -316,22 +287,10 @@ func GetImportLicenses(c *gin.Context) {
 	c.JSON(200, out)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. นำเข้า Serial List (Excel) → สร้าง ITControllerUnit
-//
-// รองรับทั้ง 2 ฟอร์แมตที่ใช้อยู่จริง:
-//   - TQ60610 - SERIAL NO. IT CONTROLLER (CKD).xlsx  (หัวอังกฤษ)
-//   - บัญชีแสดงหมายเลขเครื่องใบอนุญาตนำเข้า.xlsx      (หัวไทย)
-//
-// ระบบหาแถวหัวตารางเองโดยมองหาคอลัมน์ที่เป็น KEY หลักก่อน
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ชื่อหัวคอลัมน์ที่ยอมรับ → ชื่อ field ภายใน
 var serialListHeaderAliases = map[string]string{
-	// KEY หลัก
 	"itcontrollerno": "it_controller_no",
 	"หมายเลขเครื่อง": "it_controller_no",
-	// IMEI
 	"imei": "imei",
 	"หมายเลขการผลิต": "imei",
 	"partname": "part_name",
@@ -340,7 +299,7 @@ var serialListHeaderAliases = map[string]string{
 	"แบบรุ่น":  "model",
 	"ตราอักษร": "brand",
 	"partno":   "part_no",
-	"serailno": "serial_no", // สะกดผิดในไฟล์ต้นฉบับ — รับไว้ด้วย
+	"serailno": "serial_no",
 	"serialno": "serial_no",
 	"เลขใบอนุญาตนำเข้า": "import_license_no",
 	"licenseno":       "import_license_no",
@@ -349,7 +308,6 @@ var serialListHeaderAliases = map[string]string{
 	"invoiceno": "invoice_no",
 	"เลขใบขนสินค้าขาเข้า": "declaration_no",
 	"declarationno": "declaration_no",
-	// หัวใบอนุญาตนำเข้า — ให้ระบบอ่านจากไฟล์เอง ไม่ต้องกรอกฟอร์มแยกอีกต่อไป
 	"pono":       "po_no",
 	"เลขพีโอ":    "po_no",
 	"ใบสั่งซื้อ": "po_no",
@@ -359,7 +317,6 @@ var serialListHeaderAliases = map[string]string{
 	"จำนวน":     "qty",
 	"issuedate": "issue_date",
 	"วันที่ออกใบอนุญาต": "issue_date",
-	// ชนิดการเชื่อมต่อ (Mobile4G/Satellite)
 	"connectivity":     "connectivity_type",
 	"connectivitytype": "connectivity_type",
 	"network":          "connectivity_type",
@@ -373,11 +330,10 @@ type serialImportResult struct {
 	Updated         int      `json:"updated"`
 	Skipped         int      `json:"skipped"`
 	Total           int      `json:"total"`
-	LicensesCreated []string `json:"licenses_created"` // ใบอนุญาตนำเข้าที่ระบบสร้างให้อัตโนมัติจากไฟล์
+	LicensesCreated []string `json:"licenses_created"`
 	Warnings        []string `json:"warnings"`
 }
 
-// parseQty แปลงข้อความจำนวนในไฟล์เป็น int แบบผ่อนปรน (เจอ , หรือ .0 ท้ายก็ยังอ่านได้)
 func parseQty(s string) int {
 	s = strings.ReplaceAll(strings.TrimSpace(s), ",", "")
 	if s == "" {
@@ -389,13 +345,6 @@ func parseQty(s string) int {
 	return 0
 }
 
-// syncMasterFromUnit ซิงก์ IT Controller 1 เครื่องจาก ITControllerUnit เข้า
-// ตาราง MasterData (ทะเบียนกลาง) ที่หน้าสแกนใช้เทียบ
-//
-// เหตุผล: partcheck (WH) และ mfg_assembly (MFG) resolve "หมายเลขเครื่อง 12 หลัก"
-// จาก MasterData ด้วย P/N + S/N ที่สแกน — ไม่ได้อ่านจาก ITControllerUnit
-// ดังนั้นทุกครั้งที่อัปโหลด Serial List ต้องเติม MasterData ไปพร้อมกัน ไม่งั้น
-// เมื่อ DB ถูกลบแล้วโหลดกลับผ่าน Serial List อย่างเดียว การสแกนจะ "ไม่พบข้อมูล"
 func syncMasterFromUnit(u models.ITControllerUnit, userID uint, userName string) {
 	itc := strings.TrimSpace(u.ITControllerNo)
 	if itc == "" {
@@ -403,7 +352,6 @@ func syncMasterFromUnit(u models.ITControllerUnit, userID uint, userName string)
 	}
 
 	var m models.MasterData
-	// หาแถวเดิมจากหมายเลขเครื่อง (unique) ก่อน ไม่เจอค่อยสร้างใหม่
 	_ = config.DB.Where("it_controller_no = ?", itc).First(&m).Error
 
 	m.ComponentType = "it_controller"
@@ -425,7 +373,6 @@ func syncMasterFromUnit(u models.ITControllerUnit, userID uint, userName string)
 		m.SerialNo = u.SerialNo
 	}
 
-	// ชนิดการเชื่อมต่อ — ใช้จาก unit ถ้ามี ไม่มีก็เดาจาก Part Name/Model
 	conn := u.ConnectivityType
 	if conn == "" {
 		conn = models.ClassifyConnectivity(u.PartName, u.Model)
@@ -462,8 +409,6 @@ func UploadSerialList(c *gin.Context) {
 		return
 	}
 
-	// ค่ากำกับที่อาจแนบมาด้วย (ทางเลือก) — ใช้เติมเฉพาะแถวที่ในไฟล์ไม่มีคอลัมน์นั้นจริงๆ
-	// ปกติไม่ต้องส่งมาแล้ว เพราะไฟล์ Serial List มีเลขใบอนุญาต/อินวอยซ์/พีโอ ในตัวอยู่แล้ว
 	formInvoiceNo := strings.TrimSpace(c.PostForm("invoice_no"))
 	formPONo := strings.TrimSpace(c.PostForm("po_no"))
 	formLicenseNo := strings.TrimSpace(c.PostForm("import_license_no"))
@@ -474,13 +419,9 @@ func UploadSerialList(c *gin.Context) {
 		return
 	}
 
-	// ── หาแถวหัวตาราง: แถวแรกที่มีคอลัมน์ it_controller_no ──────────────────
 	headerRow := -1
 	colOf := map[string]int{}
 
-	// ColumnAlias ตอนรัน (scope=serial_list): หัวคอลัมน์ที่ถูกเปลี่ยนชื่อ/เพิ่มใหม่
-	// → ตั้ง Target เป็นชื่อ field ตรงๆ (เช่น it_controller_no) หรือชื่อหัวที่ระบบรู้จัก
-	// ก็ได้ ปรับได้หน้า Format Config โดยไม่ต้องแก้โค้ด
 	reverseSerial := loadColumnAliasReverse("serial_list")
 	serialFields := map[string]bool{
 		"it_controller_no": true, "imei": true, "part_name": true, "model": true,
@@ -488,13 +429,11 @@ func UploadSerialList(c *gin.Context) {
 		"invoice_no": true, "declaration_no": true, "po_no": true, "qty": true, "issue_date": true,
 		"connectivity_type": true,
 	}
-	// aliasField: แปลงหัวคอลัมน์ดิบ → ชื่อ field ของ serial list (รองรับ ColumnAlias)
 	aliasField := func(cell string) (string, bool) {
 		if field, ok := serialListHeaderAliases[normHeader(cell)]; ok {
 			return field, true
 		}
 		if tgt, ok := reverseSerial[normalizeHeader(cell)]; ok && tgt != "" {
-			// Target อาจเป็นชื่อ field ตรงๆ หรือหัวคอลัมน์มาตรฐาน
 			for f := range serialFields {
 				if normalizeHeader(f) == tgt {
 					return f, true
@@ -528,7 +467,6 @@ func UploadSerialList(c *gin.Context) {
 		return
 	}
 
-	// getText = ค่าข้อความตามที่เห็นในไฟล์
 	getText := func(row []string, field string) string {
 		idx, ok := colOf[field]
 		if !ok || idx >= len(row) {
@@ -537,7 +475,6 @@ func UploadSerialList(c *gin.Context) {
 		return strings.TrimSpace(row[idx])
 	}
 
-	// getNum = ช่องที่เป็นเลขล้วน (IT Controller no. / IMEI) ต้องกันเลขวิทยาศาสตร์
 	getNum := func(row []string, field string) string {
 		return keepDigits(getText(row, field))
 	}
@@ -545,11 +482,9 @@ func UploadSerialList(c *gin.Context) {
 	userID, userName := lookupUserName(c)
 	result := serialImportResult{Warnings: []string{}, LicensesCreated: []string{}}
 	seen := map[string]bool{}
-	licenseCache := map[string]*models.ImportLicense{} // กันไม่ให้ query/สร้างซ้ำภายในไฟล์เดียวกัน
+	licenseCache := map[string]*models.ImportLicense{}
 	touchedLicenses := map[string]bool{}
 
-	// getOrCreateLicense: หาใบอนุญาตนำเข้าจาก DB ก่อน ถ้ายังไม่มี ให้สร้างให้อัตโนมัติ
-	// จากคอลัมน์ในไฟล์แถวนี้เอง (ไม่ต้องกรอกฟอร์มแยกอีกต่อไป)
 	getOrCreateLicense := func(licenseNo string, row []string) *models.ImportLicense {
 		if cached, ok := licenseCache[licenseNo]; ok {
 			return cached
@@ -607,7 +542,6 @@ func UploadSerialList(c *gin.Context) {
 		}
 		seen[itcNo] = true
 
-		// เลขใบอนุญาตนำเข้าอ่านจากไฟล์เป็นหลัก — ค่าที่แนบมาต่างหาก (ถ้ามี) ใช้เป็นสำรองเท่านั้น
 		licenseNo := firstNonEmpty(getText(row, "import_license_no"), formLicenseNo)
 		if licenseNo == "" {
 			result.Skipped++
@@ -622,7 +556,6 @@ func UploadSerialList(c *gin.Context) {
 		var unit models.ITControllerUnit
 		isNew := config.DB.Where("it_controller_no = ?", itcNo).First(&unit).Error != nil
 
-		// unit ที่ส่งออกไปแล้ว ห้ามทับข้อมูลขาเข้าย้อนหลัง
 		if !isNew && unit.Status == models.UnitStatusExported {
 			result.Skipped++
 			result.Warnings = append(result.Warnings,
@@ -648,7 +581,6 @@ func UploadSerialList(c *gin.Context) {
 			unit.SerialNo = v
 		}
 
-		// ชนิดการเชื่อมต่อ: อ่านจากคอลัมน์ถ้ามี ไม่มีก็เดาจาก Part Name/Model
 		if v := getText(row, "connectivity_type"); v != "" {
 			unit.ConnectivityType = models.NormalizeConnectivity(v)
 		}
@@ -683,8 +615,6 @@ func UploadSerialList(c *gin.Context) {
 			continue
 		}
 
-		// ซิงก์เข้าทะเบียนกลาง (MasterData) ให้หน้าสแกนเทียบเจอ — ดูเหตุผลใน
-		// syncMasterFromUnit (สำคัญกับกรณี DB ว่าง/ถูกลบแล้วโหลดกลับ)
 		syncMasterFromUnit(unit, userID, userName)
 
 		if isNew {
@@ -694,9 +624,6 @@ func UploadSerialList(c *gin.Context) {
 		}
 	}
 
-	// ── อัปเดตจำนวนบนใบอนุญาตแต่ละใบให้ตรงกับจำนวน unit จริงในระบบเสมอ ──────
-	// (ใบที่ระบบสร้างให้อัตโนมัติยังไม่รู้จำนวนที่แท้จริงจนกว่าจะนำเข้าเสร็จ
-	// ส่วนใบที่มีอยู่ก่อนแล้วและระบุจำนวนไว้ตรงกันดี ก็จะไม่ขยับ)
 	for licenseNo := range touchedLicenses {
 		var unitCount int64
 		config.DB.Model(&models.ITControllerUnit{}).
@@ -720,9 +647,6 @@ func UploadSerialList(c *gin.Context) {
 	c.JSON(201, result)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. รายการ unit + สแกนรับเข้าคลัง
-// ─────────────────────────────────────────────────────────────────────────────
 
 func GetITCUnits(c *gin.Context) {
 
@@ -744,7 +668,6 @@ func GetITCUnits(c *gin.Context) {
 		}
 	}
 
-	// ค้นแบบกวาด — พิมพ์เลขอะไรมาก็เจอ
 	if term := strings.TrimSpace(c.Query("q")); term != "" {
 		like := "%" + term + "%"
 		q = q.Where(
@@ -762,7 +685,6 @@ type itcNoRequest struct {
 	Remark         string `json:"remark"`
 }
 
-// ReceiveITCUnit — WH สแกนบาร์โค้ดตอนของเข้าคลัง
 func ReceiveITCUnit(c *gin.Context) {
 
 	var req itcNoRequest
@@ -798,9 +720,6 @@ func ReceiveITCUnit(c *gin.Context) {
 	c.JSON(200, unit)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 5. จัดสรรประเทศปลายทาง — ระดับ serial (เช่น 70 Indonesia / 30 Malaysia)
-// ─────────────────────────────────────────────────────────────────────────────
 
 type allocateRequest struct {
 	ITControllerNos []string `json:"it_controller_nos" binding:"required"`
@@ -841,7 +760,6 @@ func AllocateITCUnits(c *gin.Context) {
 		}
 		itcNo = unit.ITControllerNo
 
-		// จัดสรรได้เฉพาะของที่รับเข้าคลังแล้ว และยังไม่มีใบอนุญาตนำออก
 		if unit.Status != models.UnitStatusReceived && unit.Status != models.UnitStatusAllocated {
 			rejected = append(rejected, itcNo+": สถานะ "+unit.Status+" เปลี่ยนประเทศไม่ได้")
 			continue
@@ -865,13 +783,6 @@ func AllocateITCUnits(c *gin.Context) {
 	})
 }
 
-// AllocateITCSplit — แบ่งหลายประเทศพร้อมกันในครั้งเดียว
-//
-// ใช้ตอนล็อตใหญ่ที่กระจายหลายปลายทาง เช่น 100 เครื่อง แบ่ง
-// Indonesia 40 / Malaysia 30 / Vietnam 20 / Philippines 10
-//
-// ระบบตรวจยอดรวมก่อนลงมือ ถ้าขอเกินของที่มีจะไม่จัดสรรให้เลยสักตัว
-// (all-or-nothing) จะได้ไม่เหลือสภาพแบ่งค้างครึ่งทาง
 type splitRow struct {
 	Country string `json:"country" binding:"required"`
 	Qty     int    `json:"qty" binding:"required"`
@@ -891,7 +802,6 @@ func AllocateITCSplit(c *gin.Context) {
 		return
 	}
 
-	// รวมยอดที่ขอ + กันประเทศซ้ำในแผนเดียวกัน
 	wanted := map[string]int{}
 	order := []string{}
 	total := 0
@@ -916,7 +826,6 @@ func AllocateITCSplit(c *gin.Context) {
 		return
 	}
 
-	// pool = ของที่รับเข้าคลังแล้วและยังไม่ได้จัดสรร เรียงตาม IT Controller No.
 	pool := []models.ITControllerUnit{}
 	q := config.DB.Where("status = ?", models.UnitStatusReceived)
 
@@ -976,9 +885,6 @@ func AllocateITCSplit(c *gin.Context) {
 	})
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 6. ใบอนุญาตนำออก — ผูกกับ unit ทีละล็อต อายุ 1 เดือน
-// ─────────────────────────────────────────────────────────────────────────────
 
 type exportLicenseRequest struct {
 	LicenseNo       string   `json:"license_no" binding:"required"`
@@ -1016,7 +922,6 @@ func CreateExportLicense(c *gin.Context) {
 	rejected := []string{}
 	invoiceNo := ""
 
-	// ทำในทรานแซกชันเดียว — ถ้าผูก unit ไม่ได้เลย จะไม่มีใบอนุญาตค้างในระบบ
 	tx := config.DB.Begin()
 
 	lic := models.ExportLicense{
@@ -1132,8 +1037,6 @@ func GetExportLicenses(c *gin.Context) {
 	c.JSON(200, out)
 }
 
-// DownloadExportAttachment สร้าง "บัญชีแสดงหมายเลขเครื่อง" สำหรับแนบยื่น กสทช.
-// คอลัมน์เรียงเหมือนไฟล์ที่ใช้อยู่จริงเป๊ะ ๆ เพื่อให้ยื่นได้เลยไม่ต้องจัดใหม่
 func DownloadExportAttachment(c *gin.Context) {
 
 	licenseNo := c.Param("licenseNo")
@@ -1163,7 +1066,6 @@ func DownloadExportAttachment(c *gin.Context) {
 		f.SetCellValue(sheet, cell, h)
 	}
 
-	// สำคัญ: เขียนเป็น text เสมอ ไม่งั้น Excel ปัดเลข 12/15 หลักพัง
 	textStyle, _ := f.NewStyle(&excelize.Style{NumFmt: 49})
 
 	for i, u := range units {
@@ -1191,13 +1093,10 @@ func DownloadExportAttachment(c *gin.Context) {
 	}
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 7. ส่งออกจริง — ด่านสุดท้าย ตรงนี้คือจุดที่กันของผิดใบ/ใบหมดอายุออกจากคลัง
-// ─────────────────────────────────────────────────────────────────────────────
 
 type exportUnitRequest struct {
 	ITControllerNo string `json:"it_controller_no" binding:"required"`
-	Country        string `json:"country"` // ปลายทางที่กำลังจะยิงของขึ้นรถ — ใช้กันหยิบผิดกอง
+	Country        string `json:"country"`
 	Remark         string `json:"remark"`
 }
 
@@ -1265,17 +1164,12 @@ func ExportITCUnit(c *gin.Context) {
 	c.JSON(200, unit)
 }
 
-// IssueITCUnit — สแกนจ่ายของ ด่านตรวจสุดท้ายก่อนของออกจากคลัง
-//
-// 1 เครื่องจ่ายได้ทางเดียว: เข้าไลน์ประกอบในไทย หรือส่งออกต่างประเทศ
-// ทุกครั้งที่จ่าย ระบบเทียบกับเอกสารต้นทางก่อนเสมอ แล้วบันทึกว่าใครจ่าย
-// จ่ายให้ใคร เมื่อใด ปลายทางคือเครื่องจักรเลขไหนหรือประเทศอะไร
 type issueUnitRequest struct {
 	ITControllerNo string `json:"it_controller_no" binding:"required"`
-	Purpose        string `json:"purpose" binding:"required"` // ASSEMBLY | EXPORT
-	MachineNo      string `json:"machine_no"`                 // ขาประกอบ
+	Purpose        string `json:"purpose" binding:"required"`
+	MachineNo      string `json:"machine_no"`
 	WorkOrder      string `json:"work_order"`
-	Country        string `json:"country"` // ขาส่งออก — ใช้กันหยิบผิดกอง
+	Country        string `json:"country"`
 	IssuedTo       string `json:"issued_to"`
 	Remark         string `json:"remark"`
 }
@@ -1294,7 +1188,6 @@ func IssueITCUnit(c *gin.Context) {
 		return
 	}
 
-	// ── ด่านที่ 1: จ่ายไปแล้วห้ามจ่ายซ้ำ ────────────────────────────────────
 	if unit.Status == models.UnitStatusExported || unit.Status == models.UnitStatusInstalled {
 
 		when := "-"
@@ -1313,7 +1206,6 @@ func IssueITCUnit(c *gin.Context) {
 		return
 	}
 
-	// ── ด่านที่ 2: ต้องรับเข้าคลังก่อนถึงจ่ายได้ ────────────────────────────
 	if unit.Status == models.UnitStatusImported {
 		c.JSON(409, gin.H{"message": unit.ITControllerNo + " ยังไม่ได้สแกนรับเข้าคลัง — จ่ายออกไม่ได้"})
 		return
@@ -1327,8 +1219,6 @@ func IssueITCUnit(c *gin.Context) {
 
 	case models.IssuePurposeAssembly:
 
-		// ของที่ขอใบอนุญาตนำออกไว้แล้ว ห้ามดึงกลับมาประกอบในไทย
-		// เพราะจำนวนบนใบที่ยื่น กสทช. จะไม่ตรงกับของที่ส่งจริง
 		if unit.ExportLicenseNo != "" {
 			c.JSON(409, gin.H{"message": fmt.Sprintf(
 				"%s ผูกกับใบอนุญาตนำออก %s ไว้แล้ว ต้องถอดออกจากใบก่อนจึงจ่ายเข้าไลน์ประกอบได้",
@@ -1342,7 +1232,6 @@ func IssueITCUnit(c *gin.Context) {
 			return
 		}
 
-		// ── ตรวจกับเอกสารต้นทาง: spec ของเครื่องนี้ระบุ S/N ตัวไหนไว้ ────
 		var spec models.MachineSpec
 		if err := config.DB.Where("machine_no = ?", machineNo).First(&spec).Error; err == nil {
 
@@ -1369,7 +1258,6 @@ func IssueITCUnit(c *gin.Context) {
 
 	case models.IssuePurposeExport:
 
-		// ── ตรวจกับใบอนุญาต กสทช. ──────────────────────────────────────
 		if unit.Status != models.UnitStatusLicensed || unit.ExportLicenseNo == "" {
 			c.JSON(409, gin.H{"message": fmt.Sprintf(
 				"%s ยังไม่มีใบอนุญาตนำออก — ห้ามส่งออก (สถานะ %s)",
@@ -1441,9 +1329,6 @@ func IssueITCUnit(c *gin.Context) {
 	})
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 8. Traceability — ค้นเลขเดียว เห็นทั้งเส้นทาง
-// ─────────────────────────────────────────────────────────────────────────────
 
 func TraceITCUnit(c *gin.Context) {
 
@@ -1451,7 +1336,6 @@ func TraceITCUnit(c *gin.Context) {
 
 	var unit models.ITControllerUnit
 
-	// รับได้ทั้ง IT Controller no. / IMEI / Serial — สแกนอะไรมาก็เจอ
 	err := config.DB.Where(
 		"it_controller_no = ? OR imei = ? OR serial_no = ?", key, key, key).First(&unit).Error
 	if err != nil {
@@ -1472,13 +1356,11 @@ func TraceITCUnit(c *gin.Context) {
 		unit.InvoiceNo,
 	).Find(&docs)
 
-	// เครื่องที่ถูกประกอบ — เชื่อมกับ MachineSpec ผ่าน S/N ของ IT Controller
 	var spec models.MachineSpec
 	if unit.SerialNo != "" {
 		config.DB.Where("it_controller_sn = ?", unit.SerialNo).First(&spec)
 	}
 
-	// ปลายทางสุดท้าย: เครื่องจักร (ขาประกอบ) หรือประเทศ (ขาส่งออก)
 	destination := unit.Country
 	if unit.MachineNo != "" {
 		destination = "เครื่อง " + unit.MachineNo
@@ -1494,12 +1376,9 @@ func TraceITCUnit(c *gin.Context) {
 	})
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 9. Alert — ตัวที่ WH ต้องเห็นทุกเช้า
-// ─────────────────────────────────────────────────────────────────────────────
 
 type alertItem struct {
-	Level     string `json:"level"` // CRITICAL | WARNING | INFO
+	Level     string `json:"level"`
 	Type      string `json:"type"`
 	LicenseNo string `json:"license_no"`
 	Message   string `json:"message"`
@@ -1511,7 +1390,6 @@ func GetITCAlerts(c *gin.Context) {
 	alerts := []alertItem{}
 	now := time.Now()
 
-	// ── ใบนำออก อายุ 1 เดือน — ตัวเร่งด่วนที่สุด ────────────────────────────
 	var exportLics []models.ExportLicense
 	config.DB.Where("status <> ?", "CLOSED").Find(&exportLics)
 
@@ -1550,7 +1428,6 @@ func GetITCAlerts(c *gin.Context) {
 		}
 	}
 
-	// ── ใบนำเข้า อายุ 6 เดือน ───────────────────────────────────────────────
 	var importLics []models.ImportLicense
 	config.DB.Find(&importLics)
 
@@ -1575,7 +1452,6 @@ func GetITCAlerts(c *gin.Context) {
 			})
 		}
 
-		// ── จำนวนไม่ตรงกับที่แจ้ง กสทช. ─────────────────────────────────────
 		var unitCount int64
 		config.DB.Model(&models.ITControllerUnit{}).
 			Where("import_license_no = ?", lic.LicenseNo).Count(&unitCount)
@@ -1589,7 +1465,6 @@ func GetITCAlerts(c *gin.Context) {
 		}
 	}
 
-	// ── ของรับเข้าคลังแล้วแต่ยังไม่ระบุประเทศ ───────────────────────────────
 	var unallocated int64
 	config.DB.Model(&models.ITControllerUnit{}).
 		Where("status = ?", models.UnitStatusReceived).Count(&unallocated)
@@ -1604,9 +1479,6 @@ func GetITCAlerts(c *gin.Context) {
 	c.JSON(200, alerts)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 10. รายงานรายสัปดาห์ (ตาม invoice)
-// ─────────────────────────────────────────────────────────────────────────────
 
 func GetITCWeeklyReport(c *gin.Context) {
 
@@ -1662,7 +1534,6 @@ func GetITCWeeklyReport(c *gin.Context) {
 			byCountry[u.Country]++
 		}
 
-		// สรุปจำนวนตามชนิดการเชื่อมต่อ (Mobile4G/Satellite)
 		conn := u.ConnectivityType
 		if conn == "" {
 			conn = "UNKNOWN"
@@ -1675,7 +1546,6 @@ func GetITCWeeklyReport(c *gin.Context) {
 		summaries = append(summaries, *s)
 	}
 
-	// ความเคลื่อนไหวในช่วงสัปดาห์ที่ขอ
 	var receivedThisWeek, exportedThisWeek int64
 	config.DB.Model(&models.ITControllerUnit{}).
 		Where("received_datetime >= ?", since).Count(&receivedThisWeek)

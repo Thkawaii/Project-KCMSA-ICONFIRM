@@ -14,17 +14,14 @@ export default function BarcodeScannerModal({ title, onDetected, onClose }) {
 
     async function start() {
       try {
-        // โหลดจาก CDN แบบ dynamic import — ดึงทั้ง Html5Qrcode และรายชื่อ format ที่รองรับ
         const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import(
-          /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/+esm'
+           'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/+esm'
         )
 
         if (cancelled) return
 
-        // ⭐ จุดสำคัญ: ป้าย IT Controller ของ JRC เป็น DataMatrix ไม่ใช่ QR
-        // ต้องระบุ format ให้ครบ ไม่งั้นตัวอ่านจะมองหาแต่ QR แล้วสแกนไม่เจอ
         const formatsToSupport = [
-          Html5QrcodeSupportedFormats.DATA_MATRIX, // ← ป้าย IT Controller (JRN-260K)
+          Html5QrcodeSupportedFormats.DATA_MATRIX,
           Html5QrcodeSupportedFormats.QR_CODE,
           Html5QrcodeSupportedFormats.CODE_128,
           Html5QrcodeSupportedFormats.CODE_39,
@@ -33,7 +30,6 @@ export default function BarcodeScannerModal({ title, onDetected, onClose }) {
 
         html5Qrcode = new Html5Qrcode(SCANNER_ELEMENT_ID, {
           formatsToSupport,
-          // ใช้ BarcodeDetector ของเครื่อง (Android/Chrome) ถ้ามี — อ่าน DataMatrix ได้เร็ว/แม่นกว่ามาก
           experimentalFeatures: { useBarCodeDetectorIfSupported: true },
           verbose: false,
         })
@@ -41,14 +37,12 @@ export default function BarcodeScannerModal({ title, onDetected, onClose }) {
 
         await html5Qrcode.start(
           { facingMode: 'environment' },
-          // DataMatrix เป็นสี่เหลี่ยมจัตุรัส -> ใช้กรอบจัตุรัสจะจับง่ายกว่ากรอบแนวนอน
           { fps: 10, qrbox: { width: 240, height: 240 } },
           (decodedText) => {
             if (navigator.vibrate) navigator.vibrate(120)
             onDetected(decodedText)
           },
           () => {
-            // เฟรมที่ยังไม่เจอโค้ด — เงียบไว้
           }
         )
 
@@ -78,17 +72,15 @@ export default function BarcodeScannerModal({ title, onDetected, onClose }) {
     }
   }, [onDetected])
 
-  // ── สแกนจาก "รูปถ่าย" ของป้าย (fallback เมื่อกล้องสดจับ DataMatrix ไม่ติด) ──
   async function handleScanPhoto(e) {
     const file = e.target.files?.[0]
     if (!file) return
     setError('')
     try {
       const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import(
-        /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/+esm'
+         'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/+esm'
       )
 
-      // หยุดกล้องสดก่อน เพื่อไม่ให้แย่ง element กัน
       if (scannerRef.current) {
         await scannerRef.current.stop().catch(() => {})
         await scannerRef.current.clear().catch(() => {})
@@ -106,7 +98,6 @@ export default function BarcodeScannerModal({ title, onDetected, onClose }) {
         verbose: false,
       })
 
-      // showImage = false: ไม่ต้องโชว์รูปทับ viewport
       const decodedText = await fileScanner.scanFile(file, false)
       await fileScanner.clear().catch(() => {})
 
@@ -115,7 +106,6 @@ export default function BarcodeScannerModal({ title, onDetected, onClose }) {
     } catch (err) {
       setError('อ่านโค้ดจากรูปไม่สำเร็จ — ลองถ่ายให้ชัด/ตรง/ใกล้ขึ้น แล้วลองใหม่')
     } finally {
-      // เคลียร์ค่า input เพื่อให้เลือกไฟล์เดิมซ้ำได้
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
@@ -147,7 +137,6 @@ export default function BarcodeScannerModal({ title, onDetected, onClose }) {
           </button>
         </div>
 
-        {/* input ซ่อนไว้ — capture=environment เปิดกล้องหลังบนมือถือ */}
         <input
           ref={fileInputRef}
           type="file"

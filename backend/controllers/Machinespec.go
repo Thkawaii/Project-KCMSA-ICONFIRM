@@ -12,7 +12,6 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-// header (as it appears in row 1 of the uploaded Excel) -> setter on the row
 var machineSpecColumns = map[string]func(*models.MachineSpec, string){
 	"Machine No":       func(m *models.MachineSpec, v string) { m.MachineNo = v },
 	"Spec(1)":          func(m *models.MachineSpec, v string) { m.Spec1 = v },
@@ -51,10 +50,6 @@ var machineSpecColumns = map[string]func(*models.MachineSpec, string){
 	"HYD oil":          func(m *models.MachineSpec, v string) { m.HydOil = v },
 }
 
-// machineSpecAliases: หัวคอลัมน์รูปแบบอื่นที่พบหน้างาน (normalize แล้ว) → คีย์
-// มาตรฐาน (= normalizeHeader ของ label ใน machineSpecColumns)
-// ทำให้ไม่ต้องแก้โค้ดเมื่อไฟล์ใช้ชื่อหัวต่างออกไป — และยังตั้งเพิ่มได้อีกตอนรัน
-// ผ่าน ColumnAlias (scope=machine_spec) ที่หน้า Format Config
 var machineSpecAliases = map[string]string{
 	"machinenumber":            "machineno",
 	"mcno":                     "machineno",
@@ -88,8 +83,6 @@ var validComponentTypes = map[string]bool{
 	"pump_assy_hyd": true,
 }
 
-// UploadMachineSpec parses an uploaded Excel sheet (row 1 = headers, per
-// machineSpecColumns above) and inserts one MachineSpec row per data row.
 func UploadMachineSpec(c *gin.Context) {
 
 	componentType := c.Param("type")
@@ -124,31 +117,22 @@ func UploadMachineSpec(c *gin.Context) {
 		return
 	}
 
-	// ── header matching แบบยืดหยุ่น (เท่า uploader ตัวอื่น) ──────────────────
-	// 1) ColumnAlias ตอนรัน (scope=machine_spec) — เปลี่ยนชื่อหัวได้โดยไม่แก้โค้ด
-	// 2) normalize หัวคอลัมน์ (ไม่แคร์ตัวพิมพ์/ช่องว่าง/จุด/วงเล็บ)
-	// 3) alias ที่พบบ่อย (machineSpecAliases)
 	reverse := loadColumnAliasReverse("machine_spec")
 
-	// สร้าง lookup แบบ normalize จาก machineSpecColumns (label เป๊ะ → setter)
 	normSetter := make(map[string]func(*models.MachineSpec, string), len(machineSpecColumns)*2)
 	for label, setter := range machineSpecColumns {
 		normSetter[normalizeHeader(label)] = setter
 	}
-	// เติม alias ที่ชี้ไป setter เดิม
 	for alias, canon := range machineSpecAliases {
 		if s, ok := normSetter[canon]; ok {
 			normSetter[alias] = s
 		}
 	}
 
-	// resolveKey: หัวคอลัมน์ดิบ → คีย์ normalize (ผ่าน ColumnAlias ก่อน)
 	resolveKey := func(raw string) string {
 		return aliasHeaderKey(reverse, normalizeHeader(raw))
 	}
 
-	// หาแถวหัวตารางเอง (ไม่ fix ว่าเป็นแถวแรก) — เลือกแถวที่ match คอลัมน์ที่รู้จัก
-	// มากสุดและต้องเจอ Machine No เพื่อกันแถว title/หมายเหตุด้านบน
 	scanMax := len(rows)
 	if scanMax > 15 {
 		scanMax = 15
@@ -182,7 +166,6 @@ func UploadMachineSpec(c *gin.Context) {
 
 	var created []models.MachineSpec
 	for _, row := range rows[headerIdx+1:] {
-		// แถวว่างล้วนข้ามไป
 		empty := true
 		for _, cell := range row {
 			if cell != "" {
@@ -194,8 +177,6 @@ func UploadMachineSpec(c *gin.Context) {
 			continue
 		}
 
-		// ป้องกันแถวคำแนะนำ/หมายเหตุที่หลงเหลือในไฟล์ (เช่น legend หรือข้อความอธิบาย
-		// ยาวๆ ในคอลัมน์แรก) ไม่ให้ถูก import เป็นข้อมูลจริงโดยไม่ตั้งใจ
 		if len(row) > 0 && len([]rune(row[0])) > 40 {
 			continue
 		}
@@ -235,10 +216,6 @@ func UploadMachineSpec(c *gin.Context) {
 	})
 }
 
-// GetMachineSpecByMachineNo merges every uploaded row for a Machine No into
-// one object — since separate Excel uploads (one per part category) may
-// each only fill in their own fields, newest non-empty value wins per field.
-// This is what the TSF "Scan Machine No." step loads before checking parts.
 func GetMachineSpecByMachineNo(c *gin.Context) {
 
 	machineNo := c.Param("machineNo")
@@ -299,7 +276,6 @@ func GetMachineSpecByMachineNo(c *gin.Context) {
 	c.JSON(200, merged)
 }
 
-// GetMachineSpecs lists rows, optionally filtered by ?component_type=
 func GetMachineSpecs(c *gin.Context) {
 
 	var rows []models.MachineSpec
@@ -315,7 +291,6 @@ func GetMachineSpecs(c *gin.Context) {
 	c.JSON(200, rows)
 }
 
-// GetMachineSpecByID returns the full detail of a single row
 func GetMachineSpecByID(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))
@@ -333,8 +308,6 @@ func GetMachineSpecByID(c *gin.Context) {
 	c.JSON(200, row)
 }
 
-// DeleteMachineSpec removes one uploaded row — for cleaning up mis-uploads
-// (wrong file in the wrong category button, leftover template rows, etc.)
 func DeleteMachineSpec(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))
@@ -351,9 +324,6 @@ func DeleteMachineSpec(c *gin.Context) {
 	c.JSON(200, gin.H{"deleted": true})
 }
 
-// ExportMachineSpecs streams all rows (optionally filtered) back out as an
-// .xlsx file, using the same header names UploadMachineSpec expects — so a
-// round trip (export -> edit -> re-upload) works without remapping columns.
 var componentTypeLabels = map[string]string{
 	"it_controller": "IT Controller P/N & S/N",
 	"control_valve": "Control Valve S/N",
@@ -362,8 +332,6 @@ var componentTypeLabels = map[string]string{
 	"pump_assy_hyd": "Pump Assy HYD",
 }
 
-// pnSnFor mirrors the frontend's pnSnForRow() — only it_controller carries a
-// separate P/N; the rest are tracked by S/N only.
 func pnSnFor(row models.MachineSpec) (pn string, sn string) {
 	switch row.ComponentType {
 	case "it_controller":
@@ -380,9 +348,6 @@ func pnSnFor(row models.MachineSpec) (pn string, sn string) {
 	return "", ""
 }
 
-// ExportMachineSpecs exports just what the "รายการที่อัปโหลดแล้ว" table shows —
-// Machine No, Part Type, P/N, S/N, File Name, Upload By, Upload Date —
-// not the full ~30-field spec sheet.
 func ExportMachineSpecs(c *gin.Context) {
 
 	var rows []models.MachineSpec

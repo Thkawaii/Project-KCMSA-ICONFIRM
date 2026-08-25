@@ -13,27 +13,10 @@ import {
   ArrowUpTrayIcon,
 } from './icons.jsx'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WHAlertBell — กระดิ่งแจ้งเตือนอายุใบอนุญาต "รวมนำเข้า + ส่งออก" ไว้ในอันเดียว
-//
-// พฤติกรรมตัวเลข badge (ปรับใหม่):
-//   • badge = จำนวนแจ้งเตือน "ที่ยังไม่ได้เปิดดู" (unseen) รวมสองฝั่ง
-//   • พอกดเปิดกระดิ่ง = รับรู้แล้ว -> badge หายเป็น 0 ทันที
-//   • แต่ "รายการ" ในลิสต์ยังอยู่ครบตามข้อมูลจริงใน DB — ไม่ได้ถูกซ่อน
-//     รายการจะหายก็ต่อเมื่อใบถูก "ต่ออายุ/แก้ไขข้อมูล" จนไม่เข้าเกณฑ์เตือนแล้วเท่านั้น
-//   • ถ้ามีใบใหม่เข้าเกณฑ์เตือนเพิ่ม (key ใหม่ที่ยังไม่เคยเห็น) badge จะเด้งขึ้นใหม่
-//
-// จำ "ที่เคยเห็นแล้ว" ผ่าน localStorage (ผูกกับ key = สถานะ+วันหมดอายุ ของแต่ละใบ)
-// -> พอสถานะเปลี่ยน (ใกล้หมด -> หมดอายุ) หรือวันหมดอายุเปลี่ยน (ต่ออายุ) key เปลี่ยน
-//    ระบบจะถือเป็นของใหม่และเด้งเตือนอีกครั้งเอง
-//
-// แสดงเฉพาะ role LOG (คนเดียวที่เข้าถึงบัญชีใบอนุญาต) — role อื่นไม่เห็นและไม่ยิง API
-// ─────────────────────────────────────────────────────────────────────────────
 
 const POLL_MS = 60_000
-const SEEN_KEY = 'iconfirm_wh_alert_seen' // { [prefixedKey]: seenAtISO } รายการที่ผู้ใช้เปิดดูแล้ว
+const SEEN_KEY = 'iconfirm_wh_alert_seen'
 
-// ── คลังจำ "รายการที่เปิดดูแล้ว" (seen) บน localStorage ──────────────────────
 function readSeen() {
   try {
     const raw = localStorage.getItem(SEEN_KEY)
@@ -47,14 +30,11 @@ function writeSeen(map) {
   try {
     localStorage.setItem(SEEN_KEY, JSON.stringify(map))
   } catch {
-    /* localStorage เต็ม/ปิด — ปล่อยผ่าน ไม่ให้กระดิ่งพัง */
   }
 }
-// key ที่ prefix ฝั่งไว้ กันชนกันระหว่างนำเข้า/ส่งออก
 const impKey = (it) => 'imp:' + dismissKey(it)
 const expKey = (it) => 'exp:' + exportDismissKey(it)
 
-// ตัวเลือก filter จำนวนรายการล่าสุดที่แสดง
 const LIMIT_OPTIONS = [
   { value: 2, label: '2' },
   { value: 5, label: '5' },
@@ -74,14 +54,12 @@ export default function WHAlertBell() {
   const [hasNew, setHasNew] = useState(false)
   const [seen, setSeen] = useState(() => readSeen())
 
-  // filter "แสดงล่าสุดกี่รายการ" ของแต่ละฝั่ง (ค่าเริ่มต้น = 5)
   const [impLimit, setImpLimit] = useState(5)
   const [expLimit, setExpLimit] = useState(5)
 
   const rootRef = useRef(null)
 
   const load = useCallback(async () => {
-    // ดึงทั้งสองฝั่งพร้อมกัน — ฝั่งไหนพังก็ไม่ล้มอีกฝั่ง (กระดิ่งพังไม่ควรทำทั้งหน้าล้ม)
     const [imp, exp] = await Promise.allSettled([
       getImportLicenseAlerts({ onlyAlert: true }),
       getExportLicenseAlerts({ onlyAlert: true }),
@@ -99,7 +77,6 @@ export default function WHAlertBell() {
       setExpNoDate(exp.value?.counts?.noDate || 0)
     }
 
-    // เก็บกวาด seen: เก็บเฉพาะ key ที่ยังมีอยู่จริง (ใบที่ต่ออายุ/ลบ key เก่าหลุดไปเอง)
     setSeen((prev) => {
       const live = new Set([...impList.map(impKey), ...expList.map(expKey)])
       let changed = false
@@ -126,7 +103,6 @@ export default function WHAlertBell() {
     }
   }, [load])
 
-  // แยกกลุ่ม หมดอายุ/ใกล้หมดอายุ ของแต่ละฝั่ง (แสดง "ทุกรายการจริง" ไม่มีการซ่อน)
   const isAlertStatus = (i) => i.Status === 'EXPIRED' || i.Status === 'EXPIRING'
   const imp = useMemo(() => {
     const list = impItems.filter(isAlertStatus)
@@ -145,7 +121,6 @@ export default function WHAlertBell() {
     }
   }, [expItems])
 
-  // ── ตัวเลข badge = จำนวนแจ้งเตือน "ที่ยังไม่ได้เปิดดู" (unseen) รวมสองฝั่ง ──
   const unseenCount = useMemo(() => {
     let n = 0
     for (const it of imp.all) if (!Object.prototype.hasOwnProperty.call(seen, impKey(it))) n++
@@ -174,7 +149,6 @@ export default function WHAlertBell() {
     }
   }, [open])
 
-  // เปิดกระดิ่ง = รับรู้แจ้งเตือนทั้งหมด -> mark seen ทุก key ปัจจุบัน -> badge เป็น 0
   function markAllSeen() {
     const next = { ...readSeen() }
     const nowISO = new Date().toISOString()
@@ -191,8 +165,6 @@ export default function WHAlertBell() {
     if (next) markAllSeen()
   }
 
-  // คลิกรายการ -> เปิดหน้าใบอนุญาตพร้อม "auto-search" ใบที่คลิกทันที
-  // ส่ง key ของใบไปกับ navigate params แล้วหน้าปลายทางจะ pin/ค้นหา + ไฮไลต์ให้เอง
   const goImport = (item) => {
     setOpen(false)
     navigate(
@@ -247,7 +219,6 @@ export default function WHAlertBell() {
             </div>
           )}
 
-          {/* ── ส่วนนำเข้า ── */}
           <AlertSection
             theme="import"
             title="ใบอนุญาตนำเข้า"
@@ -271,7 +242,6 @@ export default function WHAlertBell() {
             titleField={(it) => it.LicenseNo || '—'}
           />
 
-          {/* ── ส่วนส่งออก ── */}
           <AlertSection
             theme="export"
             title="ใบอนุญาตส่งออก"
@@ -327,7 +297,6 @@ function AlertSection({
   const total = expired.length + expiring.length
   const themeClass = theme === 'export' ? ' lab-section-export' : ' lab-section-import'
 
-  // เรียงด่วนสุดก่อน (DaysLeft น้อย/ติดลบมากขึ้นก่อน) แล้วตัดตาม filter "ล่าสุด N รายการ"
   const sortByUrgent = (a, b) => (a.DaysLeft ?? 0) - (b.DaysLeft ?? 0)
   const limitNum = limit === 'all' ? Infinity : Number(limit)
   const expiredShown = [...expired].sort(sortByUrgent).slice(0, limitNum)
@@ -353,7 +322,6 @@ function AlertSection({
         </span>
       </div>
 
-      {/* filter จำนวนรายการล่าสุดที่แสดง (2 / 5 / 10 / ทั้งหมด) */}
       {total > 0 && (
         <div className="lab-limit-filter" role="group" aria-label={`แสดงล่าสุดกี่รายการ (${title})`}>
           <span className="lab-limit-label">ล่าสุด</span>

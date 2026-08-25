@@ -46,8 +46,6 @@ import {
   XMarkIcon,
 } from '../components/icons.jsx'
 
-// เมนูฝั่งคลัง — กรองตาม role ที่ AppShell (WH_MANAGER เห็นครบ, WH เห็นแค่ Part Confirmation)
-//   roles บนแต่ละเมนู = role ที่มีสิทธิ์เห็นเมนูนั้น (ไม่ใส่ = เห็นทุก role)
 export const WH_NAV_ITEMS = [
   {
     to: '/warehouse',
@@ -64,22 +62,14 @@ export const WH_NAV_ITEMS = [
   {
     to: '/warehouse/confirm',
     label: 'Part Confirmation',
-    labelByRole: { LOG: 'Part Checklist' }, // LOG เห็นเป็น "Part Checklist" (WH ยังเป็น Part Confirmation)
+    labelByRole: { LOG: 'Part Checklist' },
     icon: <ClipboardDocumentCheckIcon className="size-4" />,
     roles: ['WH', 'LOG'],
   },
 ]
 
-// หมายเหตุการออกแบบ:
-// หน้านี้เป็น "ตารางอ้างอิง" ล้วนๆ ไม่มีสถานะรอยืนยัน/ยืนยันแล้ว เพราะบัญชี
-// แนบท้ายใบอนุญาตผ่านการตรวจจาก กสทช. มาแล้วตั้งแต่ต้นทาง — ของที่อยู่ในนี้
-// คือของที่ถูกต้องโดยนิยาม
-// สถานะการสแกนยืนยันไปอยู่ที่หน้า Part Confirmation ซึ่งเป็นคนสแกนของจริง
 
-// หน้านี้เหลือแค่บัญชีใบอนุญาตนำเข้า (ชีต Serial) อย่างเดียวแล้ว
-//   Export License ย้ายไปเป็นเมนูหลักของตัวเอง (ดู pages/Exportlicensepage.jsx)
 
-// จับคู่สถานะอายุใบอนุญาตกับคลาสป้าย (ใช้ชุดสีเดียวกับ .il-badge ที่มีอยู่แล้ว)
 const EXPIRY_BADGE_CLASS = {
   [EXPIRY_STATUS.EXPIRED]: 'il-badge il-badge-bad',
   [EXPIRY_STATUS.EXPIRING]: 'il-badge il-badge-warn',
@@ -87,7 +77,6 @@ const EXPIRY_BADGE_CLASS = {
   [EXPIRY_STATUS.NO_DATE]: 'il-badge il-badge-muted',
 }
 
-// เซลล์ "หมดอายุ (6 เดือน)" — ป้ายสถานะ + วันหมดอายุ + วันคงเหลือ
 function ExpiryCell({ issueDate }) {
   const exp = computeLicenseExpiry(issueDate)
   return (
@@ -104,21 +93,21 @@ function ExpiryCell({ issueDate }) {
 }
 
 export default function ImportLicensePage() {
-  const today = useDailyTick() // เปลี่ยนค่าเมื่อข้ามวัน → บังคับ recompute สถานะอายุ
-  const params = useAppParams() // รับ focusLicense/focusInvoice จากกระดิ่งแจ้งเตือน
+  const today = useDailyTick()
+  const params = useAppParams()
   const [items, setItems] = useState([])
   const [summary, setSummary] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
-  const [selectedLot, setSelectedLot] = useState('') // 'licenseNo|invoiceNo'
+  const [selectedLot, setSelectedLot] = useState('')
   const [search, setSearch] = useState('')
   const [modelFilter, setModelFilter] = useState('all')
-  const [expiryFilter, setExpiryFilter] = useState('all') // สถานะอายุใบอนุญาต
+  const [expiryFilter, setExpiryFilter] = useState('all')
   const [pageSize, setPageSize] = useState(25)
   const [page, setPage] = useState(1)
 
-  const [detailRow, setDetailRow] = useState(null) // แถวที่กำลังเปิดดู modal รายละเอียด
+  const [detailRow, setDetailRow] = useState(null)
 
   const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -165,8 +154,6 @@ export default function ImportLicensePage() {
     setPage(1)
   }, [selectedLot, search, modelFilter, expiryFilter, pageSize])
 
-  // ── มาจากกระดิ่งแจ้งเตือน: auto-search ใบที่คลิกทันที ──────────────────────
-  // เคลียร์ filter อื่น ๆ ก่อน แล้วตั้งคำค้น = เลขใบอนุญาต (ไม่มีไฮไลต์สีแล้ว)
   useEffect(() => {
     const lic = (params?.focusLicense || '').trim()
     if (!lic) return
@@ -174,11 +161,8 @@ export default function ImportLicensePage() {
     setExpiryFilter('all')
     setSelectedLot('')
     setSearch(lic)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params?.focusLicense, params?.focusInvoice, params?.focusTs])
 
-  // เมื่อ summary โหลดเสร็จ ค่อย "ปักหมุดล็อต" ให้ตรงใบ (ถ้ามีจริงในบัญชี)
-  // ได้การ์ดหัวใบอนุญาต (currentLot) โชว์ใบนั้นเด่น ๆ = "แสดงใบนั้นเลย"
   useEffect(() => {
     const lic = (params?.focusLicense || '').trim()
     const inv = (params?.focusInvoice || '').trim()
@@ -187,7 +171,6 @@ export default function ImportLicensePage() {
     if (summary.some((s) => `${s.LicenseNo}|${s.InvoiceNo}` === key)) {
       setSelectedLot(key)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [summary, params?.focusLicense, params?.focusInvoice, params?.focusTs])
 
   async function handleUpload() {
@@ -246,7 +229,6 @@ export default function ImportLicensePage() {
   }
 
   async function handleClearLicense(lot) {
-    // lot = แถว summary หนึ่ง (คู่ เลขใบอนุญาต + อินวอยซ์)
     const licenseNo = lot?.LicenseNo ?? ''
     const invoiceNo = lot?.InvoiceNo ?? ''
     const label =
@@ -268,15 +250,12 @@ export default function ImportLicensePage() {
     }
   }
 
-  // ── ต่ออายุใบอนุญาตทั้งล็อต ────────────────────────────────────────────────
-  // เปิด popup ให้กรอกจำนวนวันที่ต่อ -> เลื่อนวันหมดอายุออกไป -> โหลดใหม่ (คำนวณ realtime)
   async function handleRenewLicense(lot) {
     const licenseNo = lot?.LicenseNo ?? ''
     const invoiceNo = lot?.InvoiceNo ?? ''
     const label =
       licenseNo || (invoiceNo ? `Invoice ${invoiceNo}` : 'ล็อตนี้ (ไม่มีเลขใบอนุญาต)')
 
-    // วันหมดอายุปัจจุบันของล็อต (อ้างอิงจากเครื่องแรกในล็อตที่มีวันที่ออก)
     const lotRows = items.filter(
       (r) => (r.LicenseNo || '') === licenseNo && (r.InvoiceNo || '') === invoiceNo
     )
@@ -295,7 +274,7 @@ export default function ImportLicensePage() {
 
     try {
       const res = await renewImportLicense(licenseNo, invoiceNo, days)
-      await loadAll() // โหลดใหม่ -> ตาราง/ป้ายสถานะ/กระดิ่ง คำนวณวันหมดอายุใหม่ทันที
+      await loadAll()
       const newExp = res?.newExpiry ? formatThaiDate(new Date(res.newExpiry)) : ''
       toastSuccess(
         `ต่ออายุ ${label} อีก ${days} วันแล้ว${newExp ? ` — หมดอายุ ${newExp}` : ''}`
@@ -315,12 +294,10 @@ export default function ImportLicensePage() {
       rows = rows.filter((r) => r.LicenseNo === licenseNo && r.InvoiceNo === invoiceNo)
     }
 
-    // กรองตามแบบ/รุ่น
     if (modelFilter !== 'all') {
       rows = rows.filter((r) => (r.Model || '') === modelFilter)
     }
 
-    // กรองตามสถานะวันหมดอายุ (ยังไม่ระบุวันที่ / ใกล้หมดอายุ / หมดอายุแล้ว / ปกติ)
     if (expiryFilter !== 'all') {
       rows = rows.filter((r) => computeLicenseExpiry(r.IssueDate).status === expiryFilter)
     }
@@ -339,7 +316,6 @@ export default function ImportLicensePage() {
       )
     }
 
-    // เรียงจากวันที่ออกใบอนุญาต (IssueDate) ล่าสุดขึ้นก่อน — แถวที่ยังไม่ระบุวันที่ไปอยู่ท้ายสุด
     rows = [...rows].sort((a, b) => {
       const da = a.IssueDate ? new Date(a.IssueDate).getTime() : NaN
       const db = b.IssueDate ? new Date(b.IssueDate).getTime() : NaN
@@ -351,26 +327,23 @@ export default function ImportLicensePage() {
     return rows
   }, [items, selectedLot, modelFilter, expiryFilter, search, today])
 
-  // รายการแบบ/รุ่น (unique) สำหรับ dropdown filter
   const modelOptions = useMemo(() => {
     const set = new Set(items.map((r) => r.Model).filter(Boolean))
     const list = Array.from(set).sort((a, b) => a.localeCompare(b))
     return [{ value: 'all', label: 'ทุกแบบ/รุ่น' }, ...list.map((m) => ({ value: m, label: m }))]
   }, [items])
 
-  // ตัวเลือก filter สถานะวันหมดอายุ — เรียงตามความเร่งด่วน
   const expiryOptions = useMemo(
     () => [
       { value: 'all', label: 'ทุกสถานะวันหมดอายุ' },
-      { value: EXPIRY_STATUS.NO_DATE, label: STATUS_LABEL[EXPIRY_STATUS.NO_DATE] }, // ยังไม่ระบุวันที่
-      { value: EXPIRY_STATUS.EXPIRING, label: STATUS_LABEL[EXPIRY_STATUS.EXPIRING] }, // ใกล้หมดอายุ
-      { value: EXPIRY_STATUS.EXPIRED, label: STATUS_LABEL[EXPIRY_STATUS.EXPIRED] }, // หมดอายุแล้ว
-      { value: EXPIRY_STATUS.VALID, label: STATUS_LABEL[EXPIRY_STATUS.VALID] }, // ปกติ
+      { value: EXPIRY_STATUS.NO_DATE, label: STATUS_LABEL[EXPIRY_STATUS.NO_DATE] },
+      { value: EXPIRY_STATUS.EXPIRING, label: STATUS_LABEL[EXPIRY_STATUS.EXPIRING] },
+      { value: EXPIRY_STATUS.EXPIRED, label: STATUS_LABEL[EXPIRY_STATUS.EXPIRED] },
+      { value: EXPIRY_STATUS.VALID, label: STATUS_LABEL[EXPIRY_STATUS.VALID] },
     ],
     []
   )
 
-  // รายการใบอนุญาต (ล็อต) สำหรับ dropdown filter — แทนแถวชิปเดิม
   const lotOptions = useMemo(() => {
     const opts = [{ value: '', label: 'ทุกใบอนุญาต' }]
     summary.forEach((s) => {
@@ -414,7 +387,6 @@ export default function ImportLicensePage() {
         </p>
       )}
 
-      {/* ── อัปโหลดไฟล์บัญชี ─────────────────────────────────────────────── */}
       <div className="wh-upload-card">
         <div className="fdz-row">
           <FileDropZone
@@ -464,7 +436,6 @@ export default function ImportLicensePage() {
         )}
       </div>
 
-      {/* ── สรุปตัวเลข ────────────────────────────────────────────────────── */}
       <div className="dash-stats-row wh-stats-row">
         <div className="dash-stat-card">
           <div className="dash-stat-label">
@@ -504,7 +475,6 @@ export default function ImportLicensePage() {
         </div>
       </div>
 
-      {/* ── เลือกล็อต (ใบอนุญาต + อินวอยซ์) เป็น dropdown filter ── */}
       {summary.length > 0 && (
         <div className="il-lot-filter">
           <label className="il-lot-filter-label">ใบอนุญาต</label>
@@ -535,7 +505,6 @@ export default function ImportLicensePage() {
         </div>
       )}
 
-      {/* ── ตารางบัญชี ────────────────────────────────────────────────────── */}
       <div className="tsf-history-toolbar">
         <div className="tsf-history-pagesize">
           <div className="wh-pagesize-select">
@@ -694,13 +663,7 @@ export default function ImportLicensePage() {
   )
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// modal รายละเอียดของ 1 แถวใบอนุญาตนำเข้า — แสดงข้อมูลทุกฟิลด์ของเครื่องแบบอ่านง่าย
-// ข้อมูลมีครบอยู่ใน row แล้ว (ไม่ต้องยิง API ซ้ำ) จึงแสดงได้ทันที
-// ใช้คลาส il-detail-* ชุดเดียวกับ ExportTraceModal เพื่อให้หน้าตาสอดคล้องกัน
-// ═══════════════════════════════════════════════════════════════════════════
 function ImportDetailModal({ row, onClose }) {
-  // 1 ช่องข้อมูล (label + value) — แสดงเสมอ โชว์ '—' เมื่อไม่มีค่า
   const item = (label, value) => (
     <div className="il-detail-item">
       <span className="il-detail-label">{label}</span>
@@ -708,7 +671,6 @@ function ImportDetailModal({ row, onClose }) {
     </div>
   )
 
-  // section หัวข้อ — จัดกลุ่มข้อมูลให้อ่านง่าย
   const section = (title, children) => (
     <div className="il-detail-section">
       <div className="il-detail-section-head">{title}</div>
@@ -716,10 +678,8 @@ function ImportDetailModal({ row, onClose }) {
     </div>
   )
 
-  // อายุใบอนุญาต (6 เดือนนับจากวันที่ออก) — คำนวณ realtime เหมือนในตาราง
   const exp = computeLicenseExpiry(row.IssueDate)
 
-  // สถานะยืนยันจากหน้า Part Confirmation (ถ้ามี)
   const CONFIRM_LABEL = {
     CONFIRMED: 'ยืนยันแล้ว',
     PENDING: 'รอยืนยัน',
@@ -727,7 +687,6 @@ function ImportDetailModal({ row, onClose }) {
   }
   const confirmLabel = CONFIRM_LABEL[row.ConfirmStatus] || row.ConfirmStatus
 
-  // คอลัมน์เพิ่ม (extra_json) — คีย์ที่ระบบไม่รู้จัก เก็บไว้ไม่ให้ข้อมูลหาย
   let extraEntries = []
   try {
     const obj = row.extra_json ? JSON.parse(row.extra_json) : null
@@ -742,7 +701,6 @@ function ImportDetailModal({ row, onClose }) {
         <h3 className="wh-modal-title">รายละเอียดใบอนุญาตนำเข้า</h3>
 
         <div className="il-detail-body">
-        {/* ── ข้อมูลเครื่อง ── */}
         <div className="il-detail-card">
           <div className="il-detail-grid">
             {item('หมายเลขเครื่อง', row.MachineNo)}
@@ -755,7 +713,6 @@ function ImportDetailModal({ row, onClose }) {
         </div>
 
         <div className="il-detail-links">
-        {/* ── ข้อมูลใบอนุญาต ── */}
         {section('ข้อมูลใบอนุญาต', (
           <>
             {item('เลขใบอนุญาตนำเข้า', row.LicenseNo)}
@@ -776,7 +733,6 @@ function ImportDetailModal({ row, onClose }) {
           </>
         ))}
 
-        {/* ── สถานะการยืนยัน (จากหน้า Part Confirmation) ── */}
         {section('สถานะการยืนยัน', (
           <>
             {item('สถานะ', confirmLabel)}
@@ -788,7 +744,6 @@ function ImportDetailModal({ row, onClose }) {
           </>
         ))}
 
-        {/* ── คอลัมน์เพิ่มจากไฟล์ (ถ้ามี) ── */}
         {extraEntries.length > 0 &&
           section('คอลัมน์เพิ่มจากไฟล์', (
             <>
@@ -798,7 +753,6 @@ function ImportDetailModal({ row, onClose }) {
             </>
           ))}
 
-        {/* ── ที่มาของข้อมูล ── */}
         {section('ที่มาของข้อมูล', (
           <>
             {item('ชื่อไฟล์', row.FileName)}
@@ -818,14 +772,7 @@ function ImportDetailModal({ row, onClose }) {
   )
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// แผง Export License — บัญชีใบอนุญาตส่งออก (คู่กับ Import License)
-// ตาราง: ใบขน (Date) · Exception License · Serial Number · Expire date
-// ═══════════════════════════════════════════════════════════════════════════
 
-// คำนวณสถานะจาก "วันหมดอายุ" ที่ระบุมาตรง ๆ (ไม่ใช่ +6 เดือนแบบ Import)
-// คืนรูปแบบเดียวกับ computeLicenseExpiry เพื่อให้ใช้ ExportExpiryCell ร่วมกับ
-// EXPIRY_BADGE_CLASS / STATUS_LABEL / daysLeftLabel ที่มีอยู่แล้วได้ทันที
 function computeExpireStatus(expireRaw, withinDays = 30) {
   if (!expireRaw) {
     return { hasDate: false, expiryDate: null, daysLeft: null, status: EXPIRY_STATUS.NO_DATE }
@@ -847,7 +794,6 @@ function computeExpireStatus(expireRaw, withinDays = 30) {
   return { hasDate: true, expiryDate: expDay, daysLeft, status }
 }
 
-// เซลล์ "Expire date" — ป้ายสถานะ + วันหมดอายุ + วันคงเหลือ (ใช้ชุดสีเดียวกับ Import)
 function ExportExpiryCell({ expireDate }) {
   const exp = computeExpireStatus(expireDate)
   return (
@@ -863,11 +809,6 @@ function ExportExpiryCell({ expireDate }) {
   )
 }
 
-// วันหมดอายุใบอนุญาตส่งออก = "วันที่นำออกใบอนุญาต" (Declaration date) + 1 เดือน เสมอ
-// (อายุใบอนุญาตส่งออก 1 เดือน) — อ้างอิงคอลัมน์ "วันที่นำออกใบอนุญาต" ที่แสดงในตาราง
-// โดยตรง เพื่อให้วันหมดอายุตรงกับวันที่ที่ผู้ใช้เห็น ไม่สลับไปใช้ Expire date จากไฟล์
-// (ตกไปใช้ Expire date เฉพาะกรณีไม่มีวันที่นำออกเลย จะได้ไม่ขึ้น "ยังไม่ระบุวันที่")
-// ใช้เกณฑ์ใกล้หมดอายุ 7 วัน (อายุแค่เดือนเดียว เกณฑ์ 30 วันจะเตือนตลอด)
 function computeExportExpiry(row, withinDays = 7) {
   let expireRaw = null
   if (row.DeclarationDate) {
@@ -883,7 +824,6 @@ function computeExportExpiry(row, withinDays = 7) {
   return computeExpireStatus(expireRaw, withinDays)
 }
 
-// เซลล์ "หมดอายุ (1 เดือน)" ของฝั่งส่งออก — คิดจากวันนำออก + 1 เดือน (ถ้าไม่มี Expire date)
 function ExportOneMonthExpiryCell({ row }) {
   const exp = computeExportExpiry(row)
   return (
@@ -899,9 +839,6 @@ function ExportOneMonthExpiryCell({ row }) {
   )
 }
 
-// modal รายละเอียดของ 1 แถวใบอนุญาตส่งออก — เรียก /export-license/:id/trace
-// แสดง "รายละเอียดข้อมูล" ของเครื่องแบบอ่านง่าย และแนบข้อมูลที่เชื่อมได้ (ถ้ามี)
-// โดยไม่โชว์รายการ "ไม่พบ" ให้รก
 function ExportTraceModal({ row, country, onClose }) {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState(null)
@@ -920,7 +857,6 @@ function ExportTraceModal({ row, country, onClose }) {
     }
   }, [row.ID])
 
-  // 1 ช่องข้อมูล (label + value) — ซ่อนอัตโนมัติถ้าไม่มีค่า
   const item = (label, value) =>
     value ? (
       <div className="il-detail-item">
@@ -929,8 +865,6 @@ function ExportTraceModal({ row, country, onClose }) {
       </div>
     ) : null
 
-  // เหมือน item แต่ "แสดงเสมอ" (โชว์ '—' เมื่อไม่มีค่า)
-  // ใช้กับฟิลด์สำคัญที่ต้องเห็นชัดทุกครั้ง เช่น Import License เพื่อไม่ให้ข้อมูลหายเงียบ ๆ
   const itemAlways = (label, value) => (
     <div className="il-detail-item">
       <span className="il-detail-label">{label}</span>
@@ -938,7 +872,6 @@ function ExportTraceModal({ row, country, onClose }) {
     </div>
   )
 
-  // section ข้อมูลที่เชื่อมได้ — แสดงเฉพาะเมื่อมีข้อมูลจริง
   const linkSection = (title, children) => (
     <div className="il-detail-section">
       <div className="il-detail-section-head">{title}</div>
@@ -952,7 +885,6 @@ function ExportTraceModal({ row, country, onClose }) {
         <h3 className="wh-modal-title">รายละเอียดใบอนุญาตส่งออก</h3>
 
         <div className="il-detail-body">
-        {/* ── ข้อมูลหลักของเครื่อง ── */}
         <div className="il-detail-card">
           <div className="il-detail-grid">
             {item('Machine No', row.MachineNo)}
@@ -974,8 +906,6 @@ function ExportTraceModal({ row, country, onClose }) {
 
         {!loading && !err && (
           <div className="il-detail-links">
-            {/* Import License (บัญชี กสทช.) — แสดง "เสมอ" ไม่ให้ข้อมูลหายเงียบ ๆ
-                ถ้าจับคู่บัญชีนำเข้าไม่ได้ ให้โชว์เหตุผลแทนการซ่อนทั้ง section */}
             {linkSection('Import License (บัญชี กสทช.)', (
               data?.importLicense ? (
                 <>
@@ -1053,14 +983,14 @@ function ExportTraceModal({ row, country, onClose }) {
 }
 
 export function WHExportLicensePanel() {
-  useDailyTick() // ข้ามวัน → recompute สถานะ Expire date
-  const params = useAppParams() // รับ focusSerial จากกระดิ่งแจ้งเตือน
+  useDailyTick()
+  const params = useAppParams()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [exceptionFilter, setExceptionFilter] = useState('all') // แบบ/รุ่น (ฝั่งส่งออกใช้ Exception License)
-  const [expiryFilter, setExpiryFilter] = useState('all') // สถานะวันหมดอายุ (ใบอนุญาตส่งออกอายุ 1 เดือน)
-  const [traceRow, setTraceRow] = useState(null) // แถวที่กำลังเปิดดู modal เชื่อมโยง
+  const [exceptionFilter, setExceptionFilter] = useState('all')
+  const [expiryFilter, setExpiryFilter] = useState('all')
+  const [traceRow, setTraceRow] = useState(null)
   const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [msg, setMsg] = useState(null)
@@ -1070,13 +1000,9 @@ export function WHExportLicensePanel() {
   const [page, setPage] = useState(1)
   const [exportingXlsx, setExportingXlsx] = useState(false)
 
-  // ตัวกรองช่วงเวลา (อิงวันที่ประกอบ Date Ass'y) — ให้ Export แยกประเทศ
-  // ออกได้ตามช่วง รายวัน/รายสัปดาห์/รายเดือน/รายปี (ค่าเริ่มต้น = ทั้งหมด)
   const [periodMode, setPeriodMode] = useState('all')
-  const [periodAnchor, setPeriodAnchor] = useState('') // 'YYYY-MM-DD' หรือ ''
+  const [periodAnchor, setPeriodAnchor] = useState('')
 
-  // แผนที่ IT Controller No. -> ประเทศปลายทาง (ดึงจากบัญชีใบอนุญาตนำเข้า ExportCountry)
-  // ใช้ทั้งแสดงคอลัมน์ Country ในตาราง และตอน Export แยกประเทศ
   const [countryByITC, setCountryByITC] = useState({})
 
   useEffect(() => {
@@ -1092,7 +1018,6 @@ export function WHExportLicensePanel() {
         })
         if (!cancelled) setCountryByITC(map)
       } catch {
-        // ดึงบัญชีนำเข้าไม่ได้ — คอลัมน์ Country จะเป็น "—" (ไม่ทำให้หน้าอื่นพัง)
       }
     }
     loadCountryMap()
@@ -1101,15 +1026,10 @@ export function WHExportLicensePanel() {
     }
   }, [])
 
-  // ประเทศปลายทางของ 1 แถวใบอนุญาตส่งออก
-  //  1) ใช้ค่า Country ที่มากับไฟล์อัปโหลดโดยตรงก่อน (ฟิลด์ใหม่)
-  //  2) ข้อมูลเก่าที่อัปโหลดก่อนรู้จักคอลัมน์นี้ — ยังอยู่ใน extra_json (ไม่ต้องอัปโหลดใหม่)
-  //  3) ถ้าไม่มี ค่อยเชื่อมจากบัญชีใบอนุญาตนำเข้า (ExportCountry) ผ่าน IT Controller No.
   function countryOf(r) {
     const direct = String(r.Country || '').trim()
     if (direct) return direct
 
-    // จาก extra_json (ข้อมูลเก่า) — หา key ที่เป็น country/ประเทศ
     try {
       const extra = r.extra_json ? JSON.parse(r.extra_json) : null
       if (extra) {
@@ -1122,7 +1042,6 @@ export function WHExportLicensePanel() {
         }
       }
     } catch {
-      // extra_json อ่านไม่ได้ — ข้ามไปใช้การเชื่อมจากบัญชีนำเข้า
     }
 
     const a = String(r.ITControllerNo || '').trim()
@@ -1130,23 +1049,16 @@ export function WHExportLicensePanel() {
     return countryByITC[a] || countryByITC[b] || ''
   }
 
-  // Export Excel แยกเป็นชีตต่อประเทศ — จัด Format เหมือนฝั่ง QA (Freeze Header, Header สี Theme
-  // ตัวหนากึ่งกลาง, Filter ทุกคอลัมน์, แถบสีสลับแถว, ปรับความกว้างอัตโนมัติ,
-  // จัด Alignment ตามชนิดข้อมูล, Format วันที่รูปแบบเดียวกัน)
-  //
-  // ประเทศไม่มีในบัญชีใบอนุญาตส่งออกโดยตรง — ดึงมาจากบัญชีใบอนุญาตนำเข้า (ExportCountry)
-  // โดยเชื่อมผ่าน IT Controller No. 12 หลัก (ExportLicense.ITControllerNo == ImportLicense.MachineNo)
   async function handleExportByCountry() {
     if (exportingXlsx) return
     setExportingXlsx(true)
     try {
-      const list = filtered // ส่งออกตามที่กรอง/ค้นหาอยู่ (ทุกหน้า) — รวมรายการที่หมดอายุด้วย
+      const list = filtered
       if (!list.length) {
         toastError('ไม่มีรายการให้ Export')
         return
       }
 
-      // จัดกลุ่มตามประเทศ (คงลำดับที่พบ) — ไม่มีประเทศ -> "ไม่ระบุประเทศ"
       const UNKNOWN = 'ไม่ระบุประเทศ'
       const groups = new Map()
       list.forEach((r) => {
@@ -1155,7 +1067,6 @@ export function WHExportLicensePanel() {
         groups.get(key).push(r)
       })
 
-      // เรียงชื่อประเทศ A→Z แต่ให้ "ไม่ระบุประเทศ" อยู่ท้ายสุด
       const countryNames = Array.from(groups.keys()).sort((a, b) => {
         if (a === UNKNOWN) return 1
         if (b === UNKNOWN) return -1
@@ -1180,19 +1091,15 @@ export function WHExportLicensePanel() {
       const dash2 = (v) => (v && String(v).trim() !== '' ? String(v) : '—')
 
       const sheets = countryNames.map((country) => ({
-        // ชื่อชีตต้องไม่เกิน 31 ตัว/ไม่มีอักขระต้องห้าม (lib ตัดให้อยู่แล้ว)
         sheetName: country,
         columns,
         rows: [...groups.get(country)]
-          // เรียงแต่ละประเทศตาม "วันที่นำออกใบอนุญาต" (Declaration date) เก่า→ใหม่
-          // แถวที่ยังไม่ระบุวันที่ให้ไปอยู่ท้ายสุด แล้วค่อยลำดับ Item ใหม่ตามนี้
           .sort((a, b) => {
             const ta = a.DeclarationDate ? new Date(a.DeclarationDate).getTime() : Infinity
             const tb = b.DeclarationDate ? new Date(b.DeclarationDate).getTime() : Infinity
             return ta - tb
           })
           .map((r, i) => ({
-          // แถวที่ "หมดอายุแล้ว" ให้ไฟล์ Excel ระบายแดงทั้งแถว (ยังรวมอยู่ในไฟล์)
           __danger: computeExportExpiry(r).status === EXPIRY_STATUS.EXPIRED,
           item: i + 1,
           assemblyDate: r.AssemblyDate ? formatThaiDate(r.AssemblyDate) : '—',
@@ -1255,13 +1162,11 @@ export function WHExportLicensePanel() {
     setPage(1)
   }, [search, exceptionFilter, expiryFilter, pageSize, periodMode, periodAnchor])
 
-  // ── มาจากกระดิ่งแจ้งเตือน (ฝั่งส่งออก): auto-search ด้วย S/N ที่คลิก ──────────
   useEffect(() => {
     const sn = (params?.focusSerial || '').trim()
     if (!sn) return
     setExceptionFilter('all')
     setSearch(sn)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params?.focusSerial, params?.focusException, params?.focusTs])
 
   async function handleUpload() {
@@ -1314,7 +1219,6 @@ export function WHExportLicensePanel() {
   const filtered = useMemo(() => {
     let list = rows
 
-    // กรองตามแบบ/รุ่น — ฝั่งส่งออกไม่มีคอลัมน์ Model จึงใช้ Exception License เป็นตัวจัดกลุ่ม
     if (exceptionFilter !== 'all') {
       list = list.filter((r) => (r.ExceptionLicense || '') === exceptionFilter)
     }
@@ -1331,30 +1235,24 @@ export function WHExportLicensePanel() {
           r.ExportEntry,
           r.ImportLicenseNo,
           r.ExportLicenseNo,
-          countryOf(r), // ค้นด้วยชื่อประเทศได้ในช่องค้นหาเดียวกัน
+          countryOf(r),
         ]
           .filter(Boolean)
           .some((v) => String(v).toLowerCase().includes(term))
       )
     }
 
-    // กรองตามช่วงเวลา (อิงวันที่ประกอบ Date Ass'y) — ให้ทั้งตารางและ Export
-    // แยกประเทศ ออกได้ตามช่วง รายวัน/สัปดาห์/เดือน/ปี ที่เลือก
     if (periodMode !== 'all') {
       list = list.filter((r) => r.AssemblyDate && inPeriod(r.AssemblyDate, periodMode, periodAnchor))
     }
 
-    // กรองตามสถานะวันหมดอายุ (ยังไม่ระบุวันที่ / ใกล้หมดอายุ / หมดอายุแล้ว / ปกติ)
-    // ใบอนุญาตส่งออกอายุ 1 เดือน — ใช้ computeExportExpiry (นำออก + 1 เดือน)
     if (expiryFilter !== 'all') {
       list = list.filter((r) => computeExportExpiry(r).status === expiryFilter)
     }
 
     return list
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, exceptionFilter, expiryFilter, search, countryByITC, periodMode, periodAnchor])
 
-  // ขอบเขตวันที่ประกอบที่มีข้อมูลจริง — กำหนด min/max ให้ปฏิทิน anchor
   const asmDateBounds = useMemo(() => {
     let min = null
     let max = null
@@ -1369,7 +1267,6 @@ export function WHExportLicensePanel() {
     return { min, max }
   }, [rows])
 
-  // เปลี่ยนโหมดช่วงเวลา — ยังไม่เลือกวันอ้างอิงให้ตั้งต้นเป็นวันล่าสุดที่มีข้อมูล
   function handlePeriodModeChange(next) {
     setPeriodMode(next)
     if (next !== 'all' && !periodAnchor) {
@@ -1379,25 +1276,22 @@ export function WHExportLicensePanel() {
     }
   }
 
-  // ป้าย/ชื่อไฟล์ของช่วงที่เลือก
   const periodLabel = periodMode === 'all' ? 'ทั้งหมด' : periodRangeLabel(periodMode, periodAnchor)
   const periodTag = periodFileTag(periodMode, periodAnchor)
 
-  // รายการ Exception License (unique) สำหรับ dropdown filter — เทียบเท่า "แบบ/รุ่น" ของฝั่งนำเข้า
   const exceptionOptions = useMemo(() => {
     const set = new Set(rows.map((r) => r.ExceptionLicense).filter(Boolean))
     const list = Array.from(set).sort((a, b) => a.localeCompare(b))
     return [{ value: 'all', label: 'Export License(ทุกใบ)' }, ...list.map((m) => ({ value: m, label: m }))]
   }, [rows])
 
-  // ตัวเลือก filter สถานะวันหมดอายุ (เหมือนฝั่งนำเข้า) — ใบอนุญาตส่งออกอายุ 1 เดือน
   const expiryOptions = useMemo(
     () => [
       { value: 'all', label: 'ทุกสถานะวันหมดอายุ' },
-      { value: EXPIRY_STATUS.NO_DATE, label: STATUS_LABEL[EXPIRY_STATUS.NO_DATE] }, // ยังไม่ระบุวันที่
-      { value: EXPIRY_STATUS.EXPIRING, label: STATUS_LABEL[EXPIRY_STATUS.EXPIRING] }, // ใกล้หมดอายุ
-      { value: EXPIRY_STATUS.EXPIRED, label: STATUS_LABEL[EXPIRY_STATUS.EXPIRED] }, // หมดอายุแล้ว
-      { value: EXPIRY_STATUS.VALID, label: STATUS_LABEL[EXPIRY_STATUS.VALID] }, // ปกติ
+      { value: EXPIRY_STATUS.NO_DATE, label: STATUS_LABEL[EXPIRY_STATUS.NO_DATE] },
+      { value: EXPIRY_STATUS.EXPIRING, label: STATUS_LABEL[EXPIRY_STATUS.EXPIRING] },
+      { value: EXPIRY_STATUS.EXPIRED, label: STATUS_LABEL[EXPIRY_STATUS.EXPIRED] },
+      { value: EXPIRY_STATUS.VALID, label: STATUS_LABEL[EXPIRY_STATUS.VALID] },
     ],
     [],
   )

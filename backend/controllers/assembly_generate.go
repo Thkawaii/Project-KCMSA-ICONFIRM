@@ -11,28 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Auto-stamp ตาราง Assembly (Phase IV)
-//
-// แทนที่จะให้ผู้ใช้เตรียมไฟล์ Assembly เอง ระบบดึงข้อมูลจากตารางที่อัปโหลดไว้แล้ว
-// (Planning / WH1 / Engine) + ทะเบียนกลาง (MachineSpec / MasterData / Import License)
-// มา "ปั๊ม" ลงตาราง Assembly ให้อัตโนมัติ โดยจับคู่ด้วย "หมายเลขเครื่อง" (Machine No)
-//
-// กติกาการปั๊ม (ตามสเปกที่ได้รับ):
-//   Machine No           ← Engine(Machine No)  ∪  Planning(Machine)
-//   Spec Code            ← Planning(Product Spec 1)
-//   Specification Detail ← Planning(Product Spec 2)
-//   IT device            ← Planning(IT device)              (fallback: MachineSpec)
-//   IT Controller        ← ข้อมูล IT Controller (MachineSpec S/N → MasterData → เลข 12 หลัก)
-//   Country Name         ← Import License (เทียบด้วยเลข IT Controller)  (fallback: Planning/MachineSpec)
-//   Assembly_Parts_Number← WH1(Assembly Parts Number)
-//   Assembly_Parts_Name  ← WH1(Assembly Parts Name)
-//
-// พฤติกรรม: upsert รายเครื่อง (มีอยู่แล้ว = อัปเดตเฉพาะฟิลด์ที่ปั๊มได้, ไม่มี = เพิ่มใหม่)
-// จึงไม่ทับแถว Assembly ของเครื่องอื่นที่อาจอัปโหลด/แก้ไว้เอง
-// ─────────────────────────────────────────────────────────────────────────────
 
-// loadUploadRows อ่านทุกแถวของ dataset หนึ่งๆ แล้ว parse DataJSON กลับเป็น map
 func loadUploadRows(dataset string) []map[string]string {
 	var rows []models.UploadDataRow
 	config.DB.Where("dataset = ?", dataset).Order("id asc").Find(&rows)
@@ -46,7 +25,6 @@ func loadUploadRows(dataset string) []map[string]string {
 	return out
 }
 
-// firstNonEmpty คืนค่าที่ไม่ว่างตัวแรกจากหลาย key (ลองตามลำดับ)
 func pickField(m map[string]string, keys ...string) string {
 	for _, k := range keys {
 		if v := strings.TrimSpace(m[k]); v != "" {
@@ -56,8 +34,6 @@ func pickField(m map[string]string, keys ...string) string {
 	return ""
 }
 
-// machineFromRow ดึง "หมายเลขเครื่อง" จากแถว (รองรับทั้งคอลัมน์มาตรฐานและคอลัมน์
-// นอกสเปกที่ระบบเก็บด้วย prefix "[+] ")
 func machineFromRow(m map[string]string) string {
 	return pickField(m,
 		"Machine No", "Machine", "machine no", "machine",
@@ -65,16 +41,14 @@ func machineFromRow(m map[string]string) string {
 	)
 }
 
-// GenerateAssembly ปั๊มตาราง Assembly อัตโนมัติจากข้อมูลที่อัปโหลด/ทะเบียนกลาง
 func GenerateAssembly(c *gin.Context) {
 
 	planning := loadUploadRows(models.DatasetPlanning)
 	engine := loadUploadRows(models.DatasetEngine)
 	wh1 := loadUploadRows(models.DatasetWH1)
 
-	// ── index Planning ตามหมายเลขเครื่อง ──────────────────────────────────
-	planningByMachine := map[string]map[string]string{} // machine -> planning row
-	kcmOrderToMachine := map[string]string{}            // KCM Order -> machine (ไว้ join WH1)
+	planningByMachine := map[string]map[string]string{}
+	kcmOrderToMachine := map[string]string{}
 	for _, p := range planning {
 		mc := strings.TrimSpace(pickField(p, "Machine", "Machine No"))
 		if mc == "" {
@@ -88,9 +62,6 @@ func GenerateAssembly(c *gin.Context) {
 		}
 	}
 
-	// ── index WH1 (Assembly Parts) ตามหมายเลขเครื่อง ──────────────────────
-	// รอบ 1: WH1 แถวที่มีหมายเลขเครื่องในตัว (คอลัมน์มาตรฐาน/นอกสเปก)
-	// รอบ 2 (fallback): จับคู่ผ่าน KCM Order ↔ Order No / Work order ของ WH1
 	type wh1Parts struct{ no, name string }
 	wh1ByMachine := map[string]wh1Parts{}
 	assignWH1 := func(mc string, row map[string]string) {
@@ -122,7 +93,6 @@ func GenerateAssembly(c *gin.Context) {
 		}
 	}
 
-	// ── รวมรายชื่อหมายเลขเครื่องที่ต้องปั๊ม (Engine ∪ Planning) ────────────
 	machineSet := map[string]bool{}
 	orderedMachines := []string{}
 	addMachine := func(mc string) {
@@ -155,7 +125,7 @@ func GenerateAssembly(c *gin.Context) {
 	tx := config.DB.Begin()
 
 	for _, mc := range orderedMachines {
-		p := planningByMachine[mc] // อาจเป็น nil ถ้าเครื่องนี้มีแต่ใน Engine
+		p := planningByMachine[mc]
 
 		specCode := ""
 		specDetail := ""
@@ -168,14 +138,6 @@ func GenerateAssembly(c *gin.Context) {
 			countryName = strings.TrimSpace(p["Country Name"])
 		}
 
-		// IT Controller (เลข 12 หลัก เช่น 878250022802) + Country
-		//
-		// ใช้ resolveITControllerNo ที่ไล่หาหลายแหล่งให้ครบ (MFG Assembly →
-		// MachineSpec/MasterData → Export License → S/N ที่เป็นเลข 12 หลัก) เพื่อ
-		// แก้ปัญหาคอลัมน์ IT Controller ในตาราง Assembly ขึ้นว่าง
-		//
-		// preferred = เลข IT Controller ที่อาจมากับไฟล์ Assembly ที่อัปโหลดไว้ก่อน
-		// (ถ้ามีอยู่ในแถวเดิม จะถูกใช้เป็นตัวตั้งต้นถ้าเป็นเลข 12 หลัก)
 		preferredITC := ""
 		if p != nil {
 			preferredITC = strings.TrimSpace(p["IT Controller"])
@@ -183,7 +145,6 @@ func GenerateAssembly(c *gin.Context) {
 		itcNo, deriveCountry := resolveITControllerNo(mc, preferredITC)
 
 		if itDevice == "" {
-			// fallback IT device จาก MachineSpec
 			var specs []models.MachineSpec
 			config.DB.Where("machine_no = ?", mc).Order("upload_date desc").Find(&specs)
 			for _, s := range specs {
@@ -194,8 +155,6 @@ func GenerateAssembly(c *gin.Context) {
 			}
 		}
 
-		// Country: ให้ Import License (เทียบด้วยเลข IT Controller) เป็นหลักตามสเปก
-		// แล้วค่อย fallback ไป Planning → (MFG/Export/MachineSpec ที่ resolve มาให้)
 		if licCountry := lookupMFGCountry(itcNo); licCountry != "" {
 			countryName = licCountry
 		} else if countryName == "" && deriveCountry != "" {
@@ -215,13 +174,11 @@ func GenerateAssembly(c *gin.Context) {
 			"Assembly_Parts_Name":   parts.name,
 		}
 
-		// upsert รายเครื่อง — มีอยู่แล้วอัปเดตเฉพาะฟิลด์ที่ปั๊มได้ (ไม่ทับด้วยค่าว่าง)
 		var existing models.UploadDataRow
 		err := tx.Where("dataset = ? AND machine_no = ?", models.DatasetAssembly, mc).
 			First(&existing).Error
 
 		if err == nil {
-			// merge: คงค่าที่มีอยู่ ถ้าค่าใหม่ว่าง
 			cur := map[string]string{}
 			_ = json.Unmarshal([]byte(existing.DataJSON), &cur)
 			changed := false

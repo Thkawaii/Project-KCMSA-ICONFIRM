@@ -1,24 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './DatePickerField.css'
 
-// ปฏิทินเลือกวันแบบวาดเอง (แทน <input type="date"> ของเบราว์เซอร์ที่หน้าตาคุมไม่ได้)
-//
-// props:
-//   value        — 'YYYY-MM-DD' หรือ '' (ยังไม่เลือก)
-//   onChange     — (ymd) => void
-//   min / max    — 'YYYY-MM-DD' ขอบเขตที่เลือกได้ (ไม่ใส่ = ไม่จำกัด)
-//   placeholder  — ข้อความตอนยังไม่เลือก
 
 const THAI_MONTHS = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
 ]
-// อาทิตย์ขึ้นก่อน (ตามปฏิทินไทย)
 const THAI_WEEKDAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
 
 const pad2 = (n) => String(n).padStart(2, '0')
 const toYMD = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-const monthKey = (y, m) => y * 12 + m // ใช้เทียบเดือนก่อน/หลัง
+const monthKey = (y, m) => y * 12 + m
 
 function parseYMD(ymd) {
   if (!ymd) return null
@@ -39,7 +31,6 @@ export default function DatePickerField({
 
   const selected = parseYMD(value)
 
-  // เดือนที่กำลังเปิดดู — ตั้งต้นจากวันที่เลือก, ไม่มีก็ใช้วันนี้ (บีบให้อยู่ในช่วง min/max)
   const [view, setView] = useState(() => {
     const base = selected || (() => {
       const t = new Date()
@@ -52,12 +43,10 @@ export default function DatePickerField({
     return { y: base.y, m: base.m }
   })
 
-  // เปิดปฏิทินทีไร ให้เด้งไปเดือนของวันที่เลือกไว้
   useEffect(() => {
     if (open && selected) setView({ y: selected.y, m: selected.m })
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open])
 
-  // ปิดเมื่อคลิกนอกกรอบ / กด Esc
   useEffect(() => {
     if (!open) return
     function onOutside(e) {
@@ -74,10 +63,9 @@ export default function DatePickerField({
     }
   }, [open])
 
-  // สร้างช่องวันของเดือนที่เปิดดู (6 แถว x 7 วัน) เริ่มจากวันอาทิตย์ก่อนวันที่ 1
   const weeks = useMemo(() => {
     const first = new Date(view.y, view.m, 1)
-    const start = new Date(view.y, view.m, 1 - first.getDay()) // ถอยไปวันอาทิตย์
+    const start = new Date(view.y, view.m, 1 - first.getDay())
     const cells = []
     for (let i = 0; i < 42; i++) {
       const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)
