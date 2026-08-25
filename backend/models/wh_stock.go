@@ -2,7 +2,6 @@ package models
 
 import "time"
 
-
 type WHMachineStock struct {
 	ID uint `gorm:"primaryKey"`
 
@@ -40,6 +39,8 @@ type WHMachineStock struct {
 	RDetailNo           string `gorm:"size:40"`
 	FinalColor          string `gorm:"size:60"`
 
+	ExtraJSON string `gorm:"type:text" json:"extra_json,omitempty"`
+
 	FileName   string `gorm:"size:255"`
 	UploadDate time.Time
 
@@ -60,6 +61,8 @@ type WHInvoiceItem struct {
 	Qty         int
 	Sloc        string `gorm:"size:40"`
 	Shelf       string `gorm:"size:40"`
+
+	ExtraJSON string `gorm:"type:text" json:"extra_json,omitempty"`
 
 	FileName   string `gorm:"size:255"`
 	UploadDate time.Time

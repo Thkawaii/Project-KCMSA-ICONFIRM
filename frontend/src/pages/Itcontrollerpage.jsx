@@ -176,7 +176,6 @@ export default function ITControllerPage() {
   )
 }
 
-
 function StatCard({ label, value, icon, tone }) {
   return (
     <div className="dash-stat-card">
@@ -203,7 +202,6 @@ function AlertBanner({ alerts }) {
     </div>
   )
 }
-
 
 function DocumentsTab({ documents, importLicenses, onDone, onError }) {
   const [doc, setDoc] = useState({ docType: 'INVOICE', docNo: '', invoiceNo: '', poNo: '', file: null })
@@ -412,7 +410,6 @@ function DocumentsTab({ documents, importLicenses, onDone, onError }) {
   )
 }
 
-
 function UnitsTab({ units, onDone, onError }) {
   const [scan, setScan] = useState('')
   const [search, setSearch] = useState('')
@@ -527,7 +524,6 @@ function UnitsTab({ units, onDone, onError }) {
     </>
   )
 }
-
 
 function AllocateTab({ units, importLicenses, onDone, onError }) {
   const [mode, setMode] = useState('split')
@@ -877,7 +873,6 @@ function ManualPick({ pool, onDone, onError }) {
   )
 }
 
-
 function ExportTab({ units, importLicenses, exportLicenses, onDone, onError }) {
   const [form, setForm] = useState({ license_no: '', country: '', issue_date: today(), import_license_no: '' })
   const [scan, setScan] = useState('')
@@ -1046,7 +1041,6 @@ function ExportTab({ units, importLicenses, exportLicenses, onDone, onError }) {
     </>
   )
 }
-
 
 function TraceTab({ onError }) {
   const [key, setKey] = useState('')

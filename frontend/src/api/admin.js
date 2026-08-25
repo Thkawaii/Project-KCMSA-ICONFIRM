@@ -1,6 +1,5 @@
 import { apiFetch } from './client.js'
 
-
 export function getAdminUsers({ role = '', q = '' } = {}) {
   const params = new URLSearchParams()
   if (role) params.set('role', role)

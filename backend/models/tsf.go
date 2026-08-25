@@ -3,7 +3,6 @@ package models
 import "time"
 
 type TSFOperator struct {
-
 	ID uint `gorm:"primaryKey"`
 
 	MachineNo string

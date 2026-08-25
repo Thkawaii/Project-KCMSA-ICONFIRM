@@ -4,7 +4,6 @@ import { getExportLicenseAlerts } from '../api/exportLicense.js'
 import { formatThaiDate, daysLeftLabel } from '../lib/licenseExpiry.js'
 import { ExclamationTriangleIcon, ClockIcon, CheckCircleIcon } from './icons.jsx'
 
-
 const POLL_MS = 60_000
 
 export default function LicenseAlertBanner({ kind = 'import', onOpenItem }) {

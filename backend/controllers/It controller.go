@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,7 +15,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
 )
-
 
 func normHeader(s string) string {
 	r := strings.NewReplacer(" ", "", ".", "", "_", "", "-", "", "\n", "", "\t", "")
@@ -107,7 +107,6 @@ func findUnitByAnyKey(key string) (models.ITControllerUnit, error) {
 	return unit, fmt.Errorf("ไม่พบเลข %s ในระบบ (ลองยิงป้ายอีกใบ หรือตรวจว่านำเข้า Serial List ครบหรือยัง)", key)
 }
 
-
 func UploadITCDocument(c *gin.Context) {
 
 	docType := strings.ToUpper(strings.TrimSpace(c.PostForm("doc_type")))
@@ -194,7 +193,6 @@ func GetITCDocuments(c *gin.Context) {
 
 	c.JSON(200, docs)
 }
-
 
 type importLicenseRequest struct {
 	LicenseNo     string `json:"license_no" binding:"required"`
@@ -287,7 +285,6 @@ func GetImportLicenses(c *gin.Context) {
 	c.JSON(200, out)
 }
 
-
 var serialListHeaderAliases = map[string]string{
 	"itcontrollerno": "it_controller_no",
 	"หมายเลขเครื่อง": "it_controller_no",
@@ -308,11 +305,11 @@ var serialListHeaderAliases = map[string]string{
 	"invoiceno": "invoice_no",
 	"เลขใบขนสินค้าขาเข้า": "declaration_no",
 	"declarationno": "declaration_no",
-	"pono":       "po_no",
-	"เลขพีโอ":    "po_no",
-	"ใบสั่งซื้อ": "po_no",
-	"brand":      "brand",
-	"qty":        "qty",
+	"pono":          "po_no",
+	"เลขพีโอ":       "po_no",
+	"ใบสั่งซื้อ":    "po_no",
+	"brand":         "brand",
+	"qty":           "qty",
 	"จำนวนบนใบอนุญาต": "qty",
 	"จำนวน":     "qty",
 	"issuedate": "issue_date",
@@ -322,7 +319,7 @@ var serialListHeaderAliases = map[string]string{
 	"network":          "connectivity_type",
 	"networktype":      "connectivity_type",
 	"ittype":           "connectivity_type",
-	"ชนิดการเชื่อมต่อ":  "connectivity_type",
+	"ชนิดการเชื่อมต่อ": "connectivity_type",
 }
 
 type serialImportResult struct {
@@ -463,9 +460,16 @@ func UploadSerialList(c *gin.Context) {
 	}
 
 	if headerRow < 0 {
-		c.JSON(400, gin.H{"message": "ไม่พบคอลัมน์ 'IT Controller no.' หรือ 'หมายเลขเครื่อง' ในไฟล์"})
+		c.JSON(400, gin.H{"message": "ไม่พบคอลัมน์ 'IT Controller no.' หรือ 'หมายเลขเครื่อง' ในไฟล์ " +
+			"ถ้าไฟล์เปลี่ยนชื่อหัวคอลัมน์ ให้ตั้ง Column Alias ที่หน้า Format Settings (scope: serial_list) แล้วอัปโหลดซ้ำ"})
 		return
 	}
+
+	knownIdx := map[int]bool{}
+	for _, idx := range colOf {
+		knownIdx[idx] = true
+	}
+	extraColSet := map[string]bool{}
 
 	getText := func(row []string, field string) string {
 		idx, ok := colOf[field]
@@ -609,6 +613,31 @@ func UploadSerialList(c *gin.Context) {
 		unit.UserID = userID
 		unit.Name = userName
 
+		extras := map[string]string{}
+		for j, cell := range row {
+			if knownIdx[j] {
+				continue
+			}
+			v := strings.TrimSpace(cell)
+			if v == "" {
+				continue
+			}
+			label := ""
+			if j < len(rows[headerRow]) {
+				label = strings.TrimSpace(rows[headerRow][j])
+			}
+			if label == "" {
+				continue
+			}
+			extras["[+] "+label] = v
+			extraColSet[label] = true
+		}
+		if len(extras) > 0 {
+			if b, err := json.Marshal(extras); err == nil {
+				unit.ExtraJSON = string(b)
+			}
+		}
+
 		if err := config.DB.Save(&unit).Error; err != nil {
 			result.Skipped++
 			result.Warnings = append(result.Warnings, fmt.Sprintf("%s บันทึกไม่สำเร็จ: %s", itcNo, err.Error()))
@@ -640,13 +669,22 @@ func UploadSerialList(c *gin.Context) {
 		}
 	}
 
+	if len(extraColSet) > 0 {
+		extraColumns := make([]string, 0, len(extraColSet))
+		for k := range extraColSet {
+			extraColumns = append(extraColumns, k)
+		}
+		result.Warnings = append(result.Warnings,
+			"พบคอลัมน์นอกสเปก (ระบบไม่รู้จัก) "+strconv.Itoa(len(extraColumns))+" คอลัมน์: "+
+				strings.Join(extraColumns, ", ")+" — เก็บค่าไว้ใน Extra ให้แล้ว (ตั้ง Column Alias ที่ Format Settings ถ้าต้องการ map)")
+	}
+
 	CreateAuditLog("ITC_UNIT", 0, "upload_serial_list",
 		fmt.Sprintf("created=%d updated=%d licenses_created=%d", result.Created, result.Updated, len(result.LicensesCreated)),
 		userID, userName)
 
 	c.JSON(201, result)
 }
-
 
 func GetITCUnits(c *gin.Context) {
 
@@ -719,7 +757,6 @@ func ReceiveITCUnit(c *gin.Context) {
 
 	c.JSON(200, unit)
 }
-
 
 type allocateRequest struct {
 	ITControllerNos []string `json:"it_controller_nos" binding:"required"`
@@ -884,7 +921,6 @@ func AllocateITCSplit(c *gin.Context) {
 		"remaining": len(pool) - total,
 	})
 }
-
 
 type exportLicenseRequest struct {
 	LicenseNo       string   `json:"license_no" binding:"required"`
@@ -1092,7 +1128,6 @@ func DownloadExportAttachment(c *gin.Context) {
 		c.JSON(500, gin.H{"message": "สร้างไฟล์ไม่สำเร็จ"})
 	}
 }
-
 
 type exportUnitRequest struct {
 	ITControllerNo string `json:"it_controller_no" binding:"required"`
@@ -1329,7 +1364,6 @@ func IssueITCUnit(c *gin.Context) {
 	})
 }
 
-
 func TraceITCUnit(c *gin.Context) {
 
 	key := scanKey(c.Param("itControllerNo"))
@@ -1375,7 +1409,6 @@ func TraceITCUnit(c *gin.Context) {
 		"destination":    destination,
 	})
 }
-
 
 type alertItem struct {
 	Level     string `json:"level"`
@@ -1478,7 +1511,6 @@ func GetITCAlerts(c *gin.Context) {
 
 	c.JSON(200, alerts)
 }
-
 
 func GetITCWeeklyReport(c *gin.Context) {
 

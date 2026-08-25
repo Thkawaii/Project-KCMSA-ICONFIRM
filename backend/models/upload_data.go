@@ -2,7 +2,6 @@ package models
 
 import "time"
 
-
 const (
 	DatasetPlanning = "planning"
 	DatasetWH1      = "wh1"

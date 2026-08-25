@@ -236,7 +236,6 @@ export default function WHPartConfirmationPage() {
           setTimeout(() => setHighlightId(null), 6000)
         }
 
-
         if (res.matched) {
           successToast = `ตรงกับบัญชี: ${sn}`
         } else if (isITC) {

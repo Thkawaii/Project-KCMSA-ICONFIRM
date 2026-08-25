@@ -6,12 +6,13 @@ import '../components/FormatTools.css'
 import { ADMIN_NAV_ITEMS } from './AdminDashboardpage.jsx'
 import { FORMAT_NAV_ITEMS } from './MasterDataPage.jsx'
 
-
 const TARGET_COLUMNS = {
   planning: [
     'Line', 'LOT NO.', 'Machine', 'Product Spec 1', 'Product Spec 2', 'Domestic/Exp',
     'Assembly Status', 'Shipping Status', 'KCM Order', 'Country', 'Country Name', 'Brand',
-    'Destination', 'IT device', 'Front ATT', 'Engine start key', 'Note1', 'Note2', 'Note3',
+    'Destination', 'IT device', 'IT Controller', 'IT Controller No', 'Swing Motor No',
+    'Pump Assy HYD No', 'Motor Propel No', 'Control Valve No',
+    'Front ATT', 'Engine start key', 'Note1', 'Note2', 'Note3',
   ],
   wh1: [
     'Warehouse', 'Order No', 'Work order', 'Parts No', 'Name',
@@ -38,6 +39,41 @@ const TARGET_COLUMNS = {
     'Export Entry', 'Import License', 'Export License',
     { value: 'Declaration date', label: 'วันที่นำออกใบอนุญาต' },
     'Remark',
+  ],
+  machine_spec: [
+    'Machine No', 'KCM Order', 'Country Name', 'IT device', 'IT Controller', 'IT Controller S/N',
+    'Engine', 'Engine History', 'Control valve', 'Motor Propel', 'Pump Assy HYD', 'HYD oil',
+    'Boom', 'Arm', 'Shoe', 'Seat', 'Radio',
+  ],
+  wh_stock_mc: [
+    { value: 'orderno', label: 'Order No' },
+    { value: 'partsno', label: 'Parts No' },
+    { value: 'name', label: 'Name' },
+    { value: 'workorder', label: 'Work order' },
+    { value: 'assemblypartsnumber', label: 'Assembly Parts Number' },
+    { value: 'assemblypartsname', label: 'Assembly Parts Name' },
+    { value: 'reservationno', label: 'Reservation No' },
+    { value: 'finalcolor', label: 'Final Color' },
+    { value: 'note', label: 'Note' },
+  ],
+  wh_stock_inv: [
+    { value: 'pono', label: 'P.O.NO' },
+    { value: 'partsno', label: 'Parts No' },
+    { value: 'cno', label: 'C.No' },
+    { value: 'description', label: 'Description' },
+    { value: 'qty', label: 'Qty' },
+    { value: 'sloc', label: 'Sloc' },
+    { value: 'shelf', label: 'Shelf' },
+  ],
+  serial_list: [
+    { value: 'IT Controller no.', label: 'IT Controller no. (หมายเลขเครื่อง)' },
+    { value: 'หมายเลขการผลิต', label: 'IMEI (หมายเลขการผลิต)' },
+    { value: 'Serial No', label: 'Serial No' },
+    { value: 'Part No', label: 'Part No' },
+    { value: 'Part Name', label: 'Part Name' },
+    { value: 'Model', label: 'Model' },
+    { value: 'เลขใบอนุญาตนำเข้า', label: 'เลขใบอนุญาตนำเข้า' },
+    { value: 'เลขอินวอยซ์นำเข้า', label: 'เลขอินวอยซ์นำเข้า' },
   ],
 }
 
@@ -73,6 +109,10 @@ const SCOPES = [
   { scope: 'master_data:control_valve', label: 'รายการ Control Valve', group: 'ข้อมูล' },
   { scope: 'import_license', label: 'Import License', group: 'ใบอนุญาต' },
   { scope: 'export_license', label: 'Export License', group: 'ใบอนุญาต' },
+  { scope: 'machine_spec', label: 'Machine Spec', group: 'อื่น ๆ' },
+  { scope: 'wh_stock_mc', label: 'WH Stock (MC)', group: 'อื่น ๆ' },
+  { scope: 'wh_stock_inv', label: 'WH Stock (Invoice)', group: 'อื่น ๆ' },
+  { scope: 'serial_list', label: 'IT Controller (Serial List)', group: 'อื่น ๆ' },
 ]
 
 export default function FormatSettingsPage() {

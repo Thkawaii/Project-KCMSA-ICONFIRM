@@ -62,3 +62,32 @@ export async function promptRenewDays({ title = 'ต่ออายุใบอ�
   if (res.isConfirmed && res.value) return Number(res.value)
   return null
 }
+
+export async function promptRenewExport({ licenseOptions = [], defaultDays = 180 } = {}) {
+  const opts = licenseOptions
+    .map((v) => `<option value="${String(v).replace(/"/g, '&quot;')}">${v}</option>`)
+    .join('')
+  const res = await Swal.fire({
+    title: 'ต่ออายุใบอนุญาตส่งออก',
+    html: `
+      <div class="scan-popup-hint">เลือกเลขใบอนุญาตส่งออกที่จะต่ออายุ</div>
+      <select id="ren-lic" class="swal2-input">${opts}</select>
+      <input id="ren-days" type="number" class="swal2-input" value="${defaultDays}"
+             min="1" max="3650" step="1" placeholder="จำนวนวันที่ต่อ เช่น 180" />
+      <div class="scan-popup-hint">ระบบจะเลื่อนวันหมดอายุออกไปตามจำนวนวันที่กรอก</div>
+    `,
+    showCancelButton: true,
+    confirmButtonText: 'ต่ออายุ',
+    cancelButtonText: 'ยกเลิก',
+    preConfirm: () => {
+      const lic = document.getElementById('ren-lic')?.value || ''
+      const days = Number(document.getElementById('ren-days')?.value)
+      if (!lic) return Swal.showValidationMessage('กรุณาเลือกเลขใบอนุญาต')
+      if (!days || !Number.isInteger(days) || days <= 0) return Swal.showValidationMessage('กรุณากรอกจำนวนวันเป็นจำนวนเต็มมากกว่า 0')
+      if (days > 3650) return Swal.showValidationMessage('จำนวนวันมากเกินไป (สูงสุด 3650 วัน)')
+      return { licenseNo: lic, days }
+    },
+  })
+  if (res.isConfirmed && res.value) return res.value
+  return null
+}

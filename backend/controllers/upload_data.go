@@ -16,7 +16,6 @@ import (
 	"gorm.io/gorm"
 )
 
-
 type udColumn struct {
 	Label   string
 	Aliases []string
@@ -109,6 +108,11 @@ var udDatasets = map[string]udDataset{
 			col("Front ATT", "frontatt"),
 			col("Cab guard", "cabguard"),
 			col("IT device", "itdevice"),
+			col("IT Controller No", "itcontrollerno", "itcontroller", "itcontrollernumber", "itcno", "itcontrollerserial"),
+			col("Swing Motor No", "swingmotorno", "swingmotor", "swno", "swingno", "swingmotornumber"),
+			col("Pump Assy HYD No", "pumpassyhydno", "pumpassyno", "pumpno", "pumpassy", "pumpassyhyd"),
+			col("Motor Propel No", "motorpropelno", "propelno", "propelmotorno", "propel"),
+			col("Control Valve No", "controlvalveno", "cvno", "valveno", "controlvalve"),
 			col("Other option", "otheroption"),
 			col("Additional ATT", "additionalatt"),
 			col("Cold region spec(HYD oil)", "coldregionspechydoil", "hydoil"),
@@ -203,7 +207,12 @@ var udDatasets = map[string]udDataset{
 			col("Specification Detail", "specificationdetail", "specdetail", "specification"),
 			col("Country Name", "countryname", "country"),
 			col("IT device", "itdevice", "device"),
-			col("IT Controller", "itcontroller", "itcontrollerno", "itcontrollernumber", "controller"),
+			col("IT Controller", "itcontroller", "controller"),
+			col("IT Controller No", "itcontrollerno", "itcontrollernumber", "itcno", "itcontrollerserial"),
+			col("Swing Motor No", "swingmotorno", "swingmotor", "swno", "swingno", "swingmotornumber"),
+			col("Pump Assy HYD No", "pumpassyhydno", "pumpassyno", "pumpno", "pumpassy", "pumpassyhyd"),
+			col("Motor Propel No", "motorpropelno", "propelno", "propelmotorno", "propel"),
+			col("Control Valve No", "controlvalveno", "cvno", "valveno", "controlvalve"),
 			col("Assembly_Parts_Number", "assemblypartsnumber", "assemblypartsno", "partsnumber", "assemblyparts"),
 			col("Assembly_Parts_Name", "assemblypartsname", "partsname", "model", "modelname"),
 		},

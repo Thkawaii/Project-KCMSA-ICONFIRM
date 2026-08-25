@@ -12,7 +12,6 @@ import {
 } from '../lib/exportLicenseDismiss.js'
 import { BellAlertIcon, XMarkIcon, ClockIcon, EyeSlashIcon, ArrowPathIcon, ArrowUpTrayIcon } from './icons.jsx'
 
-
 const POLL_MS = 60_000
 const ACK_KEY = 'iconfirm_export_license_alert_ack'
 

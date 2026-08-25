@@ -45,8 +45,8 @@ type MachineSpec struct {
 
 	Shoe string `gorm:"size:255"`
 
-	ITDevice     string `gorm:"size:255"`
-	ITController string `gorm:"size:100"`
+	ITDevice       string `gorm:"size:255"`
+	ITController   string `gorm:"size:100"`
 	ITControllerSN string `gorm:"size:100"`
 
 	ControlValve string `gorm:"size:100"`
@@ -57,6 +57,8 @@ type MachineSpec struct {
 	Seat string `gorm:"size:255"`
 
 	HydOil string `gorm:"size:255"`
+
+	ExtraJSON string `gorm:"type:text" json:"extra_json,omitempty"`
 
 	FileName   string `gorm:"size:255"`
 	UploadDate time.Time

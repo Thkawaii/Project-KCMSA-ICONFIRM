@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-
 const (
 	UnitStatusImported  = "IMPORTED"
 	UnitStatusReceived  = "RECEIVED"
@@ -187,6 +186,8 @@ type ITControllerUnit struct {
 	MachineNo string `gorm:"size:100;index"`
 
 	Remark string `gorm:"size:255"`
+
+	ExtraJSON string `gorm:"type:text" json:"extra_json,omitempty"`
 
 	UploadDate time.Time
 

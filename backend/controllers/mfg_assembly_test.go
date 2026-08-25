@@ -131,7 +131,6 @@ func TestPlannedITCForMachine(t *testing.T) {
 	})
 }
 
-
 func TestScanMFGAssemblyMatched(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "พนักงาน MFG", "MFG")

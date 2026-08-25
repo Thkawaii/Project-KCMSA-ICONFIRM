@@ -11,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-
 func loadUploadRows(dataset string) []map[string]string {
 	var rows []models.UploadDataRow
 	config.DB.Where("dataset = ?", dataset).Order("id asc").Find(&rows)
@@ -131,18 +130,35 @@ func GenerateAssembly(c *gin.Context) {
 		specDetail := ""
 		itDevice := ""
 		countryName := ""
+
+		planITC := ""
+		planSwing := ""
+		planPump := ""
+		planPropel := ""
+		planValve := ""
 		if p != nil {
 			specCode = strings.TrimSpace(p["Product Spec 1"])
 			specDetail = strings.TrimSpace(p["Product Spec 2"])
 			itDevice = strings.TrimSpace(p["IT device"])
 			countryName = strings.TrimSpace(p["Country Name"])
+			planITC = strings.TrimSpace(pickField(p, "IT Controller No", "IT Controller"))
+			planSwing = strings.TrimSpace(p["Swing Motor No"])
+			planPump = strings.TrimSpace(p["Pump Assy HYD No"])
+			planPropel = strings.TrimSpace(p["Motor Propel No"])
+			planValve = strings.TrimSpace(p["Control Valve No"])
 		}
 
-		preferredITC := ""
-		if p != nil {
-			preferredITC = strings.TrimSpace(p["IT Controller"])
-		}
+		preferredITC := planITC
 		itcNo, deriveCountry := resolveITControllerNo(mc, preferredITC)
+
+		itcMatch := ""
+		if planITC != "" && itcNo != "" {
+			if keepDigits(planITC) == keepDigits(itcNo) {
+				itcMatch = "MATCH"
+			} else {
+				itcMatch = "MISMATCH"
+			}
+		}
 
 		if itDevice == "" {
 			var specs []models.MachineSpec
@@ -170,6 +186,12 @@ func GenerateAssembly(c *gin.Context) {
 			"Country Name":          countryName,
 			"IT device":             itDevice,
 			"IT Controller":         itcNo,
+			"IT Controller No":      planITC,
+			"IT Controller Match":   itcMatch,
+			"Swing Motor No":        planSwing,
+			"Pump Assy HYD No":      planPump,
+			"Motor Propel No":       planPropel,
+			"Control Valve No":      planValve,
 			"Assembly_Parts_Number": parts.no,
 			"Assembly_Parts_Name":   parts.name,
 		}

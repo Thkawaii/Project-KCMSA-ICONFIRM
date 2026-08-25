@@ -1,7 +1,5 @@
 import { apiFetch, API_BASE_URL, getToken } from './client.js'
 
-
-
 export function getColumnAliases(scope) {
   const qs = scope ? `?scope=${encodeURIComponent(scope)}` : ''
   return apiFetch(`/format-config/column-alias${qs}`)
@@ -17,7 +15,6 @@ export function createColumnAlias({ scope, source, target, note, kind }) {
 export function deleteColumnAlias(id) {
   return apiFetch(`/format-config/column-alias/${id}`, { method: 'DELETE' })
 }
-
 
 export function getCodeAliases({ componentType, kind } = {}) {
   const params = new URLSearchParams()

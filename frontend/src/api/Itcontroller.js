@@ -18,7 +18,6 @@ async function postForm(path, formData) {
   return data
 }
 
-
 export function getDocuments(params = {}) {
   const qs = new URLSearchParams(params).toString()
   return apiFetch(`/it-controller/documents${qs ? `?${qs}` : ''}`)
@@ -35,7 +34,6 @@ export function uploadDocument({ file, docType, docNo, invoiceNo = '', poNo = ''
   return postForm('/it-controller/documents', form)
 }
 
-
 export function getImportLicenses() {
   return apiFetch('/it-controller/import-licenses')
 }
@@ -46,7 +44,6 @@ export function saveImportLicense(payload) {
     body: JSON.stringify(payload),
   })
 }
-
 
 export function uploadSerialList(file) {
   const form = new FormData()
@@ -115,7 +112,6 @@ export function exportUnit(itControllerNo, country = '', remark = '') {
   })
 }
 
-
 export function getExportLicenses() {
   return apiFetch('/it-controller/export-licenses')
 }
@@ -147,7 +143,6 @@ export async function downloadExportAttachment(licenseNo) {
   a.click()
   URL.revokeObjectURL(url)
 }
-
 
 export function getAlerts() {
   return apiFetch('/it-controller/alerts')

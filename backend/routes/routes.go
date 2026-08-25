@@ -117,6 +117,7 @@ func SetupRoutes(r *gin.Engine) {
 		exportLicense.GET("/:id/trace", controllers.GetExportLicenseTrace)
 		exportLicense.POST("/upload", controllers.UploadExportLicense)
 		exportLicense.POST("/preview", controllers.PreviewExportLicenseMapping)
+		exportLicense.POST("/renew", controllers.RenewExportLicense)
 		exportLicense.DELETE("/:id", controllers.DeleteExportLicense)
 		exportLicense.DELETE("", controllers.ClearExportLicense)
 	}

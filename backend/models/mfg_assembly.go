@@ -2,7 +2,6 @@ package models
 
 import "time"
 
-
 const (
 	MFGStatusMatched    = "MATCHED"
 	MFGStatusNotMatched = "NOT_MATCHED"

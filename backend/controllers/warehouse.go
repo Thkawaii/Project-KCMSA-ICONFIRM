@@ -37,17 +37,17 @@ func CreateWarehouse(c *gin.Context) {
 }
 
 var warehouseColumns = map[string]func(*models.Warehouse, string){
-	"Warehouse":           func(w *models.Warehouse, v string) { w.Warehouse = v },
-	"Order No":            func(w *models.Warehouse, v string) { w.OrderNo = v },
-	"Work Order":          func(w *models.Warehouse, v string) { w.WorkOrder = v },
-	"Part No":             func(w *models.Warehouse, v string) { w.PartNo = v },
-	"Part Name":           func(w *models.Warehouse, v string) { w.PartName = v },
-	"Assembly Part No":    func(w *models.Warehouse, v string) { w.AssemblyPartNo = v },
-	"Assembly Part Name":  func(w *models.Warehouse, v string) { w.AssemblyPartName = v },
-	"Shelf1":              func(w *models.Warehouse, v string) { w.Shelf1 = v },
-	"Shelf2":              func(w *models.Warehouse, v string) { w.Shelf2 = v },
-	"Machine Model":       func(w *models.Warehouse, v string) { w.MachineModel = v },
-	"Final Color":         func(w *models.Warehouse, v string) { w.FinalColor = v },
+	"Warehouse":          func(w *models.Warehouse, v string) { w.Warehouse = v },
+	"Order No":           func(w *models.Warehouse, v string) { w.OrderNo = v },
+	"Work Order":         func(w *models.Warehouse, v string) { w.WorkOrder = v },
+	"Part No":            func(w *models.Warehouse, v string) { w.PartNo = v },
+	"Part Name":          func(w *models.Warehouse, v string) { w.PartName = v },
+	"Assembly Part No":   func(w *models.Warehouse, v string) { w.AssemblyPartNo = v },
+	"Assembly Part Name": func(w *models.Warehouse, v string) { w.AssemblyPartName = v },
+	"Shelf1":             func(w *models.Warehouse, v string) { w.Shelf1 = v },
+	"Shelf2":             func(w *models.Warehouse, v string) { w.Shelf2 = v },
+	"Machine Model":      func(w *models.Warehouse, v string) { w.MachineModel = v },
+	"Final Color":        func(w *models.Warehouse, v string) { w.FinalColor = v },
 }
 
 func UploadWarehouseStock(c *gin.Context) {

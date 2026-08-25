@@ -13,7 +13,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-
 var importLicenseColumns = map[string]func(*models.ImportLicenseItem, string){
 	"ลำดับ":  func(m *models.ImportLicenseItem, v string) { m.ItemNo = atoiSafe(v) },
 	"no":     func(m *models.ImportLicenseItem, v string) { m.ItemNo = atoiSafe(v) },
@@ -285,7 +284,6 @@ func GetImportLicenseSummary(c *gin.Context) {
 
 	c.JSON(200, rows)
 }
-
 
 const LicenseValidityMonths = 6
 

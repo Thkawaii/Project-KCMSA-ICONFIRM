@@ -2,13 +2,12 @@ package models
 
 import "time"
 
-
 type ExportLicenseItem struct {
 	ID uint `gorm:"primaryKey"`
 
 	DeclarationDate  *time.Time
-	ExceptionLicense string     `gorm:"size:60;index"`
-	SerialNumber     string     `gorm:"size:60;uniqueIndex;not null"`
+	ExceptionLicense string `gorm:"size:60;index"`
+	SerialNumber     string `gorm:"size:60;uniqueIndex;not null"`
 	ExpireDate       *time.Time
 
 	ItemNo       int        `gorm:"column:item_no;index"`

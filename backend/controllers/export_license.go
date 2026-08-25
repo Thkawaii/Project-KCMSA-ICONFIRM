@@ -13,7 +13,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-
 var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"ใบขนdate":        func(m *models.ExportLicenseItem, v string) { m.DeclarationDate = parseLicenseDate(v) },
 	"ใบขน":            func(m *models.ExportLicenseItem, v string) { m.DeclarationDate = parseLicenseDate(v) },
@@ -47,7 +46,6 @@ var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"expiry":     func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
 	"วันหมดอายุ": func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
 	"หมดอายุ":    func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
-
 
 	"item":   func(m *models.ExportLicenseItem, v string) { m.ItemNo = atoiSafe(v) },
 	"itemno": func(m *models.ExportLicenseItem, v string) { m.ItemNo = atoiSafe(v) },
@@ -154,7 +152,6 @@ func findExportHeaderRow(rows [][]string, known map[string]bool, anchors []strin
 	}
 	return -1, nil
 }
-
 
 type exportLicenseLink struct {
 	ImportMatched       bool   `json:"ImportMatched"`
@@ -491,7 +488,6 @@ func UploadExportLicense(c *gin.Context) {
 	})
 }
 
-
 func PreviewExportLicenseMapping(c *gin.Context) {
 	rows, fileName, err := readSheetRows(c, []string{"export", "exportlicense", "serail", "serial", "total"})
 	if err != nil {
@@ -799,4 +795,83 @@ func ClearExportLicense(c *gin.Context) {
 	userID, userName := lookupUserName(c)
 	CreateAuditLog("EXPORT_LICENSE", 0, "clear_all", "", userID, userName)
 	c.JSON(200, gin.H{"deleted": res.RowsAffected})
+}
+
+func RenewExportLicense(c *gin.Context) {
+	var req struct {
+		ExportLicenseNo string `json:"exportLicenseNo"`
+		InvoiceNo       string `json:"invoiceNo"`
+		Days            int    `json:"days"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"message": "ข้อมูลไม่ถูกต้อง"})
+		return
+	}
+
+	exportLicenseNo := strings.TrimSpace(req.ExportLicenseNo)
+	invoiceNo := strings.TrimSpace(req.InvoiceNo)
+	if exportLicenseNo == "" && invoiceNo == "" {
+		c.JSON(400, gin.H{"message": "ต้องระบุเลขใบอนุญาตส่งออก หรือเลขอินวอยซ์ อย่างน้อยหนึ่งอย่าง"})
+		return
+	}
+	if req.Days <= 0 {
+		c.JSON(400, gin.H{"message": "จำนวนวันที่ต่อต้องมากกว่า 0"})
+		return
+	}
+	if req.Days > 3650 {
+		c.JSON(400, gin.H{"message": "จำนวนวันที่ต่อมากเกินไป (สูงสุด 3650 วัน)"})
+		return
+	}
+
+	q := config.DB.Model(&models.ExportLicenseItem{})
+	if exportLicenseNo != "" {
+		q = q.Where("export_license_no = ?", exportLicenseNo)
+	}
+	if invoiceNo != "" {
+		q = q.Where("invoice_no = ?", invoiceNo)
+	}
+
+	var rows []models.ExportLicenseItem
+	if err := q.Find(&rows).Error; err != nil {
+		c.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+	if len(rows) == 0 {
+		c.JSON(404, gin.H{"message": "ไม่พบล็อตใบอนุญาตส่งออกนี้"})
+		return
+	}
+
+	now := time.Now()
+
+	noDateBase := now.AddDate(0, -ExportLicenseValidityMonths, 0)
+
+	updated := 0
+	for i := range rows {
+		base := noDateBase
+		if rows[i].DeclarationDate != nil {
+			base = *rows[i].DeclarationDate
+		}
+		newDate := base.AddDate(0, 0, req.Days)
+		if err := config.DB.Model(&models.ExportLicenseItem{}).
+			Where("id = ?", rows[i].ID).
+			Update("declaration_date", newDate).Error; err != nil {
+			c.JSON(500, gin.H{"message": err.Error()})
+			return
+		}
+		rows[i].DeclarationDate = &newDate
+		updated++
+	}
+
+	newExpiry := rows[0].DeclarationDate.AddDate(0, ExportLicenseValidityMonths, 0)
+
+	userID, userName := lookupUserName(c)
+	CreateAuditLog("EXPORT_LICENSE", 0, "renew",
+		"export_license_no="+exportLicenseNo+" invoice_no="+invoiceNo+" days="+strconv.Itoa(req.Days),
+		userID, userName)
+
+	c.JSON(200, gin.H{
+		"renewed":   updated,
+		"days":      req.Days,
+		"newExpiry": newExpiry,
+	})
 }

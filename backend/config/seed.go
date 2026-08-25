@@ -168,7 +168,6 @@ func SeedData() {
 
 	DB.Create(&users)
 
-
 }
 
 func SeedMasterITController() {

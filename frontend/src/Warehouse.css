@@ -179,7 +179,6 @@
   padding: 32px 0 !important;
 }
 
-
 .wh-modal-overlay {
   position: fixed;
   inset: 0;
@@ -284,7 +283,6 @@
   padding: 6px 14px;
   font-size: 13px;
 }
-
 
 .wh-stats-row {
   margin-bottom: 22px;
@@ -454,7 +452,6 @@
   background: #cbd5e1;
   cursor: not-allowed;
 }
-
 
 .qa-stat-sub {
   font-size: 12px;
@@ -648,7 +645,6 @@
   cursor: not-allowed;
 }
 
-
 .qa-detail-topbar {
   display: flex;
   align-items: center;
@@ -801,7 +797,6 @@
   color: #15803d;
 }
 
-
 .dash-stats-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -882,7 +877,6 @@
   padding: 40px 20px;
   text-align: center;
 }
-
 
 @media (max-width: 560px) {
   .dash-stats-row {
@@ -1644,7 +1638,6 @@
     padding: 18px 18px 16px;
   }
 }
-
 
 .tsf-history-pagesize,
 .qa-table-toolbar-left {

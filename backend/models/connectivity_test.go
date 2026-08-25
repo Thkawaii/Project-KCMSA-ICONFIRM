@@ -2,7 +2,6 @@ package models
 
 import "testing"
 
-
 func TestClassifyConnectivity(t *testing.T) {
 	cases := []struct {
 		name     string
