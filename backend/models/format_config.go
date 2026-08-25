@@ -2,7 +2,6 @@ package models
 
 import "time"
 
-
 type ColumnAlias struct {
 	ID uint `gorm:"primaryKey" json:"id"`
 

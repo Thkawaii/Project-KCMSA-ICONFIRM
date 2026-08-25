@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-
 func NormalizeCodeValue(s string) string {
 	s = unwrapExcelText(strings.TrimSpace(s))
 	var b strings.Builder
@@ -213,7 +212,6 @@ func lookupCodeAliasKind(componentType, kind, rawCode string) *models.CodeAlias 
 	return nil
 }
 
-
 func GetColumnAliases(c *gin.Context) {
 	var rows []models.ColumnAlias
 	q := config.DB.Order("scope asc").Order("id asc")
@@ -270,7 +268,6 @@ func DeleteColumnAlias(c *gin.Context) {
 	CreateAuditLog("FORMAT_CONFIG", uint(id), "column_alias_delete", "", userID, userName)
 	c.JSON(200, gin.H{"deleted": true})
 }
-
 
 func GetCodeAliases(c *gin.Context) {
 	var rows []models.CodeAlias

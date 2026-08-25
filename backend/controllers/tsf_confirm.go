@@ -47,16 +47,16 @@ func ConfirmTSF(c *gin.Context) {
 	userID, name := lookupUserName(c)
 
 	confirm := models.TSFConfirm{
-		SerialNumber:        scan.SerialNumber,
-		ActualPartNo:        scan.ActualPartNo,
-		ActualSpecCode:      scan.ActualSpecCode,
-		ValidationStatus:    scan.ValidationStatus,
-		FileName:            scan.FileName,
-		ConfirmTSFStatus:    req.Status,
-		ConfirmTSFDatetime:  time.Now(),
-		RemarkTSF:           req.Remark,
-		UserID:              userID,
-		Name:                name,
+		SerialNumber:       scan.SerialNumber,
+		ActualPartNo:       scan.ActualPartNo,
+		ActualSpecCode:     scan.ActualSpecCode,
+		ValidationStatus:   scan.ValidationStatus,
+		FileName:           scan.FileName,
+		ConfirmTSFStatus:   req.Status,
+		ConfirmTSFDatetime: time.Now(),
+		RemarkTSF:          req.Remark,
+		UserID:             userID,
+		Name:               name,
 	}
 
 	if err := config.DB.Create(&confirm).Error; err != nil {

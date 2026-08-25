@@ -1,8 +1,10 @@
 package controllers
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"iconfirm/config"
@@ -13,41 +15,41 @@ import (
 )
 
 var machineSpecColumns = map[string]func(*models.MachineSpec, string){
-	"Machine No":       func(m *models.MachineSpec, v string) { m.MachineNo = v },
-	"Spec(1)":          func(m *models.MachineSpec, v string) { m.Spec1 = v },
-	"Spec(2)":          func(m *models.MachineSpec, v string) { m.Spec2 = v },
-	"KCM Order":        func(m *models.MachineSpec, v string) { m.KCMOrder = v },
-	"Base spec":        func(m *models.MachineSpec, v string) { m.BaseSpec = v },
-	"Boom":             func(m *models.MachineSpec, v string) { m.Boom = v },
-	"Boom no":          func(m *models.MachineSpec, v string) { m.BoomNo = v },
-	"Boom name":        func(m *models.MachineSpec, v string) { m.BoomName = v },
-	"Arm":              func(m *models.MachineSpec, v string) { m.Arm = v },
-	"Arm no":           func(m *models.MachineSpec, v string) { m.ArmNo = v },
-	"Arm name":         func(m *models.MachineSpec, v string) { m.ArmName = v },
-	"Front ATT":        func(m *models.MachineSpec, v string) { m.FrontATT = v },
-	"Bucket no":        func(m *models.MachineSpec, v string) { m.BucketNo = v },
-	"Country Name":     func(m *models.MachineSpec, v string) { m.CountryName = v },
-	"Other piping":     func(m *models.MachineSpec, v string) { m.OtherPiping = v },
-	"DigNavi":          func(m *models.MachineSpec, v string) { m.DigNavi = v },
-	"Cab guard":        func(m *models.MachineSpec, v string) { m.CabGuard = v },
-	"Engine":           func(m *models.MachineSpec, v string) { m.Engine = v },
-	"Engine History":   func(m *models.MachineSpec, v string) { m.EngineHistory = v },
-	"Engine start key": func(m *models.MachineSpec, v string) { m.EngineStartKey = v },
-	"Radio":            func(m *models.MachineSpec, v string) { m.Radio = v },
-	"Other option":     func(m *models.MachineSpec, v string) { m.OtherOption = v },
-	"CW no":            func(m *models.MachineSpec, v string) { m.CWNo = v },
-	"CW name":          func(m *models.MachineSpec, v string) { m.CWName = v },
-	"CW weight":        func(m *models.MachineSpec, v string) { m.CWWeight = v },
-	"Shoe":             func(m *models.MachineSpec, v string) { m.Shoe = v },
-	"IT device":        func(m *models.MachineSpec, v string) { m.ITDevice = v },
-	"IT Controller":    func(m *models.MachineSpec, v string) { m.ITController = v },
+	"Machine No":        func(m *models.MachineSpec, v string) { m.MachineNo = v },
+	"Spec(1)":           func(m *models.MachineSpec, v string) { m.Spec1 = v },
+	"Spec(2)":           func(m *models.MachineSpec, v string) { m.Spec2 = v },
+	"KCM Order":         func(m *models.MachineSpec, v string) { m.KCMOrder = v },
+	"Base spec":         func(m *models.MachineSpec, v string) { m.BaseSpec = v },
+	"Boom":              func(m *models.MachineSpec, v string) { m.Boom = v },
+	"Boom no":           func(m *models.MachineSpec, v string) { m.BoomNo = v },
+	"Boom name":         func(m *models.MachineSpec, v string) { m.BoomName = v },
+	"Arm":               func(m *models.MachineSpec, v string) { m.Arm = v },
+	"Arm no":            func(m *models.MachineSpec, v string) { m.ArmNo = v },
+	"Arm name":          func(m *models.MachineSpec, v string) { m.ArmName = v },
+	"Front ATT":         func(m *models.MachineSpec, v string) { m.FrontATT = v },
+	"Bucket no":         func(m *models.MachineSpec, v string) { m.BucketNo = v },
+	"Country Name":      func(m *models.MachineSpec, v string) { m.CountryName = v },
+	"Other piping":      func(m *models.MachineSpec, v string) { m.OtherPiping = v },
+	"DigNavi":           func(m *models.MachineSpec, v string) { m.DigNavi = v },
+	"Cab guard":         func(m *models.MachineSpec, v string) { m.CabGuard = v },
+	"Engine":            func(m *models.MachineSpec, v string) { m.Engine = v },
+	"Engine History":    func(m *models.MachineSpec, v string) { m.EngineHistory = v },
+	"Engine start key":  func(m *models.MachineSpec, v string) { m.EngineStartKey = v },
+	"Radio":             func(m *models.MachineSpec, v string) { m.Radio = v },
+	"Other option":      func(m *models.MachineSpec, v string) { m.OtherOption = v },
+	"CW no":             func(m *models.MachineSpec, v string) { m.CWNo = v },
+	"CW name":           func(m *models.MachineSpec, v string) { m.CWName = v },
+	"CW weight":         func(m *models.MachineSpec, v string) { m.CWWeight = v },
+	"Shoe":              func(m *models.MachineSpec, v string) { m.Shoe = v },
+	"IT device":         func(m *models.MachineSpec, v string) { m.ITDevice = v },
+	"IT Controller":     func(m *models.MachineSpec, v string) { m.ITController = v },
 	"IT Controller S/N": func(m *models.MachineSpec, v string) { m.ITControllerSN = v },
-	"Control valve":    func(m *models.MachineSpec, v string) { m.ControlValve = v },
-	"SW name":          func(m *models.MachineSpec, v string) { m.SwingMotor = v },
-	"Motor Propel":     func(m *models.MachineSpec, v string) { m.MotorPropel = v },
-	"Pump Assy HYD":    func(m *models.MachineSpec, v string) { m.PumpAssyHyd = v },
-	"Seat":             func(m *models.MachineSpec, v string) { m.Seat = v },
-	"HYD oil":          func(m *models.MachineSpec, v string) { m.HydOil = v },
+	"Control valve":     func(m *models.MachineSpec, v string) { m.ControlValve = v },
+	"SW name":           func(m *models.MachineSpec, v string) { m.SwingMotor = v },
+	"Motor Propel":      func(m *models.MachineSpec, v string) { m.MotorPropel = v },
+	"Pump Assy HYD":     func(m *models.MachineSpec, v string) { m.PumpAssyHyd = v },
+	"Seat":              func(m *models.MachineSpec, v string) { m.Seat = v },
+	"HYD oil":           func(m *models.MachineSpec, v string) { m.HydOil = v },
 }
 
 var machineSpecAliases = map[string]string{
@@ -157,12 +159,26 @@ func UploadMachineSpec(c *gin.Context) {
 		}
 	}
 	if headerIdx < 0 {
-		c.JSON(400, gin.H{"message": "หาหัวตารางไม่เจอ — ไฟล์ต้องมีคอลัมน์ Machine No อย่างน้อย"})
+		c.JSON(400, gin.H{"message": "หาหัวตารางไม่เจอ — ไฟล์ต้องมีคอลัมน์ Machine No อย่างน้อย " +
+			"ถ้าไฟล์เปลี่ยนชื่อหัวคอลัมน์ ให้ตั้ง Column Alias ที่หน้า Format Settings (scope: machine_spec) แล้วอัปโหลดซ้ำ"})
 		return
 	}
 
 	headers := rows[headerIdx]
 	userID, _ := lookupUserName(c)
+
+	keys := make([]string, len(headers))
+	for i, h := range headers {
+		keys[i] = resolveKey(h)
+	}
+
+	dupSkip, dupProblems := findDuplicateKnownColumns(
+		keys,
+		func(k string) bool { _, ok := normSetter[k]; return ok },
+		headers,
+	)
+	problems := append([]string{}, dupProblems...)
+	extraColSet := map[string]bool{}
 
 	var created []models.MachineSpec
 	for _, row := range rows[headerIdx+1:] {
@@ -188,12 +204,30 @@ func UploadMachineSpec(c *gin.Context) {
 			UserID:        userID,
 		}
 
-		for i, header := range headers {
+		extras := map[string]string{}
+		for i, key := range keys {
 			if i >= len(row) {
 				break
 			}
-			if setter, ok := normSetter[resolveKey(header)]; ok {
+			if dupSkip[i] {
+				continue
+			}
+			if setter, ok := normSetter[key]; ok {
 				setter(&spec, row[i])
+				continue
+			}
+
+			if v := strings.TrimSpace(row[i]); v != "" {
+				label := strings.TrimSpace(headers[i])
+				if label != "" {
+					extras["[+] "+label] = v
+					extraColSet[label] = true
+				}
+			}
+		}
+		if len(extras) > 0 {
+			if b, err := json.Marshal(extras); err == nil {
+				spec.ExtraJSON = string(b)
 			}
 		}
 
@@ -210,9 +244,22 @@ func UploadMachineSpec(c *gin.Context) {
 		return
 	}
 
+	extraColumns := make([]string, 0, len(extraColSet))
+	for k := range extraColSet {
+		extraColumns = append(extraColumns, k)
+	}
+	if len(extraColumns) > 0 {
+		problems = append(problems,
+			"พบคอลัมน์นอกสเปก (ระบบไม่รู้จัก) "+strconv.Itoa(len(extraColumns))+" คอลัมน์: "+
+				strings.Join(extraColumns, ", ")+
+				" — เก็บค่าไว้ใน Extra ให้แล้ว หากต้องการให้ map เข้าคอลัมน์มาตรฐาน ให้ตั้ง Column Alias ที่หน้า Format Settings")
+	}
+
 	c.JSON(201, gin.H{
-		"imported": len(created),
-		"rows":     created,
+		"imported":     len(created),
+		"problems":     problems,
+		"extraColumns": extraColumns,
+		"rows":         created,
 	})
 }
 

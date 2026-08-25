@@ -1,6 +1,5 @@
 package config
 
-
 type itControllerSeedRow struct {
 	ItemNo         int
 	PartName       string

@@ -26,10 +26,10 @@ func GetWHConfirm(c *gin.Context) {
 }
 
 type IssueWarehouseRequest struct {
-	Qty            int    `json:"qty" binding:"required"`
-	ScannedPartNo  string `json:"scanned_part_no" binding:"required"`
-	ScannedSerial  string `json:"scanned_serial" binding:"required"`
-	Remark         string `json:"remark"`
+	Qty           int    `json:"qty" binding:"required"`
+	ScannedPartNo string `json:"scanned_part_no" binding:"required"`
+	ScannedSerial string `json:"scanned_serial" binding:"required"`
+	Remark        string `json:"remark"`
 }
 
 func IssueWarehouse(c *gin.Context) {
@@ -67,20 +67,20 @@ func IssueWarehouse(c *gin.Context) {
 	stockOutNo := "STO-" + strconv.FormatInt(time.Now().Unix(), 10)
 
 	confirm := models.WHConfirm{
-		PartNo:            wh.PartNo,
-		SerialNo:          req.ScannedSerial,
-		PartName:          wh.PartName,
-		OrderNo:           wh.OrderNo,
-		WorkOrder:         wh.WorkOrder,
-		MachineModel:      wh.MachineModel,
-		AssemblyPartNo:    wh.AssemblyPartNo,
-		AssemblyPartName:  wh.AssemblyPartName,
-		ConfirmStatus:     true,
-		ConfirmDatetime:   time.Now(),
-		RemarkWH:          req.Remark,
-		TransferStatus:    "SENT",
-		UserID:            userID,
-		Name:              name,
+		PartNo:           wh.PartNo,
+		SerialNo:         req.ScannedSerial,
+		PartName:         wh.PartName,
+		OrderNo:          wh.OrderNo,
+		WorkOrder:        wh.WorkOrder,
+		MachineModel:     wh.MachineModel,
+		AssemblyPartNo:   wh.AssemblyPartNo,
+		AssemblyPartName: wh.AssemblyPartName,
+		ConfirmStatus:    true,
+		ConfirmDatetime:  time.Now(),
+		RemarkWH:         req.Remark,
+		TransferStatus:   "SENT",
+		UserID:           userID,
+		Name:             name,
 	}
 
 	if err := config.DB.Create(&confirm).Error; err != nil {

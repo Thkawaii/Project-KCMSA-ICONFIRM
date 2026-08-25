@@ -265,7 +265,6 @@
   }
 }
 
-
 .shell {
   background: var(--color-canvas);
   font-family: var(--font-sans);
@@ -361,7 +360,6 @@
   border-bottom-color: var(--color-brand-500);
   background: var(--color-brand-50);
 }
-
 
 .submit-btn,
 .wh-issue-btn,
@@ -594,7 +592,6 @@
 .wh-table tbody tr:hover td {
   background: #f8fafc;
 }
-
 
 .upload-card-msg,
 .il-result-bar,

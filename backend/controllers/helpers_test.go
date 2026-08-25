@@ -2,7 +2,6 @@ package controllers
 
 import "testing"
 
-
 func TestLooks12Digit(t *testing.T) {
 	cases := []struct {
 		in   string

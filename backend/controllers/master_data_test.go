@@ -47,7 +47,6 @@ func patchCtx(id uint, body, force string, u models.User) (*gin.Context, *httpte
 	return c, rec
 }
 
-
 func TestGetMasterDataSummary(t *testing.T) {
 	newTestDB(t)
 	seedMasterConn(t, "S1", models.ConnSatelliteIrid)
@@ -95,7 +94,6 @@ func TestGetMasterDataSummaryEmptyBucketsPresent(t *testing.T) {
 		}
 	}
 }
-
 
 func seedMasterFull(t *testing.T, serialNo, itcNo string) uint {
 	t.Helper()

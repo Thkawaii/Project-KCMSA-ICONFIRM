@@ -13,7 +13,6 @@ import {
   ArrowUpTrayIcon,
 } from './icons.jsx'
 
-
 const POLL_MS = 60_000
 const SEEN_KEY = 'iconfirm_wh_alert_seen'
 

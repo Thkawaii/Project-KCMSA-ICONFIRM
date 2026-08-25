@@ -15,12 +15,13 @@ import {
   previewExportLicense,
   deleteExportLicense,
   clearExportLicense,
+  renewExportLicense,
 } from '../api/exportLicense.js'
 import { PreviewResult, ChangePreview, ExtraColumnsCell } from '../components/FormatTools.jsx'
 import AppShell from '../components/AppShell.jsx'
 import FileDropZone from '../components/Filedropzone.jsx'
 import SelectField from '../components/Selectfield.jsx'
-import { confirmDelete, toastError, toastSuccess, promptRenewDays } from '../lib/toast.js'
+import { confirmDelete, toastError, toastSuccess, promptRenewDays, promptRenewExport } from '../lib/toast.js'
 import {
   computeLicenseExpiry,
   formatThaiDate,
@@ -67,8 +68,6 @@ export const WH_NAV_ITEMS = [
     roles: ['WH', 'LOG'],
   },
 ]
-
-
 
 const EXPIRY_BADGE_CLASS = {
   [EXPIRY_STATUS.EXPIRED]: 'il-badge il-badge-bad',
@@ -772,7 +771,6 @@ function ImportDetailModal({ row, onClose }) {
   )
 }
 
-
 function computeExpireStatus(expireRaw, withinDays = 30) {
   if (!expireRaw) {
     return { hasDate: false, expiryDate: null, daysLeft: null, status: EXPIRY_STATUS.NO_DATE }
@@ -1158,6 +1156,32 @@ export function WHExportLicensePanel() {
     load()
   }, [])
 
+  async function handleRenewExport() {
+    const licenses = Array.from(
+      new Set(
+        rows
+          .map((r) => String(r.ExportLicenseNo || r.ExceptionLicense || '').trim())
+          .filter(Boolean)
+      )
+    ).sort()
+    if (licenses.length === 0) {
+      toastError('ยังไม่มีเลขใบอนุญาตส่งออกให้ต่ออายุ')
+      return
+    }
+    const picked = await promptRenewExport({ licenseOptions: licenses, defaultDays: 180 })
+    if (!picked) return
+    try {
+      const res = await renewExportLicense(picked.licenseNo, '', picked.days)
+      await load()
+      const newExp = res?.newExpiry ? formatThaiDate(new Date(res.newExpiry)) : ''
+      toastSuccess(
+        `ต่ออายุใบอนุญาตส่งออก ${picked.licenseNo} อีก ${picked.days} วันแล้ว${newExp ? ` — หมดอายุ ${newExp}` : ''}`
+      )
+    } catch (err) {
+      toastError(err.message || 'ต่ออายุไม่สำเร็จ')
+    }
+  }
+
   useEffect(() => {
     setPage(1)
   }, [search, exceptionFilter, expiryFilter, pageSize, periodMode, periodAnchor])
@@ -1393,6 +1417,14 @@ export function WHExportLicensePanel() {
             title={`ดาวน์โหลด Excel แยกชีตตามประเทศปลายทาง — ช่วง ${periodLabel}`}
           >
             {exportingXlsx ? 'กำลัง Export...' : 'Export Excel (แยกประเทศ)'}
+          </button>
+          <button
+            className="wh-issue-btn il-renew-btn"
+            onClick={handleRenewExport}
+            disabled={rows.length === 0}
+            title="ต่ออายุใบอนุญาตส่งออก"
+          >
+            ต่ออายุใบอนุญาต
           </button>
           {rows.length > 0 && (
             <button className="wh-btn-danger" onClick={handleClearAll}>

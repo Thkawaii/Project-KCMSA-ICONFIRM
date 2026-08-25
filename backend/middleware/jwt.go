@@ -70,7 +70,6 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
 
 			c.Set(

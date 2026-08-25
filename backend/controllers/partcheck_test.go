@@ -71,7 +71,6 @@ func TestResolveITControllerMaster(t *testing.T) {
 	})
 }
 
-
 func TestScanPartCheckITCMatch(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "wh@kobelco.com", "wh07", "พนักงาน WH", "WH")

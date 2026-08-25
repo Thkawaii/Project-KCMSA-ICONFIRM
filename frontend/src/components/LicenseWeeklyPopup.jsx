@@ -13,7 +13,6 @@ import {
 } from './icons.jsx'
 import './LicenseWeeklyPopup.css'
 
-
 const CLOSE_MS = 320
 const MAX_ROWS = 3
 

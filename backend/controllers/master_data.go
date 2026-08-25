@@ -281,7 +281,6 @@ func trimToNil(v *string) *string {
 	return &s
 }
 
-
 var masterDataColumns = map[string]func(*models.MasterData, string){
 	"itemno":     func(m *models.MasterData, v string) { m.ItemNo = atoiSafe(v) },
 	"no":         func(m *models.MasterData, v string) { m.ItemNo = atoiSafe(v) },

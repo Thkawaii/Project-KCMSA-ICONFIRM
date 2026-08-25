@@ -1,6 +1,5 @@
 import { apiFetch, API_BASE_URL, getToken } from './client.js'
 
-
 export function getExportLicense(q = '', link = '') {
   const params = new URLSearchParams()
   if (q) params.set('q', q)
@@ -27,6 +26,13 @@ export function deleteExportLicense(id) {
 
 export function clearExportLicense() {
   return apiFetch('/export-license', { method: 'DELETE' })
+}
+
+export function renewExportLicense(exportLicenseNo = '', invoiceNo = '', days = 0) {
+  return apiFetch('/export-license/renew', {
+    method: 'POST',
+    body: JSON.stringify({ exportLicenseNo, invoiceNo, days }),
+  })
 }
 
 export async function previewExportLicense(file) {

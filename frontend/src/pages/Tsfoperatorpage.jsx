@@ -204,7 +204,6 @@ export default function TSFOperatorPage() {
     }
   }, [])
 
-
   async function submitAssemblyCode(code) {
     const { machineNo, itControllerNo } = parseAssemblyCode(code)
     if (!machineNo) return

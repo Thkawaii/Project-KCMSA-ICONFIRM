@@ -14,7 +14,6 @@ import {
 import { updateMasterData } from '../api/masterData.js'
 import { buildStyledXlsxBlob, downloadBlob } from '../lib/xlsx.js'
 
-
 const panelStyle = {
   border: '1px solid #e2e8f0',
   borderRadius: 12,

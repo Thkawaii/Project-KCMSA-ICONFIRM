@@ -112,7 +112,6 @@
   padding: 32px 28px 60px;
 }
 
-
 .shell-subnav {
   display: flex;
   gap: 4px;
@@ -241,7 +240,6 @@
   }
 }
 
-
 .vr-tabs {
   display: inline-flex;
   background: #eef1f4;
@@ -267,7 +265,6 @@
   color: #0f172a;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
-
 
 .upload-panel {
   background: #ffffff;
@@ -517,7 +514,6 @@
   margin: 4px 0 14px;
 }
 
-
 .tsf-thumb-btn {
   border: none;
   background: none;
@@ -569,7 +565,6 @@
 .upload-card-msg-err {
   color: #b91c1c;
 }
-
 
 .tsf-history-toolbar {
   display: flex;
@@ -632,7 +627,6 @@
   padding: 0 6px;
 }
 
-
 .tsf-detail-modal {
   background: #ffffff;
   border-radius: 14px;
@@ -681,7 +675,6 @@
   object-fit: cover;
   max-height: 260px;
 }
-
 
 .scan-hero {
   display: flex;

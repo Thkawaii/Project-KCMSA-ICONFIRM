@@ -1,6 +1,5 @@
 import { apiFetch, API_BASE_URL, getToken } from './client.js'
 
-
 async function uploadFile(path, file) {
   const token = getToken()
   const formData = new FormData()

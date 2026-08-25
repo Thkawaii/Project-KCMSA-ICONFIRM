@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"strconv"
@@ -20,7 +21,6 @@ var (
 	errUploadNotExcel  = errors.New("ไฟล์ไม่ใช่ Excel ที่ถูกต้อง")
 	errUploadReadExcel = errors.New("อ่านไฟล์ Excel ไม่สำเร็จ")
 )
-
 
 func readSheetRows(c *gin.Context, names []string) ([][]string, string, error) {
 	fileHeader, err := c.FormFile("file")
@@ -68,7 +68,7 @@ func readSheetRows(c *gin.Context, names []string) ([][]string, string, error) {
 	return rows, fileHeader.Filename, nil
 }
 
-func findHeaderRow(rows [][]string, known map[string]bool, mustHave string, minHits int) (int, []string) {
+func findHeaderRow(rows [][]string, known map[string]bool, mustHave string, minHits int, reverse map[string]string) (int, []string) {
 	limit := 30
 	if len(rows) < limit {
 		limit = len(rows)
@@ -78,7 +78,7 @@ func findHeaderRow(rows [][]string, known map[string]bool, mustHave string, minH
 		hits := 0
 		hasMust := false
 		for j, cell := range rows[i] {
-			key := normalizeHeader(cell)
+			key := aliasHeaderKey(reverse, normalizeHeader(cell))
 			headers[j] = key
 			if known[key] {
 				hits++
@@ -93,7 +93,6 @@ func findHeaderRow(rows [][]string, known map[string]bool, mustHave string, minH
 	}
 	return -1, nil
 }
-
 
 var mcColumns = map[string]func(*models.WHMachineStock, string){
 	"warehouse":           func(m *models.WHMachineStock, v string) { m.Warehouse = v },
@@ -158,14 +157,23 @@ func UploadWHMachineStock(c *gin.Context) {
 		return
 	}
 
-	headerIdx, headers := findHeaderRow(rows, mcKnownHeaders(), "orderno", 3)
+	headerIdx, headers := findHeaderRow(rows, mcKnownHeaders(), "orderno", 3, loadColumnAliasReverse("wh_stock_mc"))
 	if headerIdx < 0 {
-		c.JSON(400, gin.H{"message": "หาหัวตาราง MC ไม่เจอ — ต้องมีคอลัมน์ 'Order No' และคอลัมน์อื่นอย่างน้อย 2 คอลัมน์"})
+		c.JSON(400, gin.H{"message": "หาหัวตาราง MC ไม่เจอ — ต้องมีคอลัมน์ 'Order No' และคอลัมน์อื่นอย่างน้อย 2 คอลัมน์ " +
+			"ถ้าไฟล์เปลี่ยนชื่อหัวคอลัมน์ ให้ตั้ง Column Alias ที่หน้า Format Settings (scope: wh_stock_mc) แล้วอัปโหลดซ้ำ"})
 		return
 	}
 
 	userID, userName := lookupUserName(c)
 	now := time.Now()
+
+	dupSkip, dupProblems := findDuplicateKnownColumns(
+		headers,
+		func(k string) bool { _, ok := mcColumns[k]; return ok },
+		rows[headerIdx],
+	)
+	problems := append([]string{}, dupProblems...)
+	extraColSet := map[string]bool{}
 
 	var (
 		parsed  []models.WHMachineStock
@@ -179,12 +187,30 @@ func UploadWHMachineStock(c *gin.Context) {
 			UploadDate: now,
 			UserID:     userID,
 		}
+		extras := map[string]string{}
 		for col, header := range headers {
 			if col >= len(rows[i]) {
 				break
 			}
+			if dupSkip[col] {
+				continue
+			}
+			val := strings.TrimSpace(rows[i][col])
 			if setter, ok := mcColumns[header]; ok {
-				setter(&row, strings.TrimSpace(rows[i][col]))
+				setter(&row, val)
+				continue
+			}
+			if val != "" && col < len(rows[headerIdx]) {
+				label := strings.TrimSpace(rows[headerIdx][col])
+				if label != "" {
+					extras["[+] "+label] = val
+					extraColSet[label] = true
+				}
+			}
+		}
+		if len(extras) > 0 {
+			if b, err := json.Marshal(extras); err == nil {
+				row.ExtraJSON = string(b)
 			}
 		}
 		if row.OrderNo == "" {
@@ -216,10 +242,22 @@ func UploadWHMachineStock(c *gin.Context) {
 
 	CreateAuditLog("WH_MC", 0, "upload_excel", fileName, userID, userName)
 
+	extraColumns := make([]string, 0, len(extraColSet))
+	for k := range extraColSet {
+		extraColumns = append(extraColumns, k)
+	}
+	if len(extraColumns) > 0 {
+		problems = append(problems,
+			"พบคอลัมน์นอกสเปก "+strconv.Itoa(len(extraColumns))+" คอลัมน์: "+strings.Join(extraColumns, ", ")+
+				" — เก็บค่าไว้ใน Extra ให้แล้ว (ตั้ง Column Alias ที่ Format Settings ถ้าต้องการ map)")
+	}
+
 	c.JSON(201, gin.H{
-		"imported": len(parsed),
-		"skipped":  skipped,
-		"file":     fileName,
+		"imported":     len(parsed),
+		"skipped":      skipped,
+		"problems":     problems,
+		"extraColumns": extraColumns,
+		"file":         fileName,
 	})
 }
 
@@ -256,7 +294,6 @@ func mcKnownHeaders() map[string]bool {
 	}
 	return m
 }
-
 
 var invColumns = map[string]func(*models.WHInvoiceItem, string){
 	"pono":        func(m *models.WHInvoiceItem, v string) { m.PONo = strings.TrimSpace(v) },
@@ -297,14 +334,23 @@ func UploadWHInvoice(c *gin.Context) {
 		return
 	}
 
-	headerIdx, headers := findHeaderRow(rows, invKnownHeaders(), "pono", 3)
+	headerIdx, headers := findHeaderRow(rows, invKnownHeaders(), "pono", 3, loadColumnAliasReverse("wh_stock_inv"))
 	if headerIdx < 0 {
-		c.JSON(400, gin.H{"message": "หาหัวตาราง Inv ไม่เจอ — ต้องมีคอลัมน์ 'P.O.NO' และคอลัมน์อื่นอย่างน้อย 2 คอลัมน์"})
+		c.JSON(400, gin.H{"message": "หาหัวตาราง Inv ไม่เจอ — ต้องมีคอลัมน์ 'P.O.NO' และคอลัมน์อื่นอย่างน้อย 2 คอลัมน์ " +
+			"ถ้าไฟล์เปลี่ยนชื่อหัวคอลัมน์ ให้ตั้ง Column Alias ที่หน้า Format Settings (scope: wh_stock_inv) แล้วอัปโหลดซ้ำ"})
 		return
 	}
 
 	userID, userName := lookupUserName(c)
 	now := time.Now()
+
+	dupSkip, dupProblems := findDuplicateKnownColumns(
+		headers,
+		func(k string) bool { _, ok := invColumns[k]; return ok },
+		rows[headerIdx],
+	)
+	problems := append([]string{}, dupProblems...)
+	extraColSet := map[string]bool{}
 
 	var (
 		parsed  []models.WHInvoiceItem
@@ -318,12 +364,30 @@ func UploadWHInvoice(c *gin.Context) {
 			UploadDate: now,
 			UserID:     userID,
 		}
+		extras := map[string]string{}
 		for col, header := range headers {
 			if col >= len(rows[i]) {
 				break
 			}
+			if dupSkip[col] {
+				continue
+			}
+			val := strings.TrimSpace(rows[i][col])
 			if setter, ok := invColumns[header]; ok {
-				setter(&row, strings.TrimSpace(rows[i][col]))
+				setter(&row, val)
+				continue
+			}
+			if val != "" && col < len(rows[headerIdx]) {
+				label := strings.TrimSpace(rows[headerIdx][col])
+				if label != "" {
+					extras["[+] "+label] = val
+					extraColSet[label] = true
+				}
+			}
+		}
+		if len(extras) > 0 {
+			if b, err := json.Marshal(extras); err == nil {
+				row.ExtraJSON = string(b)
 			}
 		}
 		if row.PONo == "" && row.PartsNo == "" {
@@ -356,10 +420,22 @@ func UploadWHInvoice(c *gin.Context) {
 
 	CreateAuditLog("WH_INV", 0, "upload_excel", fileName, userID, userName)
 
+	extraColumns := make([]string, 0, len(extraColSet))
+	for k := range extraColSet {
+		extraColumns = append(extraColumns, k)
+	}
+	if len(extraColumns) > 0 {
+		problems = append(problems,
+			"พบคอลัมน์นอกสเปก "+strconv.Itoa(len(extraColumns))+" คอลัมน์: "+strings.Join(extraColumns, ", ")+
+				" — เก็บค่าไว้ใน Extra ให้แล้ว (ตั้ง Column Alias ที่ Format Settings ถ้าต้องการ map)")
+	}
+
 	c.JSON(201, gin.H{
-		"imported": len(parsed),
-		"skipped":  skipped,
-		"file":     fileName,
+		"imported":     len(parsed),
+		"skipped":      skipped,
+		"problems":     problems,
+		"extraColumns": extraColumns,
+		"file":         fileName,
 	})
 }
 

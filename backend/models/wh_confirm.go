@@ -3,7 +3,6 @@ package models
 import "time"
 
 type WHConfirm struct {
-
 	ID uint `gorm:"primaryKey"`
 
 	PartNo string

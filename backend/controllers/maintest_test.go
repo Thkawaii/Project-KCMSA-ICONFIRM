@@ -1,6 +1,5 @@
 package controllers
 
-
 import (
 	"bytes"
 	"encoding/json"
@@ -57,7 +56,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 		atomic.AddInt64(&testDBCounter, 1))
 
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+		Logger:                                   logger.Default.LogMode(logger.Silent),
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {

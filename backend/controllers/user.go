@@ -34,7 +34,6 @@ func GetUsers(c *gin.Context) {
 	c.JSON(200, summaries)
 }
 
-
 type AdminUserView struct {
 	ID       uint   `json:"id"`
 	Name     string `json:"name"`

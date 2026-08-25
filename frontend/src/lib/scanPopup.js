@@ -2,7 +2,6 @@ import Swal from 'sweetalert2'
 import 'sweetalert2/dist/sweetalert2.min.css'
 import { toastSuccess } from './toast.js'
 
-
 export async function scanStep({
   title,
   html = '',

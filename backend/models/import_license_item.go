@@ -2,7 +2,6 @@ package models
 
 import "time"
 
-
 const (
 	LicenseItemPending   = "PENDING"
 	LicenseItemConfirmed = "CONFIRMED"
