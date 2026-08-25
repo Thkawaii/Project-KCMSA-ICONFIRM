@@ -4,17 +4,6 @@ import { getExportLicenseAlerts } from '../api/exportLicense.js'
 import { formatThaiDate, daysLeftLabel } from '../lib/licenseExpiry.js'
 import { ExclamationTriangleIcon, ClockIcon, CheckCircleIcon } from './icons.jsx'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LicenseAlertBanner — แถบสรุปสถานะอายุใบอนุญาต "แบบถาวร" บนหน้า License
-//
-// ต่างจากกระดิ่ง (ที่กดอ่านแล้วป้าย "ใหม่" หาย) — แถบนี้ผูกกับข้อมูลจริงใน DB
-// จึงแสดงอยู่ตลอดตราบใดที่ยังมีใบใกล้หมด/หมดอายุ ไม่ว่าจะกดอ่านหรือยัง
-// ทำให้ผู้ใช้ "รับรู้สถานะจริง" ตลอดเวลา ไม่ใช่แค่ตอนเปิดกระดิ่งครั้งแรก
-//
-// props:
-//   kind = 'import' | 'export'
-//   onOpenItem(item) — (ไม่บังคับ) คลิกรายการเพื่อไฮไลต์แถวในตารางด้านล่าง
-// ─────────────────────────────────────────────────────────────────────────────
 
 const POLL_MS = 60_000
 
@@ -48,7 +37,6 @@ export default function LicenseAlertBanner({ kind = 'import', onOpenItem }) {
       clearInterval(id)
       window.removeEventListener('focus', onFocus)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind])
 
   if (!loaded) return null
@@ -63,9 +51,6 @@ export default function LicenseAlertBanner({ kind = 'import', onOpenItem }) {
       ? `Invoice ${it.InvoiceNo || '—'}${it.Model ? ` · ${it.Model}` : ''}`
       : `Exception ${it.ExceptionLicense || '—'}`
 
-  // ไม่มีอะไรใกล้หมด/หมดอายุ
-  //   • ฝั่งส่งออก (export): ไม่แสดงแถบเขียว "ทั้งหมดอยู่ในอายุ" เลย (ตามที่ขอให้เอาออก)
-  //   • ฝั่งนำเข้า (import): ยังแสดงแถบเขียวยืนยันความเรียบร้อยเหมือนเดิม
   if (total === 0) {
     if (!isImport) return null
     return (
@@ -82,7 +67,6 @@ export default function LicenseAlertBanner({ kind = 'import', onOpenItem }) {
   }
 
   const tone = expired.length > 0 ? 'danger' : 'warn'
-  // เรียงตามความเร่งด่วน: หมดอายุก่อน แล้ว DaysLeft น้อยสุดก่อน
   const urgent = [...expired, ...expiring]
     .sort((a, b) => (a.DaysLeft ?? 0) - (b.DaysLeft ?? 0))
     .slice(0, 4)

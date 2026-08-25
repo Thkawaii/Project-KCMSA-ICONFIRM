@@ -2,10 +2,6 @@ package models
 
 import "testing"
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ทดสอบฟังก์ชันบริสุทธิ์ (pure functions) ของ IT Controller connectivity
-// ไม่ต้องต่อฐานข้อมูล — รันได้ทันทีด้วย `go test ./models/...`
-// ─────────────────────────────────────────────────────────────────────────────
 
 func TestClassifyConnectivity(t *testing.T) {
 	cases := []struct {
@@ -24,7 +20,6 @@ func TestClassifyConnectivity(t *testing.T) {
 		{"plain mobile", "MOBILE UNIT", "", ConnMobile4GNormal},
 		{"unknown returns empty", "Random Widget", "ABC-1", ""},
 		{"empty input", "", "", ""},
-		// ลำดับความสำคัญ: iridium/satellite มาก่อน high มาก่อน 4g/normal
 		{"iridium wins over 4g", "4G IRIDIUM", "", ConnSatelliteIrid},
 		{"high wins over normal", "4G HIGH NORMAL", "", ConnMobile4GHigh},
 	}
@@ -47,7 +42,6 @@ func TestNormalizeConnectivity(t *testing.T) {
 		{"4G High", ConnMobile4GHigh},
 		{"4g normal", ConnMobile4GNormal},
 		{"  mobile  ", ConnMobile4GNormal},
-		// ค่ารหัสมาตรฐานที่ป้อนตรง ๆ ต้องคืนค่าเดิม
 		{ConnMobile4GNormal, ConnMobile4GNormal},
 		{ConnMobile4GHigh, ConnMobile4GHigh},
 		{ConnSatelliteIrid, ConnSatelliteIrid},
@@ -61,7 +55,6 @@ func TestNormalizeConnectivity(t *testing.T) {
 	}
 }
 
-// กันการเผลอแก้ค่าคงที่สถานะ (ถ้าเปลี่ยนค่า test นี้จะเตือน)
 func TestStatusConstantsStable(t *testing.T) {
 	pairs := map[string]string{
 		MFGStatusMatched:    "MATCHED",

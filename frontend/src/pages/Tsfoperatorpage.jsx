@@ -18,13 +18,11 @@ import {
   ChevronRightIcon,
 } from '../components/icons.jsx'
 
-// MFG มีหน้าเดียว — AppShell จะซ่อนแถบเมนูย่อยให้เองเมื่อมีรายการเดียว
 export const MFG_NAV_ITEMS = [
   { to: '/mfg-assembly', label: 'MFG Assembly', icon: <ArrowsRightLeftIcon className="size-4" />, roles: ['MFG'] },
   { to: '/tsf', label: 'Scan & Validate', icon: <ArrowsRightLeftIcon className="size-4" />, roles: ['TSF'] },
 ]
 
-// ป้ายสถานะ — เหลือ 3 แบบ: Matched / Not Matched / Duplicate (ซ้ำ)
 const STATUS_META = {
   MATCHED: { label: 'Matched', cls: 'il-badge il-badge-ok' },
   NOT_MATCHED: { label: 'Not Matched', cls: 'il-badge il-badge-bad' },
@@ -47,7 +45,6 @@ const EMPTY_FORM = {
   status: '',
 }
 
-// วันที่-เวลา แสดงผล (รับ ISO string / null) เช่น 6/8/2569 14:35:32
 function fmtDate(value) {
   if (!value) return '—'
   const d = new Date(value)
@@ -60,7 +57,6 @@ function fmtDate(value) {
   return `${day}/${month}/${buddhistYear} ${time}`
 }
 
-// แปลงเป็นค่าใส่ <input type="date"> (yyyy-mm-dd)
 function toDateInput(value) {
   if (!value) return ''
   const d = new Date(value)
@@ -70,10 +66,6 @@ function toDateInput(value) {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
-// แยกค่าที่ยิง/พิมพ์เข้ามา
-// - ปกติป้าย Machine Part Confirmation จะมีแค่ "หมายเลขเครื่อง" (เช่น LX10400690)
-//   -> ระบบจะไปดึง IT Controller No. ให้เองที่ backend
-// - เผื่อ QR บรรจุทั้งคู่: โทเคนตัวเลขล้วน 10–15 หลัก = IT Controller No.
 function parseAssemblyCode(raw) {
   const s = (raw || '').trim()
   if (!s) return { machineNo: '', itControllerNo: '' }
@@ -90,18 +82,17 @@ export default function TSFOperatorPage() {
   const [loadError, setLoadError] = useState('')
 
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('') // '' = ทั้งหมด
+  const [statusFilter, setStatusFilter] = useState('')
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
 
-  // ── โมดัลแก้ไข ─────────────────────────────────────────────────────────
   const [modalOpen, setModalOpen] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
 
-  const busyRef = useRef(false) // กันเปิด popup สแกนซ้อน
-  const fireRef = useRef(() => {}) // ตัวรับสัญญาณจากเครื่องสแกน (ตั้งค่าใหม่ทุกเรนเดอร์)
+  const busyRef = useRef(false)
+  const fireRef = useRef(() => {})
 
   function friendlyError(err, fallback) {
     if (err?.status === 404 || err?.status === 405) {
@@ -131,10 +122,6 @@ export default function TSFOperatorPage() {
     setPage(1)
   }, [search, statusFilter, pageSize])
 
-  // ── ตัวดักสัญญาณเครื่องสแกนระดับหน้าเว็บ (แบบเดียวกับหน้า WH) ──────────────
-  // เครื่องสแกน = คีย์บอร์ดที่พิมพ์เร็วมาก (เว้นแต่ละตัว < ~50ms) แล้วปิดท้ายด้วย Enter
-  // จับจาก "ความเร็วการยิง" จึงเด้ง flow ได้ไม่ว่าโฟกัสจะอยู่ตรงไหน (รวมถึงตอนที่
-  // เคอร์เซอร์ค้างในช่องค้นหา) + กันไม่ให้ตัวอักษรบาร์โค้ดตกลงช่องค้นหา/ช่องอื่น
   useEffect(() => {
     let buffer = ''
     let lastTime = 0
@@ -150,12 +137,11 @@ export default function TSFOperatorPage() {
       const clean = startedClean
       buffer = ''
       startedClean = false
-      if (busyRef.current) return // มี popup/flow เปิดอยู่ -> ให้ช่องใน popup รับเอง
+      if (busyRef.current) return
       if (clean && code.length >= 2) fireRef.current(code)
     }
 
     function onKeydown(e) {
-      // ระหว่าง flow กำลังทำงาน (popup เปิด): ล้าง buffer ทิ้ง ให้ช่องใน popup รับเอง
       if (busyRef.current) {
         lastTime = Date.now()
         buffer = ''
@@ -167,7 +153,6 @@ export default function TSFOperatorPage() {
       const gap = now - lastTime
       lastTime = now
       if (gap > 50) {
-        // เว้นเกิน 50ms = เริ่มยิงชุดใหม่จากจังหวะว่าง -> เริ่มนับใหม่แบบ "สะอาด"
         buffer = ''
         startedClean = true
       }
@@ -185,29 +170,23 @@ export default function TSFOperatorPage() {
 
       if (e.key && e.key.length === 1) {
         buffer += e.key
-        // ยิงเป็นชุดเร็ว ๆ (บาร์โค้ด) -> ดักไว้ ไม่ให้ตัวอักษรตกลงช่องค้นหา/ช่องอื่น
         if (buffer.length >= 2) e.preventDefault()
-        // เผื่อเครื่องสแกนไม่มี Enter suffix: ยิงเองหลังเงียบ ~120ms
         if (flushTimer) clearTimeout(flushTimer)
         flushTimer = setTimeout(fireBuffered, 120)
       }
     }
 
-    // Fallback สำหรับสแกนเนอร์ที่ "วาง" ข้อความทั้งก้อนทีเดียว (Android/PDA/IME)
-    // แทนการจำลองปุ่มกดทีละตัว — onKeydown จะไม่เห็นอะไรเลย จึงต้องดัก 'input' เพิ่ม
     function onGlobalInput(e) {
       if (busyRef.current) return
       const inserted = typeof e.data === 'string' ? e.data : ''
       const code = inserted.trim()
-      if (code.length < 2) return // ตัวอักษรเดียว -> น่าจะเป็นคนพิมพ์เอง ปล่อยผ่าน
+      if (code.length < 2) return
 
-      // เอาข้อความที่เพิ่งแทรกออกจากช่องเดิม กันไปปนกับค่าที่มีอยู่ (เช่น ช่องค้นหา)
       const target = e.target
       if (target && typeof target.value === 'string') {
         try {
           target.value = target.value.slice(0, Math.max(0, target.value.length - inserted.length))
         } catch {
-          /* ignore */
         }
       }
 
@@ -225,12 +204,7 @@ export default function TSFOperatorPage() {
     }
   }, [])
 
-  // ── SCAN FLOW (แบบเดียวกับ WH) ───────────────────────────────────────────
-  // คลิกการ์ด -> popup ให้ "ยิงบาร์โค้ด หรือพิมพ์เอง" Machine No แล้วกดปุ่ม
-  // -> ระบบดึง IT Controller No. + Country ให้ แล้วขึ้นในตาราง
 
-  // แยกส่วน "บันทึกโค้ดที่ได้" ออกมาใช้ร่วมกัน ทั้งจากการคลิกการ์ด (พิมพ์/ยิงในป๊อปอัป)
-  // และจากเครื่องสแกนที่ยิงตรงเข้าหน้าเว็บ (ตัวดักด้านล่าง)
   async function submitAssemblyCode(code) {
     const { machineNo, itControllerNo } = parseAssemblyCode(code)
     if (!machineNo) return
@@ -243,7 +217,6 @@ export default function TSFOperatorPage() {
       if (res?.status === 'MATCHED') {
         scanSuccessToast(msg)
       } else {
-        // DUPLICATE (ซ้ำ) หรือ NOT_MATCHED — แจ้งเตือนให้ผู้ใช้ตรวจสอบ
         toastError(msg)
       }
       await loadRows()
@@ -253,9 +226,6 @@ export default function TSFOperatorPage() {
     }
   }
 
-  // เปิด popup "ว่าง" ให้ยิง/พิมพ์ Machine No แล้วกด "บันทึก" ค่อยบันทึก (ไม่บันทึกทันที)
-  // ใช้ร่วมกันทั้งตอนคลิกการ์ด และตอนเครื่องสแกนยิงเข้าหน้าเว็บ (เหมือนหน้า WH)
-  // — ช่องในป๊อปอัปเว้นว่างเสมอ ให้ยิงบาร์โค้ดจริงเข้ามาในนี้ (ไม่ prefill ค่าเดิม)
   async function runScanFlow() {
     if (busyRef.current) return
     busyRef.current = true
@@ -272,15 +242,12 @@ export default function TSFOperatorPage() {
     }
   }
 
-  // เครื่องสแกนยิงบาร์โค้ดเข้าหน้าเว็บโดยตรง (ไม่ต้องคลิกการ์ดก่อน)
-  // -> เปิด popup "ว่าง" ให้ยิงซ้ำในป๊อปอัปก่อนบันทึก (เหมือนหน้า WH) ไม่บันทึกทันที
   function handleScannerFire() {
     if (busyRef.current) return
     runScanFlow()
   }
   fireRef.current = handleScannerFire
 
-  // ── โมดัล แก้ไข ──────────────────────────────────────────────────────────
   function openEdit(row) {
     setEditId(row.ID)
     setForm({
@@ -338,7 +305,6 @@ export default function TSFOperatorPage() {
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     return rows.filter((r) => {
-      // กรองตามสถานะที่เลือก ('' = ทั้งหมด)
       if (statusFilter && (r.Status || '') !== statusFilter) return false
       if (!term) return true
       return (
@@ -373,7 +339,6 @@ export default function TSFOperatorPage() {
         </p>
       )}
 
-      {/* ── การ์ดบาร์โค้ด: คลิกเพื่อยิง/กรอก Machine No (เหมือนหน้า WH) ── */}
       <div className="pc-barcode-grid pc-barcode-grid--single">
         <div
           className="pc-barcode-card"
@@ -391,7 +356,6 @@ export default function TSFOperatorPage() {
         </div>
       </div>
 
-      {/* ── ตาราง: รายการที่ส่งแล้ว ──────────────────────────────────────── */}
       <div className="wh-heading-row" style={{ marginTop: 8 }}>
         <div>
           <h3 className="wh-title" style={{ fontSize: 18 }}>
@@ -544,7 +508,6 @@ export default function TSFOperatorPage() {
         </div>
       )}
 
-      {/* ── แก้ไขรายการ ─────────────────────────────────────────────────── */}
       {modalOpen && (
         <div className="wh-modal-overlay" onClick={closeModal}>
           <div className="wh-modal" onClick={(e) => e.stopPropagation()}>

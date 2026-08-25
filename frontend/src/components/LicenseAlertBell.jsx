@@ -12,23 +12,9 @@ import {
 } from '../lib/licenseDismiss.js'
 import { BellAlertIcon, XMarkIcon, ClockIcon, EyeSlashIcon, ArrowPathIcon, ArrowDownTrayIcon } from './icons.jsx'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LicenseAlertBell — กระดิ่งแจ้งเตือนอายุใบอนุญาตนำเข้าบน topbar
-//
-// • ดึงรายการที่ "หมดอายุ / ใกล้หมดอายุ" ทุก 60 วิ (+ ตอนสลับกลับมาที่แท็บ) = realtime
-// • badge สีแดง = จำนวนใบที่ต้องรีบจัดการ  ·  วงกระเพื่อม (pulse) เมื่อมีของใหม่
-//   ตั้งแต่ครั้งล่าสุดที่เปิดดู (จำผ่าน localStorage) — ให้ความรู้สึก "เตือนรายสัปดาห์"
-// • คลิก -> panel จัดกลุ่ม หมดอายุแล้ว / ใกล้หมดอายุ เรียงด่วนสุดขึ้นก่อน
-// • ปุ่ม "ซ่อน" (Dismiss) ต่อรายการ — เอาออกจากกระดิ่งโดยไม่ลบใบอนุญาต
-//   ตัวเลข badge ลดตามของที่ยังเห็นจริง · ของที่ซ่อนไว้กดคืนค่าได้ ไม่หายถาวร
-//   (รายละเอียดตรรกะการซ่อน/เด้งกลับ ดูที่ lib/licenseDismiss.js)
-//
-// แสดงเฉพาะ role WH (คนเดียวที่มีสิทธิ์ /import-license) — role อื่นจะไม่เห็นกระดิ่ง
-// และไม่ยิง API ที่จะโดน 403
-// ─────────────────────────────────────────────────────────────────────────────
 
 const POLL_MS = 60_000
-const ACK_KEY = 'iconfirm_license_alert_ack' // จำนวน alert ที่ผู้ใช้เห็นล่าสุด (นับเฉพาะที่ยังไม่ซ่อน)
+const ACK_KEY = 'iconfirm_license_alert_ack'
 
 export default function LicenseAlertBell() {
   const navigate = useAppNavigate()
@@ -37,7 +23,7 @@ export default function LicenseAlertBell() {
   const [counts, setCounts] = useState({ alert: 0, expired: 0, expiring: 0, noDate: 0 })
   const [loaded, setLoaded] = useState(false)
   const [hasNew, setHasNew] = useState(false)
-  const [dismissed, setDismissed] = useState(() => readDismissed()) // { key: dismissedAtISO }
+  const [dismissed, setDismissed] = useState(() => readDismissed())
   const [showHidden, setShowHidden] = useState(false)
   const rootRef = useRef(null)
 
@@ -53,11 +39,9 @@ export default function LicenseAlertBell() {
         expiring: c.expiring || 0,
         noDate: c.noDate || 0,
       })
-      // เก็บกวาด key ที่ซ่อนไว้แต่ไม่มีในรายการแล้ว (ใบถูกลบ/ต่ออายุ) แล้ว sync state
       setDismissed(pruneDismissed(list))
       setLoaded(true)
     } catch {
-      // เงียบไว้ — กระดิ่งพังไม่ควรทำทั้งหน้าล้ม (เช่น token หมดอายุ)
       setLoaded(true)
     }
   }, [])
@@ -73,8 +57,6 @@ export default function LicenseAlertBell() {
     }
   }, [load])
 
-  // ── แยกรายการที่ "ยังเห็น" กับ "ซ่อนไว้" ตามคลัง dismissed ───────────────────
-  // badge/summary ทั้งหมดคิดจากของที่ยังเห็นจริง เพื่อให้ตัวเลขตรงกับสิ่งที่ผู้ใช้เห็น
   const { hidden, vExpired, vExpiring, visibleAlert } = useMemo(() => {
     const isHidden = (it) => Object.prototype.hasOwnProperty.call(dismissed, dismissKey(it))
     const vis = items.filter((it) => !isHidden(it))
@@ -87,14 +69,12 @@ export default function LicenseAlertBell() {
     }
   }, [items, dismissed])
 
-  // เทียบจำนวนที่ยังเห็น (หลังหักของที่ซ่อน) กับที่ผู้ใช้รับรู้ล่าสุด -> มีของใหม่ไหม
   useEffect(() => {
     if (!loaded) return
     const ack = Number(localStorage.getItem(ACK_KEY) || 0)
     setHasNew(visibleAlert > ack)
   }, [loaded, visibleAlert])
 
-  // ปิด panel เมื่อคลิกนอกกล่อง / กด Esc
   useEffect(() => {
     if (!open) return
     function onDown(e) {
@@ -115,7 +95,6 @@ export default function LicenseAlertBell() {
     const next = !open
     setOpen(next)
     if (next) {
-      // เปิดดู = รับรู้แล้ว หยุดกระเพื่อม และจำจำนวนที่ยังเห็นไว้
       localStorage.setItem(ACK_KEY, String(visibleAlert))
       setHasNew(false)
     } else {
@@ -128,11 +107,9 @@ export default function LicenseAlertBell() {
     navigate('/warehouse')
   }
 
-  // ── ซ่อน / คืนค่า ──────────────────────────────────────────────────────────
   function handleDismiss(item) {
     const next = addDismissed(item)
     setDismissed({ ...next })
-    // ซ่อนแล้วถือว่ารับรู้จำนวนใหม่ทันที กันไม่ให้ badge เด้ง pulse ซ้ำ
     localStorage.setItem(ACK_KEY, String(Math.max(0, visibleAlert - 1)))
   }
   function handleRestore(item) {
@@ -160,7 +137,6 @@ export default function LicenseAlertBell() {
         <span className="lab-bell-icon">
           <BellAlertIcon className="size-5" />
         </span>
-        {/* ป้ายเล็ก "นำเข้า" มุมล่าง บอกชนิดกระดิ่งแม้ยังไม่มีแจ้งเตือน — คู่กับป้าย "ส่งออก" ของอีกอัน */}
         <span className="lab-kind lab-kind-import" aria-hidden="true">
           <ArrowDownTrayIcon className="size-3" />
         </span>
@@ -179,7 +155,6 @@ export default function LicenseAlertBell() {
             </button>
           </div>
 
-          {/* แถบสรุปตัวเลข — นับเฉพาะที่ยังไม่ถูกซ่อน */}
           <div className="lab-summary">
             <div className="lab-sum-chip lab-sum-expired">
               <span className="lab-sum-num">{vExpired.length}</span>
@@ -226,7 +201,6 @@ export default function LicenseAlertBell() {
               </>
             )}
 
-            {/* กลุ่ม "ซ่อนไว้" — โผล่เฉพาะเมื่อกดดู กดคืนค่าได้ทีละใบ */}
             {showHidden && hidden.length > 0 && (
               <>
                 <div className="lab-group-label lab-group-hidden">ซ่อนไว้</div>
@@ -250,7 +224,6 @@ export default function LicenseAlertBell() {
             </div>
           )}
 
-          {/* แถวจัดการของที่ซ่อนไว้ — ไม่มีอะไรซ่อนก็ไม่โผล่ */}
           {hiddenCount > 0 && (
             <div className="lab-hidden-bar">
               <button className="lab-hidden-toggle" onClick={() => setShowHidden((v) => !v)}>

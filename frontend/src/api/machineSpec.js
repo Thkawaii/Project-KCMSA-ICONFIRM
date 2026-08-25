@@ -13,9 +13,6 @@ export function deleteMachineSpec(id) {
   return apiFetch(`/machine-spec/${id}`, { method: 'DELETE' })
 }
 
-// ใช้ fetch ตรงแทน apiFetch เพราะเป็น multipart/form-data
-// (apiFetch ใส่ Content-Type: application/json ให้อัตโนมัติ ซึ่งจะทำให้
-// multipart boundary หายไปและ backend parse ไฟล์ไม่ได้)
 export async function uploadMachineSpec(componentType, file) {
   const token = getToken()
   const formData = new FormData()
@@ -36,8 +33,6 @@ export async function uploadMachineSpec(componentType, file) {
   return data
 }
 
-// ดาวน์โหลดไฟล์ export โดยตรง (ต้องแนบ token เอง เพราะเป็น GET แบบไบนารี
-// ไม่ใช่ JSON ธรรมดา ใช้ <a href> ตรงๆ ไม่ได้เพราะต้องมี Authorization header)
 export async function exportMachineSpecs(componentType) {
   const token = getToken()
   const qs = componentType ? `?component_type=${encodeURIComponent(componentType)}` : ''

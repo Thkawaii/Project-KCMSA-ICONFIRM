@@ -14,11 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// UploadPartCheckPhoto รับรูปถ่ายป้ายพาร์ท (multipart, field name "file") ผูกกับ
-// PartCheck ที่สแกนไปแล้ว (:id) แล้วบันทึกรูปไว้เป็นหลักฐานเฉยๆ
-//
-// หมายเหตุ: เวอร์ชันนี้ "ถ่ายเก็บอย่างเดียว" ไม่มีการเรียก AI อ่าน/เทียบค่าใดๆ
-// (ตัดส่วน OCR ออกแล้ว) จึงไม่ต้องตั้ง API key ใดๆ บนเซิร์ฟเวอร์
 func UploadPartCheckPhoto(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -45,7 +40,7 @@ func UploadPartCheckPhoto(c *gin.Context) {
 
 	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
 	if ext != ".png" && ext != ".webp" && ext != ".jpg" && ext != ".jpeg" {
-		ext = ".jpg" // กล้องมือถือ/canvas.toBlob ส่งมาเป็น jpeg ปกติ แต่กันเผื่อชื่อไฟล์ไม่มีนามสกุล
+		ext = ".jpg"
 	}
 	safeName := fmt.Sprintf("partcheck_%d_%d%s", row.ID, time.Now().UnixNano(), ext)
 	dest := filepath.Join("uploads", safeName)
@@ -55,7 +50,6 @@ func UploadPartCheckPhoto(c *gin.Context) {
 		return
 	}
 
-	// เก็บ path รูป + ตั้งสถานะเป็น "บันทึกแล้ว" (ไม่มีการเทียบค่า)
 	row.PhotoURL = "/uploads/" + safeName
 	row.PhotoOCRPN = ""
 	row.PhotoOCRSN = ""

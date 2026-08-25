@@ -25,7 +25,6 @@ export const ADMIN_NAV_ITEMS = [
   { to: '/format-settings', label: 'Setting', icon: <Squares2X2Icon className="size-4" /> },
 ]
 
-// role ที่เลือกได้ตอนเพิ่ม/แก้ผู้ใช้
 const ROLE_OPTIONS = [
   { value: 'WH', label: 'WH — คลัง (Part Confirmation)' },
   { value: 'MFG', label: 'MFG — ฝ่ายผลิต/ประกอบ' },
@@ -56,9 +55,9 @@ function RoleBadge({ role }) {
 export default function AdminDashboardPage() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('ALL') // ALL | WH | MFG
+  const [filter, setFilter] = useState('ALL')
   const [search, setSearch] = useState('')
-  const [editUser, setEditUser] = useState(null) // object = edit, {} = add, null = closed
+  const [editUser, setEditUser] = useState(null)
 
   async function load() {
     setLoading(true)
@@ -152,7 +151,6 @@ export default function AdminDashboardPage() {
         </button>
       </div>
 
-      {/* ── Bento stat cards ── */}
       <div
         style={{
           display: 'grid',
@@ -167,12 +165,7 @@ export default function AdminDashboardPage() {
         {stat(<ShieldCheckIcon className="size-6" />, 'บทบาทอื่น ๆ', counts.other, { bg: '#f1f5f9', color: '#475569' })}
       </div>
 
-      {/* ── filter + search ── */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
-        {/* ปุ่มกรอง 6 ปุ่มในกล่องเดียว (inline-flex, ไม่ wrap) — บนจอมือถือความกว้างรวม
-            ของปุ่มทั้งหมดเกินความกว้างจอ ทำให้ล้นออกนอกจอ (เดิมไม่มี overflowX/minWidth:0
-            มากำกับ) ใส่ overflowX: 'auto' ให้เลื่อนแนวนอนแทนล้น + minWidth:0 ให้กล่องนี้
-            หดได้เมื่ออยู่ในแถว flex ด้านนอกที่ wrap อยู่แล้ว */}
         <div
           style={{
             display: 'flex',
@@ -229,7 +222,6 @@ export default function AdminDashboardPage() {
         <span style={{ fontSize: 13, color: '#94a3b8' }}>{filtered.length} คน</span>
       </div>
 
-      {/* ── employee table ── */}
       <div className="wh-table-card">
         <div style={{ overflowX: 'auto' }}>
           <table className="wh-table" style={{ width: '100%' }}>

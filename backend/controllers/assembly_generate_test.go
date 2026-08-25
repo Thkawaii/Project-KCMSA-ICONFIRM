@@ -9,7 +9,6 @@ import (
 	"iconfirm/models"
 )
 
-// seedUploadRow เพิ่มแถวไฟล์อัปโหลด (planning/engine/wh1) ในรูป DataJSON
 func seedUploadRow(t *testing.T, dataset, machineNo string, data map[string]string) {
 	t.Helper()
 	b, _ := json.Marshal(data)
@@ -28,11 +27,9 @@ func TestGenerateAssembly(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "log@kobelco.com", "log07", "LOG", "LOG")
 
-	// Engine → มีหมายเลขเครื่อง
 	seedUploadRow(t, models.DatasetEngine, "LX10400690", map[string]string{
 		"Machine No": "LX10400690",
 	})
-	// Planning → spec + IT device + country (คีย์ด้วย Machine)
 	seedUploadRow(t, models.DatasetPlanning, "LX10400690", map[string]string{
 		"Machine":        "LX10400690",
 		"Product Spec 1": "SPEC-A",
@@ -40,15 +37,12 @@ func TestGenerateAssembly(t *testing.T) {
 		"IT device":      "IT(4G Normal)",
 		"KCM Order":      "KCM001",
 	})
-	// WH1 → Assembly Parts (join ผ่านหมายเลขเครื่องในแถว)
 	seedUploadRow(t, models.DatasetWH1, "LX10400690", map[string]string{
 		"Machine No":            "LX10400690",
 		"Assembly Parts Number": "AP-123",
 		"Assembly Parts Name":   "SK75-11",
 	})
-	// Import License (เทียบด้วยเลข IT Controller) → Country
 	seedLicenseItem(t, "878250022802", "TQ60610", "", "E05", "Indonesia", "")
-	// MFG Assembly ให้ resolveITControllerNo คืนเลข 12 หลักของเครื่องนี้
 	db.Create(&models.MFGAssembly{MachineNo: "LX10400690", ITControllerNo: "878250022802"})
 
 	c, rec := newContext("POST", "", u.ID, u.Username)
@@ -60,7 +54,6 @@ func TestGenerateAssembly(t *testing.T) {
 		t.Fatalf("created = %v, want 1", resp["created"])
 	}
 
-	// ตรวจแถว Assembly ที่ปั๊มออกมา
 	var row models.UploadDataRow
 	if err := db.Where("dataset = ? AND machine_no = ?", models.DatasetAssembly, "LX10400690").First(&row).Error; err != nil {
 		t.Fatalf("assembly row not created: %v", err)
@@ -93,7 +86,6 @@ func TestGenerateAssemblyNoMachines(t *testing.T) {
 	c, rec := newContext("POST", "", u.ID, u.Username)
 	GenerateAssembly(c)
 
-	// ไม่มี Engine/Planning เลย → 400
 	mustStatus(t, rec, 400)
 }
 
@@ -103,10 +95,8 @@ func TestGenerateAssemblyUpsertNoDuplicate(t *testing.T) {
 
 	seedUploadRow(t, models.DatasetEngine, "LX1", map[string]string{"Machine No": "LX1"})
 
-	// รอบแรก: สร้าง
 	c1, _ := newContext("POST", "", u.ID, u.Username)
 	GenerateAssembly(c1)
-	// รอบสอง: ต้องไม่สร้างซ้ำ (skipped) — ยังคงมีแถว Assembly เดียว
 	c2, rec2 := newContext("POST", "", u.ID, u.Username)
 	GenerateAssembly(c2)
 	mustStatus(t, rec2, 200)
@@ -134,7 +124,6 @@ func TestUpsertMatchingAssemblyFromScan(t *testing.T) {
 		t.Errorf("row fields wrong: %+v", row)
 	}
 
-	// เรียกซ้ำด้วยหมายเลขเครื่องเดิม → ต้องไม่สร้างแถวใหม่ (เติมช่องว่างเท่านั้น)
 	upsertMatchingAssemblyFromScan("878250022802", "KQ3000045093", "YN22E00849FA", "SK75-11", "Indonesia", when, 1, "WH")
 	var count int64
 	db.Model(&models.MatchingAssembly{}).Where("machine_no = ?", "878250022802").Count(&count)
@@ -142,7 +131,6 @@ func TestUpsertMatchingAssemblyFromScan(t *testing.T) {
 		t.Fatalf("matching rows = %d, want 1", count)
 	}
 
-	// หมายเลขเครื่องว่าง → ต้องไม่สร้างอะไร
 	upsertMatchingAssemblyFromScan("  ", "sn", "pn", "name", "c", when, 1, "WH")
 	var total int64
 	db.Model(&models.MatchingAssembly{}).Count(&total)

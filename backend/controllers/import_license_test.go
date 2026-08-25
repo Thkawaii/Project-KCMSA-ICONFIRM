@@ -7,7 +7,6 @@ import (
 	"iconfirm/models"
 )
 
-// seedLicenseItem ช่วยเพิ่มแถวบัญชีใบอนุญาตนำเข้า
 func seedLicenseItem(t *testing.T, machineNo, invoiceNo, prodNo, licenseNo, country, confirm string) models.ImportLicenseItem {
 	t.Helper()
 	if confirm == "" {
@@ -93,7 +92,6 @@ func TestMatchImportLicense(t *testing.T) {
 
 func TestMatchImportLicenseDuplicate(t *testing.T) {
 	newTestDB(t)
-	// แถวที่ยืนยันไปแล้ว → สแกนซ้ำต้องได้ DUPLICATE
 	seedLicenseItem(t, "878250022999", "TQ60610", "", "E050", "Malaysia", models.LicenseItemConfirmed)
 
 	status, _, item := matchImportLicense("878250022999", "", "")
@@ -109,7 +107,6 @@ func TestMatchImportLicenseCodeAlias(t *testing.T) {
 	newTestDB(t)
 	seedLicenseItem(t, "878250022802", "TQ60610", "", "E05036901604", "Indonesia", "")
 
-	// ลงทะเบียน alias: รหัสหน้างานรูปแบบใหม่ → เลขมาตรฐานในบัญชี
 	alias := models.CodeAlias{
 		ComponentType: "import_license",
 		Kind:          "machine",

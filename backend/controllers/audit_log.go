@@ -18,9 +18,6 @@ func GetAuditLog(c *gin.Context) {
 	c.JSON(200, logs)
 }
 
-// CreateAuditLog is a shared helper used by WHConfirm / TSFConfirm / QAConfirm
-// controllers so every confirm action leaves a trace, instead of each
-// controller writing its own ad-hoc log entry.
 func CreateAuditLog(sourceTable string, sourceID uint, action string, resultStatus string, userID uint, name string) {
 
 	entry := models.AuditLog{
@@ -36,8 +33,6 @@ func CreateAuditLog(sourceTable string, sourceID uint, action string, resultStat
 	config.DB.Create(&entry)
 }
 
-// lookupUserName resolves the display name for the currently authenticated
-// user, falling back to the JWT username claim if the DB lookup fails.
 func lookupUserName(c *gin.Context) (uint, string) {
 
 	rawID, _ := c.Get("user_id")

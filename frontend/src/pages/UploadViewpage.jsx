@@ -18,8 +18,6 @@ const CATEGORIES = [
   { type: 'pump_assy_hyd', label: 'Pump Assy HYD' },
 ]
 
-// หน้านี้เหลือไว้สำหรับอัปโหลด Machine Spec (คนละตารางกับ Master Data)
-// ไม่ได้อยู่ในเมนูหลักแล้ว เข้าถึงได้ทาง URL /upload โดยตรง
 const navItems = [
   { to: '/master-data', label: 'ทะเบียน Master Data', icon: <RectangleStackIcon className="size-4" /> },
 ]
@@ -52,7 +50,6 @@ export default function UploadViewPage() {
 
   useEffect(() => {
     loadRows()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterType])
 
   function handleFileChange(type, e) {
@@ -207,7 +204,6 @@ export default function UploadViewPage() {
         )
       })()}
 
-      {/* ===== ส่วนล่าง: รายการที่อัปโหลดแล้ว ===== */}
       <div className="wh-heading-row" style={{ marginTop: 36 }}>
         <div>
           <h2 className="wh-title" style={{ fontSize: 19 }}>

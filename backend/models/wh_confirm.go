@@ -8,11 +8,11 @@ type WHConfirm struct {
 
 	PartNo string
 
-	SerialNo string // จาก Scan S/N ตอนจ่ายของ
+	SerialNo string
 
 	PartName string
 
-	OrderNo string // Sales Order ที่จ่ายของอ้างอิง (สำหรับ traceability ถึงฝั่ง TSF)
+	OrderNo string
 
 	WorkOrder string
 
@@ -28,7 +28,6 @@ type WHConfirm struct {
 
 	RemarkWH string
 
-	// การส่งต่อให้ TSF: "SENT" ตอน WH ยืนยันจ่าย -> "RECEIVED" ตอน TSF กดรับ
 	TransferStatus string `gorm:"size:20;default:SENT"`
 
 	ReceivedDatetime *time.Time

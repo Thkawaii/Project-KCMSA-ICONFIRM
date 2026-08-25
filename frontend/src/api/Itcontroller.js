@@ -1,6 +1,5 @@
 import { apiFetch, API_BASE_URL, getToken } from './client.js'
 
-// multipart helper — apiFetch ตั้ง Content-Type เป็น json เสมอ เลยใช้ fetch ตรงแทน
 async function postForm(path, formData) {
   const token = getToken()
 
@@ -19,7 +18,6 @@ async function postForm(path, formData) {
   return data
 }
 
-// ── เอกสาร PDF ───────────────────────────────────────────────────────────────
 
 export function getDocuments(params = {}) {
   const qs = new URLSearchParams(params).toString()
@@ -37,7 +35,6 @@ export function uploadDocument({ file, docType, docNo, invoiceNo = '', poNo = ''
   return postForm('/it-controller/documents', form)
 }
 
-// ── ใบอนุญาตนำเข้า ───────────────────────────────────────────────────────────
 
 export function getImportLicenses() {
   return apiFetch('/it-controller/import-licenses')
@@ -50,10 +47,7 @@ export function saveImportLicense(payload) {
   })
 }
 
-// ── Serial List → ทะเบียนเครื่อง ─────────────────────────────────────────────
 
-// อัปโหลด Serial List (Excel) — ระบบอ่านเลขใบอนุญาต/อินวอยซ์/พีโอ จากคอลัมน์ในไฟล์เอง
-// และสร้างหัวใบอนุญาตนำเข้าให้อัตโนมัติถ้ายังไม่มีในระบบ ไม่ต้องกรอกฟอร์มแยกอีกต่อไป
 export function uploadSerialList(file) {
   const form = new FormData()
   form.append('file', file)
@@ -80,7 +74,6 @@ export function allocateUnits(itControllerNos, country) {
   })
 }
 
-// แบ่งหลายประเทศพร้อมกัน — splits = [{ country, qty }]
 export function allocateSplit(splits, { importLicenseNo = '', invoiceNo = '' } = {}) {
   return apiFetch('/it-controller/units/allocate-split', {
     method: 'POST',
@@ -92,7 +85,6 @@ export function allocateSplit(splits, { importLicenseNo = '', invoiceNo = '' } =
   })
 }
 
-// สแกนจ่ายของ — purpose: 'ASSEMBLY' (ประกอบในไทย) หรือ 'EXPORT' (ส่งออก)
 export function issueUnit({
   itControllerNo,
   purpose,
@@ -123,7 +115,6 @@ export function exportUnit(itControllerNo, country = '', remark = '') {
   })
 }
 
-// ── ใบอนุญาตนำออก ────────────────────────────────────────────────────────────
 
 export function getExportLicenses() {
   return apiFetch('/it-controller/export-licenses')
@@ -136,7 +127,6 @@ export function createExportLicense(payload) {
   })
 }
 
-// ดาวน์โหลดบัญชีแนบ (Excel) สำหรับยื่น กสทช.
 export async function downloadExportAttachment(licenseNo) {
   const token = getToken()
 
@@ -158,7 +148,6 @@ export async function downloadExportAttachment(licenseNo) {
   URL.revokeObjectURL(url)
 }
 
-// ── เตือน + รายงาน ───────────────────────────────────────────────────────────
 
 export function getAlerts() {
   return apiFetch('/it-controller/alerts')

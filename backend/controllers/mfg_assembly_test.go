@@ -38,7 +38,6 @@ func TestIsMFGDuplicateAndStatus(t *testing.T) {
 		t.Error("empty itc should never be duplicate")
 	}
 
-	// computeMFGStatus: DUPLICATE > MATCHED > NOT_MATCHED
 	if got := computeMFGStatus("878250022802", true); got != models.MFGStatusDuplicate {
 		t.Errorf("status = %q, want DUPLICATE (dup wins over wh-matched)", got)
 	}
@@ -52,14 +51,12 @@ func TestIsMFGDuplicateAndStatus(t *testing.T) {
 
 func TestDeriveMFGFromMachine(t *testing.T) {
 	db := newTestDB(t)
-	// MachineSpec: machine_no LX10400690 → IT Controller S/N + Country
 	db.Create(&models.MachineSpec{
 		MachineNo:      "LX10400690",
 		ITControllerSN: "KQ3000045093",
 		CountryName:    "Indonesia",
 		UploadDate:     time.Now(),
 	})
-	// MasterData: S/N นั้น → เลข 12 หลัก
 	seedMaster(t, "YN22E00849FA", "KQ3000045093", "878250022802", "")
 
 	itc, country := deriveMFGFromMachine("LX10400690")
@@ -78,12 +75,10 @@ func TestDeriveMFGFromMachine(t *testing.T) {
 func TestResolveITControllerNoPriority(t *testing.T) {
 	db := newTestDB(t)
 
-	// preferred เป็นเลข 12 หลัก → เชื่อได้เลย แม้ยังไม่มีข้อมูลอื่น
 	if itc, _ := resolveITControllerNo("", "878250022802"); itc != "878250022802" {
 		t.Errorf("preferred 12-digit not honored: %q", itc)
 	}
 
-	// MFG Assembly เป็นแหล่งอันดับ 1 (ทับ preferred ที่ไม่ใช่ 12 หลัก)
 	db.Create(&models.MFGAssembly{MachineNo: "LX1", ITControllerNo: "878250099999", Country: "Malaysia"})
 	itc, country := resolveITControllerNo("LX1", "not-a-number")
 	if itc != "878250099999" {
@@ -112,7 +107,6 @@ func TestPlannedITCForMachine(t *testing.T) {
 		}
 	})
 
-	// เตรียมเครื่องที่มีแผน: MachineSpec S/N → MasterData → planned ITC 12 หลัก
 	db.Create(&models.MachineSpec{MachineNo: "PLAN1", ITController: "YN22E00849FA", ITControllerSN: "KQ3000045093", UploadDate: time.Now()})
 	seedMaster(t, "YN22E00849FA", "KQ3000045093", "878250022802", "")
 
@@ -137,13 +131,11 @@ func TestPlannedITCForMachine(t *testing.T) {
 	})
 }
 
-// ── ScanMFGAssembly (HTTP handler) ──────────────────────────────────────────
 
 func TestScanMFGAssemblyMatched(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "พนักงาน MFG", "MFG")
 
-	// WH ยืนยันตรงกับใบอนุญาตแล้ว (PartCheck ITC MATCH) → MFG ต้องได้ MATCHED
 	db.Create(&models.PartCheck{
 		PartType:    "ITC",
 		MachineNo:   "878250022802",
@@ -176,7 +168,6 @@ func TestScanMFGAssemblyDuplicate(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
 
-	// มีแถวเดิมด้วย IT Controller เดียวกันอยู่แล้ว → สแกนซ้ำต้องได้ DUPLICATE
 	db.Create(&models.MFGAssembly{MachineNo: "LX0", ITControllerNo: "878250022802"})
 
 	body := `{"machineNo":"LX10400690","itControllerNo":"878250022802"}`
@@ -198,6 +189,5 @@ func TestScanMFGAssemblyRequiresMachineNo(t *testing.T) {
 	c, rec := newContext("POST", body, u.ID, u.Username)
 	ScanMFGAssembly(c)
 
-	// machineNo required (binding) → 400
 	mustStatus(t, rec, 400)
 }

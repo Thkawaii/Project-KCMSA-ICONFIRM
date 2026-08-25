@@ -1,12 +1,6 @@
 import { useState } from 'react'
 import FileDropZone from '../components/Filedropzone.jsx'
 
-/**
- * หน้ารวมส่วนประกอบ UI ทั้งหมด (design system) — เปิดที่ /ui-kit
- *
- * ใช้เป็นที่อ้างอิงเวลาทำหน้าใหม่: ดูของจริง แล้วคัดลอกชื่อคลาสไปใช้
- * ทุกอย่างในหน้านี้เขียนด้วย Tailwind + คลาสกลาง .ui-* จาก src/theme.css
- */
 export default function UiKitPage() {
   const [file, setFile] = useState(null)
 

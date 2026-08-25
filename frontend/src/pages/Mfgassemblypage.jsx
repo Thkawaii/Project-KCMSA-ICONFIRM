@@ -34,32 +34,25 @@ import AppShell from '../components/AppShell.jsx'
 import SelectField from '../components/Selectfield.jsx'
 import bcMachine from '../assets/barcodes/Machine_Barcode.gif'
 
-// MFG มีหน้าเดียว — AppShell จะซ่อนแถบเมนูย่อยให้เองเมื่อมีรายการเดียว
 export const MFG_NAV_ITEMS = [
   { to: '/mfg-assembly', label: 'MFG Assembly', icon: <ArrowsRightLeftIcon className="size-4" />, roles: ['MFG'] },
 ]
 
-// ป้ายสถานะ — ใช้ชุดคลาส .il-badge เดิม
-// backend คืนค่าจริงเป็น MATCHED / NOT_MATCHED / DUPLICATE (ดู models.MFGStatus*)
-// เดิม map ไว้แค่ OK/UNKNOWN/REUSED ทำให้ MATCHED/NOT_MATCHED ตกไปที่ badge สีเทา (สีหาย)
 const STATUS_META = {
   MATCHED: { label: 'MATCHED', cls: 'il-badge il-badge-ok' },
   NOT_MATCHED: { label: 'NOT_MATCHED', cls: 'il-badge il-badge-bad' },
   DUPLICATE: { label: 'DUPLICATE', cls: 'il-badge il-badge-warn' },
-  // ── ค่าเดิม (เผื่อข้อมูลเก่า) ──
   OK: { label: 'ตรงกัน', cls: 'il-badge il-badge-ok' },
   UNKNOWN: { label: 'ไม่พบในทะเบียน', cls: 'il-badge il-badge-warn' },
   REUSED: { label: 'ผูกกับเครื่องอื่น', cls: 'il-badge il-badge-bad' },
 }
 
-// ตัวเลือกสถานะ (ใช้ทั้งใน modal แก้ไข และตัวกรองในตาราง)
 const STATUS_OPTIONS = [
   { value: 'MATCHED', label: 'MATCHED — ตรงกับใบอนุญาต' },
   { value: 'NOT_MATCHED', label: 'NOT_MATCHED — ยังไม่ตรง/ยังไม่ยืนยัน' },
   { value: 'DUPLICATE', label: 'DUPLICATE — ซ้ำ' },
 ]
 
-// ตัวเลือกสำหรับตัวกรอง Status ในตาราง (มี "ทุกสถานะ" นำหน้า)
 const STATUS_FILTER_OPTIONS = [{ value: 'all', label: 'ทุกสถานะ' }, ...STATUS_OPTIONS]
 
 const EMPTY_FORM = {
@@ -72,7 +65,6 @@ const EMPTY_FORM = {
   status: '',
 }
 
-// วันที่-เวลา แสดงผล (รับ ISO string / null) เช่น 6/8/2569 14:35:32
 function fmtDate(value) {
   if (!value) return '—'
   const d = new Date(value)
@@ -85,7 +77,6 @@ function fmtDate(value) {
   return `${day}/${month}/${buddhistYear} ${time}`
 }
 
-// แปลงเป็นค่าใส่ <input type="date"> (yyyy-mm-dd)
 function toDateInput(value) {
   if (!value) return ''
   const d = new Date(value)
@@ -95,8 +86,6 @@ function toDateInput(value) {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
-// แยกค่าที่สแกนได้จาก QR ตอนประกอบเสร็จ (บรรจุ Machine No + IT Controller No.)
-// heuristic: IT Controller No. = โทเคนตัวเลขล้วน 10–15 หลัก, ที่เหลือ = Machine No
 function parseAssemblyCode(raw) {
   const s = (raw || '').trim()
   if (!s) return { machineNo: '', itControllerNo: '' }
@@ -114,42 +103,30 @@ export default function MFGAssemblyPage() {
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [dateTab, setDateTab] = useState('all') // ทั้งหมด | รายวัน | รายสัปดาห์ | รายเดือน (อิง Check Date)
+  const [dateTab, setDateTab] = useState('all')
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
 
-  // ── โมดัลแก้ไข/เพิ่ม ───────────────────────────────────────────────────
   const [modalOpen, setModalOpen] = useState(false)
-  const [editId, setEditId] = useState(null) // null = เพิ่มใหม่
+  const [editId, setEditId] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
 
-  // ── รูปถ่ายป้าย (ย้ายมาจากฝั่ง WH) ───────────────────────────────────────
-  const [photoView, setPhotoView] = useState(null) // URL รูปที่กำลังเปิดดู
+  const [photoView, setPhotoView] = useState(null)
   const [photoBusy, setPhotoBusy] = useState(false)
-  const [photoEditRow, setPhotoEditRow] = useState(null) // แถวที่เปิดเมนู "แก้ไข" อยู่ (เลือกถ่ายใหม่/อัปโหลด)
+  const [photoEditRow, setPhotoEditRow] = useState(null)
   const photoFileInputRef = useRef(null)
-  const pendingPhotoRowIdRef = useRef(null) // แถวเป้าหมายที่กำลังจะอัปโหลดไฟล์แทน
+  const pendingPhotoRowIdRef = useRef(null)
 
-  // ── ทะเบียนการประกอบ (Assembly) — จับคู่ Machine No + IT Controller → รุ่น/สเปกรถ ──
-  // โหลดจาก Upload Master Data (dataset = assembly) มาทำ lookup เพื่อบอกว่า
-  // IT Controller + Machine No ที่สแกน = ประกอบเป็นรถรุ่นไหน
-  const [assemblyByPair, setAssemblyByPair] = useState({}) // "MACHINE|ITC" -> info
-  const [assemblyByMachine, setAssemblyByMachine] = useState({}) // "MACHINE" -> info
+  const [assemblyByPair, setAssemblyByPair] = useState({})
+  const [assemblyByMachine, setAssemblyByMachine] = useState({})
 
-  // ── โมดัลรายละเอียดการประกอบ (ปุ่ม "รายละเอียด") ─────────────────────────
-  // เมื่อประกอบถูกแล้ว กดดูได้ว่า Machine No นี้ประกอบเป็นรถรุ่นไหน สเปกไหน
-  // ประเทศไหน — ดึงข้อมูลจากทะเบียน Assembly มาแสดงเป็นป็อปอัป
-  const [detailRow, setDetailRow] = useState(null) // { row, asm } ที่กำลังเปิดดู
+  const [detailRow, setDetailRow] = useState(null)
 
-  // ── สแกน/กรอก ──────────────────────────────────────────────────────────
-  // ใช้ popup "ยิงบาร์โค้ด หรือพิมพ์เอง" (scanStep) เหมือนหน้า WH/TSF ทุกประการ
-  // -> ผู้ใช้ MFG ทุกคนกรอกหรือสแกนได้เท่ากัน ไม่บังคับเปิดกล้อง/ถ่ายรูป
   const [scanBusy, setScanBusy] = useState(false)
-  const busyRef = useRef(false) // กันเปิด popup ซ้อน (จากคลิกการ์ด + เครื่องสแกนยิงพร้อมกัน)
-  const fireRef = useRef(() => {}) // ตัวรับสัญญาณเครื่องสแกนยิงตรงเข้าหน้าเว็บ
+  const busyRef = useRef(false)
+  const fireRef = useRef(() => {})
 
-  // 404/405 = backend ยังไม่มี endpoint (มักเพราะยังไม่ได้ rebuild/restart)
   function friendlyError(err, fallback) {
     if (err?.status === 404 || err?.status === 405) {
       return 'ยังไม่พบ API /mfg-assembly ที่ฝั่งเซิร์ฟเวอร์ — ต้อง rebuild แล้ว restart backend ก่อน'
@@ -174,7 +151,6 @@ export default function MFGAssemblyPage() {
     loadRows()
   }, [])
 
-  // โหลดทะเบียนการประกอบ (Assembly) มาทำ lookup — ไม่บล็อกการแสดงตารางหลัก
   useEffect(() => {
     let cancelled = false
     async function loadAssembly() {
@@ -216,7 +192,6 @@ export default function MFGAssemblyPage() {
           setAssemblyByMachine(byMachine)
         }
       } catch {
-        // ยังไม่ได้อัปโหลด Assembly หรือโหลดไม่ได้ — ปล่อยว่างไว้ (คอลัมน์ Model จะเป็น —)
       }
     }
     loadAssembly()
@@ -225,7 +200,6 @@ export default function MFGAssemblyPage() {
     }
   }, [])
 
-  // คืนข้อมูลการประกอบของแถว MFG (จับคู่ Machine No + IT Controller ก่อน, ถ้าไม่เจอใช้ Machine No)
   function assemblyFor(row) {
     const norm = (v) => String(v || '').trim().toUpperCase()
     const machine = norm(row.MachineNo)
@@ -237,9 +211,6 @@ export default function MFGAssemblyPage() {
     setPage(1)
   }, [search, pageSize, statusFilter, dateTab])
 
-  // ── ดักเครื่องสแกน (keyboard-wedge) ที่ยิงบาร์โค้ดตรงเข้าหน้าเว็บ ───────────
-  // เครื่องสแกนพิมพ์อักขระรัว ๆ ปิดท้ายด้วย Enter — ถ้าเจอ burst แบบนี้ให้เปิด
-  // flow บันทึกอัตโนมัติ (ไม่ต้องคลิกการ์ดก่อน) เหมือนหน้า WH/TSF
   useEffect(() => {
     let buffer = ''
     let flushTimer = null
@@ -252,7 +223,6 @@ export default function MFGAssemblyPage() {
 
     function onKeydown(e) {
       if (busyRef.current) return
-      // ไม่ดักตอนกำลังพิมพ์ในช่อง input/textarea (เช่น ช่องค้นหา/ช่องในโมดัล)
       const tag = (e.target?.tagName || '').toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return
 
@@ -276,15 +246,10 @@ export default function MFGAssemblyPage() {
     }
   }, [])
 
-  // ── สแกน/กรอก ───────────────────────────────────────────────────────────
-  // เปิด popup ให้ "ยิงบาร์โค้ด หรือพิมพ์เอง" 2 ครั้ง — ครั้งแรก Machine No,
-  // ครั้งสอง IT Controller No. แล้วบันทึกทั้งคู่
-  // (เหมือนหน้า WH/TSF ไม่มีการเปิดกล้อง/บังคับถ่ายรูปในขั้นสแกน)
   async function runScanFlow() {
     if (busyRef.current) return
     busyRef.current = true
     try {
-      // ── ครั้งที่ 1: Machine No ──
       const code1 = await scanStep({
         title: 'สแกน Machine No.',
         placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ Machine No แล้วกดปุ่ม',
@@ -294,7 +259,6 @@ export default function MFGAssemblyPage() {
       const parsed1 = parseAssemblyCode(code1)
       const machineNo = parsed1.machineNo || code1.trim()
 
-      // ── ครั้งที่ 2: IT Controller No. ──
       const code2 = await scanStep({
         title: 'สแกน IT Controller No.',
         html: `<div class="scan-popup-hint">Machine No: <b>${machineNo || '-'}</b></div>`,
@@ -304,15 +268,11 @@ export default function MFGAssemblyPage() {
 
       if (code2) {
         const parsed2 = parseAssemblyCode(code2)
-        // ครั้งที่ 2 คาดหวังเป็นเลข IT Controller — ถ้าเป็นก้อนรวมก็ดึงเลขออก ไม่งั้นใช้ค่าดิบ
         const itControllerNo = parsed2.itControllerNo || code2.trim()
         await submitScan(machineNo, itControllerNo)
       } else if (machineNo) {
-        // ข้ามการสแกน IT Controller — บันทึกด้วย Machine No อย่างเดียว
-        // (backend จะพยายามดึง IT Controller/Country ให้เองถ้ามีในทะเบียน)
         await submitScan(machineNo, '')
       } else {
-        // แยกไม่ได้ — เปิดโมดัลให้เติม/แก้เอง
         setEditId(null)
         setForm({ ...EMPTY_FORM, machineNo, itControllerNo: '' })
         setModalOpen(true)
@@ -323,7 +283,6 @@ export default function MFGAssemblyPage() {
     }
   }
 
-  // เครื่องสแกนยิงบาร์โค้ดเข้าหน้าเว็บโดยตรง (ไม่ต้องคลิกการ์ดก่อน) -> เปิด flow เดียวกัน
   function handleScannerFire() {
     if (busyRef.current) return
     runScanFlow()
@@ -340,13 +299,7 @@ export default function MFGAssemblyPage() {
       const msg = res?.message || 'บันทึกแล้ว'
       const ok = res?.matched || res?.status === 'MATCHED'
 
-      // ── ถ่ายรูปยืนยันต่อเนื่องหลังสแกน (ย้ายมาจากฝั่ง WH) ──────────────────
-      // หลังบันทึกผลสแกนแล้ว เปิดกล้องให้ถ่ายรูปป้ายเครื่องจริงทันที เป็นขั้นตอน
-      // ต่อเนื่องกับการสแกน (ถ้ากล้องใช้ไม่ได้ helper จะมีปุ่มปิดให้ข้ามได้เอง)
       if (row?.ID) {
-        // ปิด popup loading ให้ปิดสนิทก่อน แล้วค่อยเปิดกล้องเป็น popup ใหม่
-        // (ถ้า fire ทับ popup loading เดิมโดยตรง SweetAlert จะไม่รัน didOpen ของ
-        //  scanPhotoCapture => กล้องไม่เริ่ม/หน้าถ่ายรูปไม่ขึ้น ตามที่เจอฝั่ง MFG)
         await scanCloseWait()
         const photoBlob = await scanPhotoCapture({
           title: 'ถ่ายรูปป้ายเครื่อง',
@@ -367,7 +320,7 @@ export default function MFGAssemblyPage() {
       scanClose()
 
       if (ok) successMsg = msg
-      else toastError(msg) // DUPLICATE/NOT_MATCHED — บันทึกแล้ว แต่ flag ให้เห็น
+      else toastError(msg)
 
       await loadRows()
     } catch (err) {
@@ -379,9 +332,6 @@ export default function MFGAssemblyPage() {
     if (successMsg) scanSuccessToast(successMsg)
   }
 
-  // ── ถ่าย/เปลี่ยนรูปของแถวที่มีอยู่แล้ว (ถ่ายตอนสแกนไม่ชัด หรือแถวที่เพิ่มเอง) ──
-  // ใช้ endpoint เดียว (uploadMFGAssemblyPhoto) — อัปโหลดซ้ำจะทับรูปเดิมของแถวนั้น
-  // รับได้ทั้ง Blob (จากกล้อง) และ File (จากการเลือกไฟล์)
   async function applyPhotoUpload(id, fileOrBlob) {
     if (!id || photoBusy) return
     setPhotoBusy(true)
@@ -399,7 +349,6 @@ export default function MFGAssemblyPage() {
     }
   }
 
-  // ถ่ายรูปใหม่ด้วยกล้อง แล้วอัปโหลดทับ
   async function handleRetakePhoto(row) {
     if (!row?.ID || photoBusy) return
     const photoBlob = await scanPhotoCapture({
@@ -412,7 +361,6 @@ export default function MFGAssemblyPage() {
     await applyPhotoUpload(row.ID, photoBlob)
   }
 
-  // เปิดหน้าต่างเลือกไฟล์รูปจากเครื่อง แล้วอัปโหลดแทนรูปเดิม (กรณีถ่ายกล้องไม่ได้)
   function handleUploadPhotoClick(row) {
     if (!row?.ID || photoBusy) return
     pendingPhotoRowIdRef.current = row.ID
@@ -422,13 +370,12 @@ export default function MFGAssemblyPage() {
   async function handleUploadPhotoChange(e) {
     const file = e.target.files?.[0]
     const targetId = pendingPhotoRowIdRef.current
-    e.target.value = '' // เคลียร์ค่า ให้เลือกไฟล์เดิมซ้ำได้อีกครั้งถ้าต้องการ
+    e.target.value = ''
     pendingPhotoRowIdRef.current = null
     if (!file || !targetId) return
     await applyPhotoUpload(targetId, file)
   }
 
-  // สแกน/กรอกเติมทีละช่องในโมดัล (Machine No / IT Controller No.) — ยิงหรือพิมพ์ก็ได้
   async function runFieldScan(field) {
     const code = await scanStep({
       title: field === 'itControllerNo' ? 'IT Controller No.' : 'Machine No',
@@ -444,7 +391,6 @@ export default function MFGAssemblyPage() {
     setForm((f) => ({ ...f, [field]: val }))
   }
 
-  // ── โมดัล เพิ่ม/แก้ไข ────────────────────────────────────────────────────
   function openAdd() {
     setEditId(null)
     setForm(EMPTY_FORM)
@@ -516,7 +462,6 @@ export default function MFGAssemblyPage() {
       list = list.filter((r) => (r.Status || '') === statusFilter)
     }
     if (dateTab !== 'all') {
-      // กรองตาม Check Date ด้วยตัวช่วยกลางเดียวกับหน้า WH (ปฏิทินจริง)
       list = list.filter((r) => inDateTab(r.CheckDate, dateTab))
     }
     const term = search.trim().toLowerCase()
@@ -530,7 +475,6 @@ export default function MFGAssemblyPage() {
           (r.Status || '').toLowerCase().includes(term)
       )
     }
-    // เรียง Check Date ล่าสุดขึ้นก่อน (ไม่มีวันที่ให้ไปอยู่ท้ายสุด)
     return [...list].sort((a, b) => {
       const ta = a.CheckDate ? new Date(a.CheckDate).getTime() : -Infinity
       const tb = b.CheckDate ? new Date(b.CheckDate).getTime() : -Infinity
@@ -563,7 +507,6 @@ export default function MFGAssemblyPage() {
         </div>
       </div>
 
-      {/* ── บาร์โค้ด Machine (Part Confirmation) — แตะเพื่อยิง/พิมพ์ (การ์ดเดียว จัดกึ่งกลาง) ── */}
       <div className="pc-barcode-grid pc-barcode-grid--single">
         <div
           className="pc-barcode-card pc-card-mc"
@@ -798,7 +741,6 @@ export default function MFGAssemblyPage() {
         </div>
       )}
 
-      {/* ── แก้ไข / เพิ่มรายการ ─────────────────────────────────────────── */}
       {modalOpen && (
         <div className="wh-modal-overlay" onClick={closeModal}>
           <div className="wh-modal" onClick={(e) => e.stopPropagation()}>
@@ -966,7 +908,6 @@ export default function MFGAssemblyPage() {
           <div className="wh-modal il-detail-modal mfg-assembly-detail" onClick={(e) => e.stopPropagation()}>
             <h3 className="wh-modal-title">รายละเอียดการประกอบ</h3>
 
-            {/* แถบเด่น: รุ่นรถที่ประกอบได้ */}
             <div className="mfg-detail-hero">
               <span className="mfg-detail-hero-label">รุ่นรถที่ประกอบ</span>
               <span className="mfg-detail-hero-model">{detailRow.asm.model || '—'}</span>
@@ -976,7 +917,6 @@ export default function MFGAssemblyPage() {
               </span>
             </div>
 
-            {/* รายละเอียดที่เหลือ จัดเป็นตาราง 2 คอลัมน์ */}
             <div className="il-detail-card" style={{ marginTop: 12 }}>
               <div className="il-detail-grid">
                 <div className="il-detail-item">

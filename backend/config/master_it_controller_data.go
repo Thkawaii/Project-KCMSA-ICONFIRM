@@ -1,14 +1,5 @@
 package config
 
-// ไฟล์นี้เก็บ "ข้อมูลตั้งต้น" ของ IT Controller ที่ได้มาจากเอกสาร
-// TQ60610 - SERIAL NO. IT CONTROLLER (CKD) จำนวน 36 เครื่อง
-//
-// หมายเหตุสำคัญ: เลขทุกช่อง (Serial No. / IT Controller no. / IMEI) ต้องเก็บ
-// เป็น string เสมอ ห้ามแปลงเป็นตัวเลข ไม่งั้นเลข 0 นำหน้าจะหาย และ IMEI
-// 15 หลักจะโดน Excel/JS ปัดเป็น scientific notation
-//
-// ถ้ามีเครื่องเพิ่ม ให้เพิ่มบรรทัดต่อท้ายได้เลย ระบบจะ seed ให้อัตโนมัติ
-// ตอน start (ดู SeedMasterITController ใน seed.go) โดยไม่สร้างข้อมูลซ้ำ
 
 type itControllerSeedRow struct {
 	ItemNo         int

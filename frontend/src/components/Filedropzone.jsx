@@ -1,15 +1,6 @@
 import { useRef, useState } from 'react'
 import { ArrowUpTrayIcon, XMarkIcon } from './icons.jsx'
 
-// ปุ่มเลือกไฟล์แบบลากมาวางได้ ใช้ร่วมกันทั้งหน้า Warehouse และ IT Controller
-//
-// props:
-//   file      — ไฟล์ที่เลือกอยู่ (File | null) — คุมจากข้างนอก
-//   onSelect  — เรียกเมื่อผู้ใช้เลือก/ลากไฟล์มาวาง (file) => void
-//   accept    — เช่น '.xlsx,.xls' หรือ '.pdf'
-//   label     — หัวข้อ เช่น 'อัปโหลด SO / สต็อกเข้าคลัง'
-//   hint      — คำอธิบายชนิดไฟล์
-//   disabled  — ปิดระหว่างอัปโหลด
 export default function FileDropZone({
   file,
   onSelect,

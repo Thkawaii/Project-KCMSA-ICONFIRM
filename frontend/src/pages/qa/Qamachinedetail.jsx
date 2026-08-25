@@ -62,8 +62,6 @@ export default function QAMachineDetail() {
   }
 
   function handleDownload() {
-    // ยังไม่มี endpoint สำหรับสร้างเอกสารต่อเครื่อง — เปิดหน้าต่างพิมพ์ไปก่อน
-    // (ผู้ใช้เลือก "Save as PDF" ได้จาก dialog พิมพ์ของเบราว์เซอร์)
     window.print()
   }
 

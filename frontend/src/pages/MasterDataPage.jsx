@@ -30,10 +30,6 @@ import {
 } from '../components/icons.jsx'
 import '../UploadData.css'
 
-// ── ประเภทอะไหล่ในทะเบียน Master Data (อัปโหลดผ่าน /master-data/upload) ──
-// ใช้ร่วมกันทั้ง dropdown "ประเภทที่อัปโหลด" และตัวกรอง (Filter) ในตาราง
-// รหัสตรงกับ MasterData.ComponentType ที่ backend เก็บ
-// noLabel = ชื่อคอลัมน์ "หมายเลข" เฉพาะของอะไหล่ชนิดนั้น (แสดงแทน "IT Controller no.")
 const COMPONENT_TYPES = [
   { value: 'it_controller', label: 'IT Controller', noLabel: 'IT Controller no.' },
   { value: 'swing_motor', label: 'Swing Motor', noLabel: 'Swing Motor No.' },
@@ -42,12 +38,8 @@ const COMPONENT_TYPES = [
   { value: 'control_valve', label: 'Control Valve', noLabel: 'Control Valve NO.' },
 ]
 
-// เซ็ตรหัสอะไหล่ — เช็คว่า "ประเภทที่อัปโหลด" เป็นทะเบียน Master Data หรือชุดข้อมูลไฟล์
 const COMPONENT_TYPE_VALUES = new Set(COMPONENT_TYPES.map((t) => t.value))
 
-// คำอธิบายคอลัมน์ที่ไฟล์แต่ละชนิดควรมี — โชว์ใต้กล่องอัปโหลดให้ผู้ใช้รู้ว่าต้องมีหัวอะไร
-// IT Controller มีครบ (P/N + IMEI + เลข 12 หลัก) ส่วนอีก 4 ชนิดมีแค่ S/N + หมายเลขเครื่อง
-// ของตัวเอง — backend อ่านหัวคอลัมน์เหล่านี้ได้แล้ว (ดู masterDataColumns ฝั่ง backend)
 const EXPECTED_COLUMNS_BY_TYPE = Object.fromEntries(
   COMPONENT_TYPES.map((t) => [
     t.value,
@@ -57,7 +49,6 @@ const EXPECTED_COLUMNS_BY_TYPE = Object.fromEntries(
   ]),
 )
 
-// ── ชุดข้อมูลไฟล์ภายนอก (อัปโหลดผ่าน /upload-data) — ตารางไดนามิกตามคอลัมน์ ──
 const DATASET_TYPES = [
   { value: 'planning', label: 'Planning' },
   { value: 'wh1', label: 'WH1' },
@@ -66,20 +57,16 @@ const DATASET_TYPES = [
   { value: 'assembly', label: 'Assembly' },
 ]
 
-// dropdown "ประเภทที่อัปโหลด" = อะไหล่ทุกชนิด + ชุดข้อมูลไฟล์
 const UPLOAD_TYPE_OPTIONS = [
   ...COMPONENT_TYPES.map((t) => ({ value: t.value, label: t.label })),
   ...DATASET_TYPES,
 ]
 
-// dropdown "ดูในตาราง" = ทะเบียน Master Data (ALL = อะไหล่ทุกชนิดรวมกัน) + ชุดข้อมูลไฟล์
-// เลือก ALL แล้วเจาะดูแต่ละชนิดผ่านตัวกรอง (Filter) ในตาราง — ไม่แยกชนิดเป็นตัวเลือกที่นี่
 const TYPE_OPTIONS = [
   { value: 'it_controller', label: 'ALL PART' },
   ...DATASET_TYPES,
 ]
 
-// ป้ายชื่อรวมทุกประเภท (ใช้กับข้อความ/ปุ่มอัปโหลด)
 const ALL_TYPE_LABELS = Object.fromEntries(
   [...COMPONENT_TYPES, ...DATASET_TYPES].map((t) => [t.value, t.label]),
 )
@@ -88,26 +75,21 @@ function typeLabel(value) {
   return ALL_TYPE_LABELS[value] || value
 }
 
-// ชนิดอะไหล่ในทะเบียน Master Data — ใช้เป็นตัวกรอง (Filter) ในตาราง IT Controller
 const COMPONENT_TYPE_FILTER = [
   { value: 'all', label: 'ทุกชนิด' },
   ...COMPONENT_TYPES.map((t) => ({ value: t.value, label: t.label })),
 ]
 
-// ชื่อคอลัมน์ "หมายเลข" ตามตัวกรองที่เลือก — all (ทุกชนิด) ใช้ "No." กลางๆ เพราะรวมหลายชนิด
 const NO_LABEL_BY_TYPE = {
   all: 'No.',
   ...Object.fromEntries(COMPONENT_TYPES.map((t) => [t.value, t.noLabel])),
 }
 
-// ชื่อที่แสดงต่อท้าย "รายการ —" ตามตัวกรอง — all แสดงเป็น ALL PART (ดูอะไหล่ทุกชนิดรวมกัน)
 const HEADING_LABEL_BY_TYPE = {
   all: 'ALL PART',
   ...Object.fromEntries(COMPONENT_TYPES.map((t) => [t.value, t.label])),
 }
 
-// ── ชนิดการเชื่อมต่อของ IT Controller (ตรงกับค่าคงที่ฝั่ง backend) ──────────────
-// ใช้ทำ "รายงานแยก Mobile4G / Satellite" — โชว์เป็นชิปสรุป + คอลัมน์ + ตัวกรอง
 const CONNECTIVITY_LABELS = {
   SATELLITE_IRIDIUM: 'Satellite (Iridium)',
   MOBILE_4G_HIGH: '4G (High speed)',
@@ -115,7 +97,6 @@ const CONNECTIVITY_LABELS = {
   UNKNOWN: 'ไม่ระบุ',
 }
 
-// ลำดับที่ใช้แสดงชิป/ตัวกรอง (คงที่ อ่านง่าย)
 const CONNECTIVITY_ORDER = ['SATELLITE_IRIDIUM', 'MOBILE_4G_HIGH', 'MOBILE_4G_NORMAL', 'UNKNOWN']
 
 const CONNECTIVITY_FILTER = [
@@ -128,28 +109,17 @@ const uploadNavItems = [
   { to: '/format-settings', label: 'Setting', icon: <RectangleStackIcon className="size-4" /> },
 ]
 
-// ใช้ร่วมกับหน้า Format Settings (role UPLOAD) — export เพื่อไม่ให้ต้องประกาศเมนูซ้ำ
 export const FORMAT_NAV_ITEMS = uploadNavItems
 
-// ค่าที่แสดงแทนช่องว่าง — อะไหล่ชนิดอื่นไม่มี IT Controller no./IMEI
 const DASH = '—'
 
 export default function MasterDataPage() {
-  // ถ้าเข้าจาก role ADMIN ให้ใช้เมนู Admin (User Management + Upload Master Data)
-  // ถ้าเป็น role UPLOAD (uploadview) ใช้เมนูเดิม
-  // หมายเหตุ: เดิมค่านี้ถูกคำนวณครั้งเดียวตอน module โหลด (นอก component) ซึ่งเกิดขึ้น
-  // ก่อน login เสร็จ ทำให้ localStorage['iconfirm_role'] ยังว่างอยู่ -> IS_ADMIN เป็น false
-  // ค้างไปตลอด session และ AppShell ซ่อนแถบแท็บเพราะเหลือแค่ 1 เมนู (ทะเบียน Master Data)
-  // ต้อง refresh ทั้งหน้าให้ module โหลดใหม่ถึงจะอ่าน role ที่ถูกต้อง — ย้ายมาคำนวณในนี้
-  // เพื่อให้อ่าน role สดใหม่ทุกครั้งที่ component render เหมือนที่ AppShell.jsx ทำ
   const isAdmin = (localStorage.getItem('iconfirm_role') || '').toUpperCase() === 'ADMIN'
   const navItems = isAdmin ? ADMIN_NAV_ITEMS : uploadNavItems
   const shellRoleLabel = isAdmin ? 'Admin' : 'Upload View'
 
-  // ประเภทที่จะอัปโหลด (เลือกก่อนอัปโหลด) และประเภทที่กำลังดูในตาราง
   const [uploadType, setUploadType] = useState('it_controller')
   const [viewType, setViewType] = useState('it_controller')
-  // ตัวกรองชนิดอะไหล่ในตาราง IT Controller — ยกมาไว้ที่นี่เพื่อให้ตั้งค่าอัตโนมัติหลังอัปโหลดได้
   const [compType, setCompType] = useState('all')
 
   const [pendingFile, setPendingFile] = useState(null)
@@ -159,8 +129,6 @@ export default function MasterDataPage() {
   const [previewing, setPreviewing] = useState(false)
   const fileInputRef = useRef(null)
 
-  // Preview รองรับทั้งชุดข้อมูลไฟล์ (dry-run แม็ปคอลัมน์) และทะเบียน Master Data
-  // (ตรวจจับการเปลี่ยนข้อมูล NEW/UPDATED/CHANGED/UNCHANGED) — ทั้งคู่ไม่เขียน DB
   const isMasterType = COMPONENT_TYPE_VALUES.has(uploadType)
   const canPreview = true
 
@@ -175,8 +143,6 @@ export default function MasterDataPage() {
       const data = isMasterType
         ? await previewMasterDataChanges(pendingFile, uploadType)
         : await previewUploadData(uploadType, pendingFile)
-      // ทั้ง Master Data และชุดข้อมูลไฟล์ (Planning/WH1/WH2/Engine/Assembly) ตอนนี้
-      // ตรวจจับ NEW/UPDATED/CHANGED/UNCHANGED ได้เหมือนกัน — ใช้ ChangePreview เมื่อมี summary
       const useChangeView = isMasterType || !!data?.summary
       setPreviewData({ ...data, _mode: useChangeView ? 'change' : 'map' })
     } catch (err) {
@@ -186,7 +152,6 @@ export default function MasterDataPage() {
     }
   }
 
-  // นับรอบโหลดใหม่ เพื่อสั่ง refresh ตารางหลังอัปโหลด/ลบ (ใช้ร่วมทั้ง master-data และ dataset)
   const [reloadKey, setReloadKey] = useState(0)
 
   function handleFileChange(e) {
@@ -206,16 +171,12 @@ export default function MasterDataPage() {
 
     try {
       if (COMPONENT_TYPE_VALUES.has(uploadType)) {
-        // ทะเบียน Master Data (IT Controller / Swing Motor / Pump Assy HYD / Motor Propel /
-        // Control Valve) — ส่ง component_type เป็นชนิดตั้งต้น ถ้าไฟล์มีคอลัมน์ชนิดอะไหล่เอง
-        // backend จะใช้ค่าจากไฟล์ก่อน, ยึด Serial No. เป็นคีย์ อัปโหลดทับได้
         const result = await uploadMasterData(pendingFile, uploadType)
         setUploadMsg({
           success: `นำเข้าสำเร็จ — เพิ่มใหม่ ${result.imported} รายการ, อัปเดตของเดิม ${result.updated} รายการ`,
           problems: result.problems || [],
         })
       } else {
-        // Planning / WH1 / WH2 / Engine / Assembly — เพิ่มต่อท้ายข้อมูลเดิม (ไม่ทับ)
         const result = await uploadDataFile(uploadType, pendingFile)
         const parts = []
         if (result.skipped) parts.push(`ข้าม ${result.skipped} แถว`)
@@ -228,10 +189,7 @@ export default function MasterDataPage() {
       setPreviewData(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
 
-      // อัปโหลดเสร็จแล้วสลับตารางไปดูประเภทที่เพิ่งอัปโหลด แล้วรีโหลด
       if (COMPONENT_TYPE_VALUES.has(uploadType)) {
-        // อะไหล่ทะเบียน Master Data ดูผ่านตาราง IT Controller + ตั้ง Filter ให้ตรงชนิด
-        // (it_controller อาจเป็นไฟล์รวมหลายชนิด จึงตั้ง Filter เป็น "ทุกชนิด")
         setViewType('it_controller')
         setCompType(uploadType === 'it_controller' ? 'all' : uploadType)
       } else {
@@ -253,7 +211,6 @@ export default function MasterDataPage() {
         </div>
       </div>
 
-      {/* ===== อัปโหลดจาก Excel — เลือกประเภทก่อน แล้วค่อยอัปโหลด ===== */}
       <div className="upload-panel upload-panel-wide">
         <label
           className={'upload-dropzone upload-panel-dropzone' + (pendingFile ? ' upload-dropzone-filled' : '')}
@@ -297,10 +254,6 @@ export default function MasterDataPage() {
             />
           </div>
 
-          {/* flexWrap: ปุ่มทั้งสองมี class upload-panel-btn (width:100%) — ถ้าไม่ wrap
-              บนมือถือปุ่มจะพยายามยืดเต็มแถวพร้อมกันสองปุ่ม ข้อความยาวดันความกว้างรวม
-              เกินจอ ทำให้กล่องอัปโหลดล้นออกนอกจอ (ถูก .shell overflow-x:hidden ตัดทิ้ง
-              มองไม่เห็นเนื้อหาส่วนที่ล้น) — ให้ wrap แล้วแต่ละปุ่มขึ้นบรรทัดของตัวเองแทน */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {canPreview && (
               <button
@@ -337,7 +290,6 @@ export default function MasterDataPage() {
         )}
       </div>
 
-      {/* ===== ตัวเลือกประเภทที่จะดูในตาราง ===== */}
       <div className="wh-heading-row" style={{ marginTop: 28 }}>
         <div>
           <h2 className="wh-title" style={{ fontSize: 19 }}>
@@ -367,10 +319,6 @@ export default function MasterDataPage() {
   )
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   IT Controller = ทะเบียน Master Data เดิม (สรุป + ตาราง + ค้นหา + Export CSV)
-   ยกเนื้อในเดิมมาทั้งหมด ไม่แตะพฤติกรรม
-   ───────────────────────────────────────────────────────────────────────── */
 function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -380,15 +328,10 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
   const [editRow, setEditRow] = useState(null)
   const [connFilter, setConnFilter] = useState('all')
 
-  // ชื่อคอลัมน์ "หมายเลข" ของตารางนี้ — เปลี่ยนตามตัวกรอง (Filter) ที่เลือก
   const noLabel = NO_LABEL_BY_TYPE[compType] || 'IT Controller no.'
 
-  // IMEI + Connectivity มีเฉพาะ IT Controller — เวลากรองดูอะไหล่ชนิดอื่น
-  // (Swing Motor / Pump Assy HYD / Motor Propel / Control Valve) ให้ซ่อน 2 คอลัมน์นี้
-  // เพื่อไม่ให้ตารางรก (all = ดูทุกชนิดรวมกัน จึงยังต้องโชว์ไว้)
   const showITCols = compType === 'all' || compType === 'it_controller'
 
-  // ชนิดอะไหล่สำหรับ dropdown ในกล่องแก้ไข + panel จับคู่ค่ารหัส
   const editComponentOptions = COMPONENT_TYPES.map((t) => ({ value: t.value, label: t.label }))
 
   useEffect(() => {
@@ -414,7 +357,6 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
   const filtered = useMemo(() => {
     let result = rows
 
-    // กรองตามชนิดอะไหล่ (Filter)
     if (compType !== 'all') {
       result = result.filter((row) => row.ComponentType === compType)
     }
@@ -428,9 +370,6 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
       )
     }
 
-    // กรองตามชนิดการเชื่อมต่อ (Connectivity) — 'UNKNOWN' = แถวที่ยังไม่ระบุ
-    // ใช้เฉพาะตอนดู IT Controller/ทุกชนิด เท่านั้น (อะไหล่อื่นไม่มี Connectivity
-    // และตัวกรองนี้ถูกซ่อนไว้ จึงไม่ให้ค่าเก่าค้างมากรองแบบมองไม่เห็น)
     if (showITCols && connFilter !== 'all') {
       result = result.filter((row) => (row.ConnectivityType || 'UNKNOWN') === connFilter)
     }
@@ -486,19 +425,7 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
     }
   }
 
-  // Export เป็น Excel (.xlsx) แบบจัด Format ให้เหมือนตารางอื่น — Freeze Header,
-  // Header สี Theme ตัวหนากึ่งกลาง, Filter ทุกคอลัมน์ (Excel Table), แถบสีสลับแถว,
-  // ปรับความกว้างอัตโนมัติ, Border, จัด Alignment ตามชนิดข้อมูล
-  // (รหัส S/N, IT Controller no., IMEI, P/N คงเป็น "ข้อความ" กันเลขยาวเพี้ยนใน Excel)
-  //
-  // ตาราง ALL PART (compType === 'all') — แยกเป็นชีตตาม Connectivity:
-  // Satellite (Iridium) / 4G (High speed) / 4G (Normal speed) / ไม่ระบุ
-  // (ยึดตามรายการที่ผ่านตัวกรองอยู่แล้ว — ถ้าเลือก Connectivity filter ไว้ตัวใดตัวหนึ่ง
-  // ผลลัพธ์จะเหลือชีตเดียวโดยอัตโนมัติ) — ชนิดอะไหล่อื่นยังคง export ชีตเดียวตามเดิม
   function handleExport() {
-    // IT Controller / ALL = คอลัมน์ครบ (มี P/N + IMEI)
-    // ชนิดอื่น (Swing Motor ฯลฯ) = เหลือแค่ Part Name / Serial No. / หมายเลขเครื่อง
-    // ให้ตรงกับที่โชว์บนตารางและความจริงว่าอะไหล่พวกนี้ไม่มี P/N/IMEI
     const columns = showITCols
       ? [
           { key: 'itemNo', header: 'Item No.', type: 'number', width: 8 },
@@ -529,7 +456,6 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
 
     if (compType === 'all') {
-      // จัดกลุ่มตาม Connectivity แล้วสร้างเป็นคนละชีต (ข้ามชีตที่ไม่มีข้อมูล)
       const groups = CONNECTIVITY_ORDER.map((code) => ({
         sheetName: CONNECTIVITY_LABELS[code].slice(0, 31),
         columns,
@@ -732,9 +658,6 @@ function ITControllerView({ reloadKey, bumpReload, compType, setCompType }) {
   )
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Planning / WH1 / WH2 / Engine — ตารางไดนามิกตามคอลัมน์ที่ backend ส่งมา
-   ───────────────────────────────────────────────────────────────────────── */
 const UD_PAGE_SIZE = 100
 
 function DatasetView({ dataset }) {
@@ -750,21 +673,15 @@ function DatasetView({ dataset }) {
   const [localReload, setLocalReload] = useState(0)
   const [editRow, setEditRow] = useState(null)
 
-  // ── pagination ──
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
 
-  // ค้นทันทีที่พิมพ์ (แบบ debounce) — กลับหน้า 1 เสมอ แล้ว trigger โหลด
-  // (setPage+setLocalReload ถูก batch เป็น render เดียวใน React 18 effect จึงยิง
-  // ครั้งเดียวด้วย page=1)
   function runSearch() {
     setPage(1)
     setLocalReload((n) => n + 1)
   }
 
-  // debounce การค้น: หน่วง 350ms หลังหยุดพิมพ์ค่อยยิง query กัน request ถี่ทุกตัวอักษร
-  // ข้าม run แรก (ตอน mount keyword='' โหลดหลักทำงานอยู่แล้ว) กันโหลดซ้ำ
   const firstKeywordRun = useRef(true)
   useEffect(() => {
     if (firstKeywordRun.current) {
@@ -773,14 +690,8 @@ function DatasetView({ dataset }) {
     }
     const t = setTimeout(runSearch, 350)
     return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keyword])
 
-  // ── ปั๊มตาราง Assembly อัตโนมัติตอนเปิดหน้า (ไม่ต้องกดปุ่ม) ─────────────────
-  // เมื่อผู้ใช้เปิดตาราง Assembly ระบบจะดึงข้อมูลจาก Planning / WH1 / Engine +
-  // ทะเบียนกลาง มาปั๊มให้เองก่อน แล้วค่อยโหลดตารางมาแสดง (คอลัมน์ IT Controller
-  // จึงขึ้นค่าอัตโนมัติทันที ไม่ต้องรอผู้ใช้กดปุ่ม "สร้าง Assembly อัตโนมัติ")
-  // ทำครั้งเดียวต่อการเปิดหน้า (เงียบ ๆ ไม่เด้ง toast กวน) — ปุ่มยังกดสร้างซ้ำได้
   const autoGenDone = useRef(false)
   useEffect(() => {
     if (dataset !== 'assembly' || autoGenDone.current) return
@@ -790,15 +701,12 @@ function DatasetView({ dataset }) {
       try {
         await generateAssembly()
       } catch {
-        // ปั๊มอัตโนมัติล้มเหลว (เช่นยังไม่มีข้อมูลต้นทาง) — ไม่รบกวนผู้ใช้
-        // ตารางจะโหลดข้อมูลเดิมที่มีอยู่ตามปกติ และยังกดปุ่มสร้างเองได้
       }
       if (!cancelled) setLocalReload((n) => n + 1)
     })()
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataset])
 
   useEffect(() => {
@@ -824,8 +732,6 @@ function DatasetView({ dataset }) {
     return () => {
       cancelled = true
     }
-    // keyword ค้นแบบ debounce (ดู effect ด้านบน) ไม่ผูกกับทุกตัวอักษรใน render นี้
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataset, localReload, page])
 
   async function handleDelete(id) {
@@ -840,7 +746,6 @@ function DatasetView({ dataset }) {
     }
   }
 
-  // บันทึกการแก้ไขแถว (data = { ชื่อคอลัมน์: ค่า }) แล้วโหลดตารางใหม่
   async function handleSaveEdit(id, data) {
     await updateUploadDataRow(id, data)
     setEditRow(null)
@@ -861,20 +766,14 @@ function DatasetView({ dataset }) {
     }
   }
 
-  // Export เป็น Excel (.xlsx) แบบจัด Format ให้เหมือนฝั่ง QA — Freeze Header, Header สี Theme
-  // ตัวหนากึ่งกลาง, Filter ทุกคอลัมน์ (Excel Table), แถบสีสลับแถว, ปรับความกว้างอัตโนมัติ,
-  // Border, จัด Alignment ตามชนิดข้อมูล และ Format ตัวเลขเป็น number จริง
-  // (สร้างฝั่ง client ด้วย lib/xlsx.js — ตัวเดียวกับ QA — จึงได้หน้าตาตรงกันแน่นอน)
   async function handleExport() {
     setExporting(true)
     setLoadError('')
     try {
-      // ดึงข้อมูล "ทั้งหมด" ของ dataset (ไล่ทีละหน้า หน้าละ 500) — export ครบทุกแถวไม่ตัดตามหน้าจอ
       const PAGE = 500
       let all = []
       let cols = []
       let p = 1
-      // กันลูปไม่รู้จบ: จำกัดจำนวนหน้าไว้ที่ 2000 หน้า (1,000,000 แถว)
       for (let guard = 0; guard < 2000; guard++) {
         const data = await getUploadData(dataset, undefined, p, PAGE)
         if (p === 1) cols = data?.columns || []
@@ -890,7 +789,6 @@ function DatasetView({ dataset }) {
         return
       }
 
-      // parse DataJSON ของแต่ละแถวเป็น object ล่วงหน้า
       const parsed = all.map((row) => {
         try {
           return JSON.parse(row.DataJSON || '{}')
@@ -899,8 +797,6 @@ function DatasetView({ dataset }) {
         }
       })
 
-      // ตรวจว่าคอลัมน์ไหน "เป็นตัวเลขล้วน" เพื่อจัดเป็น number (Format ตามชนิดข้อมูล)
-      // เงื่อนไข: ทุกค่าที่ไม่ว่างต้องเป็นตัวเลข และไม่ใช่รหัสที่ต้องคงเลข 0 นำหน้า/ยาวเกิน 15 หลัก
       const numericByCol = cols.map((label) => {
         let sawValue = false
         for (const obj of parsed) {
@@ -909,7 +805,6 @@ function DatasetView({ dataset }) {
           sawValue = true
           const s = String(raw).trim().replace(/,/g, '')
           if (!/^-?\d+(\.\d+)?$/.test(s)) return false
-          // เลขยาว (เช่น IMEI/Serial 12–15 หลัก) หรือมี 0 นำหน้า ให้คงเป็นข้อความ กัน Excel แปลงเพี้ยน
           if (s.length > 11 || /^0\d/.test(s)) return false
         }
         return sawValue
@@ -949,7 +844,6 @@ function DatasetView({ dataset }) {
     }
   }
 
-  // ปั๊มตาราง Assembly อัตโนมัติจาก Planning / WH1 / Engine + ทะเบียนกลาง
   async function handleGenerate() {
     if (generating) return
     setGenerating(true)
@@ -1118,13 +1012,8 @@ function DatasetView({ dataset }) {
   )
 }
 
-// เลขรหัสทุกช่องใช้ฟอนต์ monospace เพื่อให้นับหลักตอนเทียบกับตัวเครื่องได้ง่าย
 const codeStyle = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   UploadRowEditModal — แก้ไขข้อมูล 1 แถวของ Planning/WH1/WH2/Engine/Assembly
-   แสดงทุกคอลัมน์ของ dataset เป็นช่องกรอก (ค่าเริ่มต้นจาก DataJSON) แล้วบันทึก
-   ───────────────────────────────────────────────────────────────────────── */
 function UploadRowEditModal({ row, columns, datasetLabel, onClose, onSave }) {
   const initial = useMemo(() => {
     let data = {}

@@ -20,13 +20,6 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-// GetMasterData คืนทะเบียนกลางทั้งหมด และรองรับ query string 2 ตัว
-//
-//	?component_type=it_controller   กรองเฉพาะชนิดอะไหล่
-//	?code=KQ3000045093              ค่าที่สแกนได้ 1 ค่า ระบบจะไล่เทียบให้เอง
-//	                                ทั้ง Serial No. / IT Controller no. / IMEI / P/N
-//
-// ไม่ส่งอะไรมาเลย = คืนทั้งหมดเหมือนเดิม (ของเดิมที่เรียกอยู่จะไม่พัง)
 func GetMasterData(c *gin.Context) {
 
 	var masterData []models.MasterData
@@ -49,8 +42,6 @@ func GetMasterData(c *gin.Context) {
 	}
 	query.Find(&masterData)
 
-	// เผื่อหน้างานเปลี่ยน format ของ P/N / S/N / Machine No. — ถ้าเทียบตรง ๆ ไม่เจอ
-	// ให้ลองผ่านตาราง CodeAlias (การจับคู่รหัสรูปแบบใหม่ → แถวมาตรฐาน) ก่อนคืนค่าว่าง
 	if code != "" && len(masterData) == 0 {
 		if a := lookupCodeAlias(componentType, code); a != nil {
 			q2 := config.DB.Order("item_no asc").Order("id asc").
@@ -68,14 +59,6 @@ func GetMasterData(c *gin.Context) {
 	c.JSON(200, masterData)
 }
 
-// GetMasterDataSummary สรุปจำนวนอะไหล่ในทะเบียนกลางแยกตาม "ชนิดการเชื่อมต่อ"
-// (Mobile4G ปกติ / Mobile4G High / Satellite Iridium / ไม่ระบุ) ไว้ทำรายงาน/การ์ด
-// บนหน้าเว็บ โดยไม่ต้องส่งทุกแถวมานับฝั่ง client
-//
-//	GET /master-data/summary                          → รวมทุกชนิดอะไหล่
-//	GET /master-data/summary?component_type=it_controller → เฉพาะ IT Controller
-//
-// คืน: { total, by_connectivity: { MOBILE_4G_NORMAL, MOBILE_4G_HIGH, SATELLITE_IRIDIUM, UNKNOWN } }
 func GetMasterDataSummary(c *gin.Context) {
 
 	componentType := strings.TrimSpace(c.Query("component_type"))
@@ -95,7 +78,6 @@ func GetMasterDataSummary(c *gin.Context) {
 	var rows []connRow
 	q.Scan(&rows)
 
-	// เริ่มทุก key ที่ 0 เพื่อให้หน้าเว็บแสดงครบทุกชนิดแม้ยอดเป็นศูนย์
 	byConn := map[string]int64{
 		models.ConnMobile4GNormal: 0,
 		models.ConnMobile4GHigh:   0,
@@ -118,11 +100,6 @@ func GetMasterDataSummary(c *gin.Context) {
 	})
 }
 
-// ใช้ตอนหน้างานเปลี่ยน format ของ P/N / S/N / Machine No. แล้วต้องการ "แก้ที่ต้นทาง"
-// แทนการลบทิ้งแล้วเพิ่มใหม่ — โหลดของเดิมมาก่อน แล้ว bind เฉพาะฟิลด์ที่ส่งมาทับ
-// (ฟิลด์ที่ไม่ได้ส่งจะคงค่าเดิมไว้) จากนั้น normalize + เขียนกลับแบบระบุคอลัมน์
-// masterDataRefCounts = จำนวนรายการที่ "อ้างอิง" แถวทะเบียนกลางแถวหนึ่งอยู่
-// (ใช้ตัดสินว่าการแก้กุญแจ match จะกระทบข้อมูลที่ยืนยันไปแล้วหรือไม่)
 type masterDataRefCounts struct {
 	PartCheck        int64 `json:"part_check"`
 	MFGAssembly      int64 `json:"mfg_assembly"`
@@ -131,9 +108,6 @@ type masterDataRefCounts struct {
 	Total            int64 `json:"total"`
 }
 
-// countMasterDataRefs นับว่ามีรายการยืนยัน/จับคู่ที่ผูกกับ Serial No. เดิม หรือ
-// IT Controller No. เดิม (เลข 12 หลัก) ของแถวนี้อยู่กี่รายการ ในตารางที่ใช้ผล
-// match จริง: PartCheck / MFGAssembly / MatchingAssembly / ImportLicenseItem
 func countMasterDataRefs(serialNo, itcNo string) masterDataRefCounts {
 	var r masterDataRefCounts
 
@@ -182,25 +156,17 @@ func UpdateMasterData(c *gin.Context) {
 		return
 	}
 
-	// จับค่า "กุญแจ match" เดิมไว้ก่อน bind — สำคัญมาก เพราะ ShouldBindJSON จะ
-	// เขียนทับ existing ทันที ถ้าไม่เก็บก่อนจะเทียบไม่ได้ว่ากุญแจถูกแก้หรือไม่
 	oldSN := strings.TrimSpace(existing.SerialNo)
 	oldPN := strings.TrimSpace(existing.PartNo)
 	oldITC := derefStr(existing.ITControllerNo)
 	oldIMEI := derefStr(existing.IMEI)
 
-	// bind ทับลงบนของเดิม — ฟิลด์ที่ JSON ไม่ได้ส่งมาจะคงค่าเดิม (PATCH semantics)
 	if err := c.ShouldBindJSON(&existing); err != nil {
 		c.JSON(400, gin.H{"message": err.Error()})
 		return
 	}
 	normalizeMasterData(&existing)
 
-	// ── Guard: กันการแก้ "คอลัมน์ที่เป็นกุญแจ match" ทับของที่ใช้ยืนยันไปแล้ว ──
-	// กุญแจ = Serial No. / Part No. / IT Controller No. / IMEI  (ตัวที่การสแกน/
-	// จับคู่ทั้งระบบใช้เชื่อมโยง) — ถ้าแก้ทับทั้งที่มีรายการยืนยัน/จับคู่อ้างอยู่แล้ว
-	// การ match เดิมจะเพี้ยนแบบเงียบ ๆ จึงบล็อกไว้ก่อน (ยกเว้นส่ง ?force=true)
-	// แนวทางที่ถูกต้องกว่าเมื่อ format หน้างานเปลี่ยน = ใช้ CodeAlias (Format Settings)
 	newSN := strings.TrimSpace(existing.SerialNo)
 	newPN := strings.TrimSpace(existing.PartNo)
 	newITC := derefStr(existing.ITControllerNo)
@@ -251,7 +217,6 @@ func UpdateMasterData(c *gin.Context) {
 	action := "update"
 	auditDetail := existing.SerialNo
 	if keyChanged {
-		// ระบุชัดใน Audit ว่าเป็นการแก้กุญแจ + ค่าเดิม→ใหม่ (ไว้ตามย้อนหลัง)
 		action = "update_key"
 		auditDetail = "S/N " + oldSN + "→" + newSN + " | ITC " + oldITC + "→" + newITC
 	}
@@ -279,8 +244,6 @@ func CreateMasterData(c *gin.Context) {
 		masterData.UploadDate = time.Now()
 	}
 
-	// ใช้ Error กลับมาด้วย เพราะตอนนี้ Serial ซ้ำ / IMEI ซ้ำจะโดน unique index
-	// เด้งกลับมาเป็น error ไม่ใช่บันทึกทับเงียบๆ แบบเดิม
 	if err := config.DB.Create(&masterData).Error; err != nil {
 		c.JSON(400, gin.H{
 			"message": "บันทึกไม่สำเร็จ (อาจมี Serial No. / IT Controller no. / IMEI ซ้ำในระบบ): " + err.Error(),
@@ -291,11 +254,6 @@ func CreateMasterData(c *gin.Context) {
 	c.JSON(201, masterData)
 }
 
-// normalizeMasterData ตัดช่องว่างหัวท้ายทุกช่อง — ไฟล์ Excel ต้นทางมี trailing
-// space ติดมาเยอะมาก ถ้าไม่ตัดออก การเทียบค่าที่สแกนได้จะไม่มีวันตรง
-//
-// และเปลี่ยนค่าว่างของ 2 คอลัมน์ที่เป็น unique ให้เป็น NULL เพราะอะไหล่ชนิด
-// อื่นไม่มีเลขพวกนี้ ถ้าปล่อยเป็นสตริงว่าง แถวที่สองเป็นต้นไปจะชน unique index
 func normalizeMasterData(m *models.MasterData) {
 	m.Name = strings.TrimSpace(m.Name)
 	m.ComponentType = strings.TrimSpace(m.ComponentType)
@@ -306,7 +264,6 @@ func normalizeMasterData(m *models.MasterData) {
 	m.ITControllerNo = trimToNil(m.ITControllerNo)
 	m.IMEI = trimToNil(m.IMEI)
 
-	// ถ้าไฟล์ไม่ได้ระบุชนิดการเชื่อมต่อมา ให้เดาจาก Part Name/Model (เฉพาะ IT Controller)
 	m.ConnectivityType = strings.TrimSpace(m.ConnectivityType)
 	if m.ConnectivityType == "" && m.ComponentType == "it_controller" {
 		m.ConnectivityType = models.ClassifyConnectivity(m.Name, m.Model)
@@ -324,15 +281,7 @@ func trimToNil(v *string) *string {
 	return &s
 }
 
-// ===================== นำเข้าจาก Excel / ลบรายการ =====================
 
-// masterDataColumns จับคู่ "หัวคอลัมน์ในไฟล์ Excel" กับฟิลด์ในตาราง
-//
-// key ถูก normalize แล้ว (พิมพ์เล็กทั้งหมด ตัดช่องว่าง จุด ขีด และวงเล็บทิ้ง)
-// จึงรองรับทั้ง "Part No", "Part No.", "PART NO." ได้ด้วย key เดียว
-//
-// หมายเหตุ: ไฟล์ TQ60610 ต้นทางสะกดหัวคอลัมน์ผิดเป็น "Serail No." (สลับ a กับ i)
-// เลยใส่ทั้งคำที่สะกดถูกและสะกดผิดไว้ ไม่งั้นคอลัมน์ S/N จะอ่านไม่เจอทั้งไฟล์
 var masterDataColumns = map[string]func(*models.MasterData, string){
 	"itemno":     func(m *models.MasterData, v string) { m.ItemNo = atoiSafe(v) },
 	"no":         func(m *models.MasterData, v string) { m.ItemNo = atoiSafe(v) },
@@ -345,7 +294,7 @@ var masterDataColumns = map[string]func(*models.MasterData, string){
 	"partn1":     func(m *models.MasterData, v string) { m.PartNo = v },
 
 	"serialno":     func(m *models.MasterData, v string) { m.SerialNo = v },
-	"serailno":     func(m *models.MasterData, v string) { m.SerialNo = v }, // สะกดผิดในไฟล์ต้นทาง
+	"serailno":     func(m *models.MasterData, v string) { m.SerialNo = v },
 	"serialnumber": func(m *models.MasterData, v string) { m.SerialNo = v },
 	"serailnumber": func(m *models.MasterData, v string) { m.SerialNo = v },
 	"sn":           func(m *models.MasterData, v string) { m.SerialNo = v },
@@ -358,13 +307,6 @@ var masterDataColumns = map[string]func(*models.MasterData, string){
 	"itcontrollersn":       func(m *models.MasterData, v string) { m.ITControllerNo = &v },
 	"itcontrollerserial":   func(m *models.MasterData, v string) { m.ITControllerNo = &v },
 
-	// ── หมายเลขเครื่องเฉพาะของอะไหล่ชนิดอื่น (Swing Motor / Pump Assy HYD /
-	// Motor Propel / Control Valve) ────────────────────────────────────────
-	// อะไหล่ 4 ชนิดนี้ไม่มี IMEI/รหัส 12 หลักแบบ IT Controller มีแค่ S/N กับ
-	// "หมายเลขเครื่อง" ของตัวเอง (เช่น Swing Motor No.) — เก็บหมายเลขเครื่องนี้
-	// ลงในฟิลด์เดียวกับ ITControllerNo เพราะเป็นคอลัมน์ "No." กลางที่หน้าเว็บ
-	// แสดงผลตามชนิดอะไหล่อยู่แล้ว (ดู NO_LABEL_BY_TYPE ฝั่ง frontend) จึงไม่ต้อง
-	// เพิ่มคอลัมน์ใหม่ในตาราง ทั้งหมด normalize แล้ว (ตัดช่องว่าง/จุด/ขีดทิ้ง)
 	"swingmotorno":   func(m *models.MasterData, v string) { m.ITControllerNo = &v },
 	"swingmotor":     func(m *models.MasterData, v string) { m.ITControllerNo = &v },
 	"swno":           func(m *models.MasterData, v string) { m.ITControllerNo = &v },
@@ -392,8 +334,6 @@ var masterDataColumns = map[string]func(*models.MasterData, string){
 	"ชนิดการเชื่อมต่อ": func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
 }
 
-// componentTypeHeaderKeys คือหัวคอลัมน์ที่ถือว่าเป็น "คอลัมน์ชนิดอะไหล่" ในไฟล์
-// (normalize แล้ว — ดู normalizeHeader) รองรับทั้งหัวคอลัมน์ภาษาอังกฤษและไทย
 var componentTypeHeaderKeys = map[string]bool{
 	"type":          true,
 	"parttype":      true,
@@ -406,14 +346,6 @@ var componentTypeHeaderKeys = map[string]bool{
 	"ชนิดอะไหล่":    true,
 }
 
-// noPartNoComponentTypes คืออะไหล่ 4 ชนิดที่ไม่มี Part No. ในโลกจริง (มีแค่ S/N
-// กับ "หมายเลขเครื่อง" ของตัวเอง) — Swing Motor / Pump Assy HYD / Motor Propel /
-// Control Valve ต่างจาก IT Controller ที่มี Part No. คู่กับ Serial No.
-//
-// ถ้าไฟล์ที่อัปโหลดดันมีคอลัมน์ Part No. แนบมาด้วย (เผื่อผู้ใช้กรอกผิดชีท/ผิดคอลัมน์)
-// ระบบจะ "ไม่บันทึก" ค่า Part No. นั้นลงอะไหล่ 4 ชนิดนี้ — ล้างทิ้งแล้วขึ้น "-"
-// เหมือนเดิมเสมอ พร้อมแจ้งเตือนไว้ใน problems ให้ผู้ใช้เห็นว่าแถวไหนโดนล้าง
-// แต่แถวข้อมูลยังบันทึกตามปกติ (ไม่ข้าม ไม่ปัดทิ้งทั้งแถว)
 var noPartNoComponentTypes = map[string]string{
 	"swing_motor":   "Swing Motor",
 	"pump_assy_hyd": "Pump Assy HYD",
@@ -421,11 +353,6 @@ var noPartNoComponentTypes = map[string]string{
 	"control_valve": "Control Valve",
 }
 
-// componentTypeValues จับคู่ "ค่าที่เขียนในคอลัมน์ชนิดอะไหล่" (normalize แล้ว)
-// กับรหัส component_type ที่ระบบใช้เก็บจริง — ใส่ทั้งชื่อเต็มภาษาอังกฤษ (ตรงกับ
-// label ที่ใช้ในหน้าเว็บ) และรหัสตรงๆ (it_controller ฯลฯ) เผื่อไฟล์เขียนมาแบบไหน
-// ก็ตามให้จับได้ ถ้าเจอค่าที่ไม่รู้จัก จะ fallback ไปเป็น it_controller และแจ้งเตือน
-// ไว้ในรายการ "problems" ให้ผู้ใช้เห็นว่าแถวไหนต้องเช็ค
 var componentTypeValues = map[string]string{
 	"itcontroller": "it_controller",
 	"controlvalve": "control_valve",
@@ -436,8 +363,6 @@ var componentTypeValues = map[string]string{
 	"pump":         "pump_assy_hyd",
 }
 
-// resolveComponentType แปลงค่าดิบจากคอลัมน์ชนิดอะไหล่ในไฟล์ ให้เป็นรหัส component_type
-// คืนค่าที่สอง = false ถ้าค่านั้นว่างเปล่า หรือไม่ตรงกับที่รู้จักเลย
 func resolveComponentType(raw string) (string, bool) {
 	key := normalizeHeader(raw)
 	if key == "" {
@@ -449,8 +374,6 @@ func resolveComponentType(raw string) (string, bool) {
 	return "", false
 }
 
-// findComponentTypeColumn หา index ของคอลัมน์ชนิดอะไหล่ในหัวตาราง ถ้าไม่มีคืน -1
-// (ไฟล์เก่าที่มีอะไหล่ชนิดเดียวทั้งไฟล์ ไม่จำเป็นต้องมีคอลัมน์นี้เลย)
 func findComponentTypeColumn(headers []string) int {
 	for i, h := range headers {
 		if componentTypeHeaderKeys[h] {
@@ -460,10 +383,6 @@ func findComponentTypeColumn(headers []string) int {
 	return -1
 }
 
-// readUploadedRows อ่านไฟล์ที่แนบมา แล้วคืนเป็นตาราง [][]string
-// เลือกตัวอ่านจากนามสกุลไฟล์: .csv ใช้ตัวอ่าน CSV, ที่เหลือใช้ตัวอ่าน Excel
-// (ไม่มีนามสกุลหรือชนิดแปลกๆ ให้ลองอ่านเป็น Excel เป็นค่าเริ่มต้นเหมือนของเดิม)
-// ใช้ร่วมกันได้ทั้งการนำเข้า Master Data และ Import License
 func readUploadedRows(fileHeader *multipart.FileHeader) ([][]string, error) {
 	file, err := fileHeader.Open()
 	if err != nil {
@@ -478,7 +397,6 @@ func readUploadedRows(fileHeader *multipart.FileHeader) ([][]string, error) {
 	return readExcelRows(file)
 }
 
-// readExcelRows อ่านไฟล์ Excel เป็น [][]string (พฤติกรรมเดิมของระบบ)
 func readExcelRows(r io.Reader) ([][]string, error) {
 	xl, err := excelize.OpenReader(r)
 	if err != nil {
@@ -494,14 +412,6 @@ func readExcelRows(r io.Reader) ([][]string, error) {
 	return rows, nil
 }
 
-// readCSVRows อ่านไฟล์ CSV เป็น [][]string
-//
-// จุดที่ต้องระวังของไฟล์ CSV ที่มาจาก Excel / ปุ่ม Export CSV ของหน้านี้เอง:
-//   - มี BOM (\uFEFF) นำหน้าไฟล์ (เติมไว้ให้ Excel อ่านภาษาไทยไม่เพี้ยน) ถ้าไม่ตัดทิ้ง
-//     หัวคอลัมน์แรกจะมี BOM ติดหน้า ทำให้ normalizeHeader เทียบไม่ตรงและหาหัวตารางไม่เจอ
-//   - แต่ละแถวมีจำนวนคอลัมน์ไม่เท่ากัน (แถวหัวเรื่อง/แถวว่าง/แถวหมายเหตุ) จึงตั้ง
-//     FieldsPerRecord = -1 ไม่งั้น csv.Reader จะ error ทั้งไฟล์
-//   - ไฟล์ต้นทางบางไฟล์ใส่ quote ไม่มาตรฐาน จึงเปิด LazyQuotes ให้ทนทานขึ้น
 func readCSVRows(r io.Reader) ([][]string, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
@@ -521,19 +431,6 @@ func readCSVRows(r io.Reader) ([][]string, error) {
 	return rows, nil
 }
 
-// UploadMasterData นำเข้าทะเบียนจากไฟล์ Excel หรือ CSV
-//
-// รับ multipart form:
-//
-//	file            = ไฟล์ .xlsx / .xls / .csv
-//	component_type  = ชนิดอะไหล่ "สำรอง" ใช้เฉพาะแถวที่หาชนิดจากในไฟล์ไม่ได้
-//	                  (ไม่ส่งมา = it_controller) — ปกติไม่ต้องส่งแล้ว เพราะระบบ
-//	                  จะพยายามอ่านชนิดจากคอลัมน์ในไฟล์เอง (ดู componentTypeHeaderKeys)
-//	                  ทำแบบนี้เพื่อรองรับทั้งไฟล์เก่าที่มีอะไหล่ชนิดเดียวทั้งไฟล์
-//	                  (ไม่มีคอลัมน์ชนิด) และไฟล์ใหม่ที่มีหลายชนิดปนกันในไฟล์เดียว
-//
-// ยึด Serial No. เป็นตัวชี้ว่าแถวไหนซ้ำ: ถ้ามีอยู่แล้วจะอัปเดตทับ ถ้ายังไม่มีจะเพิ่มใหม่
-// อัปโหลดไฟล์เดิมซ้ำจึงไม่ทำให้ข้อมูลบาน
 func UploadMasterData(c *gin.Context) {
 
 	fallbackComponentType := strings.TrimSpace(c.PostForm("component_type"))
@@ -547,9 +444,6 @@ func UploadMasterData(c *gin.Context) {
 		return
 	}
 
-	// อ่านแถวจากไฟล์ — รองรับทั้ง Excel (.xlsx/.xls) และ CSV (.csv)
-	// โดยเลือกตัวอ่านจากนามสกุลไฟล์ แล้วคืนออกมาเป็น [][]string เหมือนกัน
-	// ตรรกะ map คอลัมน์ / หาหัวตาราง / insert-update ด้านล่างจึงใช้ร่วมกันได้ทั้งสองแบบ
 	rows, err := readUploadedRows(fileHeader)
 	if err != nil {
 		c.JSON(400, gin.H{"message": err.Error()})
@@ -571,8 +465,6 @@ func UploadMasterData(c *gin.Context) {
 
 	parsed, skipped, problems, extraColumns := parseMasterDataRows(rows, headerIdx, headers, fallbackComponentType, userID, now)
 
-	// แจ้งเตือน "คอลัมน์นอกสเปก" ให้เห็นแม้กดอัปโหลดตรง ๆ โดยไม่ผ่านหน้า Preview —
-	// ค่ายังถูกเก็บไว้ใน ExtraJSON ไม่ให้หาย แต่ผู้ใช้ต้องรู้ว่าระบบไม่ได้ map เข้าคอลัมน์มาตรฐาน
 	if len(extraColumns) > 0 {
 		problems = append(problems,
 			"พบคอลัมน์นอกสเปก (ระบบไม่รู้จัก) "+strconv.Itoa(len(extraColumns))+" คอลัมน์: "+
@@ -585,9 +477,6 @@ func UploadMasterData(c *gin.Context) {
 		return
 	}
 
-	// ดึงของเดิมมาทีเดียว แล้วค่อยตัดสินว่าแถวไหน insert แถวไหน update
-	// คีย์ด้วย component_type+serial คู่กัน เพราะไฟล์เดียวตอนนี้อาจมีอะไหล่
-	// หลายชนิดปนกัน serial เลขเดียวกันข้ามชนิดไม่ได้แปลว่าเป็นแถวเดียวกัน
 	serials := make([]string, 0, len(parsed))
 	for _, row := range parsed {
 		serials = append(serials, row.SerialNo)
@@ -603,8 +492,6 @@ func UploadMasterData(c *gin.Context) {
 
 	var imported, updated int
 
-	// ทำทีละแถวโดยตั้งใจ ไม่ใช่ batch เดียว — ถ้าแถวไหนชน IMEI/IT Controller no.
-	// ซ้ำ จะได้รายงานกลับไปว่าเป็นแถวไหน แทนที่จะล้มทั้งไฟล์แล้วผู้ใช้ไม่รู้ว่าตรงไหนผิด
 	for _, row := range parsed {
 
 		if old, ok := existing[row.ComponentType+"|"+row.SerialNo]; ok {
@@ -653,17 +540,8 @@ func UploadMasterData(c *gin.Context) {
 	})
 }
 
-// masterExtraPrefix นำหน้าคีย์ของ "คอลัมน์นอกสเปก" (คอลัมน์ใหม่ที่ไฟล์เพิ่มมาเอง)
-// ให้ตรงรูปแบบเดียวกับหน้า Upload Data เพื่อให้ผู้ใช้เห็น/ค้น/ส่งออกได้เหมือนกัน
 const masterExtraPrefix = "[+] "
 
-// classifyMasterDataHeaders จำแนกคอลัมน์ในหัวตารางครั้งเดียว (ไม่ใช่ทุกแถว) ออกเป็น
-//   - activeKnown[col] = คอลัมน์ที่รู้จักและเป็น "ตัวขับ setter" จริง (เก็บเฉพาะครั้งแรก
-//     ที่เจอคีย์นั้น — คอลัมน์ซ้ำที่ normalize แล้วชนกันจะถูกข้ามและแจ้งเตือน)
-//   - extraLabel[col] = ชื่อหัวเดิมจากไฟล์ของ "คอลัมน์นอกสเปก" (ไม่รู้จัก + ไม่ใช่คอลัมน์ชนิด)
-//     ที่ต้องเก็บไว้ไม่ให้หาย
-//   - extraCols = รายชื่อหัวคอลัมน์นอกสเปกแบบไม่ซ้ำ ไว้รายงานกลับ
-//   - dupProblems = คำเตือนคอลัมน์ซ้ำ (normalize ชนกัน) เพื่อไม่ให้ทับกันเงียบ ๆ
 func classifyMasterDataHeaders(rows [][]string, headerIdx int, headers []string, typeColIdx int) (activeKnown, extraLabel map[int]string, extraCols, dupProblems []string) {
 	activeKnown = map[int]string{}
 	extraLabel = map[int]string{}
@@ -680,12 +558,10 @@ func classifyMasterDataHeaders(rows [][]string, headerIdx int, headers []string,
 
 	for col, key := range headers {
 		if col == typeColIdx {
-			continue // คอลัมน์ชนิดอะไหล่ จัดการแยกต่างหาก
+			continue
 		}
 		if _, ok := masterDataColumns[key]; ok {
 			if seenKey[key] {
-				// คอลัมน์รู้จักที่ normalize แล้วชนกับคอลัมน์ก่อนหน้า → ใช้ "คอลัมน์แรก"
-				// (first-wins) แล้วข้ามตัวซ้ำ กัน cell ว่างของคอลัมน์ขวามาทับค่าดีเงียบ ๆ
 				if !dupWarned[key] {
 					dupProblems = append(dupProblems,
 						"คอลัมน์ซ้ำ '"+labelAt(col)+"' (หัวคอลัมน์ต่างกันแต่ถือเป็นช่องเดียวกัน) — ใช้คอลัมน์แรก คอลัมน์ที่ซ้ำถูกข้าม")
@@ -698,9 +574,8 @@ func classifyMasterDataHeaders(rows [][]string, headerIdx int, headers []string,
 			continue
 		}
 		if componentTypeHeaderKeys[key] {
-			continue // คอลัมน์ชนิดอะไหล่ (ตัวสำรอง) ถือว่ารู้จัก
+			continue
 		}
-		// คอลัมน์นอกสเปก (คอลัมน์ใหม่) → เก็บไว้ไม่ให้หาย
 		label := labelAt(col)
 		if label == "" {
 			continue
@@ -714,12 +589,6 @@ func classifyMasterDataHeaders(rows [][]string, headerIdx int, headers []string,
 	return
 }
 
-// parseMasterDataRows แปลงแถวจากไฟล์ให้เป็น []MasterData (ใช้ร่วมทั้ง Upload และ Preview)
-// - map คอลัมน์ตามชื่อหัว (masterDataColumns) รองรับสลับลำดับ/เปลี่ยนชื่อผ่าน synonyms
-// - อ่านชนิดอะไหล่จากคอลัมน์ในไฟล์ถ้ามี ไม่งั้นใช้ fallback
-// - ข้ามแถวที่ไม่มี Serial No. (ไม่ใช่แถวข้อมูล) และกัน Serial ซ้ำในไฟล์เดียว
-// - คอลัมน์นอกสเปก (ไม่รู้จัก) ถูกเก็บลง ExtraJSON กันข้อมูลหาย + คืน extraCols ไปรายงาน
-// - คอลัมน์ซ้ำ (normalize ชนกัน) ใช้ค่าคอลัมน์แรก แล้วแจ้งเตือนใน problems
 func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallbackComponentType string, userID uint, now time.Time) ([]models.MasterData, int, []string, []string) {
 	typeColIdx := findComponentTypeColumn(headers)
 
@@ -752,7 +621,6 @@ func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallb
 				}
 				continue
 			}
-			// คอลัมน์นอกสเปก → เก็บค่าที่ไม่ว่างไว้ใน extras (คีย์ = "[+] ชื่อหัวเดิม")
 			if label, ok := extraLabel[col]; ok {
 				if v := strings.TrimSpace(val); v != "" {
 					extras[masterExtraPrefix+label] = v
@@ -776,8 +644,6 @@ func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallb
 
 		normalizeMasterData(&row)
 
-		// อะไหล่ 4 ชนิดที่ไม่มี Part No. — ถ้าไฟล์แนบ Part No. มาด้วย ล้างทิ้งเสมอ
-		// (แจ้งเตือนไว้ใน problems) แถวยังบันทึกต่อตามปกติ ไม่ข้าม/ไม่ปัดทิ้ง
 		if label, ok := noPartNoComponentTypes[row.ComponentType]; ok && row.PartNo != "" {
 			problems = append(problems, "แถว "+strconv.Itoa(i+1)+": "+label+" ไม่มี Part No. — ข้อมูล Part No. ที่แนบมาจะไม่ถูกบันทึก")
 			row.PartNo = ""
@@ -801,8 +667,6 @@ func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallb
 	return parsed, skipped, problems, extraCols
 }
 
-// ClearMasterData ลบทะเบียนกลาง — ระบุ ?component_type= เพื่อลบเฉพาะชนิด
-// หรือส่ง ?all=true เพื่อลบทั้งหมด (ต้องระบุอย่างใดอย่างหนึ่ง กันเผลอล้างทั้งตาราง)
 func ClearMasterData(c *gin.Context) {
 	componentType := strings.TrimSpace(c.Query("component_type"))
 	deleteAll := strings.EqualFold(strings.TrimSpace(c.Query("all")), "true")
@@ -835,10 +699,6 @@ func ClearMasterData(c *gin.Context) {
 	c.JSON(200, gin.H{"deleted": res.RowsAffected})
 }
 
-// PreviewMasterDataChanges = ตรวจไฟล์ก่อนอัปโหลดจริง (dry-run, ไม่เขียน DB)
-// จับคู่กับของเดิมด้วย business key (component_type + serial_no) แล้วจำแนกแต่ละแถวเป็น
-// NEW / UNCHANGED / UPDATED / CHANGED / ERROR พร้อมแสดงค่า old→new ของฟิลด์หลัก
-// (P/N, S/N, IT Controller no., IMEI) เพื่อให้ผู้ใช้ "รับรอง" ก่อนกดอัปโหลด
 func PreviewMasterDataChanges(c *gin.Context) {
 	fallbackComponentType := strings.TrimSpace(c.PostForm("component_type"))
 	if fallbackComponentType == "" {
@@ -870,9 +730,6 @@ func PreviewMasterDataChanges(c *gin.Context) {
 		return
 	}
 
-	// รายงานคอลัมน์ที่ "รู้จัก" (map เข้าคอลัมน์มาตรฐาน) เพื่อให้เห็นควบคู่กับ change detection
-	// ส่วนคอลัมน์ "นอกสเปก" ใช้ค่า extraCols ที่ parseMasterDataRows คืนมา (ตรรกะเดียวกับ
-	// ตอนอัปโหลดจริง 100% — กัน Preview กับ Upload เห็นไม่ตรงกัน)
 	var matchedCols []string
 	seenCol := map[string]bool{}
 	for col, key := range headers {
@@ -890,7 +747,6 @@ func PreviewMasterDataChanges(c *gin.Context) {
 
 	parsed, skipped, problems, extraCols := parseMasterDataRows(rows, headerIdx, headers, fallbackComponentType, 0, time.Now())
 
-	// ดึงของเดิมทีเดียว แล้วจำแนกในหน่วยความจำ (ไม่เขียน DB)
 	serials := make([]string, 0, len(parsed))
 	for _, r := range parsed {
 		serials = append(serials, r.SerialNo)
@@ -926,7 +782,6 @@ func PreviewMasterDataChanges(c *gin.Context) {
 	var results []rowResult
 	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0}
 
-	// ฟิลด์ที่ถือเป็น "identity/core" — ถ้าเปลี่ยนจะจัดเป็น CHANGED (ต้องยืนยันก่อน)
 	for _, r := range parsed {
 		old, ok := existing[r.ComponentType+"|"+r.SerialNo]
 		if !ok {
@@ -964,7 +819,6 @@ func PreviewMasterDataChanges(c *gin.Context) {
 		results = append(results, rowResult{Serial: r.SerialNo, ComponentType: r.ComponentType, Status: status, Diffs: diffs})
 	}
 
-	// ส่งเฉพาะแถวที่ไม่ใช่ UNCHANGED กลับไปแสดง (กัน payload ใหญ่) จำกัด 300 แถว
 	preview := make([]rowResult, 0, 300)
 	for _, r := range results {
 		if r.Status == "UNCHANGED" {
@@ -1020,13 +874,6 @@ func DeleteMasterData(c *gin.Context) {
 	c.JSON(200, gin.H{"deleted": true})
 }
 
-// findMasterDataHeader หาแถวหัวตาราง แล้วคืน index กับหัวคอลัมน์ที่ normalize แล้ว
-//
-// จำเป็นต้องมี เพราะไฟล์จริงไม่ได้ขึ้นหัวตารางที่แถวแรก — ไฟล์ TQ60610 มีบรรทัด
-// "Summary IT Controller" กับแถวว่างคั่นอยู่ข้างบน ถ้าอ่าน rows[0] เป็นหัวตาราง
-// ตรงๆ จะ map คอลัมน์ไม่ได้เลยสักช่อง
-// masterDataAliasScopes คืน scope ของ column alias สำหรับ master data ตามชนิดอะไหล่
-// "master_data" ใช้ร่วมทุกชนิด และ "master_data:{type}" เฉพาะชนิดนั้น (ทับของรวม)
 func masterDataAliasScopes(componentType string) []string {
 	ct := strings.TrimSpace(componentType)
 	if ct == "" || ct == "all" {
@@ -1035,10 +882,6 @@ func masterDataAliasScopes(componentType string) []string {
 	return []string{"master_data", "master_data:" + ct}
 }
 
-// masterSerialKeys = คีย์ (normalize แล้ว) ที่ถือว่าเป็นคอลัมน์ Serial No.
-// ประกาศไว้ที่เดียว ใช้ร่วมทั้งตัวหาหัวตารางและตัววินิจฉัย เพื่อให้เกณฑ์ "มี Serial ไหม"
-// ตรงกับ synonyms ใน masterDataColumns เสมอ (กันกรณีหัว Serial สะกดแบบ serailnumber/snno
-// map ค่าได้แต่กลับไม่ผ่านด่านหาหัวตาราง)
 var masterSerialKeys = map[string]bool{
 	"serialno": true, "serailno": true, "serialnumber": true,
 	"serailnumber": true, "sn": true, "snno": true,
@@ -1051,9 +894,6 @@ func findMasterDataHeader(rows [][]string, componentType string) (int, []string)
 		limit = len(rows)
 	}
 
-	// ColumnAlias ตอนรัน: หัวคอลัมน์ที่ถูกเปลี่ยนชื่อ/เพิ่มใหม่ → คีย์มาตรฐาน
-	// รวม scope "master_data" (ใช้ทุกชนิด) + scope ราย component ที่กำลังอัปโหลด
-	// (เช่น "master_data:it_controller") ตั้งค่าได้จากหน้า Format Config
 	reverse := loadColumnAliasReverseMerged(masterDataAliasScopes(componentType)...)
 
 	for i := 0; i < limit; i++ {
@@ -1082,10 +922,6 @@ func findMasterDataHeader(rows [][]string, componentType string) (int, []string)
 	return -1, nil
 }
 
-// masterDataHeaderHint อธิบายว่า "ทำไมหาหัวตารางไม่เจอ" แบบชี้จุด แทนข้อความกว้าง ๆ เดิม
-//
-// ไล่หาแถวที่ใกล้เป็นหัวตารางที่สุด (เจอคอลัมน์ที่รู้จักมากสุด) แล้วบอกว่าเจอคอลัมน์ไหนบ้าง
-// ขาด Serial No. หรือจำนวนคอลัมน์ไม่ถึงเกณฑ์ พร้อมชี้ทางไปตั้ง Column Alias ที่หน้า Format Settings
 func masterDataHeaderHint(rows [][]string, componentType string) string {
 	reverse := loadColumnAliasReverseMerged(masterDataAliasScopes(componentType)...)
 	limit := 30
@@ -1133,11 +969,6 @@ func masterDataHeaderHint(rows [][]string, componentType string) string {
 	return msg
 }
 
-// normalizeHeader ทำให้ "IT Controller no." กับ "ITCONTROLLER NO" กลายเป็นค่าเดียวกัน
-// รองรับอักษรไทยด้วย (ใช้ unicode.IsLetter/IsDigit/IsMark แทนช่วง a-z ตรงๆ) เพราะ
-// คอลัมน์ชนิดอะไหล่บางไฟล์ตั้งหัวเป็นภาษาไทย เช่น "ประเภทอะไหล่" — ต้องรวม
-// unicode.IsMark ด้วย ไม่งั้นวรรณยุกต์ไทย เช่น ่ ในคำว่า "อะไหล่" จะโดนตัดทิ้ง
-// (วรรณยุกต์ไทยถือเป็นอักขระ combining mark ของตัวเอง ไม่ใช่ตัวอักษร)
 func normalizeHeader(s string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(s) {
@@ -1148,10 +979,6 @@ func normalizeHeader(s string) string {
 	return b.String()
 }
 
-// unwrapExcelText ถอดปลอก ="..." ที่ปุ่ม Export CSV ของหน้านี้ครอบค่าไว้
-// (ครอบเพื่อบังคับให้ Excel อ่าน IMEI/Serial เป็นข้อความ เลข 0 นำหน้าจะได้ไม่หาย)
-// เมื่ออ่านไฟล์ CSV ที่ export ออกไปแล้วกลับเข้ามา ต้องถอดปลอกนี้ก่อน ไม่งั้น
-// ค่าที่ได้จะกลายเป็น ="KQ3000045093" ทั้งดุ้น เทียบกับของเดิมไม่ตรงเลย
 func unwrapExcelText(s string) string {
 	s = strings.TrimSpace(s)
 	if len(s) >= 3 && strings.HasPrefix(s, `="`) && strings.HasSuffix(s, `"`) {
@@ -1160,7 +987,6 @@ func unwrapExcelText(s string) string {
 	return s
 }
 
-// atoiSafe แปลงเลขลำดับจาก Excel ที่บางทีมาเป็น "12" บางทีมาเป็น "12.0"
 func atoiSafe(s string) int {
 	s = strings.TrimSpace(s)
 	if s == "" {

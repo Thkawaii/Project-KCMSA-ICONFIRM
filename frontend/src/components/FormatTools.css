@@ -1,6 +1,4 @@
-/* ===== Format Setting panels — ฟอร์มช่องเท่ากัน + รองรับมือถือ ===== */
 
-/* ฟอร์มเพิ่มรายการ: ทุกช่องกว้างเท่ากัน (grid 1fr) แก้ปัญหา "ช่อง option ไม่เท่ากัน" */
 .fmt-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -12,10 +10,9 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 0; /* กัน grid item ดันล้นกรอบบนจอแคบ */
+  min-width: 0;
 }
 
-/* ตัวแปรแบบแน่น (ใช้ในโมดัลแก้ไข Master Data) — ช่องเล็กลงให้ได้ ~3 คอลัมน์ */
 .fmt-form-compact {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
@@ -32,7 +29,6 @@
   line-height: 1.3;
 }
 
-/* input กับ dropdown ให้สูงเท่ากันเป๊ะ (เดิม input 38px / select 40px ไม่เท่ากัน) */
 .fmt-field .fmt-input,
 .fmt-field .sf-trigger {
   height: 40px;
@@ -58,7 +54,6 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* แถวปุ่ม "เพิ่ม" (และปุ่มเสริม) อยู่บรรทัดล่าง ชิดขวา (มือถือ= เต็มความกว้าง) */
 .fmt-actions {
   margin-top: 14px;
   display: flex;
@@ -71,7 +66,6 @@
   min-width: 120px;
   height: 40px;
 }
-/* ปุ่มเสริมในแถว action (ดาวน์โหลดตัวอย่าง / อัปโหลดหลายรายการ) */
 .fmt-action-btn {
   height: 40px;
   display: inline-flex;
@@ -80,7 +74,6 @@
   gap: 6px;
 }
 
-/* แถบเครื่องมือรอง (อัปโหลดหลายรายการ) */
 .fmt-subtools {
   margin-top: 14px;
   display: flex;
@@ -93,17 +86,15 @@
   color: #94a3b8;
 }
 
-/* ตารางรายการ: เลื่อนแนวนอนได้บนมือถือ ไม่ดันจอ */
 .fmt-table-wrap {
   margin-top: 14px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-/* ===== มือถือ / จอแคบ ===== */
 @media (max-width: 720px) {
   .fmt-form {
-    grid-template-columns: 1fr; /* ช่องเรียงลงมาทีละช่อง อ่านง่าย */
+    grid-template-columns: 1fr;
     gap: 10px;
   }
   .fmt-actions {
@@ -117,7 +108,6 @@
   }
 }
 
-/* การ์ดครอบแต่ละหัวข้อในหน้า Setting */
 .fmt-card {
   border: 1px solid #e2e8f0;
   border-radius: 14px;

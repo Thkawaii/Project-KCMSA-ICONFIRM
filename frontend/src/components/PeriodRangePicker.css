@@ -1,5 +1,3 @@
-/* ตัวเลือกช่วงเวลาใช้ซ้ำ (LOG Export แยกประเทศ + QA Check Sheet)
-   ใช้โทน/รัศมี/เงา ให้เข้าชุดกับ .vr-tabs และการ์ดทั้งระบบ */
 
 .prp {
   display: flex;
@@ -21,7 +19,6 @@
   letter-spacing: 0.01em;
 }
 
-/* segmented control — ต่อยอดจาก .vr-tabs เดิม แต่ไม่มี margin ล่าง */
 .prp-modes {
   margin-bottom: 0;
   flex-wrap: wrap;
@@ -37,7 +34,6 @@
   min-width: 190px;
 }
 
-/* ชิปสรุปช่วงที่เลือก — บอกผู้ใช้ชัด ๆ ว่าจะได้ข้อมูลช่วงไหน */
 .prp-chip {
   display: inline-flex;
   align-items: center;

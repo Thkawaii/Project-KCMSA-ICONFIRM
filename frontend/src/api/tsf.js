@@ -1,7 +1,5 @@
 import { apiFetch, API_BASE_URL, getToken } from './client.js'
 
-// ทะเบียน Master Data ย้ายไปอยู่ใน masterData.js แล้ว (มี upload/delete ด้วย)
-// re-export ไว้ตรงนี้เพื่อไม่ให้โค้ดเดิมที่ import จาก tsf.js พัง
 export { getMasterData } from './masterData.js'
 
 export function getTsfScans() {
@@ -31,7 +29,6 @@ export function getUsers(role) {
   return apiFetch(`/users${qs}`)
 }
 
-// อัปโหลดไฟล์รูปจริง (multipart) แล้วได้ URL กลับมาใส่ใน PhotoURL ของ record
 export async function uploadPhoto(file) {
   const token = getToken()
   const formData = new FormData()
@@ -49,10 +46,9 @@ export async function uploadPhoto(file) {
     throw new Error(data?.message || `Upload failed (${res.status})`)
   }
 
-  return data // { url, file_name }
+  return data
 }
 
-// ต่อ URL รูปให้เต็ม (backend คืนแค่ path เช่น /uploads/xxx.jpg)
 export function photoUrl(path) {
   if (!path) return ''
   return path.startsWith('http') ? path : `${API_BASE_URL}${path}`

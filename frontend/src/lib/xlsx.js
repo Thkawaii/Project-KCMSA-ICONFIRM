@@ -1,51 +1,4 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// xlsx.js — ตัวสร้างไฟล์ Excel (.xlsx) แบบ "ไม่มี dependency" พร้อมจัด Format ให้
-//
-// ทำไมไม่ใช้ไลบรารี (เช่น SheetJS):
-//   • Docker build ใช้ `npm ci` ซึ่งผูกกับ package-lock — เพิ่ม dependency แล้ว
-//     ถ้า lock ไม่ตรงจะ build พัง จึงเลี่ยงการเพิ่ม package ทั้งหมด
-//   • .xlsx จริง ๆ คือไฟล์ ZIP ที่บรรจุ XML หลายไฟล์ — เขียนเองได้ในเบราว์เซอร์
-//     โดยใช้ ZIP แบบ "store" (ไม่บีบอัด) + inline string (รองรับภาษาไทยผ่าน UTF-8)
-//
-// สิ่งที่ไฟล์นี้จัดให้อัตโนมัติ (ตาม theme สีของระบบ — teal #00a39d):
-//   • Freeze Header (แถวแรกค้างด้านบนตอนเลื่อน)
-//   • Header พื้นสี Theme + ตัวหนา + จัดกึ่งกลาง
-//   • Filter ทุกคอลัมน์ (ผ่าน Excel Table ของจริง)
-//   • Excel Table แถบสีสลับแถว (banded rows)
-//   • ปรับความกว้าง Column อัตโนมัติตามความยาวเนื้อหา
-//   • Border บาง ๆ รอบทุกเซลล์ในตาราง
-//   • จัด Alignment ตามชนิดข้อมูล (number = กึ่งกลาง, text = ซ้าย, center = กึ่งกลาง)
-//   • เซลล์ตัวเลขเก็บเป็น number จริง (ไม่ใช่ string) เพื่อให้ Format/SUM ใน Excel ใช้ได้
-//   • รูปถ่าย (type:'image') ฝังลงในเซลล์ได้จริง (ผ่าน DrawingML) — ใช้กับ Check Sheet ของ QA
-//
-// วิธีใช้ (API — ชีตเดียว):
-//   const blob = buildStyledXlsxBlob({
-//     sheetName: 'QA Check Sheet',
-//     columns: [
-//       { key: 'item', header: 'ITEM', type: 'number', width: 8 },
-//       { key: 'partName', header: 'Part Name', type: 'text' },
-//       { key: 'photo', header: 'รูปถ่าย', type: 'image', width: 16 },
-//       { key: 'status', header: 'Status', type: 'center' },
-//     ],
-//     rows: [{ item: 1, partName: 'ABC', photo: { bytes, ext: 'jpeg' }, status: 'Matched' }, ...],
-//   })
-//   downloadBlob(blob, 'qa-check-sheet.xlsx')
-//
-// วิธีใช้ (API — หลายชีต เช่น "แยกประเทศ"):
-//   const blob = buildStyledXlsxWorkbookBlob({
-//     sheets: [
-//       { sheetName: 'JAPAN', columns, rows },
-//       { sheetName: 'CHINA', columns, rows },
-//     ],
-//   })
-//
-// ค่าเซลล์ชนิด image รับได้ 2 แบบ:
-//   • { bytes: Uint8Array, ext: 'jpeg'|'png', wpx?, hpx? }
-//   • { dataUrl: 'data:image/jpeg;base64,...', wpx?, hpx? }
-//   (ถ้าไม่มีรูป ให้ใส่ค่า null/'' ได้ — เซลล์จะว่างไว้เฉย ๆ)
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ── CRC-32 (สำหรับ ZIP) ─────────────────────────────────────────────────────
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256)
   for (let n = 0; n < 256; n++) {
@@ -68,18 +21,15 @@ function crc32(bytes) {
 
 const utf8 = (str) => new TextEncoder().encode(str)
 
-// escape อักขระพิเศษของ XML
 function xmlEscape(s) {
   return String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    // ตัดอักขระควบคุมที่ XML 1.0 ไม่รับ (กันไฟล์เสีย)
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
 }
 
-// เลขคอลัมน์ (1-based) -> ตัวอักษร (1->A, 27->AA)
 function colLetter(n) {
   let s = ''
   while (n > 0) {
@@ -90,12 +40,8 @@ function colLetter(n) {
   return s
 }
 
-// px -> EMU (English Metric Unit) — DrawingML วัดขนาด/ตำแหน่งเป็น EMU (1px = 9525 EMU)
 const EMU_PER_PX = 9525
 
-// ── ZIP แบบ store (ไม่บีบอัด) จากรายการไฟล์ ─────────────────────────────────
-// รองรับทั้งไฟล์ข้อความ (f.content = string) และไฟล์ไบนารี (f.bytes = Uint8Array)
-// เช่น รูปถ่ายใน xl/media/*
 function makeZip(files) {
   const encoded = files.map((f) => {
     const nameBytes = utf8(f.name)
@@ -176,18 +122,13 @@ function makeZip(files) {
   })
 }
 
-// ── สไตล์ (styles.xml) ──────────────────────────────────────────────────────
-// อิงสี Theme ของระบบ (ดู theme.css): --color-brand-600 #00a39d (header),
-// --color-brand-50 #eafcfb (แถบแถวสลับ)
 const HEADER_FILL_RGB = 'FF00A39D'
 const BAND_FILL_RGB = 'FFEAFCFB'
 const BORDER_RGB = 'FFD7E1E8'
-// แถวที่ "หมดอายุแล้ว" — สไตล์แบบ Excel "Bad" (พื้นแดงอ่อน + ตัวอักษรแดงเข้ม) อ่านง่ายและสื่อว่าแดง
 const EXPIRED_FILL_RGB = 'FFFFC7CE'
 const EXPIRED_FONT_RGB = 'FF9C0006'
-const FONT_NAME = 'Tahoma' // รองรับภาษาไทยและมีติดตั้งอยู่แทบทุกเครื่อง Windows
+const FONT_NAME = 'Tahoma'
 
-// index ของ cellXfs ที่ใช้อ้างจาก worksheet (s="N")
 const XF = {
   BASE: 0,
   HEADER: 1,
@@ -197,7 +138,6 @@ const XF = {
   CENTER_BAND: 5,
   NUMBER: 6,
   NUMBER_BAND: 7,
-  // สไตล์แถวหมดอายุ (แดง) — ทับสีแถบสลับ
   TEXT_RED: 8,
   CENTER_RED: 9,
   NUMBER_RED: 10,
@@ -233,7 +173,6 @@ function buildStylesXml() {
     '<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
     '<xf numFmtId="1" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
     '<xf numFmtId="1" fontId="0" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
-    // แถวหมดอายุ — ตัวอักษรแดงเข้มบนพื้นแดงอ่อน (แทน text/center/number)
     '<xf numFmtId="0" fontId="2" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>' +
     '<xf numFmtId="0" fontId="2" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
     '<xf numFmtId="1" fontId="2" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
@@ -243,8 +182,6 @@ function buildStylesXml() {
   )
 }
 
-// เลือก style index ของเซลล์ข้อมูล ตามชนิดคอลัมน์ + ว่าเป็นแถวแถบสีหรือไม่
-// danger = true -> ใช้สไตล์แดง (แถวหมดอายุ) ทับสีแถบสลับ
 function dataXf(type, banded, danger) {
   if (danger) {
     if (type === 'number') return XF.NUMBER_RED
@@ -256,7 +193,6 @@ function dataXf(type, banded, danger) {
   return banded ? XF.TEXT_BAND : XF.TEXT
 }
 
-// ประมาณความกว้างคอลัมน์จากความยาวเนื้อหา (ตัวอักษรไทยกว้างกว่าอังกฤษ ~1.6 เท่า)
 function estimateWidth(text) {
   const s = String(text ?? '')
   let w = 0
@@ -266,14 +202,10 @@ function estimateWidth(text) {
   return w
 }
 
-// ขนาดรูปในเซลล์ (px) — ค่าเริ่มต้นถ้าไม่ได้ระบุมากับข้อมูล
 const IMAGE_CELL_PX = 88
-// ความกว้างคอลัมน์รูป (หน่วย Excel char) ให้พอดีกับรูป ~88px + ระยะขอบ
 const IMAGE_COL_WIDTH = 14
-// ความสูงแถวที่มีรูป (points) — 88px ≈ 66pt
 const IMAGE_ROW_HEIGHT_PT = 70
 
-// อ่านค่าเซลล์รูป -> { bytes, ext } (คืน null ถ้าไม่มี/ไม่รองรับ)
 function normalizeImage(val) {
   if (!val) return null
   if (val.bytes && val.bytes.length) {
@@ -288,13 +220,12 @@ function normalizeImage(val) {
   return null
 }
 
-// data:image/xxx;base64,.... -> { bytes, ext } (รองรับเฉพาะ jpeg/png)
 export function dataUrlToBytes(dataUrl) {
   const m = /^data:image\/([a-zA-Z0-9+.-]+);base64,(.*)$/.exec(dataUrl || '')
   if (!m) return null
   let ext = m[1].toLowerCase()
   if (ext === 'jpg') ext = 'jpeg'
-  if (ext !== 'jpeg' && ext !== 'png') return null // ชนิดอื่นฝังใน xlsx ไม่ได้ตรง ๆ
+  if (ext !== 'jpeg' && ext !== 'png') return null
   const bin = atob(m[2])
   const bytes = new Uint8Array(bin.length)
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
@@ -341,14 +272,13 @@ function buildSheetXml({ columns, rows, freezeHeader, hasImages, imageRowPx }) {
   rows.forEach((row, r) => {
     const rowNum = r + 2
     const banded = r % 2 === 1
-    const danger = row.__danger === true // แถวหมดอายุ -> ระบายแดงทั้งแถว
+    const danger = row.__danger === true
     let cells = ''
     columns.forEach((col, c) => {
       const ref = colLetter(c + 1) + rowNum
       const val = row[col.key]
       const s = dataXf(col.type, banded, danger)
       if (col.type === 'image') {
-        // เซลล์รูปเว้นค่าไว้ (รูปวาดผ่าน DrawingML) — คงพื้น/ขอบของเซลล์ไว้
         cells += `<c r="${ref}" s="${s}"/>`
       } else if (val == null || val === '') {
         cells += `<c r="${ref}" s="${s}"/>`
@@ -363,7 +293,6 @@ function buildSheetXml({ columns, rows, freezeHeader, hasImages, imageRowPx }) {
 
   const dim = `A1:${colLetter(colCount)}${rowCount + 1}`
 
-  // ลำดับ element ใน worksheet ต้องถูกตาม schema: ... sheetData ... drawing ... tableParts
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
@@ -377,7 +306,6 @@ function buildSheetXml({ columns, rows, freezeHeader, hasImages, imageRowPx }) {
   )
 }
 
-// ── Excel Table (ListObject) — ให้ Filter ทุกคอลัมน์ + แถบสีสลับแถวจริงจาก Excel ─
 function buildTableXml({ columns, tableRef, tableId, tableName }) {
   let tableColumns = '<tableColumns count="' + columns.length + '">'
   columns.forEach((col, i) => {
@@ -391,15 +319,11 @@ function buildTableXml({ columns, tableRef, tableId, tableName }) {
     `id="${tableId}" name="${xmlEscape(tableName)}" displayName="${xmlEscape(tableName)}" ref="${tableRef}" totalsRowShown="0">` +
     `<autoFilter ref="${tableRef}"/>` +
     tableColumns +
-    // showRowStripes="0" เพราะแถบสีสลับแถวคุมเองผ่าน cellXfs แล้ว (สีตรง Theme แน่นอน
-    // ทุกโปรแกรม ไม่ขึ้นกับชุดสีของ TableStyle ที่ Excel เลือกให้)
     '<tableStyleInfo name="TableStyleLight1" showFirstColumn="0" showLastColumn="0" showRowStripes="0" showColumnStripes="0"/>' +
     '</table>'
   )
 }
 
-// ── DrawingML — วางรูปแต่ละรูปลงในเซลล์ (oneCellAnchor, ขนาดคงที่ + ระยะขอบ) ──
-// picList: [{ col, row, blipRel, wpx, hpx }]  (col,row = 0-based ของเซลล์เป้าหมาย)
 function buildDrawingXml(picList) {
   const NS =
     'xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" ' +
@@ -414,7 +338,7 @@ function buildDrawingXml(picList) {
     const cx = Math.round(wpx * EMU_PER_PX)
     const cy = Math.round(hpx * EMU_PER_PX)
     const off = Math.round(padPx * EMU_PER_PX)
-    const picId = i + 2 // เริ่มที่ 2 กันชนกับ id ที่บางโปรแกรมสงวน
+    const picId = i + 2
     anchors +=
       '<xdr:oneCellAnchor>' +
       `<xdr:from><xdr:col>${p.col}</xdr:col><xdr:colOff>${off}</xdr:colOff>` +
@@ -443,14 +367,11 @@ function buildDrawingXml(picList) {
   )
 }
 
-// ── ประกอบ 1 workbook (หลายชีต) เป็นรายการไฟล์ .xlsx ──────────────────────────
 function buildWorkbookParts(sheets) {
-  // สะสมสื่อ (รูป) ระดับ workbook เพื่อให้ชื่อไฟล์ไม่ชนกันข้ามชีต
-  const media = [] // { name, bytes }  (name = imageN.ext)
+  const media = []
   let mediaSeq = 0
-  const usedExts = new Set() // สำหรับประกาศ Default Extension ใน content types
+  const usedExts = new Set()
 
-  // เตรียมข้อมูลต่อชีต
   const prepared = sheets.map((raw, idx) => {
     const sheetIdx = idx + 1
     const safeName = (raw.sheetName || `Sheet${sheetIdx}`)
@@ -466,7 +387,6 @@ function buildWorkbookParts(sheets) {
     const colCount = columns.length
     const rowCount = rows.length
 
-    // รวบรวมรูปจากคอลัมน์ชนิด image
     const imageCols = columns
       .map((c, ci) => ({ c, ci }))
       .filter((x) => x.c.type === 'image')
@@ -487,7 +407,7 @@ function buildWorkbookParts(sheets) {
           maxImgPx = Math.max(maxImgPx, hpx)
           picList.push({
             col: ci,
-            row: ri + 1, // +1 ข้ามแถว header
+            row: ri + 1,
             mediaName: name,
             wpx,
             hpx,
@@ -512,7 +432,6 @@ function buildWorkbookParts(sheets) {
 
   const parts = []
 
-  // workbook.xml — ลิสต์ชีตทั้งหมด
   let sheetsXml = '<sheets>'
   prepared.forEach((s) => {
     sheetsXml += `<sheet name="${xmlEscape(s.safeName)}" sheetId="${s.sheetIdx}" r:id="rIdSheet${s.sheetIdx}"/>`
@@ -527,7 +446,6 @@ function buildWorkbookParts(sheets) {
       '</workbook>',
   })
 
-  // workbook rels — worksheet ทุกตัว + styles
   let wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
   prepared.forEach((s) => {
@@ -539,7 +457,6 @@ function buildWorkbookParts(sheets) {
 
   parts.push({ name: 'xl/styles.xml', content: buildStylesXml() })
 
-  // ต่อชีต: worksheet + rels + table + drawing
   const contentOverrides = []
   prepared.forEach((s) => {
     parts.push({
@@ -556,7 +473,6 @@ function buildWorkbookParts(sheets) {
       `<Override PartName="/xl/worksheets/sheet${s.sheetIdx}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`,
     )
 
-    // rels ของ worksheet (table + drawing ถ้ามี)
     const needSheetRels = s.rowCount > 0 || s.hasImages
     if (needSheetRels) {
       let rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
@@ -588,7 +504,6 @@ function buildWorkbookParts(sheets) {
     }
 
     if (s.hasImages) {
-      // drawing rels: blip แต่ละรูป -> media
       let drawRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
       const picWithRel = s.picList.map((p, i) => {
@@ -612,12 +527,10 @@ function buildWorkbookParts(sheets) {
     }
   })
 
-  // media (รูป) — ไฟล์ไบนารี
   media.forEach((m) => {
     parts.push({ name: `xl/media/${m.name}`, bytes: m.bytes })
   })
 
-  // [Content_Types].xml
   let defaults =
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
     '<Default Extension="xml" ContentType="application/xml"/>'
@@ -633,7 +546,6 @@ function buildWorkbookParts(sheets) {
     '</Types>'
   parts.push({ name: '[Content_Types].xml', content: contentTypes })
 
-  // _rels/.rels
   parts.push({
     name: '_rels/.rels',
     content:
@@ -646,17 +558,12 @@ function buildWorkbookParts(sheets) {
   return parts
 }
 
-// ── API หลัก (ชีตเดียว) ─────────────────────────────────────────────────────
-// columns: [{ key, header, type: 'text' | 'number' | 'center' | 'image', width? }]
-// rows:    [{ [key]: value }, ...]
 export function buildStyledXlsxBlob({ sheetName, columns, rows }) {
   return buildStyledXlsxWorkbookBlob({
     sheets: [{ sheetName, columns, rows: rows || [] }],
   })
 }
 
-// ── API หลัก (หลายชีต) ──────────────────────────────────────────────────────
-// sheets: [{ sheetName, columns, rows }]
 export function buildStyledXlsxWorkbookBlob({ sheets }) {
   const list = (sheets && sheets.length ? sheets : [{ sheetName: 'Sheet1', columns: [], rows: [] }]).map(
     (s) => ({
@@ -668,9 +575,6 @@ export function buildStyledXlsxWorkbookBlob({ sheets }) {
   return makeZip(buildWorkbookParts(list))
 }
 
-// ── รูปแบบเดิม (ยังคงไว้เพื่อความเข้ากันได้) ─────────────────────────────────
-// sheetToXlsxBlob(sheetName, [header, ...bodyRows]) — แปลง rows แบบ array เป็น
-// columns/rows แบบ object ให้อัตโนมัติ แล้วส่งผ่าน builder ใหม่ (จึงได้ format ครบเช่นกัน)
 export function sheetToXlsxBlob(sheetName, rows) {
   const [header, ...body] = rows
   const columns = (header || []).map((h, i) => ({
@@ -688,7 +592,6 @@ export function sheetToXlsxBlob(sheetName, rows) {
   return buildStyledXlsxBlob({ sheetName, columns, rows: objRows })
 }
 
-// สั่งดาวน์โหลด Blob เป็นไฟล์ (รองรับมือถือ: เปิดแท็บใหม่ถ้าดาวน์โหลดตรงไม่ได้)
 export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

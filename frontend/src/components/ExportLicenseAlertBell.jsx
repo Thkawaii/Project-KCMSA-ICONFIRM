@@ -12,20 +12,9 @@ import {
 } from '../lib/exportLicenseDismiss.js'
 import { BellAlertIcon, XMarkIcon, ClockIcon, EyeSlashIcon, ArrowPathIcon, ArrowUpTrayIcon } from './icons.jsx'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ExportLicenseAlertBell — กระดิ่งแจ้งเตือนอายุใบอนุญาต "ส่งออก" บน topbar
-//
-// โครงเดียวกับ LicenseAlertBell (ฝั่งนำเข้า) แต่:
-//   • ใบอนุญาตส่งออกมีอายุ 1 เดือน → เกณฑ์ "ใกล้หมดอายุ" สั้นกว่า (7 วัน จาก backend)
-//   • ธีมสีเหลืองอำพัน (amber) ผ่านคลาส .lab-export เพื่อแยกจากกระดิ่งนำเข้า (สีแดง)
-//     ที่วางอยู่ข้าง ๆ กัน — เห็นปุ๊บรู้ว่าอันไหนนำเข้า/ส่งออก
-//   • คลิกรายการ → เปิดหน้า Warehouse แท็บ "Export License" ให้เลย
-//
-// แสดงเฉพาะ role WH เช่นเดียวกับกระดิ่งนำเข้า
-// ─────────────────────────────────────────────────────────────────────────────
 
 const POLL_MS = 60_000
-const ACK_KEY = 'iconfirm_export_license_alert_ack' // จำนวน alert ที่ผู้ใช้เห็นล่าสุด (เฉพาะที่ยังไม่ซ่อน)
+const ACK_KEY = 'iconfirm_export_license_alert_ack'
 
 export default function ExportLicenseAlertBell() {
   const navigate = useAppNavigate()
@@ -148,7 +137,6 @@ export default function ExportLicenseAlertBell() {
         <span className="lab-bell-icon">
           <BellAlertIcon className="size-5" />
         </span>
-        {/* ป้ายเล็ก "ส่งออก" มุมล่าง บอกชนิดกระดิ่งแม้ยังไม่มีแจ้งเตือน */}
         <span className="lab-kind" aria-hidden="true">
           <ArrowUpTrayIcon className="size-3" />
         </span>

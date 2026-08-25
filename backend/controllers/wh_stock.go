@@ -21,22 +21,7 @@ var (
 	errUploadReadExcel = errors.New("อ่านไฟล์ Excel ไม่สำเร็จ")
 )
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WH Stock — อัปโหลดชีต MC (สต๊อกเครื่อง) และ Inv (อินวอยซ์) จาก Excel เล่มเดียวกัน
-//
-// ใช้ตัวอ่าน/ตัว normalize ชุดเดียวกับ import_license_item.go และ master_data.go
-// (readUploadedRows, normalizeHeader, normalizeDigitCell, atoiSafe, lookupUserName)
-//
-// จุดต่างเดียว: ไฟล์จริงเป็น workbook หลายชีต ต้องเลือก "ชีตที่ถูก" ให้ได้
-// จึงมี readSheetRows() ที่หาชีตตามชื่อก่อน แล้วค่อย fallback ไปชีตแรก
-// ─────────────────────────────────────────────────────────────────────────────
 
-// readSheetRows อ่านไฟล์อัปโหลดเป็น [][]string โดย "เลือกชีตตามชื่อ" ที่ต้องการ
-//
-//	names = รายชื่อชีตที่ยอมรับ (normalize แล้ว) เช่น {"mc"} หรือ {"inv"}
-//
-// ถ้าเป็น .csv หรือหาชีตชื่อที่ตรงไม่เจอ จะ fallback ไปใช้ตัวอ่านมาตรฐาน
-// (readUploadedRows -> ชีตแรกของไฟล์) เพื่อให้อัปโหลดไฟล์ชีตเดียวได้ด้วย
 func readSheetRows(c *gin.Context, names []string) ([][]string, string, error) {
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
@@ -61,7 +46,6 @@ func readSheetRows(c *gin.Context, names []string) ([][]string, string, error) {
 	}
 	defer xl.Close()
 
-	// หาชีตที่ชื่อ normalize แล้วตรงกับที่ต้องการ
 	want := map[string]bool{}
 	for _, n := range names {
 		want[n] = true
@@ -73,7 +57,6 @@ func readSheetRows(c *gin.Context, names []string) ([][]string, string, error) {
 			break
 		}
 	}
-	// ไม่เจอชื่อที่ตรง -> ใช้ชีตแรก (ไฟล์ชีตเดียว)
 	if target == "" {
 		target = xl.GetSheetName(0)
 	}
@@ -85,8 +68,6 @@ func readSheetRows(c *gin.Context, names []string) ([][]string, string, error) {
 	return rows, fileHeader.Filename, nil
 }
 
-// findHeaderRow หาแถวหัวตารางแบบทั่วไป: แถวแรกที่ normalize แล้วเจอคีย์ที่ต้องมี
-// (mustHave) ครบ และมีคอลัมน์ที่รู้จัก (known) อย่างน้อย minHits คอลัมน์
 func findHeaderRow(rows [][]string, known map[string]bool, mustHave string, minHits int) (int, []string) {
 	limit := 30
 	if len(rows) < limit {
@@ -113,9 +94,6 @@ func findHeaderRow(rows [][]string, known map[string]bool, mustHave string, minH
 	return -1, nil
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// MC — สต๊อกเครื่อง/ออเดอร์
-// ═════════════════════════════════════════════════════════════════════════════
 
 var mcColumns = map[string]func(*models.WHMachineStock, string){
 	"warehouse":           func(m *models.WHMachineStock, v string) { m.Warehouse = v },
@@ -126,7 +104,7 @@ var mcColumns = map[string]func(*models.WHMachineStock, string){
 	"shippingfinish":      func(m *models.WHMachineStock, v string) { m.ShippingFinish = v },
 	"workorder":           func(m *models.WHMachineStock, v string) { m.WorkOrder = normalizeDigitCell(v) },
 	"wdetailno":           func(m *models.WHMachineStock, v string) { m.WDetailNo = normalizeDigitCell(v) },
-	"workorderfnish":      func(m *models.WHMachineStock, v string) { m.WorkOrderFinish = v }, // สะกดตามไฟล์จริง
+	"workorderfnish":      func(m *models.WHMachineStock, v string) { m.WorkOrderFinish = v },
 	"workorderfinish":     func(m *models.WHMachineStock, v string) { m.WorkOrderFinish = v },
 	"stockoutno":          func(m *models.WHMachineStock, v string) { m.StockOutNo = normalizeDigitCell(v) },
 	"stockoutfinish":      func(m *models.WHMachineStock, v string) { m.StockOutFinish = v },
@@ -134,7 +112,6 @@ var mcColumns = map[string]func(*models.WHMachineStock, string){
 	"name":                func(m *models.WHMachineStock, v string) { m.Name = v },
 	"pick":                func(m *models.WHMachineStock, v string) { m.Pick = v },
 
-	// ── คอลัมน์ส่วนที่เหลือของชีต MC (เก็บครบทุกช่อง) ──
 	"inst":                func(m *models.WHMachineStock, v string) { m.Inst = v },
 	"ship":                func(m *models.WHMachineStock, v string) { m.Ship = v },
 	"remain":              func(m *models.WHMachineStock, v string) { m.Remain = v },
@@ -155,7 +132,6 @@ var mcColumns = map[string]func(*models.WHMachineStock, string){
 	"finalcolor":          func(m *models.WHMachineStock, v string) { m.FinalColor = v },
 }
 
-// GetWHMachineStock คืนสต๊อกเครื่องทั้งหมด รองรับกรอง ?q= (ค้น OrderNo/PartsNo/WorkOrder)
 func GetWHMachineStock(c *gin.Context) {
 	var rows []models.WHMachineStock
 	query := config.DB.Order("id asc")
@@ -171,10 +147,6 @@ func GetWHMachineStock(c *gin.Context) {
 	c.JSON(200, rows)
 }
 
-// UploadWHMachineStock นำเข้าชีต MC
-//
-// idempotent: ลบแถวเดิมที่ OrderNo อยู่ในไฟล์นี้ทิ้งก่อน แล้วเพิ่มใหม่
-// อัปโหลดไฟล์เดิมซ้ำจึงไม่ทำให้ข้อมูลบาน
 func UploadWHMachineStock(c *gin.Context) {
 	rows, fileName, err := readSheetRows(c, []string{"mc"})
 	if err != nil {
@@ -220,7 +192,7 @@ func UploadWHMachineStock(c *gin.Context) {
 			continue
 		}
 		if seen[row.OrderNo] {
-			continue // แถวซ้ำในไฟล์ เอาแถวแรก
+			continue
 		}
 		seen[row.OrderNo] = true
 		parsed = append(parsed, row)
@@ -251,7 +223,6 @@ func UploadWHMachineStock(c *gin.Context) {
 	})
 }
 
-// DeleteWHMachineStock ลบทีละแถว
 func DeleteWHMachineStock(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -267,7 +238,6 @@ func DeleteWHMachineStock(c *gin.Context) {
 	c.JSON(200, gin.H{"deleted": true})
 }
 
-// ClearWHMachineStock ล้างทั้งตาราง MC
 func ClearWHMachineStock(c *gin.Context) {
 	res := config.DB.Where("1 = 1").Delete(&models.WHMachineStock{})
 	if res.Error != nil {
@@ -287,9 +257,6 @@ func mcKnownHeaders() map[string]bool {
 	return m
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// Inv — รายการอินวอยซ์ + ตำแหน่งจัดเก็บ
-// ═════════════════════════════════════════════════════════════════════════════
 
 var invColumns = map[string]func(*models.WHInvoiceItem, string){
 	"pono":        func(m *models.WHInvoiceItem, v string) { m.PONo = strings.TrimSpace(v) },
@@ -304,7 +271,6 @@ var invColumns = map[string]func(*models.WHInvoiceItem, string){
 	"shelf":       func(m *models.WHInvoiceItem, v string) { m.Shelf = v },
 }
 
-// GetWHInvoice คืนรายการอินวอยซ์ทั้งหมด รองรับกรอง ?q= (ค้น PONo/PartsNo/CNo)
 func GetWHInvoice(c *gin.Context) {
 	var rows []models.WHInvoiceItem
 	query := config.DB.Order("id asc")
@@ -320,10 +286,6 @@ func GetWHInvoice(c *gin.Context) {
 	c.JSON(200, rows)
 }
 
-// UploadWHInvoice นำเข้าชีต Inv
-//
-// idempotent per P.O.: ลบแถวเดิมที่ P.O.NO อยู่ในไฟล์นี้ทิ้งก่อน แล้วเพิ่มใหม่
-// (อินวอยซ์มีแถวซ้ำได้ตามจำนวนหีบห่อ จึงไม่ dedup รายแถว)
 func UploadWHInvoice(c *gin.Context) {
 	rows, fileName, err := readSheetRows(c, []string{"inv", "invoice"})
 	if err != nil {
@@ -364,7 +326,6 @@ func UploadWHInvoice(c *gin.Context) {
 				setter(&row, strings.TrimSpace(rows[i][col]))
 			}
 		}
-		// แถวต้องมีอย่างน้อย P.O. หรือ Parts No ไม่งั้นถือว่าแถวว่าง
 		if row.PONo == "" && row.PartsNo == "" {
 			skipped++
 			continue
@@ -402,7 +363,6 @@ func UploadWHInvoice(c *gin.Context) {
 	})
 }
 
-// DeleteWHInvoice ลบทีละแถว
 func DeleteWHInvoice(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -418,7 +378,6 @@ func DeleteWHInvoice(c *gin.Context) {
 	c.JSON(200, gin.H{"deleted": true})
 }
 
-// ClearWHInvoice ล้างทั้งตาราง Inv
 func ClearWHInvoice(c *gin.Context) {
 	res := config.DB.Where("1 = 1").Delete(&models.WHInvoiceItem{})
 	if res.Error != nil {

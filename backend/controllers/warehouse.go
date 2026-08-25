@@ -36,7 +36,6 @@ func CreateWarehouse(c *gin.Context) {
 	c.JSON(201, warehouse)
 }
 
-// header (row 1 ของ Excel) -> setter บนแถว
 var warehouseColumns = map[string]func(*models.Warehouse, string){
 	"Warehouse":           func(w *models.Warehouse, v string) { w.Warehouse = v },
 	"Order No":            func(w *models.Warehouse, v string) { w.OrderNo = v },
@@ -51,8 +50,6 @@ var warehouseColumns = map[string]func(*models.Warehouse, string){
 	"Final Color":         func(w *models.Warehouse, v string) { w.FinalColor = v },
 }
 
-// UploadWarehouseStock: อัปโหลด Excel เพื่อนำ SO + สต็อกเข้าคลังเป็นชุด —
-// นี่คือช่องทางเดียวที่ SO เข้าสู่ระบบ Warehouse (มาเป็นชุดจาก SAP/แผนผลิต)
 func UploadWarehouseStock(c *gin.Context) {
 
 	fileHeader, err := c.FormFile("file")
@@ -106,7 +103,6 @@ func UploadWarehouseStock(c *gin.Context) {
 		if empty {
 			continue
 		}
-		// กันแถวคำแนะนำ/หมายเหตุหลุดเข้ามาเป็นข้อมูล เหมือนที่แก้ให้ Master Data
 		if len(row) > 0 && len([]rune(row[0])) > 40 {
 			continue
 		}

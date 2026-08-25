@@ -18,8 +18,6 @@ import {
   getAlerts,
   traceUnit,
 } from '../api/Itcontroller.js'
-// ใช้เมนู WH ชุดเดียวกับหน้า Import License / Part Confirmation เพื่อให้เมนู
-// ตรงกันทุกหน้า (WH_NAV_ITEMS มีลิงก์ IT Controller อยู่แล้ว)
 import { WH_NAV_ITEMS } from './Importlicensepage.jsx'
 
 const TABS = [
@@ -178,7 +176,6 @@ export default function ITControllerPage() {
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 
 function StatCard({ label, value, icon, tone }) {
   return (
@@ -207,7 +204,6 @@ function AlertBanner({ alerts }) {
   )
 }
 
-// ── Tab 1: เอกสาร PDF + หัวใบอนุญาตนำเข้า + Serial List ──────────────────────
 
 function DocumentsTab({ documents, importLicenses, onDone, onError }) {
   const [doc, setDoc] = useState({ docType: 'INVOICE', docNo: '', invoiceNo: '', poNo: '', file: null })
@@ -229,8 +225,6 @@ function DocumentsTab({ documents, importLicenses, onDone, onError }) {
     }
   }
 
-  // นำเข้า Serial List: อ่านเลขใบอนุญาต/อินวอยซ์/พีโอ จากคอลัมน์ในไฟล์เอง
-  // ไม่ต้องกรอกฟอร์มหัวใบอนุญาตแยก — อัปโหลดแล้วขึ้นตารางอัตโนมัติ
   async function submitSerial() {
     if (!serialFile) return onError('กรุณาเลือกไฟล์ Serial List')
     setBusy('serial')
@@ -418,7 +412,6 @@ function DocumentsTab({ documents, importLicenses, onDone, onError }) {
   )
 }
 
-// ── Tab 2: ทะเบียนเครื่อง + สแกนรับเข้าคลัง ──────────────────────────────────
 
 function UnitsTab({ units, onDone, onError }) {
   const [scan, setScan] = useState('')
@@ -535,12 +528,10 @@ function UnitsTab({ units, onDone, onError }) {
   )
 }
 
-// ── Tab 3: จัดสรรประเทศปลายทาง ───────────────────────────────────────────────
 
 function AllocateTab({ units, importLicenses, onDone, onError }) {
   const [mode, setMode] = useState('split')
 
-  // จัดสรรได้เฉพาะของที่รับเข้าคลังแล้ว หรือที่จัดสรรไว้แล้วแต่ยังไม่ได้ใบนำออก
   const pool = useMemo(
     () => units.filter((u) => u.Status === 'RECEIVED' || u.Status === 'ALLOCATED'),
     [units],
@@ -629,7 +620,6 @@ function summarizeByCountry(units) {
   return [...map.values()].sort((a, b) => a.country.localeCompare(b.country))
 }
 
-// แผนแบ่งของ: กรอกประเทศ + จำนวนได้หลายบรรทัด ระบบตรวจยอดรวมก่อนบันทึกครั้งเดียว
 function SplitPlan({ available, importLicenses, onDone, onError }) {
   const [rows, setRows] = useState([
     { country: '', qty: '' },
@@ -781,8 +771,6 @@ function hasDuplicateCountry(rows) {
   return false
 }
 
-// รายการแนะนำเฉย ๆ — ช่องประเทศเป็น <input list> ไม่ใช่ <select>
-// พิมพ์ประเทศที่ไม่มีในลิสต์ได้เสมอ ระบบจะจัดรูปตัวพิมพ์ให้เอง
 const COUNTRY_SUGGESTIONS = [
   'Indonesia',
   'Malaysia',
@@ -802,7 +790,6 @@ const COUNTRY_SUGGESTIONS = [
   'New Zealand',
 ]
 
-// โหมดเดิม — ใช้ตอนแก้รายตัวหรือย้ายประเทศทีหลัง
 function ManualPick({ pool, onDone, onError }) {
   const [country, setCountry] = useState('')
   const [selected, setSelected] = useState([])
@@ -890,7 +877,6 @@ function ManualPick({ pool, onDone, onError }) {
   )
 }
 
-// ── Tab 4: ใบอนุญาตนำออก + สแกนส่งออก ────────────────────────────────────────
 
 function ExportTab({ units, importLicenses, exportLicenses, onDone, onError }) {
   const [form, setForm] = useState({ license_no: '', country: '', issue_date: today(), import_license_no: '' })
@@ -1061,7 +1047,6 @@ function ExportTab({ units, importLicenses, exportLicenses, onDone, onError }) {
   )
 }
 
-// ── Tab 5: Traceability ──────────────────────────────────────────────────────
 
 function TraceTab({ onError }) {
   const [key, setKey] = useState('')

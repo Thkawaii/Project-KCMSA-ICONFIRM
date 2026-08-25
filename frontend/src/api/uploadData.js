@@ -1,6 +1,5 @@
 import { apiFetch, API_BASE_URL, getToken } from './client.js'
 
-// ชนิดไฟล์ที่หน้า Upload Data รองรับ (ต้องตรงกับ backend models.Dataset*)
 export const DATASETS = [
   { key: 'planning', label: 'Planning' },
   { key: 'wh1', label: 'WH1' },
@@ -9,7 +8,6 @@ export const DATASETS = [
   { key: 'assembly', label: 'Assembly' },
 ]
 
-// คืน { dataset, columns, rows, total, page, limit, totalPages } — แบ่งหน้าแล้ว
 export function getUploadData(dataset, keyword, page = 1, limit = 100) {
   const params = new URLSearchParams({
     dataset,
@@ -20,7 +18,6 @@ export function getUploadData(dataset, keyword, page = 1, limit = 100) {
   return apiFetch(`/upload-data?${params.toString()}`)
 }
 
-// ใช้ fetch ตรงเพราะเป็น multipart/form-data (apiFetch ยัด Content-Type: application/json)
 export async function uploadDataFile(dataset, file) {
   const token = getToken()
   const formData = new FormData()
@@ -39,8 +36,6 @@ export async function uploadDataFile(dataset, file) {
   return data
 }
 
-// ทดลองอ่านไฟล์ (dry-run) ก่อนอัปโหลดจริง — คืน { matched, missing, extra, headerRow }
-// ใช้ให้ผู้ใช้เห็นว่าไฟล์ที่เปลี่ยน format จะแม็ปคอลัมน์อย่างไร และมีคอลัมน์ใหม่/หายไปไหม
 export async function previewUploadData(dataset, file) {
   const token = getToken()
   const formData = new FormData()
@@ -63,7 +58,6 @@ export function deleteUploadDataRow(id) {
   return apiFetch(`/upload-data/${id}`, { method: 'DELETE' })
 }
 
-// แก้ไขข้อมูล 1 แถว (Planning/WH1/WH2/Engine/Assembly) — data = { ชื่อคอลัมน์: ค่า }
 export function updateUploadDataRow(id, data) {
   return apiFetch(`/upload-data/${id}`, {
     method: 'PUT',
@@ -71,8 +65,6 @@ export function updateUploadDataRow(id, data) {
   })
 }
 
-// ปั๊มตาราง Assembly อัตโนมัติจาก Planning / WH1 / Engine + ทะเบียนกลาง
-// (จับคู่ด้วยหมายเลขเครื่อง) — คืน { created, updated, skipped, machines }
 export function generateAssembly() {
   return apiFetch('/upload-data/assembly/generate', { method: 'POST' })
 }
@@ -81,7 +73,6 @@ export function clearUploadData(dataset) {
   return apiFetch(`/upload-data?dataset=${encodeURIComponent(dataset)}`, { method: 'DELETE' })
 }
 
-// ดาวน์โหลดไฟล์ export (GET แบบไบนารี ต้องแนบ token เอง)
 export async function exportUploadData(dataset) {
   const token = getToken()
   const res = await fetch(`${API_BASE_URL}/upload-data/export?dataset=${encodeURIComponent(dataset)}`, {

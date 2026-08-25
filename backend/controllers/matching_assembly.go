@@ -11,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetMatchingAssemblies คืนรายการ Matching Assembly ทั้งหมด (ใหม่สุดอยู่บน)
 func GetMatchingAssemblies(c *gin.Context) {
 
 	var rows []models.MatchingAssembly
@@ -29,7 +28,6 @@ type MatchingAssemblyRequest struct {
 	AssemblyPartsName string `json:"assemblyPartsName"`
 }
 
-// CreateMatchingAssembly เพิ่มแถวเองจากหน้าเว็บ (นอกเหนือจากที่สร้างอัตโนมัติตอนสแกน)
 func CreateMatchingAssembly(c *gin.Context) {
 
 	var req MatchingAssemblyRequest
@@ -41,7 +39,6 @@ func CreateMatchingAssembly(c *gin.Context) {
 	userID, name := lookupUserName(c)
 	now := time.Now()
 
-	// ถ้าไม่กรอก Item มา -> ใช้ลำดับถัดไป
 	item := strings.TrimSpace(req.Item)
 	if item == "" {
 		var count int64
@@ -72,10 +69,6 @@ func CreateMatchingAssembly(c *gin.Context) {
 	c.JSON(201, row)
 }
 
-// UpdateMatchingAssembly แก้ไขข้อมูล 1 แถว (ทุกฟิลด์แก้ได้)
-//
-// ใช้ map ในการอัปเดตเพื่อให้ตั้งค่ากลับเป็น "ค่าว่าง" ได้ด้วย (เช่น ล้าง Classification)
-// ต่างจาก PATCH ของ TSF ที่ข้ามฟิลด์ว่าง — ตารางนี้ตั้งใจให้แก้แบบเต็มฟอร์ม
 func UpdateMatchingAssembly(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))
@@ -112,7 +105,6 @@ func UpdateMatchingAssembly(c *gin.Context) {
 		return
 	}
 
-	// อ่านกลับมาส่งให้ frontend อัปเดตแถวได้เลย
 	config.DB.First(&row, id)
 
 	userID, name := lookupUserName(c)
@@ -120,7 +112,6 @@ func UpdateMatchingAssembly(c *gin.Context) {
 	c.JSON(200, row)
 }
 
-// DeleteMatchingAssembly ลบ 1 แถว
 func DeleteMatchingAssembly(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))
@@ -145,16 +136,11 @@ func DeleteMatchingAssembly(c *gin.Context) {
 	c.JSON(200, gin.H{"deleted": true})
 }
 
-// upsertMatchingAssemblyFromScan สร้างแถว Matching Assembly ให้อัตโนมัติเมื่อ
-// สแกน IT Controller สำเร็จ (มีหมายเลขเครื่องดึงจากทะเบียนกลางได้)
-//
-// กันแถวซ้ำ: ถ้ามีแถวของ "หมายเลขเครื่อง" นี้อยู่แล้ว จะไม่สร้างใหม่ (คงค่าที่ผู้ใช้
-// แก้ไขไว้) แต่จะเติม Country ให้ถ้ารอบก่อนยังว่าง แล้วรอบนี้เทียบใบอนุญาตได้ประเทศมา
 func upsertMatchingAssemblyFromScan(machineNo, serialNo, partsNo, partsName, country string, when time.Time, userID uint, name string) {
 
 	machineNo = strings.TrimSpace(machineNo)
 	if machineNo == "" {
-		return // ไม่มีหมายเลขเครื่อง = ยังจับคู่ประกอบไม่ได้
+		return
 	}
 
 	serialNo = strings.TrimSpace(serialNo)
@@ -164,7 +150,6 @@ func upsertMatchingAssemblyFromScan(machineNo, serialNo, partsNo, partsName, cou
 
 	var existing models.MatchingAssembly
 	if err := config.DB.Where("machine_no = ?", machineNo).First(&existing).Error; err == nil {
-		// มีแถวอยู่แล้ว — เติมเฉพาะช่องที่เดิมว่าง เพื่อไม่ทับค่าที่ผู้ใช้แก้เอง
 		updates := map[string]interface{}{}
 		if strings.TrimSpace(existing.Country) == "" && country != "" {
 			updates["country"] = country
@@ -182,7 +167,6 @@ func upsertMatchingAssemblyFromScan(machineNo, serialNo, partsNo, partsName, cou
 		return
 	}
 
-	// ลำดับ Item ถัดไป = จำนวนแถวที่มีอยู่ + 1
 	var count int64
 	config.DB.Model(&models.MatchingAssembly{}).Count(&count)
 

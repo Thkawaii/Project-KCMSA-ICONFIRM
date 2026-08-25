@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// seedMasterConn สร้างแถวทะเบียนกลางพร้อมระบุ ConnectivityType
 func seedMasterConn(t *testing.T, serialNo, conn string) {
 	t.Helper()
 	m := models.MasterData{
@@ -48,7 +47,6 @@ func patchCtx(id uint, body, force string, u models.User) (*gin.Context, *httpte
 	return c, rec
 }
 
-// ── 1) รายงานแยก Mobile4G / Satellite ───────────────────────────────────────
 
 func TestGetMasterDataSummary(t *testing.T) {
 	newTestDB(t)
@@ -56,7 +54,7 @@ func TestGetMasterDataSummary(t *testing.T) {
 	seedMasterConn(t, "S2", models.ConnSatelliteIrid)
 	seedMasterConn(t, "S3", models.ConnMobile4GHigh)
 	seedMasterConn(t, "S4", models.ConnMobile4GNormal)
-	seedMasterConn(t, "S5", "") // ไม่ระบุ → UNKNOWN
+	seedMasterConn(t, "S5", "")
 
 	c, rec := getCtx("/summary?component_type=it_controller")
 	GetMasterDataSummary(c)
@@ -83,7 +81,6 @@ func TestGetMasterDataSummary(t *testing.T) {
 
 func TestGetMasterDataSummaryEmptyBucketsPresent(t *testing.T) {
 	newTestDB(t)
-	// ไม่มีข้อมูลเลย → ทุก key ต้องมีและเป็น 0, total 0
 	c, rec := getCtx("/summary?component_type=it_controller")
 	GetMasterDataSummary(c)
 	mustStatus(t, rec, 200)
@@ -99,9 +96,7 @@ func TestGetMasterDataSummaryEmptyBucketsPresent(t *testing.T) {
 	}
 }
 
-// ── 2) Guard กันแก้ Master Data ทับกุญแจ match ───────────────────────────────
 
-// seedMasterFull สร้างแถวทะเบียนพร้อม S/N + IT Controller No. แล้วคืน id
 func seedMasterFull(t *testing.T, serialNo, itcNo string) uint {
 	t.Helper()
 	m := models.MasterData{
@@ -120,7 +115,6 @@ func TestUpdateMasterDataSafeFieldAllowed(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "up@kobelco.com", "up07", "UPLOAD", "UPLOAD")
 	id := seedMasterFull(t, "KQ3000045093", "878250022802")
-	// มี PartCheck อ้างอยู่ก็ตาม — แต่แก้แค่ Name (ไม่ใช่กุญแจ) ต้องผ่าน
 	db.Create(&models.PartCheck{PartType: "ITC", SN: "KQ3000045093", MachineNo: "878250022802"})
 
 	c, rec := patchCtx(id, `{"Name":"ชื่อใหม่"}`, "", u)
@@ -133,7 +127,6 @@ func TestUpdateMasterDataKeyEditBlockedWhenReferenced(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "up@kobelco.com", "up07", "UPLOAD", "UPLOAD")
 	id := seedMasterFull(t, "KQ3000045093", "878250022802")
-	// PartCheck อ้าง S/N นี้อยู่ → แก้ S/N ต้องถูกบล็อก
 	db.Create(&models.PartCheck{PartType: "ITC", SN: "KQ3000045093", MachineNo: "878250022802"})
 
 	c, rec := patchCtx(id, `{"SerialNo":"CHANGED-SN"}`, "", u)
@@ -145,7 +138,6 @@ func TestUpdateMasterDataKeyEditBlockedWhenReferenced(t *testing.T) {
 		t.Fatalf("blocked = %v, want true", resp["blocked"])
 	}
 
-	// ค่าจริงใน DB ต้องไม่ถูกแก้
 	var after models.MasterData
 	db.First(&after, id)
 	if after.SerialNo != "KQ3000045093" {
@@ -170,7 +162,6 @@ func TestUpdateMasterDataKeyEditForceAllowed(t *testing.T) {
 		t.Errorf("SerialNo = %q, want CHANGED-SN after force", after.SerialNo)
 	}
 
-	// ต้องมี audit log แบบ update_key
 	var logCount int64
 	db.Model(&models.AuditLog{}).
 		Where("source_table = ? AND action = ?", "MASTER_DATA", "update_key").
@@ -184,7 +175,6 @@ func TestUpdateMasterDataKeyEditAllowedWhenNoRefs(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "up@kobelco.com", "up07", "UPLOAD", "UPLOAD")
 	id := seedMasterFull(t, "KQ3000045093", "878250022802")
-	// ไม่มีรายการใดอ้างอิง → แก้ S/N ได้เลยแม้ไม่ force
 
 	c, rec := patchCtx(id, `{"SerialNo":"NEW-SN"}`, "", u)
 	UpdateMasterData(c)
@@ -212,7 +202,6 @@ func TestCountMasterDataRefs(t *testing.T) {
 		t.Errorf("unexpected ref counts: %+v", refs)
 	}
 
-	// ไม่มีอะไรอ้าง → 0
 	if countMasterDataRefs("NOPE", "000000000000").Total != 0 {
 		t.Error("expected 0 refs for unknown keys")
 	}

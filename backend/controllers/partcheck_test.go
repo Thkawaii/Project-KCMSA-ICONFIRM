@@ -7,7 +7,6 @@ import (
 	"iconfirm/models"
 )
 
-// seedMaster เพิ่มแถวทะเบียนกลาง (MasterData / "ALL PART")
 func seedMaster(t *testing.T, partNo, serialNo, itcNo, imei string) models.MasterData {
 	t.Helper()
 	m := models.MasterData{
@@ -72,7 +71,6 @@ func TestResolveITControllerMaster(t *testing.T) {
 	})
 }
 
-// ── ScanPartCheck (HTTP handler) ────────────────────────────────────────────
 
 func TestScanPartCheckITCMatch(t *testing.T) {
 	db := newTestDB(t)
@@ -93,7 +91,6 @@ func TestScanPartCheckITCMatch(t *testing.T) {
 		t.Fatalf("matched = %v, want true", resp["matched"])
 	}
 
-	// ต้องบันทึก PartCheck 1 แถว พร้อมดึงหมายเลขเครื่อง 12 หลักมาให้
 	var pc models.PartCheck
 	if err := db.Where("part_type = ?", "ITC").First(&pc).Error; err != nil {
 		t.Fatalf("partcheck not saved: %v", err)
@@ -105,7 +102,6 @@ func TestScanPartCheckITCMatch(t *testing.T) {
 		t.Errorf("LicenseNo = %q, want E05036901604", pc.LicenseNo)
 	}
 
-	// แถวในบัญชีต้องถูกปั๊มเป็น CONFIRMED
 	var item models.ImportLicenseItem
 	db.Where("machine_no = ?", "878250022802").First(&item)
 	if item.ConfirmStatus != models.LicenseItemConfirmed {
@@ -158,7 +154,6 @@ func TestScanPartCheckRequiresSN(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
 
-	// ไม่มี sn → binding required ต้อง 400
 	body := `{"partType":"ITC","pn":"X"}`
 	c, rec := newContext("POST", body, u.ID, u.Username)
 	ScanPartCheck(c)

@@ -14,13 +14,6 @@ import {
 import { updateMasterData } from '../api/masterData.js'
 import { buildStyledXlsxBlob, downloadBlob } from '../lib/xlsx.js'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// เครื่องมือ "รองรับการเปลี่ยน format" ที่ใช้ร่วมกันหลายหน้า
-//   • ColumnAliasPanel — จับคู่หัวคอลัมน์ในไฟล์ที่เปลี่ยน → คอลัมน์มาตรฐาน (ตาม scope)
-//   • CodeAliasPanel   — จับคู่ค่า P/N / S/N / Machine No. รูปแบบใหม่ → เลขมาตรฐาน
-//   • MasterDataEditModal — แก้ไขทะเบียนกลางรายรายการ (PATCH)
-//   • PreviewResult    — แสดงผล dry-run (matched / missing / extra) ก่อนอัปโหลดจริง
-// ─────────────────────────────────────────────────────────────────────────────
 
 const panelStyle = {
   border: '1px solid #e2e8f0',
@@ -59,18 +52,13 @@ function Collapsible({ title, hint, children, defaultOpen = false }) {
   )
 }
 
-// ── A) Column Alias ────────────────────────────────────────────────────────
-// scope = ชื่อ dataset (planning | wh1 | wh2 | engine) หรือ import_license | export_license
-//
-// targetOptions = รายชื่อ "คอลัมน์มาตรฐาน" ที่ถูกต้องของ scope นี้ (ให้เลือกจาก dropdown
-// แทนการพิมพ์เอง) — แก้ปัญหา "ตั้งแล้วไม่เปลี่ยน" ที่เกิดจากพิมพ์ชื่อคอลัมน์ไม่ตรงเป๊ะ
 export function ColumnAliasPanel({ scope, targetOptions = [], embedded = false }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [source, setSource] = useState('')
   const [target, setTarget] = useState('')
   const [note, setNote] = useState('')
-  const [changeKind, setChangeKind] = useState('rename') // rename | add | reorder
+  const [changeKind, setChangeKind] = useState('rename')
   const [saving, setSaving] = useState(false)
   const hasTargets = Array.isArray(targetOptions) && targetOptions.length > 0
 
@@ -91,7 +79,6 @@ export function ColumnAliasPanel({ scope, targetOptions = [], embedded = false }
     setSource('')
     setTarget('')
     setNote('')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope])
 
   async function handleAdd() {
@@ -99,8 +86,6 @@ export function ColumnAliasPanel({ scope, targetOptions = [], embedded = false }
       toastError('กรอกชื่อหัวคอลัมน์')
       return
     }
-    // "เพิ่มหัวคอลัมน์ใหม่" ไม่ต้องเลือกข้อมูลเดิม — เก็บชื่อคอลัมน์ไว้เป็นตัวมันเอง
-    // (ระบบเก็บคอลัมน์ใหม่ให้เป็น "คอลัมน์เพิ่ม" อัตโนมัติอยู่แล้ว)
     const isAdd = changeKind === 'add'
     if (!isAdd && !target.trim()) {
       toastError('เลือก "ข้อมูลเดิม" ที่จะให้แม็ปไปหา')
@@ -141,7 +126,6 @@ export function ColumnAliasPanel({ scope, targetOptions = [], embedded = false }
   }
 
   const CHANGE_KIND_LABEL = { rename: 'เปลี่ยนชื่อ', add: 'เพิ่มใหม่', reorder: 'สลับตำแหน่ง' }
-  // ป้ายช่อง "ข้อมูลใหม่ที่จะเปลี่ยน" ปรับตามชนิดการเปลี่ยนให้เข้าใจง่าย
   const sourceLabel = changeKind === 'add' ? 'ชื่อหัวคอลัมน์ที่เพิ่มเข้ามา' : 'ชื่อหัวคอลัมน์ใหม่ (ที่เปลี่ยนมา)'
 
   const body = (
@@ -269,7 +253,6 @@ export function ColumnAliasPanel({ scope, targetOptions = [], embedded = false }
     </>
   )
 
-  // embedded = ฝังตรง ๆ ในการ์ด (ไม่ต้องมีหัวพับ) — ใช้ในหน้า Setting ที่จัด layout เอง
   if (embedded) return body
 
   return (
@@ -279,8 +262,6 @@ export function ColumnAliasPanel({ scope, targetOptions = [], embedded = false }
   )
 }
 
-// ── B) Code Alias ──────────────────────────────────────────────────────────
-// ป้ายกำกับชนิดรหัส — ใช้ต่อท้ายชื่อช่อง เช่น "ข้อมูลใหม่ที่จะเปลี่ยน(Machine No.)"
 const KIND_LABEL = { machine: 'Machine No.', pn: 'P/N', sn: 'S/N' }
 
 export function CodeAliasPanel({ componentType = 'it_controller', embedded = false }) {
@@ -308,7 +289,6 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
 
   useEffect(() => {
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [componentType])
 
   async function handleAdd() {
@@ -356,14 +336,11 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
     if (!file) return
     setUploading(true)
     try {
-      // ส่ง componentType ไปด้วย เพื่อให้แถวที่ไม่ได้ระบุชนิดในไฟล์ถูกเติมให้ตรงกับ
-      // หน้านี้ — รายการที่นำเข้าจะได้โผล่ในตาราง Change Format Part (ที่กรองด้วยชนิด)
       const res = await uploadCodeAliases(file, componentType)
       const parts = [`นำเข้าแล้ว ${res.imported ?? 0} รายการ`]
       if (res.updated) parts.push(`อัปเดต ${res.updated}`)
       if (res.skipped) parts.push(`ข้าม ${res.skipped}`)
       toastSuccess(parts.join(' · '))
-      // ถ้ามีแถวที่ถูกข้าม (เช่น ค่าเดิมไม่มีในระบบ) แจ้งรายละเอียดให้เห็นชัด
       if (Array.isArray(res.problems) && res.problems.length > 0) {
         toastError(res.problems.slice(0, 5).join('\n'))
       }
@@ -375,9 +352,6 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
     }
   }
 
-  // ดาวน์โหลดไฟล์ตัวอย่าง (.xlsx) — หัวคอลัมน์ + ตัวอย่างข้อมูลให้กรอกตาม
-  //   New (ค่าใหม่) = รหัสรูปแบบใหม่ที่หน้างานยิง/กรอกเข้ามา
-  //   Old (ค่าเดิม) = ค่าเดิม (Machine No./S/N/P/N) ที่ "ต้องมีอยู่จริงในระบบแล้ว"
   function handleDownloadSample() {
     const columns = [
       { key: 'new', header: 'New (ค่าใหม่)', type: 'text' },
@@ -495,7 +469,6 @@ export function CodeAliasPanel({ componentType = 'it_controller', embedded = fal
   )
 }
 
-// ── Preview result (dry-run) ────────────────────────────────────────────────
 export function PreviewResult({ result }) {
   if (!result) return null
   if (result.headerFound === false) {
@@ -538,7 +511,6 @@ export function PreviewResult({ result }) {
   )
 }
 
-// ── แสดงคอลัมน์ใหม่ที่ระบบเก็บไว้ (extra_json) เป็น chip เล็ก ๆ ในตาราง ─────────
 export function ExtraColumnsCell({ json }) {
   let obj = null
   try {
@@ -546,8 +518,6 @@ export function ExtraColumnsCell({ json }) {
   } catch {
     obj = null
   }
-  // คีย์ที่ตอนนี้ระบบรู้จักเป็นคอลัมน์จริงแล้ว (เช่น Country) — ไม่ต้องโชว์เป็น "คอลัมน์เพิ่ม"
-  // ซ้ำอีก (รองรับข้อมูลเก่าที่อัปโหลดไว้ก่อนจะรู้จักคอลัมน์นี้ ยังค้างใน extra_json)
   const HIDDEN_EXTRA = new Set([
     'country',
     'countryname',
@@ -608,10 +578,6 @@ export function ExtraColumnsCell({ json }) {
   )
 }
 
-// ── Change-detection preview (Master Data + Upload datasets) ────────────────
-// แสดงสรุป NEW/UPDATED/CHANGED/UNCHANGED + ตารางค่า old→new ของแถวที่เปลี่ยน
-// รองรับทั้งทะเบียน Master Data (คีย์ = Serial No.) และชุดข้อมูลไฟล์
-// (Planning/WH1/WH2/Engine/Assembly — คีย์ = business key ของแต่ละ dataset)
 export function ChangePreview({ result }) {
   if (!result) return null
   if (result.headerFound === false) {
@@ -626,7 +592,6 @@ export function ChangePreview({ result }) {
   const extra = result.extra || []
   const missing = result.missing || []
   const matched = result.matched || []
-  // ป้ายหัวคอลัมน์คีย์ + ข้อความ "ค่าหลัก" — ปรับตามชนิดไฟล์ (มาจาก backend)
   const keyLabel = result.keyLabel || 'Serial No.'
   const coreFields =
     result.coreFields && result.coreFields.length
@@ -667,7 +632,6 @@ export function ChangePreview({ result }) {
         {stat('เหมือนเดิม', s.unchanged, '#f1f5f9', '#475569')}
       </div>
 
-      {/* สรุปการแม็ปคอลัมน์ (โชว์เมื่อ backend ส่งมา — ชุดข้อมูลไฟล์จะมีข้อมูลนี้) */}
       {(matched.length > 0 || missing.length > 0) && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 8 }}>
           <span style={{ color: '#16a34a', fontWeight: 600 }}>แม็ปได้ {matched.length}</span>
@@ -744,7 +708,6 @@ export function ChangePreview({ result }) {
   )
 }
 
-// ── Master Data edit modal (PATCH) ──────────────────────────────────────────
 export function MasterDataEditModal({ row, componentOptions = [], itcLabel = 'IT Controller no.', onClose, onSaved }) {
   const [form, setForm] = useState({
     Name: row.Name || '',
@@ -766,7 +729,6 @@ export function MasterDataEditModal({ row, componentOptions = [], itcLabel = 'IT
     }
     setSaving(true)
     try {
-      // ไม่ส่ง ItemNo / SpecCode — backend เป็น PATCH ค่าที่ไม่ส่งจะคงเดิมไว้
       const patch = {
         Name: form.Name.trim(),
         Model: form.Model.trim(),
@@ -781,7 +743,6 @@ export function MasterDataEditModal({ row, componentOptions = [], itcLabel = 'IT
       onSaved && onSaved()
       onClose && onClose()
     } catch (err) {
-      // ถ้าไม่ใช่กรณีถูกบล็อก (ผู้ใช้กดยกเลิกการยืนยัน) จึงค่อยแจ้ง error ปกติ
       if (err?.message !== '__CANCELLED__') {
         toastError(err.message || 'บันทึกไม่สำเร็จ')
       }
@@ -790,8 +751,6 @@ export function MasterDataEditModal({ row, componentOptions = [], itcLabel = 'IT
     }
   }
 
-  // saveWithGuard: บันทึกปกติก่อน ถ้าโดน guard กันแก้กุญแจ (409 blocked) จะถามยืนยัน
-  // แล้วบันทึกซ้ำแบบ force เพื่อให้ผู้ใช้ตัดสินใจเองว่ายอมรับผลกระทบต่อการ match เดิม
   async function saveWithGuard(patch) {
     try {
       await updateMasterData(row.ID, patch)
@@ -842,8 +801,6 @@ export function MasterDataEditModal({ row, componentOptions = [], itcLabel = 'IT
               <input className="fmt-input" value={form.ComponentType} onChange={set('ComponentType')} />
             )}
           </div>
-          {/* Part No. + IMEI มีเฉพาะ IT Controller — อะไหล่ชนิดอื่นมีแค่ S/N +
-              หมายเลขเครื่อง จึงซ่อน 2 ช่องนี้เมื่อเลือกชนิดอื่น */}
           {form.ComponentType === 'it_controller' && field('Part No.', 'PartNo', true)}
           {field('Serial No.', 'SerialNo', true)}
           {field(itcLabel, 'ITControllerNo', true)}

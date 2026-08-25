@@ -14,11 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// UploadMFGAssemblyPhoto รับรูปถ่ายป้ายยืนยัน (multipart, field name "file") ผูกกับ
-// แถว MFGAssembly ที่สแกนไปแล้ว (:id) แล้วบันทึก path รูปไว้เป็นหลักฐาน
-//
-// ย้ายมาจากฝั่ง WH (PartCheck) — พฤติกรรมเหมือนกันทุกประการ: ถ่ายเก็บอย่างเดียว
-// ไม่มี OCR/เทียบค่าใด ๆ จึงไม่ต้องตั้ง API key บนเซิร์ฟเวอร์
 func UploadMFGAssemblyPhoto(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -45,7 +40,7 @@ func UploadMFGAssemblyPhoto(c *gin.Context) {
 
 	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
 	if ext != ".png" && ext != ".webp" && ext != ".jpg" && ext != ".jpeg" {
-		ext = ".jpg" // กล้องมือถือ/canvas.toBlob ส่งมาเป็น jpeg ปกติ แต่กันเผื่อชื่อไฟล์ไม่มีนามสกุล
+		ext = ".jpg"
 	}
 	safeName := fmt.Sprintf("mfg_%d_%d%s", row.ID, time.Now().UnixNano(), ext)
 	dest := filepath.Join("uploads", safeName)

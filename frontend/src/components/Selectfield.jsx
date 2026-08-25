@@ -1,15 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 
-// dropdown ที่วาดเองทั้งหมด ใช้แทน <select>
-//
-// เหตุผล: <select> ของ iOS/Android วาด popup ด้วยขนาดของ OS เอง
-// CSS คุมไม่ได้เลย บนมือถือเลยออกมาตัวใหญ่และล้นกรอบการ์ด
-//
-// props:
-//   value       — ค่าที่เลือกอยู่
-//   onChange    — (value) => void
-//   options     — [{ value, label }]
-//   placeholder — ข้อความตอนยังไม่เลือก
 export default function SelectField({
   value,
   onChange,
