@@ -49,10 +49,6 @@ func ConnectDB() {
 
 		&models.MachineSpec{},
 
-		&models.QA{},
-
-		&models.QAConfirm{},
-
 		&models.AuditLog{},
 
 		&models.PartCheck{},
@@ -61,15 +57,9 @@ func ConnectDB() {
 
 		&models.ExportLicenseItem{},
 
-		&models.DocumentFile{},
-		&models.ImportLicense{},
-		&models.ExportLicense{},
-		&models.ITControllerUnit{},
-
 		&models.UploadDataRow{},
 
 		&models.WHMachineStock{},
-		&models.WHInvoiceItem{},
 
 		&models.MFGAssembly{},
 

@@ -319,31 +319,3 @@ func TestGenerateAssemblyUpsertNoDuplicate(t *testing.T) {
 	}
 }
 
-func TestUpsertMatchingAssemblyFromScan(t *testing.T) {
-	db := newTestDB(t)
-
-	when := time.Now()
-	upsertMatchingAssemblyFromScan("878250022802", "KQ3000045093", "YN22E00849FA", "SK75-11", "Indonesia", when, 1, "WH")
-
-	var row models.MatchingAssembly
-	if err := db.Where("machine_no = ?", "878250022802").First(&row).Error; err != nil {
-		t.Fatalf("matching row not created: %v", err)
-	}
-	if row.ITControllerSN != "KQ3000045093" || row.Country != "Indonesia" {
-		t.Errorf("row fields wrong: %+v", row)
-	}
-
-	upsertMatchingAssemblyFromScan("878250022802", "KQ3000045093", "YN22E00849FA", "SK75-11", "Indonesia", when, 1, "WH")
-	var count int64
-	db.Model(&models.MatchingAssembly{}).Where("machine_no = ?", "878250022802").Count(&count)
-	if count != 1 {
-		t.Fatalf("matching rows = %d, want 1", count)
-	}
-
-	upsertMatchingAssemblyFromScan("  ", "sn", "pn", "name", "c", when, 1, "WH")
-	var total int64
-	db.Model(&models.MatchingAssembly{}).Count(&total)
-	if total != 1 {
-		t.Fatalf("total matching rows = %d, want 1 (blank machine must be skipped)", total)
-	}
-}

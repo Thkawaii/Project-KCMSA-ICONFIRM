@@ -47,26 +47,3 @@ type WHMachineStock struct {
 	UserID uint
 	User   User
 }
-
-type WHInvoiceItem struct {
-	ID uint `gorm:"primaryKey"`
-
-	PONo        string `gorm:"size:40;index"`
-	LineNo      string `gorm:"size:20"`
-	Container   string `gorm:"size:40"`
-	Package     string `gorm:"size:40"`
-	CNo         string `gorm:"size:40;index"`
-	PartsNo     string `gorm:"size:40;index"`
-	Description string `gorm:"size:100"`
-	Qty         int
-	Sloc        string `gorm:"size:40"`
-	Shelf       string `gorm:"size:40"`
-
-	ExtraJSON string `gorm:"type:text" json:"extra_json,omitempty"`
-
-	FileName   string `gorm:"size:255"`
-	UploadDate time.Time
-
-	UserID uint
-	User   User
-}
