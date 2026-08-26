@@ -109,10 +109,9 @@ const SCOPES = [
   { scope: 'master_data:control_valve', label: 'รายการ Control Valve', group: 'ข้อมูล' },
   { scope: 'import_license', label: 'Import License', group: 'ใบอนุญาต' },
   { scope: 'export_license', label: 'Export License', group: 'ใบอนุญาต' },
-  { scope: 'machine_spec', label: 'Machine Spec', group: 'อื่น ๆ' },
-  { scope: 'wh_stock_mc', label: 'WH Stock (MC)', group: 'อื่น ๆ' },
-  { scope: 'wh_stock_inv', label: 'WH Stock (Invoice)', group: 'อื่น ๆ' },
-  { scope: 'serial_list', label: 'IT Controller (Serial List)', group: 'อื่น ๆ' },
+  // กลุ่ม "อื่น ๆ" (machine_spec, wh_stock_mc, wh_stock_inv, serial_list) ถูกเอาออกจากตัวเลือก
+  // เพราะไม่ได้ใช้งาน — คอลัมน์ของ scope เหล่านี้ยังอยู่ใน TARGET_COLUMNS ด้านบน
+  // ถ้าต้องการเปิดใช้อีกครั้ง ให้เพิ่มบรรทัด { scope, label, group: 'อื่น ๆ' } กลับมาที่นี่
 ]
 
 export default function FormatSettingsPage() {
