@@ -853,8 +853,14 @@ function DatasetView({ dataset }) {
       const updated = res?.updated ?? 0
       const skipped = res?.skipped ?? 0
       toastSuccess(
-        `ปั๊ม Assembly สำเร็จ — เพิ่มใหม่ ${created}, อัปเดต ${updated}, ไม่เปลี่ยน ${skipped} (จาก ${res?.machines ?? 0} เครื่อง)`
+        `ปั๊ม Assembly สำเร็จ — เพิ่มใหม่ ${created}, อัปเดต ${updated}, ไม่เปลี่ยน ${skipped} (จาก ${res?.machines ?? 0} เครื่อง)` +
+          (res?.partsFilled !== undefined
+            ? ` · ได้ Assembly Parts ${res.partsFilled} เครื่อง`
+            : '')
       )
+      for (const w of res?.warnings || []) {
+        toastError(w)
+      }
       setLocalReload((n) => n + 1)
     } catch (err) {
       toastError(err.message || 'ปั๊ม Assembly ไม่สำเร็จ')

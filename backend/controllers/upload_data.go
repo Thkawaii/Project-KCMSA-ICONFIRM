@@ -200,15 +200,14 @@ var udDatasets = map[string]udDataset{
 
 	models.DatasetAssembly: {
 		MinHits: 2,
-		Anchors: []string{"machineno", "itcontroller", "speccode", "assemblypartsname"},
+		Anchors: []string{"machineno", "itcontrollerno", "itcontroller", "speccode", "assemblypartsname"},
 		Columns: []udColumn{
 			col("Machine No", "machineno", "machinenumber", "mcno", "mcnumber", "machineid"),
 			col("Spec Code", "speccode", "specificationcode"),
 			col("Specification Detail", "specificationdetail", "specdetail", "specification"),
 			col("Country Name", "countryname", "country"),
 			col("IT device", "itdevice", "device"),
-			col("IT Controller", "itcontroller", "controller"),
-			col("IT Controller No", "itcontrollerno", "itcontrollernumber", "itcno", "itcontrollerserial"),
+			col("IT Controller No", "itcontrollerno", "itcontrollernumber", "itcno", "itcontrollerserial", "itcontroller", "controller"),
 			col("Swing Motor No", "swingmotorno", "swingmotor", "swno", "swingno", "swingmotornumber"),
 			col("Pump Assy HYD No", "pumpassyhydno", "pumpassyno", "pumpno", "pumpassy", "pumpassyhyd"),
 			col("Motor Propel No", "motorpropelno", "propelno", "propelmotorno", "propel"),
@@ -240,7 +239,7 @@ var udDatasetCoreFields = map[string][]string{
 	models.DatasetWH1:      {"Assembly Parts Number", "Name"},
 	models.DatasetWH2:      {"PARTS NAME", "Quantity"},
 	models.DatasetEngine:   {"ENGINE"},
-	models.DatasetAssembly: {"IT Controller", "Spec Code", "Assembly_Parts_Number"},
+	models.DatasetAssembly: {"IT Controller No", "Spec Code", "Assembly_Parts_Number"},
 }
 
 var udDatasetKeyLabel = map[string]string{
