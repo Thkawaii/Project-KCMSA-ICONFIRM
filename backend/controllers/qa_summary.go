@@ -51,7 +51,7 @@ func GetQAConfirmedTable(c *gin.Context) {
 				asmByMachine[mc] = a
 			}
 		}
-		if itc := strings.TrimSpace(a["IT Controller"]); itc != "" {
+		if itc := strings.TrimSpace(a["IT Controller No"]); itc != "" {
 			if _, ok := asmByITC[itc]; !ok {
 				asmByITC[itc] = a
 			}

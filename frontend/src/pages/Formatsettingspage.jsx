@@ -22,7 +22,7 @@ const TARGET_COLUMNS = {
   engine: ['Machine No', 'History', 'ENGINE'],
   assembly: [
     'Machine No', 'Spec Code', 'Specification Detail', 'Country Name', 'IT device',
-    'IT Controller', 'Assembly_Parts_Number', 'Assembly_Parts_Name',
+    'IT Controller No', 'Assembly_Parts_Number', 'Assembly_Parts_Name',
   ],
   import_license: [
     'ลำดับ', 'ตราอักษร',

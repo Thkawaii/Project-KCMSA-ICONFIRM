@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"encoding/json"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -10,6 +12,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// คอลัมน์เก่าของ Assembly ที่เลิกใช้แล้ว
+// "IT Controller" มาจากการไล่เดาห่วงโซ่ (mfg_assemblies → machine_specs → export_license_items)
+// ซึ่งไม่แม่นยำ และซ้ำกับ "IT Controller No" ที่ดึงตรงจาก Planning
+// "IT Controller Match" เป็นแค่ผลเทียบสองค่าข้างบน จึงไม่จำเป็นอีกต่อไป
+var legacyAssemblyITCKeys = []string{"IT Controller", "IT Controller Match"}
 
 func loadUploadRows(dataset string) []map[string]string {
 	var rows []models.UploadDataRow
@@ -34,10 +42,91 @@ func pickField(m map[string]string, keys ...string) string {
 }
 
 func machineFromRow(m map[string]string) string {
-	return pickField(m,
+	if v := pickField(m,
 		"Machine No", "Machine", "machine no", "machine",
 		"[+] Machine No", "[+] Machine", "[+] machine no", "[+] machine",
-	)
+	); v != "" {
+		return v
+	}
+	// เผื่อไฟล์ตั้งชื่อหัวคอลัมน์แปลก ๆ แล้วถูกเก็บเป็นคอลัมน์นอกสเปก "[+] ..."
+	for k, v := range m {
+		if strings.TrimSpace(v) == "" {
+			continue
+		}
+		switch normalizeHeader(strings.TrimPrefix(k, extraColumnPrefix)) {
+		case "machineno", "machine", "machinenumber", "mcno", "mcnumber", "machineid":
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+func digitsOnly(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// joinKeyVariants สร้างคีย์หลายแบบสำหรับจับคู่เลข Order ระหว่างไฟล์ Planning กับ WH1
+// เพราะไฟล์จริงมักไม่ตรงกันเป๊ะ: มีเว้นวรรค ขีด เลขศูนย์นำหน้า หรือ Excel ต่อ ".0" ท้ายมาให้
+func joinKeyVariants(raw string) []string {
+	s := strings.ToUpper(strings.TrimSpace(unwrapExcelText(raw)))
+	if s == "" {
+		return nil
+	}
+
+	// Excel ชอบส่งเลขมาเป็น 123456.0 — ตัดทศนิยมศูนย์ท้ายทิ้งก่อน
+	s = strings.TrimSuffix(s, ".0")
+
+	compact := strings.NewReplacer(" ", "", "-", "", "_", "", "/", "", ".", "").Replace(s)
+	if compact == "" {
+		return nil
+	}
+
+	out := []string{compact}
+
+	// เทียบแบบเอาเฉพาะตัวเลข ตัดศูนย์นำหน้า (กัน 0001234 vs 1234)
+	if d := strings.TrimLeft(digitsOnly(compact), "0"); len(d) >= 4 {
+		out = append(out, "#"+d)
+	}
+
+	return dedupStrings(out)
+}
+
+// orderKeysFromRow ดึงทุกช่องที่อาจเป็นเลข Order ของแถว WH1 ออกมา
+// ของเดิมใช้ pickField() ซึ่งหยุดที่ช่องแรกที่ไม่ว่าง ถ้าช่องนั้นดันจับคู่ไม่ได้
+// ก็จบเลย ไม่ได้ลองช่องอื่นต่อ เป็นสาเหตุหลักที่ Assembly Parts ไม่ติดมา
+func orderKeysFromRow(m map[string]string) []string {
+	// เรียงลำดับความสำคัญตายตัว ไม่วนตาม map เพราะ map ใน Go ไม่การันตีลำดับ
+	// ถ้าไม่ล็อกลำดับ แถวเดียวกันอาจจับคู่ได้คนละเครื่องในแต่ละรอบ
+	priority := []string{"orderno", "workorder", "order", "kcmorder"}
+
+	byField := map[string][]string{}
+	for k, v := range m {
+		if strings.TrimSpace(v) == "" {
+			continue
+		}
+		nk := normalizeHeader(k)
+		for _, p := range priority {
+			if nk == p {
+				byField[p] = append(byField[p], v)
+			}
+		}
+	}
+
+	var keys []string
+	for _, p := range priority {
+		vals := byField[p]
+		sort.Strings(vals)
+		for _, v := range vals {
+			keys = append(keys, joinKeyVariants(v)...)
+		}
+	}
+	return dedupStrings(keys)
 }
 
 func GenerateAssembly(c *gin.Context) {
@@ -47,7 +136,7 @@ func GenerateAssembly(c *gin.Context) {
 	wh1 := loadUploadRows(models.DatasetWH1)
 
 	planningByMachine := map[string]map[string]string{}
-	kcmOrderToMachine := map[string]string{}
+	orderToMachine := map[string]string{}
 	for _, p := range planning {
 		mc := strings.TrimSpace(pickField(p, "Machine", "Machine No"))
 		if mc == "" {
@@ -56,39 +145,76 @@ func GenerateAssembly(c *gin.Context) {
 		if _, ok := planningByMachine[mc]; !ok {
 			planningByMachine[mc] = p
 		}
-		if ko := strings.TrimSpace(p["KCM Order"]); ko != "" {
-			kcmOrderToMachine[ko] = mc
+		// จับคู่ WH1 ได้จากทั้ง KCM Order และตัวเลขงานอื่นที่ Planning มี
+		for _, raw := range []string{p["KCM Order"], p["Work order"], p["Order No"]} {
+			for _, k := range joinKeyVariants(raw) {
+				if _, ok := orderToMachine[k]; !ok {
+					orderToMachine[k] = mc
+				}
+			}
+		}
+	}
+
+	// LOT NO. เป็นคีย์สำรอง ใส่ทีหลังเพื่อไม่ให้ไปทับคีย์ Order ที่น่าเชื่อถือกว่า
+	for _, p := range planning {
+		mc := strings.TrimSpace(pickField(p, "Machine", "Machine No"))
+		if mc == "" {
+			continue
+		}
+		for _, k := range joinKeyVariants(p["LOT NO."]) {
+			if _, ok := orderToMachine[k]; !ok {
+				orderToMachine[k] = mc
+			}
 		}
 	}
 
 	type wh1Parts struct{ no, name string }
 	wh1ByMachine := map[string]wh1Parts{}
-	assignWH1 := func(mc string, row map[string]string) {
+	// เติมทีละช่อง ไม่ใช่ first-row-wins ทั้งก้อน
+	// แถว WH1 หนึ่งเครื่องมีหลายบรรทัด บางบรรทัดมีแต่เลข บางบรรทัดมีแต่ชื่อ
+	mergeWH1 := func(mc string, row map[string]string) {
 		mc = strings.TrimSpace(mc)
 		if mc == "" {
 			return
 		}
-		no := pickField(row, "Assembly Parts Number", "Assembly Parts No")
-		name := pickField(row, "Assembly Parts Name")
+		no := pickField(row, "Assembly Parts Number", "Assembly Parts No", "Assembly_Parts_Number")
+		name := pickField(row, "Assembly Parts Name", "Assembly_Parts_Name")
 		if no == "" && name == "" {
 			return
 		}
-		if _, exists := wh1ByMachine[mc]; !exists {
-			wh1ByMachine[mc] = wh1Parts{no: no, name: name}
+		cur := wh1ByMachine[mc]
+		if cur.no == "" {
+			cur.no = no
 		}
+		if cur.name == "" {
+			cur.name = name
+		}
+		wh1ByMachine[mc] = cur
 	}
+
+	matchedByMachine, matchedByOrder := 0, 0
 	for _, w := range wh1 {
 		if mc := machineFromRow(w); mc != "" {
-			assignWH1(mc, w)
-		}
-	}
-	for _, w := range wh1 {
-		order := pickField(w, "Order No", "Work order")
-		if order == "" {
+			before := len(wh1ByMachine)
+			mergeWH1(mc, w)
+			if len(wh1ByMachine) > before {
+				matchedByMachine++
+			}
 			continue
 		}
-		if mc, ok := kcmOrderToMachine[order]; ok {
-			assignWH1(mc, w)
+		// ไม่มีคอลัมน์เครื่องในไฟล์ WH1 ก็ไล่ทุกช่องที่อาจเป็นเลข Order
+		// แล้วเทียบกลับไปหา Planning ทีละคีย์จนกว่าจะเจอ
+		for _, k := range orderKeysFromRow(w) {
+			mc, ok := orderToMachine[k]
+			if !ok {
+				continue
+			}
+			before := len(wh1ByMachine)
+			mergeWH1(mc, w)
+			if len(wh1ByMachine) > before {
+				matchedByOrder++
+			}
+			break
 		}
 	}
 
@@ -120,6 +246,7 @@ func GenerateAssembly(c *gin.Context) {
 	now := time.Now()
 
 	created, updated, skipped := 0, 0, 0
+	partsFilled, partsMissing := 0, 0
 
 	tx := config.DB.Begin()
 
@@ -148,17 +275,9 @@ func GenerateAssembly(c *gin.Context) {
 			planValve = strings.TrimSpace(p["Control Valve No"])
 		}
 
-		preferredITC := planITC
-		itcNo, deriveCountry := resolveITControllerNo(mc, preferredITC)
+		itcNo := planITC
 
-		itcMatch := ""
-		if planITC != "" && itcNo != "" {
-			if keepDigits(planITC) == keepDigits(itcNo) {
-				itcMatch = "MATCH"
-			} else {
-				itcMatch = "MISMATCH"
-			}
-		}
+		guessedITC, deriveCountry := resolveITControllerNo(mc, planITC)
 
 		if itDevice == "" {
 			var specs []models.MachineSpec
@@ -171,13 +290,31 @@ func GenerateAssembly(c *gin.Context) {
 			}
 		}
 
-		if licCountry := lookupMFGCountry(itcNo); licCountry != "" {
+		licCountry := lookupMFGCountry(itcNo)
+		if licCountry == "" {
+			licCountry = lookupMFGCountry(guessedITC)
+		}
+		if licCountry != "" {
 			countryName = licCountry
 		} else if countryName == "" && deriveCountry != "" {
 			countryName = deriveCountry
 		}
 
 		parts := wh1ByMachine[mc]
+		// เผื่อไฟล์ Planning เองมีคอลัมน์ Assembly Parts ติดมาด้วย (หรือถูกเก็บเป็นคอลัมน์นอกสเปก)
+		if parts.no == "" && parts.name == "" && p != nil {
+			parts.no = pickField(p,
+				"Assembly Parts Number", "Assembly_Parts_Number",
+				extraColumnPrefix+"Assembly Parts Number", extraColumnPrefix+"Assembly_Parts_Number")
+			parts.name = pickField(p,
+				"Assembly Parts Name", "Assembly_Parts_Name",
+				extraColumnPrefix+"Assembly Parts Name", extraColumnPrefix+"Assembly_Parts_Name")
+		}
+		if parts.name != "" || parts.no != "" {
+			partsFilled++
+		} else {
+			partsMissing++
+		}
 
 		data := map[string]string{
 			"Machine No":            mc,
@@ -185,9 +322,7 @@ func GenerateAssembly(c *gin.Context) {
 			"Specification Detail":  specDetail,
 			"Country Name":          countryName,
 			"IT device":             itDevice,
-			"IT Controller":         itcNo,
-			"IT Controller No":      planITC,
-			"IT Controller Match":   itcMatch,
+			"IT Controller No":      itcNo,
 			"Swing Motor No":        planSwing,
 			"Pump Assy HYD No":      planPump,
 			"Motor Propel No":       planPropel,
@@ -204,6 +339,12 @@ func GenerateAssembly(c *gin.Context) {
 			cur := map[string]string{}
 			_ = json.Unmarshal([]byte(existing.DataJSON), &cur)
 			changed := false
+			for _, legacy := range legacyAssemblyITCKeys {
+				if _, ok := cur[legacy]; ok {
+					delete(cur, legacy)
+					changed = true
+				}
+			}
 			for k, v := range data {
 				if v != "" && cur[k] != v {
 					cur[k] = v
@@ -253,11 +394,33 @@ func GenerateAssembly(c *gin.Context) {
 
 	CreateAuditLog("UPLOAD_DATA", 0, "generate_assembly", userName, userID, userName)
 
+	message := "ปั๊มตาราง Assembly อัตโนมัติสำเร็จ"
+	var warnings []string
+	if len(wh1) == 0 {
+		warnings = append(warnings,
+			"ยังไม่ได้อัปโหลดข้อมูล WH1 — คอลัมน์ Assembly_Parts_Number / Assembly_Parts_Name จะว่าง "+
+				"และหน้า MFG จะไม่แสดง Model")
+	} else if partsFilled == 0 {
+		warnings = append(warnings,
+			"มีข้อมูล WH1 อยู่ แต่จับคู่กับเครื่องไม่ได้เลย — ตรวจว่าเลข Order No / Work order ในไฟล์ WH1 "+
+				"ตรงกับ KCM Order ในไฟล์ Planning หรือไม่ ถ้าหัวคอลัมน์ชื่อไม่เหมือนกัน ให้ตั้ง Column Alias "+
+				"ที่หน้า Format Settings")
+	} else if partsMissing > 0 {
+		warnings = append(warnings,
+			"มี "+strconv.Itoa(partsMissing)+" เครื่องที่หา Assembly Parts ใน WH1 ไม่เจอ")
+	}
+
 	c.JSON(200, gin.H{
-		"message":  "ปั๊มตาราง Assembly อัตโนมัติสำเร็จ",
-		"machines": len(orderedMachines),
-		"created":  created,
-		"updated":  updated,
-		"skipped":  skipped,
+		"message":          message,
+		"warnings":         warnings,
+		"machines":         len(orderedMachines),
+		"created":          created,
+		"updated":          updated,
+		"skipped":          skipped,
+		"wh1Rows":          len(wh1),
+		"partsFilled":      partsFilled,
+		"partsMissing":     partsMissing,
+		"matchedByMachine": matchedByMachine,
+		"matchedByOrder":   matchedByOrder,
 	})
 }

@@ -171,7 +171,7 @@ export default function MFGAssemblyPage() {
               obj = {}
             }
             const machine = norm(obj['Machine No'])
-            const itc = norm(obj['IT Controller'])
+            const itc = norm(obj['IT Controller No'])
             const info = {
               model: obj['Assembly_Parts_Name'] || '',
               partsNumber: obj['Assembly_Parts_Number'] || '',
