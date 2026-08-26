@@ -129,37 +129,6 @@ func SetupRoutes(r *gin.Engine) {
 		whStock.POST("/mc/upload", controllers.UploadWHMachineStock)
 		whStock.DELETE("/mc/:id", controllers.DeleteWHMachineStock)
 		whStock.DELETE("/mc", controllers.ClearWHMachineStock)
-
-		whStock.GET("/inv", controllers.GetWHInvoice)
-		whStock.POST("/inv/upload", controllers.UploadWHInvoice)
-		whStock.DELETE("/inv/:id", controllers.DeleteWHInvoice)
-		whStock.DELETE("/inv", controllers.ClearWHInvoice)
-	}
-
-	itc := auth.Group("/it-controller")
-	itc.Use(middleware.RoleMiddleware("WH", "LOG"))
-	{
-		itc.GET("/documents", controllers.GetITCDocuments)
-		itc.POST("/documents", controllers.UploadITCDocument)
-
-		itc.GET("/import-licenses", controllers.GetImportLicenses)
-		itc.POST("/import-licenses", controllers.UpsertImportLicense)
-
-		itc.GET("/export-licenses", controllers.GetExportLicenses)
-		itc.POST("/export-licenses", controllers.CreateExportLicense)
-		itc.GET("/export-licenses/:licenseNo/attachment", controllers.DownloadExportAttachment)
-
-		itc.POST("/units/upload", controllers.UploadSerialList)
-		itc.GET("/units", controllers.GetITCUnits)
-		itc.POST("/units/receive", controllers.ReceiveITCUnit)
-		itc.POST("/units/allocate", controllers.AllocateITCUnits)
-		itc.POST("/units/allocate-split", controllers.AllocateITCSplit)
-		itc.POST("/units/issue", controllers.IssueITCUnit)
-		itc.POST("/units/export", controllers.ExportITCUnit)
-
-		itc.GET("/alerts", controllers.GetITCAlerts)
-		itc.GET("/report/weekly", controllers.GetITCWeeklyReport)
-		itc.GET("/trace/:itControllerNo", controllers.TraceITCUnit)
 	}
 
 	auth.POST("/uploads", controllers.UploadPhoto)
@@ -190,16 +159,7 @@ func SetupRoutes(r *gin.Engine) {
 	qa := auth.Group("/qa")
 	qa.Use(middleware.RoleMiddleware("QA"))
 	{
-		qa.GET("", controllers.GetQA)
-		qa.POST("", controllers.CreateQA)
 		qa.GET("/confirmed", controllers.GetQAConfirmedTable)
-	}
-
-	qaConfirm := auth.Group("/qa-confirm")
-	qaConfirm.Use(middleware.RoleMiddleware("QA"))
-	{
-		qaConfirm.GET("", controllers.GetQAConfirm)
-		qaConfirm.POST("/:id", controllers.ConfirmQA)
 	}
 
 	auditLog := auth.Group("/audit-log")

@@ -125,18 +125,6 @@ func buildRegistryIndex() *registryIndex {
 		}
 	}
 
-	var units []models.ITControllerUnit
-	config.DB.Select("it_controller_no", "imei", "serial_no", "part_no", "machine_no").Find(&units)
-	for _, u := range units {
-		add(idx.machine, u.ITControllerNo)
-		add(idx.machine, u.IMEI)
-		add(idx.machine, u.MachineNo)
-		add(idx.sn, u.SerialNo)
-		add(idx.sn, u.ITControllerNo)
-		add(idx.sn, u.IMEI)
-		add(idx.pn, u.PartNo)
-	}
-
 	var mds []models.MasterData
 	config.DB.Select("it_controller_no", "imei", "serial_no", "part_no").Find(&mds)
 	for _, m := range mds {

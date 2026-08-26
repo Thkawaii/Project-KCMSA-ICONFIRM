@@ -31,17 +31,3 @@ export function deleteWHMachineStock(id) {
 export function clearWHMachineStock() {
   return apiFetch('/wh-stock/mc', { method: 'DELETE' })
 }
-
-export function getWHInvoice(q = '') {
-  const qs = q ? `?q=${encodeURIComponent(q)}` : ''
-  return apiFetch(`/wh-stock/inv${qs}`)
-}
-export function uploadWHInvoice(file) {
-  return uploadFile('/wh-stock/inv/upload', file)
-}
-export function deleteWHInvoice(id) {
-  return apiFetch(`/wh-stock/inv/${id}`, { method: 'DELETE' })
-}
-export function clearWHInvoice() {
-  return apiFetch('/wh-stock/inv', { method: 'DELETE' })
-}
