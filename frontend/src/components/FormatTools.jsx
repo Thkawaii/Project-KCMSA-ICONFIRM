@@ -510,7 +510,8 @@ export function PreviewResult({ result }) {
   )
 }
 
-export function ExtraColumnsCell({ json }) {
+export function ExtraColumnsCell({ json, previewCount = 1 }) {
+  const [expanded, setExpanded] = useState(false)
   let obj = null
   try {
     obj = json ? JSON.parse(json) : null
@@ -534,9 +535,15 @@ export function ExtraColumnsCell({ json }) {
     ? Object.entries(obj).filter(([k]) => !HIDDEN_EXTRA.has(normKey(k)))
     : []
   if (entries.length === 0) return <span style={{ color: '#cbd5e1' }}>—</span>
+
+  const limit = Math.max(1, previewCount)
+  const hiddenCount = entries.length - limit
+  const collapsible = hiddenCount > 0
+  const visible = collapsible && !expanded ? entries.slice(0, limit) : entries
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 160 }}>
-      {entries.map(([k, v]) => {
+      {visible.map(([k, v]) => {
         const label = k.replace(/^\[\+\]\s*/, '')
         return (
           <div
@@ -573,6 +580,30 @@ export function ExtraColumnsCell({ json }) {
           </div>
         )
       })}
+      {collapsible && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setExpanded((v) => !v)
+          }}
+          style={{
+            alignSelf: 'flex-start',
+            marginTop: 1,
+            padding: '3px 9px',
+            border: '1px solid #dbe3ee',
+            borderRadius: 999,
+            background: '#fff',
+            color: '#2563eb',
+            fontSize: 11.5,
+            fontWeight: 600,
+            cursor: 'pointer',
+            lineHeight: 1.5,
+          }}
+        >
+          {expanded ? 'ดูน้อยลง' : `ดูเพิ่ม (+${hiddenCount})`}
+        </button>
+      )}
     </div>
   )
 }
