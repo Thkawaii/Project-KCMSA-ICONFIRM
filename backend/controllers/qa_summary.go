@@ -91,9 +91,6 @@ func GetQAConfirmedTable(c *gin.Context) {
 		}
 
 		photoURL := strings.TrimSpace(m.PhotoURL)
-		if photoURL == "" {
-			photoURL = pc.PhotoURL
-		}
 
 		row := QAConfirmedRow{
 			MachineNo:      strings.TrimSpace(m.MachineNo),

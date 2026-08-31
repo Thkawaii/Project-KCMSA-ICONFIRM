@@ -26,13 +26,11 @@ func allModels() []interface{} {
 	return []interface{}{
 		&models.User{},
 		&models.MasterData{},
-		&models.MachineSpec{},
 		&models.AuditLog{},
 		&models.PartCheck{},
 		&models.ImportLicenseItem{},
 		&models.ExportLicenseItem{},
 		&models.UploadDataRow{},
-		&models.WHMachineStock{},
 		&models.MFGAssembly{},
 		&models.MatchingAssembly{},
 		&models.ColumnAlias{},

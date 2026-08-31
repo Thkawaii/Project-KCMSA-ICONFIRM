@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"testing"
 
 	"iconfirm/config"
@@ -158,4 +159,76 @@ func TestScanPartCheckRequiresSN(t *testing.T) {
 	ScanPartCheck(c)
 
 	mustStatus(t, rec, 400)
+}
+
+// สแกน S/N ที่มีในทะเบียนจริง แต่ P/N เป็นของคนละพาร์ท ต้องไม่ผ่าน
+func TestScanPartCheckWrongPart(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
+	seedMaster(t, "YN22E00849FA", "KQ3000045152", "878250022802", "111122223333444")
+	seedLicenseItem(t, "878250022802", "TQ60610", "111122223333444", "E05036901604", "Indonesia", "")
+
+	// P/N ลงท้าย FG แทนที่จะเป็น FA
+	body := `{"partType":"ITC","pn":"YN22E00849FG","sn":"KQ3000045152"}`
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanPartCheck(c)
+
+	mustStatus(t, rec, 201)
+	resp := decodeJSON(t, rec)
+	if resp["matchStatus"] != models.MatchStatusWrongPart {
+		t.Fatalf("matchStatus = %v, want WRONG_PART", resp["matchStatus"])
+	}
+	if resp["matched"] == true {
+		t.Error("matched ต้องไม่เป็น true")
+	}
+
+	var pc models.PartCheck
+	if err := db.Where("part_type = ?", "ITC").First(&pc).Error; err != nil {
+		t.Fatalf("partcheck not saved: %v", err)
+	}
+	// ข้อความที่เด้งเตือนต้องสั้น
+	if pc.MatchMessage != "ข้อมูลไม่ตรง" {
+		t.Errorf("MatchMessage = %q, want ข้อมูลไม่ตรง", pc.MatchMessage)
+	}
+
+	// ใบอนุญาตต้องไม่ถูกยืนยัน
+	var item models.ImportLicenseItem
+	db.Where("machine_no = ?", "878250022802").First(&item)
+	if item.ConfirmStatus == models.LicenseItemConfirmed {
+		t.Error("ใบอนุญาตต้องไม่ถูกยืนยันเมื่อ P/N ไม่ตรง")
+	}
+}
+
+// รายการที่ P/N ไม่ตรง ต้องมีค่าที่ถูกต้องติดมาด้วย เพื่อแสดงบรรทัด "แผน :"
+func TestGetPartChecksFillsExpectedPN(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
+	seedMaster(t, "YN22E00849FA", "KQ3000045152", "878250022802", "111122223333444")
+
+	db.Create(&models.PartCheck{
+		PartType:     "ITC",
+		PN:           "YN22E00849FG",
+		SN:           "KQ3000045152",
+		MatchStatus:  models.MatchStatusWrongPart,
+		MatchMessage: "ข้อมูลไม่ตรง",
+		CheckedBy:    "WH",
+	})
+
+	c, rec := newContext("GET", "", u.ID, u.Username)
+	GetPartChecks(c)
+	mustStatus(t, rec, 200)
+
+	var rows []models.PartCheck
+	if err := json.Unmarshal(rec.Body.Bytes(), &rows); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	if rows[0].ExpectedPN != "YN22E00849FA" {
+		t.Errorf("ExpectedPN = %q, want YN22E00849FA", rows[0].ExpectedPN)
+	}
+	if rows[0].MatchDetail == "" {
+		t.Error("MatchDetail ต้องไม่ว่าง")
+	}
 }

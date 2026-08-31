@@ -949,21 +949,15 @@ function ExportTraceModal({ row, country, onClose }) {
                 </>
               ))}
 
-            {data?.machineSpecs && data.machineSpecs.length > 0 &&
-              linkSection('Machine Spec (สเปคเครื่องจักร)', (
+            {data?.machinePlan &&
+              linkSection('แผนประกอบ (Planning / Assembly)', (
                 <>
-                  {item('ชิ้นส่วนที่ตรงกับเครื่องนี้', `${data.machineSpecs.length} รายการ`)}
-                  {item('รุ่นฐาน', data.machineSpecs[0].BaseSpec)}
-                  {item('ประเทศ', data.machineSpecs[0].CountryName)}
-                </>
-              ))}
-
-            {data?.whStock &&
-              linkSection('WH Stock (ออเดอร์คลัง)', (
-                <>
-                  {item('Warehouse', data.whStock.Warehouse)}
-                  {item('Work Order', data.whStock.WorkOrder)}
-                  {item('Parts No', data.whStock.PartsNo)}
+                  {item('IT Controller ตามแผน', data.machinePlan.ITControllerNo)}
+                  {item('รุ่นฐาน', data.machinePlan.BaseSpec)}
+                  {item('Spec Code', data.machinePlan.Spec1)}
+                  {item('ประเทศ', data.machinePlan.CountryName)}
+                  {item('KCM Order', data.machinePlan.KCMOrder)}
+                  {item('Assembly Parts No.', data.machinePlan.AssemblyPartsNumber)}
                 </>
               ))}
           </div>

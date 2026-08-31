@@ -5,12 +5,6 @@ import "time"
 type PartCheck struct {
 	ID uint `gorm:"primaryKey"`
 
-	Tag string `gorm:"size:100"`
-
-	TagType string `gorm:"size:10"`
-
-	RefNo string `gorm:"size:100"`
-
 	PartType string `gorm:"size:10"`
 
 	PN string `gorm:"size:100"`
@@ -34,22 +28,11 @@ type PartCheck struct {
 
 	CheckedDatetime time.Time
 
-	PhotoURL string `gorm:"size:255"`
-
-	PhotoOCRPN   string `gorm:"size:100"`
-	PhotoOCRSN   string `gorm:"size:100"`
-	PhotoOCRIMEI string `gorm:"size:100"`
-
-	PhotoMatchStatus  string `gorm:"size:20"`
-	PhotoMatchMessage string `gorm:"size:255"`
+	// ค่าที่ถูกต้องตามทะเบียน Master Data — คำนวณสดตอนอ่าน ไม่เก็บลง DB
+	// ใช้แสดงบรรทัด "แผน :" ใต้เลขที่สแกน แบบเดียวกับฝั่ง MFG
+	ExpectedPN  string `gorm:"-"`
+	MatchDetail string `gorm:"-"`
 
 	UserID uint
 	User   User
 }
-
-const (
-	PhotoMatchStatusMatch      = "MATCH"
-	PhotoMatchStatusMismatch   = "MISMATCH"
-	PhotoMatchStatusUnreadable = "UNREADABLE"
-	PhotoMatchStatusSaved      = "SAVED"
-)

@@ -11,6 +11,7 @@ const (
 	MatchStatusMatch       = "MATCH"
 	MatchStatusNotFound    = "NOT_FOUND"
 	MatchStatusWrongInv    = "WRONG_INVOICE"
+	MatchStatusWrongPart   = "WRONG_PART"
 	MatchStatusWrongProd   = "WRONG_PRODNO"
 	MatchStatusDuplicate   = "DUPLICATE"
 	MatchStatusNotRequired = "NOT_REQUIRED"

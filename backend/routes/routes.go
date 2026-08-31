@@ -31,20 +31,8 @@ func SetupRoutes(r *gin.Engine) {
 		}
 	}
 
-	machineSpec := auth.Group("/machine-spec")
-	{
-		machineSpec.GET("", controllers.GetMachineSpecs)
-		machineSpec.GET("/by-machine/:machineNo", controllers.GetMachineSpecByMachineNo)
-		machineSpec.GET("/:id", controllers.GetMachineSpecByID)
-		machineSpec.GET("/export", controllers.ExportMachineSpecs)
-
-		upload := machineSpec.Group("")
-		upload.Use(middleware.RoleMiddleware("UPLOAD", "ADMIN"))
-		{
-			upload.POST("/upload/:type", controllers.UploadMachineSpec)
-			upload.DELETE("/:id", controllers.DeleteMachineSpec)
-		}
-	}
+	// สเปกเครื่องรายคัน ประกอบสดจากไฟล์ Planning/Assembly/Engine ที่อัปโหลดจริง
+	auth.GET("/machine-profile/:machineNo", controllers.GetMachineProfile)
 
 	uploadData := auth.Group("/upload-data")
 	{
@@ -87,7 +75,6 @@ func SetupRoutes(r *gin.Engine) {
 		partCheck.POST("", controllers.ScanPartCheck)
 		partCheck.DELETE("/:id", controllers.DeletePartCheck)
 
-		partCheck.POST("/:id/photo", controllers.UploadPartCheckPhoto)
 	}
 
 	importLicense := auth.Group("/import-license")
@@ -120,15 +107,6 @@ func SetupRoutes(r *gin.Engine) {
 		exportLicense.POST("/renew", controllers.RenewExportLicense)
 		exportLicense.DELETE("/:id", controllers.DeleteExportLicense)
 		exportLicense.DELETE("", controllers.ClearExportLicense)
-	}
-
-	whStock := auth.Group("/wh-stock")
-	whStock.Use(middleware.RoleMiddleware("LOG"))
-	{
-		whStock.GET("/mc", controllers.GetWHMachineStock)
-		whStock.POST("/mc/upload", controllers.UploadWHMachineStock)
-		whStock.DELETE("/mc/:id", controllers.DeleteWHMachineStock)
-		whStock.DELETE("/mc", controllers.ClearWHMachineStock)
 	}
 
 	auth.POST("/uploads", controllers.UploadPhoto)

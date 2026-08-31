@@ -318,4 +318,3 @@ func TestGenerateAssemblyUpsertNoDuplicate(t *testing.T) {
 		t.Fatalf("assembly rows = %d, want 1 (upsert must not duplicate)", count)
 	}
 }
-
