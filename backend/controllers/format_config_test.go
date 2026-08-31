@@ -6,15 +6,9 @@ import (
 	"iconfirm/models"
 )
 
-// เพิ่ม alias ของหมายเลขเครื่องต้องทำได้ ถ้าเครื่องนั้นมีอยู่จริงในระบบ
-//
-// หมายเลขเครื่อง (LX10400691) ไม่ได้อยู่ใน master_data แต่อยู่ในแผนประกอบ /
-// รายการ MFG / ใบอนุญาตส่งออก เดิม registry มองแค่ master_data
-// จึงตอบว่า "ไม่พบ Old (ค่าเดิม) ในระบบ" ทั้งที่มีอยู่
 func TestRegistryIndexKnowsMachineNumbers(t *testing.T) {
 	db := newTestDB(t)
 
-	// เครื่องอยู่ในแผนประกอบเท่านั้น ไม่ได้อยู่ใน master_data
 	seedPlan(t, db, "LX10400691", "878250022802", "Vietnam")
 
 	if !oldValueExistsInRegistry("machine", "LX10400691") {

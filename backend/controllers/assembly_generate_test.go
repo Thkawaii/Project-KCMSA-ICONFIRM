@@ -158,7 +158,7 @@ func TestGenerateAssemblyPartsMatchByOrderKey(t *testing.T) {
 		"Machine":   "LX7",
 		"KCM Order": "0012345",
 	})
-	// ไฟล์ WH1 ไม่มีคอลัมน์เครื่อง และเลข Order เขียนคนละรูปแบบกับ Planning
+
 	seedUploadRow(t, models.DatasetWH1, "", map[string]string{
 		"Order No":              "12345",
 		"Assembly Parts Number": "AP-777",
@@ -193,8 +193,7 @@ func TestGenerateAssemblyPartsMatchByWorkOrderNotFirstField(t *testing.T) {
 		"Machine":   "LX6",
 		"KCM Order": "WO-9001",
 	})
-	// Order No มีค่าแต่จับคู่ไม่ได้ ตัวที่จับคู่ได้คือ Work order
-	// ของเดิม pickField() หยุดที่ Order No แล้วไม่ลองต่อ
+
 	seedUploadRow(t, models.DatasetWH1, "", map[string]string{
 		"Order No":              "99999",
 		"Work order":            "WO9001",
@@ -227,7 +226,7 @@ func TestGenerateAssemblyPartsMergeAcrossRows(t *testing.T) {
 		"Machine":   "LX5",
 		"KCM Order": "ORD-5",
 	})
-	// บรรทัดแรกมีแต่เลข บรรทัดที่สองมีแต่ชื่อ ต้องได้ครบทั้งคู่
+
 	seedUploadRow(t, models.DatasetWH1, "", map[string]string{
 		"Order No":              "ORD-5",
 		"Assembly Parts Number": "AP-555",

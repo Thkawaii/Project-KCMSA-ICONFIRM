@@ -14,8 +14,7 @@ import (
 )
 
 var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
-	// หัวคอลัมน์เดิมของไฟล์ Excel ยังใช้ได้เหมือนเดิม แต่ลงที่ IssueDate ตัวเดียว
-	// ("declarationno" ตัดออก เพราะเป็นเลขเอกสาร ไม่ใช่วันที่ — เอามาแปลงเป็นวันที่ไม่ได้)
+
 	"ใบขนdate":        func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
 	"ใบขน":            func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
 	"ใบขนสินค้า":      func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
@@ -221,7 +220,6 @@ func resolveExportLinks(items []models.ExportLicenseItem) []exportLicenseRow {
 		}
 	}
 
-	// แผนประกอบมาจาก upload_data_rows (Planning/Assembly) ซึ่งเป็นแหล่งที่มีข้อมูลจริง
 	planByMachine := map[string]map[string]string{}
 	if len(machineNos) > 0 {
 		planByMachine = loadMachinePlans()
@@ -440,8 +438,6 @@ func UploadExportLicense(c *gin.Context) {
 		}
 		seen[row.SerialNumber] = true
 
-		// เติมวันที่ออกใบอนุญาต (ถอยไปใช้วันที่ใบขนถ้าไฟล์ไม่ได้ระบุ)
-		// และคำนวณวันหมดอายุ = วันที่ออก + 1 เดือน
 		row.FillDates()
 
 		parsed = append(parsed, row)
@@ -644,7 +640,6 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 	})
 }
 
-// อายุใบอนุญาตส่งออก อ้างอิงค่าเดียวกับฝั่ง model
 const ExportLicenseValidityMonths = models.ExportLicenseValidityMonths
 
 func GetExportLicenseAlerts(c *gin.Context) {
@@ -685,7 +680,6 @@ func GetExportLicenseAlerts(c *gin.Context) {
 			IssueDate:        r.IssueDate,
 		}
 
-		// วันหมดอายุที่บันทึกไว้เชื่อถือได้ที่สุด ถ้ายังไม่มีค่อยคำนวณจากวันที่ออก
 		var expiry *time.Time
 		if r.ExpireDate != nil {
 			expiry = r.ExpireDate

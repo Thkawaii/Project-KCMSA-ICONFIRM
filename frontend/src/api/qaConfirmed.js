@@ -1,5 +1,4 @@
-import { apiFetch } from './client.js'
-
+import { apiFetch } from './client.js';
 export function getQAConfirmedTable() {
-  return apiFetch('/qa/confirmed')
+  return apiFetch('/qa/confirmed');
 }

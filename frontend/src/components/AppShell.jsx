@@ -1,9 +1,8 @@
-import { useAppNavigate, useAppView } from '../lib/nav.jsx'
-import { logout } from '../api/auth.js'
-import { ArrowRightStartOnRectangleIcon } from './icons.jsx'
-import WHAlertBell from './WHAlertBell.jsx'
-import kobelcoLogo from '../assets/brand/kobelco-logo-white.png'
-
+import { useAppNavigate, useAppView } from '../lib/nav.jsx';
+import { logout } from '../api/auth.js';
+import { ArrowRightStartOnRectangleIcon } from './icons.jsx';
+import WHAlertBell from './WHAlertBell.jsx';
+import kobelcoLogo from '../assets/brand/kobelco-logo-white.png';
 const ROLE_LABELS = {
   ADMIN: 'Admin',
   LOG: 'LOG User',
@@ -11,31 +10,27 @@ const ROLE_LABELS = {
   MFG: 'MFG User',
   QA: 'QA User',
   TSF: 'TSF User',
-  UPLOAD: 'Upload',
-}
-
-export default function AppShell({ navItems, roleLabel, children }) {
-  const navigate = useAppNavigate()
-  const currentView = useAppView()
-
-  const role = (localStorage.getItem('iconfirm_role') || '').toUpperCase()
-
-  const visibleNav = (navItems || []).filter((item) => !item.roles || item.roles.includes(role))
-
-  const shownLabel = ROLE_LABELS[role] || roleLabel || 'User'
-  const personName = (localStorage.getItem('iconfirm_name') || '').trim()
-  const displayName = personName || shownLabel
-  const initial = (displayName || 'U').trim().charAt(0).toUpperCase() || 'U'
-
-  const showLicenseBell = role === 'LOG'
-
+  UPLOAD: 'Upload'
+};
+export default function AppShell({
+  navItems,
+  roleLabel,
+  children
+}) {
+  const navigate = useAppNavigate();
+  const currentView = useAppView();
+  const role = (localStorage.getItem('iconfirm_role') || '').toUpperCase();
+  const visibleNav = (navItems || []).filter(item => !item.roles || item.roles.includes(role));
+  const shownLabel = ROLE_LABELS[role] || roleLabel || 'User';
+  const personName = (localStorage.getItem('iconfirm_name') || '').trim();
+  const displayName = personName || shownLabel;
+  const initial = (displayName || 'U').trim().charAt(0).toUpperCase() || 'U';
+  const showLicenseBell = role === 'LOG';
   function handleLogout() {
-    logout()
-    navigate('/login')
+    logout();
+    navigate('/login');
   }
-
-  return (
-    <div className="shell">
+  return <div className="shell">
       <header className="shell-topbar">
         <div className="brand-row">
           <img className="brand-logo-topbar" src={kobelcoLogo} alt="KOBELCO" draggable="false" />
@@ -59,28 +54,16 @@ export default function AppShell({ navItems, roleLabel, children }) {
         </div>
       </header>
 
-      {visibleNav.length > 1 && (
-        <nav className="shell-subnav" aria-label="เมนูภายในระบบ">
-          {visibleNav.map((item) => {
-            const navLabel = (item.labelByRole && item.labelByRole[role]) || item.label
-            return (
-              <button
-                key={item.to}
-                type="button"
-                onClick={() => navigate(item.to)}
-                className={
-                  'shell-subnav-item' + (currentView === item.to ? ' shell-subnav-item-active' : '')
-                }
-              >
+      {visibleNav.length > 1 && <nav className="shell-subnav" aria-label="เมนูภายในระบบ">
+          {visibleNav.map(item => {
+        const navLabel = item.labelByRole && item.labelByRole[role] || item.label;
+        return <button key={item.to} type="button" onClick={() => navigate(item.to)} className={'shell-subnav-item' + (currentView === item.to ? ' shell-subnav-item-active' : '')}>
                 <span className="shell-subnav-icon">{item.icon}</span>
                 {navLabel}
-              </button>
-            )
-          })}
-        </nav>
-      )}
+              </button>;
+      })}
+        </nav>}
 
       <main className="shell-main">{children}</main>
-    </div>
-  )
+    </div>;
 }

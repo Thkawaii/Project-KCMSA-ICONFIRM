@@ -28,8 +28,6 @@ type PartCheck struct {
 
 	CheckedDatetime time.Time
 
-	// ค่าที่ถูกต้องตามทะเบียน Master Data — คำนวณสดตอนอ่าน ไม่เก็บลง DB
-	// ใช้แสดงบรรทัด "แผน :" ใต้เลขที่สแกน แบบเดียวกับฝั่ง MFG
 	ExpectedPN  string `gorm:"-"`
 	MatchDetail string `gorm:"-"`
 

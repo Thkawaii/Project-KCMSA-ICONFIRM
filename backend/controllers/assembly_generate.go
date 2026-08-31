@@ -18,10 +18,6 @@ import (
 var errNoMachinesToGenerate = errors.New(
 	"ยังไม่มีหมายเลขเครื่องให้ปั๊ม — กรุณาอัปโหลดข้อมูล Engine หรือ Planning ก่อน")
 
-// คอลัมน์เก่าของ Assembly ที่เลิกใช้แล้ว
-// "IT Controller" มาจากการไล่เดาห่วงโซ่ (mfg_assemblies → machine_specs → export_license_items)
-// ซึ่งไม่แม่นยำ และซ้ำกับ "IT Controller No" ที่ดึงตรงจาก Planning
-// "IT Controller Match" เป็นแค่ผลเทียบสองค่าข้างบน จึงไม่จำเป็นอีกต่อไป
 var legacyAssemblyITCKeys = []string{"IT Controller", "IT Controller Match"}
 
 func loadUploadRows(dataset string) []map[string]string {
@@ -53,7 +49,7 @@ func machineFromRow(m map[string]string) string {
 	); v != "" {
 		return v
 	}
-	// เผื่อไฟล์ตั้งชื่อหัวคอลัมน์แปลก ๆ แล้วถูกเก็บเป็นคอลัมน์นอกสเปก "[+] ..."
+
 	for k, v := range m {
 		if strings.TrimSpace(v) == "" {
 			continue
@@ -76,15 +72,12 @@ func digitsOnly(s string) string {
 	return b.String()
 }
 
-// joinKeyVariants สร้างคีย์หลายแบบสำหรับจับคู่เลข Order ระหว่างไฟล์ Planning กับ WH1
-// เพราะไฟล์จริงมักไม่ตรงกันเป๊ะ: มีเว้นวรรค ขีด เลขศูนย์นำหน้า หรือ Excel ต่อ ".0" ท้ายมาให้
 func joinKeyVariants(raw string) []string {
 	s := strings.ToUpper(strings.TrimSpace(unwrapExcelText(raw)))
 	if s == "" {
 		return nil
 	}
 
-	// Excel ชอบส่งเลขมาเป็น 123456.0 — ตัดทศนิยมศูนย์ท้ายทิ้งก่อน
 	s = strings.TrimSuffix(s, ".0")
 
 	compact := strings.NewReplacer(" ", "", "-", "", "_", "", "/", "", ".", "").Replace(s)
@@ -94,7 +87,6 @@ func joinKeyVariants(raw string) []string {
 
 	out := []string{compact}
 
-	// เทียบแบบเอาเฉพาะตัวเลข ตัดศูนย์นำหน้า (กัน 0001234 vs 1234)
 	if d := strings.TrimLeft(digitsOnly(compact), "0"); len(d) >= 4 {
 		out = append(out, "#"+d)
 	}
@@ -102,12 +94,8 @@ func joinKeyVariants(raw string) []string {
 	return dedupStrings(out)
 }
 
-// orderKeysFromRow ดึงทุกช่องที่อาจเป็นเลข Order ของแถว WH1 ออกมา
-// ของเดิมใช้ pickField() ซึ่งหยุดที่ช่องแรกที่ไม่ว่าง ถ้าช่องนั้นดันจับคู่ไม่ได้
-// ก็จบเลย ไม่ได้ลองช่องอื่นต่อ เป็นสาเหตุหลักที่ Assembly Parts ไม่ติดมา
 func orderKeysFromRow(m map[string]string) []string {
-	// เรียงลำดับความสำคัญตายตัว ไม่วนตาม map เพราะ map ใน Go ไม่การันตีลำดับ
-	// ถ้าไม่ล็อกลำดับ แถวเดียวกันอาจจับคู่ได้คนละเครื่องในแต่ละรอบ
+
 	priority := []string{"orderno", "workorder", "order", "kcmorder"}
 
 	byField := map[string][]string{}
@@ -134,7 +122,6 @@ func orderKeysFromRow(m map[string]string) []string {
 	return dedupStrings(keys)
 }
 
-// assemblyGenResult สรุปผลการปั๊มตาราง Assembly
 type assemblyGenResult struct {
 	Machines         int      `json:"machines"`
 	Created          int      `json:"created"`
@@ -148,10 +135,6 @@ type assemblyGenResult struct {
 	Warnings         []string `json:"warnings"`
 }
 
-// runAssemblyGeneration ปั๊มตาราง Assembly จากข้อมูลที่อัปโหลดไว้
-//
-// แยกออกมาจาก handler เพื่อให้เรียกอัตโนมัติได้ทันทีหลังอัปโหลดไฟล์
-// ไม่ต้องรอให้ใครเปิดหน้า Assembly ก่อน
 func runAssemblyGeneration(userID uint, userName string) (assemblyGenResult, error) {
 
 	planning := loadUploadRows(models.DatasetPlanning)
@@ -168,7 +151,7 @@ func runAssemblyGeneration(userID uint, userName string) (assemblyGenResult, err
 		if _, ok := planningByMachine[mc]; !ok {
 			planningByMachine[mc] = p
 		}
-		// จับคู่ WH1 ได้จากทั้ง KCM Order และตัวเลขงานอื่นที่ Planning มี
+
 		for _, raw := range []string{p["KCM Order"], p["Work order"], p["Order No"]} {
 			for _, k := range joinKeyVariants(raw) {
 				if _, ok := orderToMachine[k]; !ok {
@@ -178,7 +161,6 @@ func runAssemblyGeneration(userID uint, userName string) (assemblyGenResult, err
 		}
 	}
 
-	// LOT NO. เป็นคีย์สำรอง ใส่ทีหลังเพื่อไม่ให้ไปทับคีย์ Order ที่น่าเชื่อถือกว่า
 	for _, p := range planning {
 		mc := strings.TrimSpace(pickField(p, "Machine", "Machine No"))
 		if mc == "" {
@@ -193,8 +175,7 @@ func runAssemblyGeneration(userID uint, userName string) (assemblyGenResult, err
 
 	type wh1Parts struct{ no, name string }
 	wh1ByMachine := map[string]wh1Parts{}
-	// เติมทีละช่อง ไม่ใช่ first-row-wins ทั้งก้อน
-	// แถว WH1 หนึ่งเครื่องมีหลายบรรทัด บางบรรทัดมีแต่เลข บางบรรทัดมีแต่ชื่อ
+
 	mergeWH1 := func(mc string, row map[string]string) {
 		mc = strings.TrimSpace(mc)
 		if mc == "" {
@@ -225,8 +206,7 @@ func runAssemblyGeneration(userID uint, userName string) (assemblyGenResult, err
 			}
 			continue
 		}
-		// ไม่มีคอลัมน์เครื่องในไฟล์ WH1 ก็ไล่ทุกช่องที่อาจเป็นเลข Order
-		// แล้วเทียบกลับไปหา Planning ทีละคีย์จนกว่าจะเจอ
+
 		for _, k := range orderKeysFromRow(w) {
 			mc, ok := orderToMachine[k]
 			if !ok {
@@ -282,6 +262,7 @@ func runAssemblyGeneration(userID uint, userName string) (assemblyGenResult, err
 		planPump := ""
 		planPropel := ""
 		planValve := ""
+		planCW := ""
 		if p != nil {
 			specCode = strings.TrimSpace(p["Product Spec 1"])
 			specDetail = strings.TrimSpace(p["Product Spec 2"])
@@ -292,6 +273,7 @@ func runAssemblyGeneration(userID uint, userName string) (assemblyGenResult, err
 			planPump = strings.TrimSpace(p["Pump Assy HYD No"])
 			planPropel = strings.TrimSpace(p["Motor Propel No"])
 			planValve = strings.TrimSpace(p["Control Valve No"])
+			planCW = strings.TrimSpace(pickField(p, "CW No", extraColumnPrefix+"CW No"))
 		}
 
 		itcNo := planITC
@@ -309,7 +291,7 @@ func runAssemblyGeneration(userID uint, userName string) (assemblyGenResult, err
 		}
 
 		parts := wh1ByMachine[mc]
-		// เผื่อไฟล์ Planning เองมีคอลัมน์ Assembly Parts ติดมาด้วย (หรือถูกเก็บเป็นคอลัมน์นอกสเปก)
+
 		if parts.no == "" && parts.name == "" && p != nil {
 			parts.no = pickField(p,
 				"Assembly Parts Number", "Assembly_Parts_Number",
@@ -335,6 +317,7 @@ func runAssemblyGeneration(userID uint, userName string) (assemblyGenResult, err
 			"Pump Assy HYD No":      planPump,
 			"Motor Propel No":       planPropel,
 			"Control Valve No":      planValve,
+			"CW No":                 planCW,
 			"Assembly_Parts_Number": parts.no,
 			"Assembly_Parts_Name":   parts.name,
 		}
@@ -429,7 +412,6 @@ func runAssemblyGeneration(userID uint, userName string) (assemblyGenResult, err
 	}, nil
 }
 
-// GenerateAssembly คือปุ่ม "ปั๊มตาราง Assembly" ที่กดเองจากหน้าจอ
 func GenerateAssembly(c *gin.Context) {
 	userID, userName := lookupUserName(c)
 

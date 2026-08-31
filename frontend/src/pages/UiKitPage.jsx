@@ -1,11 +1,8 @@
-import { useState } from 'react'
-import FileDropZone from '../components/Filedropzone.jsx'
-
+import { useState } from 'react';
+import FileDropZone from '../components/Filedropzone.jsx';
 export default function UiKitPage() {
-  const [file, setFile] = useState(null)
-
-  return (
-    <div className="min-h-screen bg-slate-100 font-sans">
+  const [file, setFile] = useState(null);
+  return <div className="min-h-screen bg-slate-100 font-sans">
       <header className="bg-brand-500 px-6 py-5">
         <p className="font-mono text-[11px] tracking-[0.14em] text-white/70 uppercase">
           KOBELCO I-CONFIRM
@@ -67,12 +64,7 @@ export default function UiKitPage() {
         </Section>
 
         <Section title="อัปโหลดไฟล์" note="ลากมาวางได้ทั้งกล่อง หรือกดเพื่อเลือก">
-          <FileDropZone
-            file={file}
-            onSelect={setFile}
-            accept=".xlsx,.xls"
-            label="อัปโหลดบัญชีใบอนุญาตนำเข้า"
-          />
+          <FileDropZone file={file} onSelect={setFile} accept=".xlsx,.xls" label="อัปโหลดบัญชีใบอนุญาตนำเข้า" />
         </Section>
 
         <Section title="ช่องกรอก">
@@ -118,12 +110,7 @@ export default function UiKitPage() {
                 </tr>
               </thead>
               <tbody>
-                {[
-                  ['YN22V00001F1', '2401A00873', 'ok'],
-                  ['LC15V00025S1', '2401A00874', 'warn'],
-                  ['YX53D00001P1', '2401A00901', 'bad'],
-                ].map(([part, sn, state]) => (
-                  <tr key={sn}>
+                {[['YN22V00001F1', '2401A00873', 'ok'], ['LC15V00025S1', '2401A00874', 'warn'], ['YX53D00001P1', '2401A00901', 'bad']].map(([part, sn, state]) => <tr key={sn}>
                     <td className="ui-mono font-semibold text-slate-900">{part}</td>
                     <td className="ui-mono">{sn}</td>
                     <td>
@@ -131,24 +118,23 @@ export default function UiKitPage() {
                         {state === 'ok' ? 'ยืนยันแล้ว' : state === 'warn' ? 'รอสแกน' : 'ไม่ตรงบัญชี'}
                       </span>
                     </td>
-                  </tr>
-                ))}
+                  </tr>)}
               </tbody>
             </table>
           </div>
         </Section>
       </main>
-    </div>
-  )
+    </div>;
 }
-
-function Section({ title, note, children }) {
-  return (
-    <section className="ui-card ui-card-pad">
+function Section({
+  title,
+  note,
+  children
+}) {
+  return <section className="ui-card ui-card-pad">
       <h2 className="ui-title text-base">{title}</h2>
       {note && <p className="ui-subtitle mb-4">{note}</p>}
       {!note && <div className="mb-4" />}
       {children}
-    </section>
-  )
+    </section>;
 }

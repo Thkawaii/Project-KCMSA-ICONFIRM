@@ -1,17 +1,13 @@
-import { useAppNavigate } from '../lib/nav.jsx'
-import kobelcoLogo from '../assets/brand/kobelco-logo-white.png'
-
+import { useAppNavigate } from '../lib/nav.jsx';
+import kobelcoLogo from '../assets/brand/kobelco-logo-white.png';
 export default function DashboardPage() {
-  const navigate = useAppNavigate()
-
+  const navigate = useAppNavigate();
   function handleLogout() {
-    localStorage.removeItem('iconfirm_token')
-    localStorage.removeItem('iconfirm_role')
-    navigate('/login')
+    localStorage.removeItem('iconfirm_token');
+    localStorage.removeItem('iconfirm_role');
+    navigate('/login');
   }
-
-  return (
-    <div className="wh-page">
+  return <div className="wh-page">
       <header className="wh-topbar">
         <div className="brand-row">
           <img className="brand-logo-topbar" src={kobelcoLogo} alt="KOBELCO" draggable="false" />
@@ -29,6 +25,5 @@ export default function DashboardPage() {
           หน้านี้เป็น placeholder — ยังไม่ได้ทำสำหรับ role นี้ (จะทำต่อในสเต็ปถัดไป เช่น QA / TSF Operator)
         </p>
       </main>
-    </div>
-  )
+    </div>;
 }

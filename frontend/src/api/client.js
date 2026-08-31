@@ -1,41 +1,31 @@
-const envBase = import.meta.env.VITE_API_BASE_URL
-export const API_BASE_URL =
-  envBase === undefined || envBase === null ? 'http://localhost:8080' : envBase
-
+const envBase = import.meta.env.VITE_API_BASE_URL;
+export const API_BASE_URL = envBase === undefined || envBase === null ? 'http://localhost:8080' : envBase;
 export function getToken() {
-  return localStorage.getItem('iconfirm_token')
+  return localStorage.getItem('iconfirm_token');
 }
-
 export async function apiFetch(path, options = {}) {
-  const token = getToken()
-
+  const token = getToken();
   const headers = {
     'Content-Type': 'application/json',
-    ...(options.headers || {}),
-  }
-
+    ...(options.headers || {})
+  };
   if (token) {
-    headers.Authorization = `Bearer ${token}`
+    headers.Authorization = `Bearer ${token}`;
   }
-
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
-    headers,
-  })
-
-  let data = null
+    headers
+  });
+  let data = null;
   try {
-    data = await res.json()
-  } catch {
-  }
-
+    data = await res.json();
+  } catch {}
   if (!res.ok) {
-    const message = data?.message || `Request failed (${res.status})`
-    const error = new Error(message)
-    error.status = res.status
-    error.data = data
-    throw error
+    const message = data?.message || `Request failed (${res.status})`;
+    const error = new Error(message);
+    error.status = res.status;
+    error.data = data;
+    throw error;
   }
-
-  return data
+  return data;
 }

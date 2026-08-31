@@ -11,7 +11,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// seedPlan สร้างแถวแผนประกอบใน upload_data_rows เหมือนที่ได้จากไฟล์ Planning จริง
 func seedPlan(t *testing.T, db *gorm.DB, machineNo, itcNo, country string) {
 	t.Helper()
 
@@ -56,11 +55,10 @@ func TestITCUsedOnOtherMachine(t *testing.T) {
 
 	db.Create(&models.MFGAssembly{MachineNo: "LX1", ITControllerNo: "878250022802"})
 
-	// เครื่องเดิม สแกนซ้ำ = ลองใหม่ ไม่ใช่ของซ้ำ
 	if itcUsedOnOtherMachine("LX1", "878250022802", 0) {
 		t.Error("เครื่องเดียวกันไม่ควรนับว่าซ้ำ")
 	}
-	// เครื่องอื่น ใช้เลขเดียวกัน = ซ้ำจริง
+
 	if !itcUsedOnOtherMachine("LX2", "878250022802", 0) {
 		t.Error("เครื่องอื่นใช้เลขเดียวกันต้องนับว่าซ้ำ")
 	}
@@ -84,8 +82,6 @@ func TestFindMFGRowForPair(t *testing.T) {
 	}
 }
 
-// TestMFGStatusFromPlan คือหัวใจของการแก้บั๊ก:
-// WH ยืนยันแล้วอย่างเดียวไม่พอ ต้องประกอบตรงแผนด้วยจึงจะ MATCHED
 func TestMFGStatusFromPlan(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -101,11 +97,9 @@ func TestMFGStatusFromPlan(t *testing.T) {
 		{"ไม่มีแผน", false, PlanStateNoPlan, true, models.MFGStatusNotMatched},
 		{"ไม่มีในทะเบียน", false, PlanStateNotInMaster, true, models.MFGStatusNotMatched},
 
-		// DUPLICATE ใช้เฉพาะกรณี "ของถูกตัว แต่สแกนซ้ำ" เท่านั้น
 		{"ตรงแผน แต่สแกนซ้ำ", true, PlanStateMatch, true, models.MFGStatusDuplicate},
 		{"ตรงแผน สแกนซ้ำ WH ยังไม่ยืนยัน", true, PlanStateMatch, false, models.MFGStatusDuplicate},
 
-		// ผิดแผนต้องชนะ DUPLICATE เสมอ ห้ามให้ป้ายซ้ำมากลบทับปัญหาประกอบผิดตัว
 		{"ผิดแผน + ซ้ำ", true, PlanStateMismatch, true, models.MFGStatusNotMatched},
 		{"ไม่ได้สแกน + ซ้ำ", true, PlanStateNoScan, true, models.MFGStatusNotMatched},
 		{"ไม่มีแผน + ซ้ำ", true, PlanStateNoPlan, true, models.MFGStatusNotMatched},
@@ -141,7 +135,6 @@ func TestPlanResolverEvaluate(t *testing.T) {
 		}
 	})
 
-	// เคสตรงกับรูปที่ผู้ใช้แจ้ง: เครื่อง LX10400690 แต่สแกน ITC ของเครื่อง LX10400691
 	t.Run("ผิดตัว ต้องเป็น MISMATCH", func(t *testing.T) {
 		res := r.evaluate("LX10400690", "878250022802")
 		if res.State != PlanStateMismatch {
@@ -181,15 +174,15 @@ func TestPlanResolverEvaluate(t *testing.T) {
 }
 
 func TestApplyManualStatus(t *testing.T) {
-	// ห้ามยกระดับเป็น MATCHED เอง
+
 	if got := applyManualStatus(models.MFGStatusNotMatched, models.MFGStatusMatched); got != models.MFGStatusNotMatched {
 		t.Errorf("manual MATCHED should be ignored, got %q", got)
 	}
-	// ลดระดับได้
+
 	if got := applyManualStatus(models.MFGStatusMatched, models.MFGStatusNotMatched); got != models.MFGStatusNotMatched {
 		t.Errorf("manual downgrade = %q, want NOT_MATCHED", got)
 	}
-	// ไม่ระบุ = ให้ระบบตัดสิน
+
 	if got := applyManualStatus(models.MFGStatusMatched, ""); got != models.MFGStatusMatched {
 		t.Errorf("empty request = %q, want MATCHED", got)
 	}
@@ -233,9 +226,6 @@ func TestScanMFGAssemblyMatched(t *testing.T) {
 	}
 }
 
-// TestScanMFGAssemblyWrongController จำลองบั๊กที่ผู้ใช้แจ้งมาโดยตรง:
-// เครื่อง LX10400690 ต้องคู่กับ ...801 แต่สแกน ...802 ซึ่ง WH ยืนยันไว้แล้ว
-// ของเดิมจะตอบ MATCHED — ต้องได้ NOT_MATCHED
 func TestScanMFGAssemblyWrongController(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
@@ -245,7 +235,6 @@ func TestScanMFGAssemblyWrongController(t *testing.T) {
 	seedMaster(t, "YN22E00849FA", "KQ3000045091", "878250022801", "359779081234561")
 	seedMaster(t, "YN22E00849FA", "KQ3000045092", "878250022802", "359779081234562")
 
-	// WH ยืนยัน ...802 ไว้แล้ว (แต่มันเป็นของเครื่องอื่น)
 	db.Create(&models.PartCheck{
 		PartType:    "ITC",
 		MachineNo:   "878250022802",
@@ -275,8 +264,6 @@ func TestScanMFGAssemblyWrongController(t *testing.T) {
 	}
 }
 
-// TestGetMFGAssembliesKeepsMismatch กันไม่ให้บั๊กเดิมกลับมา:
-// ตอนดึงรายการมาแสดง ห้ามเขียนทับสถานะเป็น MATCHED เพียงเพราะ WH ยืนยันเลขนั้นไว้
 func TestGetMFGAssembliesKeepsMismatch(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
@@ -288,11 +275,10 @@ func TestGetMFGAssembliesKeepsMismatch(t *testing.T) {
 
 	db.Create(&models.MFGAssembly{
 		MachineNo:      "LX10400690",
-		ITControllerNo: "878250022802", // ผิดตัว
+		ITControllerNo: "878250022802",
 		Status:         models.MFGStatusNotMatched,
 	})
 
-	// WH เพิ่งมายืนยันทีหลัง — จุดนี้แหละที่ของเดิมทำให้สถานะเด้งกลับเป็น MATCHED
 	db.Create(&models.PartCheck{
 		PartType:    "ITC",
 		MachineNo:   "878250022802",
@@ -319,7 +305,6 @@ func TestGetMFGAssembliesKeepsMismatch(t *testing.T) {
 	}
 }
 
-// DUPLICATE ต้องเกิดเฉพาะตอน "ของถูกตัว แต่สแกนไปแล้ว"
 func TestScanMFGAssemblyDuplicate(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
@@ -327,7 +312,6 @@ func TestScanMFGAssemblyDuplicate(t *testing.T) {
 	seedPlan(t, db, "LX10400690", "878250022802", "Indonesia")
 	seedMaster(t, "YN22E00849FA", "KQ3000045092", "878250022802", "359779081234562")
 
-	// เลขนี้ถูกใช้กับ "เครื่องอื่น" ไปแล้ว
 	db.Create(&models.MFGAssembly{MachineNo: "LX0", ITControllerNo: "878250022802"})
 
 	body := `{"machineNo":"LX10400690","itControllerNo":"878250022802"}`
@@ -341,12 +325,6 @@ func TestScanMFGAssemblyDuplicate(t *testing.T) {
 	}
 }
 
-// TestMFGScanRetryAfterWHConfirms คือบั๊กที่ผู้ใช้แจ้ง:
-//
-//	รอบ 1: MFG สแกนก่อน WH ยังไม่ยืนยัน -> NOT_MATCHED  (ถูกต้อง)
-//	รอบ 2: WH ยืนยันแล้ว MFG สแกนเครื่องเดิมซ้ำ
-//	       ของเดิมขึ้น DUPLICATE ทำให้ไม่มีทางได้ MATCHED เลย
-//	       ต้องอัปเดตแถวเดิมเป็น MATCHED แทน และต้องไม่เกิดแถวใหม่
 func TestMFGScanRetryAfterWHConfirms(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
@@ -356,7 +334,6 @@ func TestMFGScanRetryAfterWHConfirms(t *testing.T) {
 
 	body := `{"machineNo":"LX10400690","itControllerNo":"878250022801"}`
 
-	// รอบ 1 — WH ยังไม่ยืนยัน
 	c1, rec1 := newContext("POST", body, u.ID, u.Username)
 	ScanMFGAssembly(c1)
 	mustStatus(t, rec1, 201)
@@ -364,7 +341,6 @@ func TestMFGScanRetryAfterWHConfirms(t *testing.T) {
 		t.Fatalf("รอบ 1: status = %v, want NOT_MATCHED", got)
 	}
 
-	// WH มายืนยันทีหลัง
 	db.Create(&models.PartCheck{
 		PartType:    "ITC",
 		MachineNo:   "878250022801",
@@ -373,7 +349,6 @@ func TestMFGScanRetryAfterWHConfirms(t *testing.T) {
 		CheckedBy:   "WH",
 	})
 
-	// รอบ 2 — สแกนเครื่องเดิมซ้ำ ต้องได้ MATCHED ไม่ใช่ DUPLICATE
 	c2, rec2 := newContext("POST", body, u.ID, u.Username)
 	ScanMFGAssembly(c2)
 	mustStatus(t, rec2, 201)
@@ -386,7 +361,6 @@ func TestMFGScanRetryAfterWHConfirms(t *testing.T) {
 		t.Errorf("รอบ 2: retried = %v, want true", resp["retried"])
 	}
 
-	// ต้องไม่เกิดแถวใหม่
 	var count int64
 	db.Model(&models.MFGAssembly{}).Where("machine_no = ?", "LX10400690").Count(&count)
 	if count != 1 {
@@ -394,7 +368,6 @@ func TestMFGScanRetryAfterWHConfirms(t *testing.T) {
 	}
 }
 
-// สแกนซ้ำหลังบันทึกสำเร็จแล้ว ต้องบอกว่าเคยบันทึกแล้ว และห้ามทำให้ข้อมูลเดิมเสีย
 func TestMFGScanRepeatAfterMatched(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
@@ -426,7 +399,6 @@ func TestMFGScanRepeatAfterMatched(t *testing.T) {
 		t.Errorf("message = %v", resp["message"])
 	}
 
-	// แถวเดิมต้องยังเป็น MATCHED อยู่
 	var row models.MFGAssembly
 	db.Where("machine_no = ?", "LX10400690").First(&row)
 	if row.Status != models.MFGStatusMatched {
@@ -434,9 +406,6 @@ func TestMFGScanRepeatAfterMatched(t *testing.T) {
 	}
 }
 
-// TestScanMFGAssemblyMismatchBeatsDuplicate คือเคสแถวที่ 4 ที่ผู้ใช้แจ้งกลับมา:
-// เครื่อง LX10400692 ต้องคู่กับ ...803 แต่สแกน ...801 ซึ่งเคยบันทึกไปแล้ว
-// ต้องได้ NOT_MATCHED (ประกอบผิดตัว) ไม่ใช่ DUPLICATE
 func TestScanMFGAssemblyMismatchBeatsDuplicate(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
@@ -446,7 +415,6 @@ func TestScanMFGAssemblyMismatchBeatsDuplicate(t *testing.T) {
 	seedMaster(t, "YN22E00849FA", "KQ3000045091", "878250022801", "359779081234561")
 	seedMaster(t, "YN22E00849FB", "KQ3000045093", "878250022803", "359779081234563")
 
-	// ...801 เคยถูกบันทึกไปแล้ว -> เข้าเงื่อนไข duplicate
 	db.Create(&models.MFGAssembly{MachineNo: "LX10400690", ITControllerNo: "878250022801"})
 
 	body := `{"machineNo":"LX10400692","itControllerNo":"878250022801"}`
@@ -467,7 +435,6 @@ func TestScanMFGAssemblyMismatchBeatsDuplicate(t *testing.T) {
 	}
 }
 
-// ไม่สแกน IT Controller ต้องไม่ผ่าน และระบบต้องไม่เติมเลขให้เอง
 func TestScanMFGAssemblyWithoutController(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
@@ -514,7 +481,7 @@ func TestPlanForMachineFallsBackToPlanning(t *testing.T) {
 		"IT Controller No": "878250022803",
 		"Country Name":     "Philippines",
 	})
-	// แถวเก่าที่ไม่ได้เก็บคอลัมน์ machine_no แยกไว้
+
 	db.Create(&models.UploadDataRow{
 		Dataset:  models.DatasetPlanning,
 		DataJSON: string(data),
@@ -533,7 +500,6 @@ func TestPlanForMachineFallsBackToPlanning(t *testing.T) {
 	_ = config.DB
 }
 
-// ข้อความที่เด้งเตือนต้องสั้น ส่วนรายละเอียดไปอยู่ใน Detail
 func TestMFGPlanMessagesAreShort(t *testing.T) {
 	cases := []struct {
 		state string
@@ -553,7 +519,6 @@ func TestMFGPlanMessagesAreShort(t *testing.T) {
 		}
 	}
 
-	// รายละเอียดยังต้องมีข้อมูลครบไว้สืบสาเหตุ
 	res := MFGPlanResult{
 		State:        PlanStateMismatch,
 		PlannedITC:   "878250022503",

@@ -9,12 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// MachineProfile คือสเปกเครื่องหนึ่งคัน ประกอบจากข้อมูลที่อัปโหลดจริง
-// (Planning + Assembly + Engine + ทะเบียน Master Data)
-//
-// เดิมหน้า QA ดึงจากตาราง machine_specs ซึ่งไม่มีข้อมูลเลย หน้าจอจึงขึ้น
-// "ไม่พบข้อมูลเครื่องนี้ในระบบ" ตลอด — ย้ายมาอ่านจากแหล่งที่มีข้อมูลจริง
-// ชื่อฟิลด์ยังคงเดิมทุกตัว เพื่อให้หน้า QA ใช้ต่อได้โดยไม่ต้องแก้โครงสร้าง
 type MachineProfile struct {
 	MachineNo string `json:"MachineNo"`
 
@@ -126,7 +120,6 @@ func buildMachineProfile(machineNo string, plan map[string]string) MachineProfil
 	return p
 }
 
-// fillEngineFromUpload เติมข้อมูลเครื่องยนต์จากไฟล์ Engine ที่อัปโหลดแยกไว้
 func fillEngineFromUpload(p *MachineProfile) {
 	if p.MachineNo == "" {
 		return
@@ -145,7 +138,6 @@ func fillEngineFromUpload(p *MachineProfile) {
 	}
 }
 
-// fillITControllerFromMaster เติม P/N และ S/N ของ IT Controller จากทะเบียน Master Data
 func fillITControllerFromMaster(p *MachineProfile) {
 	if p.ITControllerNo == "" {
 		return

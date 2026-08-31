@@ -9,10 +9,6 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-// ตัวช่วยอ่านไฟล์ Excel/CSV ที่แนบมากับ request
-// เดิมอยู่ในไฟล์ wh_stock.go ซึ่งถูกลบไปพร้อมฟีเจอร์ WH Stock ที่เลิกใช้
-// แต่ตัวอ่านไฟล์นี้ยังถูกใช้โดยหน้าอัปโหลด Export License จึงย้ายออกมาไว้ที่นี่
-
 var (
 	errUploadNoFile    = errors.New("กรุณาแนบไฟล์ Excel หรือ CSV (field name: file)")
 	errUploadOpen      = errors.New("เปิดไฟล์ไม่สำเร็จ")
@@ -20,8 +16,6 @@ var (
 	errUploadReadExcel = errors.New("อ่านไฟล์ Excel ไม่สำเร็จ")
 )
 
-// readSheetRows อ่านแถวทั้งหมดจากไฟล์ที่แนบมา
-// names คือรายชื่อชีตที่อยากได้ (ผ่าน normalizeHeader แล้ว) ถ้าไม่เจอจะใช้ชีตแรก
 func readSheetRows(c *gin.Context, names []string) ([][]string, string, error) {
 	fileHeader, err := c.FormFile("file")
 	if err != nil {

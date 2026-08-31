@@ -1498,7 +1498,6 @@
   color: #c2410c;
 }
 
-/* คำใบ้ใต้เลข IT Controller เมื่อประกอบไม่ตรงแผนใน Master Data */
 .mfg-plan-hint {
   display: block;
   margin-top: 2px;
@@ -1509,7 +1508,6 @@
   white-space: nowrap;
 }
 
-/* รายละเอียดสาเหตุในหน้าต่างรายละเอียดการสแกน (WH) */
 .wh-detail-result-detail {
   margin-top: 6px;
   padding: 8px 10px;
@@ -1519,4 +1517,17 @@
   font-size: 12px;
   line-height: 1.5;
   color: #b91c1c;
+}
+
+.mfg-part-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  font-size: 10px;
+  font-weight: 700;
+  color: #4338ca;
+  vertical-align: middle;
 }
