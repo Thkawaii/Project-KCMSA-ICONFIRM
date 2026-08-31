@@ -633,7 +633,7 @@ func GetUploadData(c *gin.Context) {
 
 	var rows []models.UploadDataRow
 	applyFilter(config.DB.Preload("User")).
-		Order("row_no asc").Order("id asc").
+		Order("id asc").
 		Limit(limit).Offset((page - 1) * limit).
 		Find(&rows)
 
@@ -826,7 +826,6 @@ func UploadDataFile(c *gin.Context) {
 func fillUploadDataKeys(row *models.UploadDataRow, dataset string, data map[string]string) {
 	switch dataset {
 	case models.DatasetPlanning:
-		row.RowNo = atoiSafe(data["Line"])
 		row.MachineNo = normalizeDigitCell(data["Machine"])
 		row.LotNo = data["LOT NO."]
 		row.KCMOrder = data["KCM Order"]
@@ -835,7 +834,6 @@ func fillUploadDataKeys(row *models.UploadDataRow, dataset string, data map[stri
 		row.PartsNo = data["Parts No"]
 		row.WorkOrder = data["Work order"]
 	case models.DatasetWH2:
-		row.RowNo = atoiSafe(data["Order"])
 		row.OrderNo = data["ORDER No."]
 		row.PartsNo = data["Parts No"]
 	case models.DatasetEngine:
@@ -953,7 +951,7 @@ func ExportUploadData(c *gin.Context) {
 
 	var rows []models.UploadDataRow
 	config.DB.Where("dataset = ?", dataset).
-		Order("row_no asc").Order("id asc").
+		Order("id asc").
 		Find(&rows)
 
 	labels := udDatasetColumnLabels(dataset)

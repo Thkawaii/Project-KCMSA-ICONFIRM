@@ -14,14 +14,15 @@ import (
 )
 
 var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
-	"ใบขนdate":        func(m *models.ExportLicenseItem, v string) { m.DeclarationDate = parseLicenseDate(v) },
-	"ใบขน":            func(m *models.ExportLicenseItem, v string) { m.DeclarationDate = parseLicenseDate(v) },
-	"ใบขนสินค้า":      func(m *models.ExportLicenseItem, v string) { m.DeclarationDate = parseLicenseDate(v) },
-	"ใบขนขาออก":       func(m *models.ExportLicenseItem, v string) { m.DeclarationDate = parseLicenseDate(v) },
-	"declarationdate": func(m *models.ExportLicenseItem, v string) { m.DeclarationDate = parseLicenseDate(v) },
-	"declaration":     func(m *models.ExportLicenseItem, v string) { m.DeclarationDate = parseLicenseDate(v) },
-	"declarationno":   func(m *models.ExportLicenseItem, v string) { m.DeclarationDate = parseLicenseDate(v) },
-	"customsdate":     func(m *models.ExportLicenseItem, v string) { m.DeclarationDate = parseLicenseDate(v) },
+	// หัวคอลัมน์เดิมของไฟล์ Excel ยังใช้ได้เหมือนเดิม แต่ลงที่ IssueDate ตัวเดียว
+	// ("declarationno" ตัดออก เพราะเป็นเลขเอกสาร ไม่ใช่วันที่ — เอามาแปลงเป็นวันที่ไม่ได้)
+	"ใบขนdate":        func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"ใบขน":            func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"ใบขนสินค้า":      func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"ใบขนขาออก":       func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"declarationdate": func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"declaration":     func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"customsdate":     func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
 
 	"exceptionlicense": func(m *models.ExportLicenseItem, v string) { m.ExceptionLicense = strings.TrimSpace(v) },
 	"exception":        func(m *models.ExportLicenseItem, v string) { m.ExceptionLicense = strings.TrimSpace(v) },
@@ -39,6 +40,12 @@ var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"serailnumber": func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
 	"หมายเลขซีเรียล": func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
 	"ซีเรียล":        func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
+
+	"issuedate":         func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"exportlicensedate": func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"licensedate":       func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"วันที่ออกใบอนุญาต": func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"วันนำออกใบอนุญาต":  func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
 
 	"expiredate": func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
 	"expire":     func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
@@ -432,6 +439,11 @@ func UploadExportLicense(c *gin.Context) {
 			continue
 		}
 		seen[row.SerialNumber] = true
+
+		// เติมวันที่ออกใบอนุญาต (ถอยไปใช้วันที่ใบขนถ้าไฟล์ไม่ได้ระบุ)
+		// และคำนวณวันหมดอายุ = วันที่ออก + 1 เดือน
+		row.FillDates()
+
 		parsed = append(parsed, row)
 	}
 
@@ -632,7 +644,8 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 	})
 }
 
-const ExportLicenseValidityMonths = 1
+// อายุใบอนุญาตส่งออก อ้างอิงค่าเดียวกับฝั่ง model
+const ExportLicenseValidityMonths = models.ExportLicenseValidityMonths
 
 func GetExportLicenseAlerts(c *gin.Context) {
 	withinDays := 7
@@ -650,7 +663,7 @@ func GetExportLicenseAlerts(c *gin.Context) {
 		ID               uint       `json:"ID"`
 		SerialNumber     string     `json:"SerialNumber"`
 		ExceptionLicense string     `json:"ExceptionLicense"`
-		DeclarationDate  *time.Time `json:"DeclarationDate"`
+		IssueDate        *time.Time `json:"IssueDate"`
 		ExpiryDate       *time.Time `json:"ExpiryDate"`
 		DaysLeft         int        `json:"DaysLeft"`
 		Status           string     `json:"Status"`
@@ -669,15 +682,16 @@ func GetExportLicenseAlerts(c *gin.Context) {
 			ID:               r.ID,
 			SerialNumber:     r.SerialNumber,
 			ExceptionLicense: r.ExceptionLicense,
-			DeclarationDate:  r.DeclarationDate,
+			IssueDate:        r.IssueDate,
 		}
 
+		// วันหมดอายุที่บันทึกไว้เชื่อถือได้ที่สุด ถ้ายังไม่มีค่อยคำนวณจากวันที่ออก
 		var expiry *time.Time
-		if r.DeclarationDate != nil {
-			e := r.DeclarationDate.AddDate(0, ExportLicenseValidityMonths, 0)
-			expiry = &e
-		} else if r.ExpireDate != nil {
+		if r.ExpireDate != nil {
 			expiry = r.ExpireDate
+		} else if r.IssueDate != nil {
+			e := r.IssueDate.AddDate(0, ExportLicenseValidityMonths, 0)
+			expiry = &e
 		}
 
 		if expiry == nil {
@@ -842,21 +856,27 @@ func RenewExportLicense(c *gin.Context) {
 	updated := 0
 	for i := range rows {
 		base := noDateBase
-		if rows[i].DeclarationDate != nil {
-			base = *rows[i].DeclarationDate
+		if rows[i].IssueDate != nil {
+			base = *rows[i].IssueDate
 		}
 		newDate := base.AddDate(0, 0, req.Days)
+		newExp := newDate.AddDate(0, ExportLicenseValidityMonths, 0)
+
 		if err := config.DB.Model(&models.ExportLicenseItem{}).
 			Where("id = ?", rows[i].ID).
-			Update("declaration_date", newDate).Error; err != nil {
+			Updates(map[string]interface{}{
+				"issue_date":  newDate,
+				"expire_date": newExp,
+			}).Error; err != nil {
 			c.JSON(500, gin.H{"message": err.Error()})
 			return
 		}
-		rows[i].DeclarationDate = &newDate
+		rows[i].IssueDate = &newDate
+		rows[i].ExpireDate = &newExp
 		updated++
 	}
 
-	newExpiry := rows[0].DeclarationDate.AddDate(0, ExportLicenseValidityMonths, 0)
+	newExpiry := rows[0].IssueDate.AddDate(0, ExportLicenseValidityMonths, 0)
 
 	userID, userName := lookupUserName(c)
 	CreateAuditLog("EXPORT_LICENSE", 0, "renew",

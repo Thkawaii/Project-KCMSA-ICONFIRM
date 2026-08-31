@@ -820,7 +820,7 @@ function DatasetView({ dataset }) {
       ]
 
       const rows = parsed.map((obj, idx) => {
-        const out = { _no: all[idx]?.RowNo || idx + 1 }
+        const out = { _no: idx + 1 }
         cols.forEach((label, i) => {
           const raw = obj[label]
           if (numericByCol[i]) {
@@ -945,7 +945,7 @@ function DatasetView({ dataset }) {
             {!loading &&
               rows.map((row, i) => (
                 <tr key={row.ID}>
-                  <td className="ud-td-sticky">{row.RowNo || (page - 1) * UD_PAGE_SIZE + i + 1}</td>
+                  <td className="ud-td-sticky">{(page - 1) * UD_PAGE_SIZE + i + 1}</td>
                   {columns.map((c) => (
                     <td key={c} data-label={c}>
                       {cellValue(row, c) || DASH}

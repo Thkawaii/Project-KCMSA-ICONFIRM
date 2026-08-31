@@ -11,11 +11,9 @@ const (
 )
 
 type UploadDataRow struct {
-	ID uint `gorm:"primaryKey;index:idx_ud_ds_order,priority:3"`
+	ID uint `gorm:"primaryKey;index:idx_ud_ds_order,priority:2"`
 
 	Dataset string `gorm:"size:20;index;not null;index:idx_ud_ds_order,priority:1"`
-
-	RowNo int `gorm:"index;index:idx_ud_ds_order,priority:2"`
 
 	MachineNo string `gorm:"size:100;index"`
 	LotNo     string `gorm:"size:100;index"`

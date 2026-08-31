@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"testing"
+	"time"
 
 	"iconfirm/config"
 	"iconfirm/models"
@@ -124,5 +125,36 @@ func TestMatchImportLicenseCodeAlias(t *testing.T) {
 	}
 	if item == nil || item.MachineNo != "878250022802" {
 		t.Fatalf("alias did not resolve to standard row: %+v", item)
+	}
+}
+
+// วันหมดอายุต้องถูกคำนวณและเก็บลงฐานข้อมูล ไม่ใช่คำนวณสดที่หน้าจออย่างเดียว
+func TestImportLicenseFillExpireDate(t *testing.T) {
+	issue := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+
+	m := models.ImportLicenseItem{IssueDate: &issue}
+	m.FillExpireDate()
+
+	if m.ExpireDate == nil {
+		t.Fatal("ExpireDate ต้องถูกเติมให้")
+	}
+	want := issue.AddDate(0, 6, 0)
+	if !m.ExpireDate.Equal(want) {
+		t.Errorf("ExpireDate = %v, want %v (ออก + 6 เดือน)", m.ExpireDate, want)
+	}
+
+	// ถ้าไฟล์ระบุมาเองแล้ว ห้ามเขียนทับ
+	custom := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+	m2 := models.ImportLicenseItem{IssueDate: &issue, ExpireDate: &custom}
+	m2.FillExpireDate()
+	if !m2.ExpireDate.Equal(custom) {
+		t.Errorf("ExpireDate ถูกเขียนทับ = %v, want %v", m2.ExpireDate, custom)
+	}
+
+	// ไม่มีวันที่ออก ก็ไม่ต้องเดา
+	m3 := models.ImportLicenseItem{}
+	m3.FillExpireDate()
+	if m3.ExpireDate != nil {
+		t.Error("ไม่มี IssueDate ต้องไม่เติม ExpireDate")
 	}
 }
