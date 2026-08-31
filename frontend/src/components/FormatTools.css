@@ -62,6 +62,17 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+.fmt-actions {
+  border-radius: 10px;
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+.fmt-actions.is-drag-over {
+  padding: 10px;
+  margin-top: 4px;
+}
+.fmt-actions.is-drag-over * {
+  pointer-events: none;
+}
 .fmt-add-btn {
   min-width: 120px;
   height: 40px;

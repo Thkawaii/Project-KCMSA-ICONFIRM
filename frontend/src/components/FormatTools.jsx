@@ -5,6 +5,7 @@ import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js';
 import { getColumnAliases, createColumnAlias, deleteColumnAlias, getCodeAliases, createCodeAlias, deleteCodeAlias, uploadCodeAliases } from '../api/formatConfig.js';
 import { updateMasterData } from '../api/masterData.js';
 import { buildStyledXlsxBlob, downloadBlob } from '../lib/xlsx.js';
+import useFileDrop from '../lib/useFileDrop.js';
 const panelStyle = {
   border: '1px solid #e2e8f0',
   borderRadius: 12,
@@ -314,6 +315,9 @@ export function CodeAliasPanel({
   async function handleUpload(e) {
     const file = e.target.files?.[0];
     e.target.value = '';
+    await uploadFile(file);
+  }
+  async function uploadFile(file) {
     if (!file) return;
     setUploading(true);
     try {
@@ -332,6 +336,17 @@ export function CodeAliasPanel({
       setUploading(false);
     }
   }
+  const {
+    dragging: aliasDragging,
+    stateClass: aliasDropState,
+    dropProps: aliasDropProps
+  } = useFileDrop({
+    accept: '.xlsx,.xls,.csv',
+    disabled: uploading,
+    onFile: uploadFile,
+    onReject: (file, hint) => toastError(`ไฟล์ "${file.name}" ไม่รองรับ — ต้องเป็น ${hint}`)
+  });
+
   function handleDownloadSample() {
     const columns = [{
       key: 'new',
@@ -402,17 +417,17 @@ export function CodeAliasPanel({
         </div>
       </div>
 
-      <div className="fmt-actions">
+      <div className={['fmt-actions', aliasDropState].filter(Boolean).join(' ')} {...aliasDropProps}>
         <button className="wh-issue-btn fmt-action-btn" type="button" onClick={handleDownloadSample}>
           ดาวน์โหลดตัวอย่าง
         </button>
         <label className="wh-issue-btn fmt-action-btn" style={{
         cursor: 'pointer'
-      }}>
+      }} title="ลากไฟล์มาวางตรงนี้ก็ได้">
           <input type="file" accept=".xlsx,.xls,.csv" onChange={handleUpload} style={{
           display: 'none'
         }} disabled={uploading} />
-          {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลดหลายรายการจากไฟล์'}
+          {uploading ? 'กำลังอัปโหลด...' : aliasDragging ? 'ปล่อยไฟล์ได้เลย' : 'อัปโหลดหลายรายการจากไฟล์ (ลากวางได้)'}
         </label>
         <button className="wh-issue-btn fmt-add-btn" onClick={handleAdd} disabled={saving}>
           {saving ? 'กำลังเพิ่ม...' : 'เพิ่ม'}

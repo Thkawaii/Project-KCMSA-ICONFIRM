@@ -452,6 +452,22 @@
   color: var(--brand-600);
 }
 
+.upload-dropzone-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: var(--brand-50, #ecfeff);
+  color: var(--brand-600, #00a39d);
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.upload-dropzone.is-drag-over * {
+  pointer-events: none;
+}
+
 .upload-dropzone-filled {
   border-style: solid;
   border-color: var(--brand-500);

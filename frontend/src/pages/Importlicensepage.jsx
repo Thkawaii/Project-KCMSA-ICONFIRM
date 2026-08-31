@@ -322,9 +322,7 @@ export default function ImportLicensePage() {
           setUploadMsg(null);
           setPreviewData(null);
         }} accept=".xlsx,.xls,.csv" label="อัปโหลดบัญชีใบอนุญาตนำเข้า" hint="ไฟล์ Excel หรือ CSV ที่มีคอลัมน์ หมายเลขเครื่อง / หมายเลขการผลิต / เลขใบอนุญาตนำเข้า / เลขอินวอยซ์นำเข้า" disabled={uploading} />
-          <button className="wh-modal-cancel" onClick={handlePreview} disabled={previewing || uploading || !file} style={{
-          marginRight: 8
-        }}>
+          <button className="wh-modal-cancel" onClick={handlePreview} disabled={previewing || uploading || !file}>
             {previewing ? 'กำลังตรวจสอบ...' : 'ตรวจสอบก่อนอัปโหลด'}
           </button>
           <button className="wh-issue-btn" onClick={handleUpload} disabled={uploading || !file}>
@@ -1181,9 +1179,7 @@ export function WHExportLicensePanel() {
           setMsg(null);
           setPreviewData(null);
         }} accept=".xlsx,.xls,.csv" label="อัปโหลดบัญชีใบอนุญาตส่งออก" hint="ไฟล์ Excel หรือ CSV ที่มีคอลัมน์ ใบขน (Date) / Exception License / Serial Number / Expire date (อัปโหลดซ้ำ Serial เดิม ระบบทับให้)" disabled={uploading} />
-          <button className="wh-modal-cancel" onClick={handlePreview} disabled={previewing || uploading || !file} style={{
-          marginRight: 8
-        }}>
+          <button className="wh-modal-cancel" onClick={handlePreview} disabled={previewing || uploading || !file}>
             {previewing ? 'กำลังตรวจสอบ...' : 'ตรวจสอบก่อนอัปโหลด'}
           </button>
           <button className="wh-issue-btn" onClick={handleUpload} disabled={uploading || !file}>

@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { ArrowUpTrayIcon, XMarkIcon } from './icons.jsx';
+import useFileDrop from '../lib/useFileDrop.js';
 export default function FileDropZone({
   file,
   onSelect,
@@ -9,7 +10,6 @@ export default function FileDropZone({
   disabled = false
 }) {
   const inputRef = useRef(null);
-  const [dragging, setDragging] = useState(false);
   const extensions = accept.split(',').map(a => a.trim().replace('.', '').toUpperCase()).filter(Boolean);
   function accepts(candidate) {
     if (!extensions.length) return true;
@@ -21,19 +21,20 @@ export default function FileDropZone({
     if (!accepts(candidate)) return;
     onSelect(candidate);
   }
-  function handleDrop(e) {
-    e.preventDefault();
-    setDragging(false);
-    pick(e.dataTransfer.files?.[0]);
-  }
+  const {
+    dragging,
+    stateClass,
+    dropProps
+  } = useFileDrop({
+    accept,
+    disabled,
+    onFile: pick
+  });
   function openPicker() {
     if (!disabled) inputRef.current?.click();
   }
-  const className = ['fdz', dragging ? 'fdz-dragging' : '', file ? 'fdz-filled' : '', disabled ? 'fdz-disabled' : ''].filter(Boolean).join(' ');
-  return <div className={className} onClick={openPicker} onDragOver={e => {
-    e.preventDefault();
-    if (!disabled) setDragging(true);
-  }} onDragLeave={() => setDragging(false)} onDrop={handleDrop} onKeyDown={e => {
+  const className = ['fdz', file ? 'fdz-filled' : '', disabled ? 'fdz-disabled' : '', stateClass].filter(Boolean).join(' ');
+  return <div className={className} onClick={openPicker} {...dropProps} onKeyDown={e => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       openPicker();
@@ -48,7 +49,7 @@ export default function FileDropZone({
             <span className="fdz-name">{file.name}</span>
             <span className="fdz-meta">{formatSize(file.size)} · กดเพื่อเปลี่ยนไฟล์</span>
           </> : <>
-            <span className="fdz-label">{label}</span>
+            <span className="fdz-label">{dragging ? <span className="dz-drop-text"><span className="dz-arrow">↓</span> ปล่อยไฟล์ได้เลย</span> : label}</span>
             <span className="fdz-meta">
               {hint || (extensions.length ? `ลากไฟล์มาวาง หรือกดเพื่อเลือก · ${extensions.join(' / ')}` : 'ลากไฟล์มาวาง หรือกดเพื่อเลือก')}
             </span>
