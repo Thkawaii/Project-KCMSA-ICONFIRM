@@ -5,7 +5,6 @@ import ImportLicensePage from './pages/Importlicensepage.jsx'
 import ExportLicensePage from './pages/Exportlicensepage.jsx'
 import WHPartConfirmationPage from './pages/Whpartconfirmationpage.jsx'
 import DashboardPage from './pages/Dashboardpage.jsx'
-import UploadViewPage from './pages/UploadViewpage.jsx'
 import MasterDataPage from './pages/MasterDataPage.jsx'
 import MFGAssemblyPage from './pages/Mfgassemblypage.jsx'
 import FormatSettingsPage from './pages/Formatsettingspage.jsx'
@@ -34,7 +33,6 @@ const ROUTE_CONFIG = {
   '/warehouse/confirm': { component: WHPartConfirmationPage, roles: ['WH', 'LOG'] },
   '/mfg-assembly': { component: MFGAssemblyPage, roles: ['MFG'] },
   '/admin': { component: AdminDashboardPage, roles: ['ADMIN'] },
-  '/upload': { component: UploadViewPage, roles: ['UPLOAD'] },
   '/master-data': { component: MasterDataPage, roles: ['UPLOAD'] },
   '/format-settings': { component: FormatSettingsPage, roles: ['UPLOAD', 'ADMIN'] },
   '/admin/master-data': { component: MasterDataPage, roles: ['ADMIN'] },

@@ -48,12 +48,16 @@ const STATUS_META = {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'MATCHED', label: 'MATCHED — ตรงกับใบอนุญาต' },
   { value: 'NOT_MATCHED', label: 'NOT_MATCHED — ยังไม่ตรง/ยังไม่ยืนยัน' },
   { value: 'DUPLICATE', label: 'DUPLICATE — ซ้ำ' },
 ]
 
-const STATUS_FILTER_OPTIONS = [{ value: 'all', label: 'ทุกสถานะ' }, ...STATUS_OPTIONS]
+// MATCHED ตั้งเองไม่ได้ — ระบบเป็นคนตัดสินจากการเทียบแผนประกอบ + การยืนยันของ WH
+const STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: 'ทุกสถานะ' },
+  { value: 'MATCHED', label: 'MATCHED — ตรงแผนและตรงใบอนุญาต' },
+  ...STATUS_OPTIONS,
+]
 
 const EMPTY_FORM = {
   item: '',
@@ -626,6 +630,11 @@ export default function MFGAssemblyPage() {
                     </td>
                     <td className="il-mono" data-label="IT Controller No.">
                       {a.ITControllerNo || '—'}
+                      {a.PlanState === 'MISMATCH' && a.PlanITControllerNo && (
+                        <span className="mfg-plan-hint" title={a.PlanDetail || a.PlanMessage}>
+                          แผน: {a.PlanITControllerNo}
+                        </span>
+                      )}
                     </td>
                     <td data-label="Model" title={asmTitle}>
                       {asm && asm.model ? (
@@ -663,7 +672,9 @@ export default function MFGAssemblyPage() {
                       )}
                     </td>
                     <td data-label="Status">
-                      <span className={meta.cls}>{meta.label}</span>
+                      <span className={meta.cls} title={a.PlanDetail || a.PlanMessage || ''}>
+                        {meta.label}
+                      </span>
                     </td>
                     <td className="wh-cell-action">
                       {asm && (

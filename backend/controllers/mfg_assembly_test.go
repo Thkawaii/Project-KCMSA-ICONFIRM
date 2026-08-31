@@ -1,11 +1,40 @@
 package controllers
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
-	"time"
 
+	"iconfirm/config"
 	"iconfirm/models"
+
+	"gorm.io/gorm"
 )
+
+// seedPlan สร้างแถวแผนประกอบใน upload_data_rows เหมือนที่ได้จากไฟล์ Planning จริง
+func seedPlan(t *testing.T, db *gorm.DB, machineNo, itcNo, country string) {
+	t.Helper()
+
+	data := map[string]string{
+		"Machine No":       machineNo,
+		"IT Controller No": itcNo,
+		"Country Name":     country,
+	}
+	b, err := json.Marshal(data)
+	if err != nil {
+		t.Fatalf("marshal plan: %v", err)
+	}
+
+	row := models.UploadDataRow{
+		Dataset:   models.DatasetAssembly,
+		MachineNo: machineNo,
+		DataJSON:  string(b),
+		FileName:  "test-plan",
+	}
+	if err := db.Create(&row).Error; err != nil {
+		t.Fatalf("seed plan: %v", err)
+	}
+}
 
 func TestLookupMFGCountry(t *testing.T) {
 	newTestDB(t)
@@ -22,118 +51,156 @@ func TestLookupMFGCountry(t *testing.T) {
 	}
 }
 
-func TestIsMFGDuplicateAndStatus(t *testing.T) {
+func TestITCUsedOnOtherMachine(t *testing.T) {
 	db := newTestDB(t)
-
-	if isMFGDuplicate("878250022802") {
-		t.Error("should not be duplicate before any record")
-	}
 
 	db.Create(&models.MFGAssembly{MachineNo: "LX1", ITControllerNo: "878250022802"})
 
-	if !isMFGDuplicate("878250022802") {
-		t.Error("should be duplicate after record exists")
+	// เครื่องเดิม สแกนซ้ำ = ลองใหม่ ไม่ใช่ของซ้ำ
+	if itcUsedOnOtherMachine("LX1", "878250022802", 0) {
+		t.Error("เครื่องเดียวกันไม่ควรนับว่าซ้ำ")
 	}
-	if isMFGDuplicate("") {
-		t.Error("empty itc should never be duplicate")
+	// เครื่องอื่น ใช้เลขเดียวกัน = ซ้ำจริง
+	if !itcUsedOnOtherMachine("LX2", "878250022802", 0) {
+		t.Error("เครื่องอื่นใช้เลขเดียวกันต้องนับว่าซ้ำ")
 	}
-
-	if got := computeMFGStatus("878250022802", true); got != models.MFGStatusDuplicate {
-		t.Errorf("status = %q, want DUPLICATE (dup wins over wh-matched)", got)
-	}
-	if got := computeMFGStatus("newITC", true); got != models.MFGStatusMatched {
-		t.Errorf("status = %q, want MATCHED", got)
-	}
-	if got := computeMFGStatus("newITC", false); got != models.MFGStatusNotMatched {
-		t.Errorf("status = %q, want NOT_MATCHED", got)
+	if itcUsedOnOtherMachine("LX2", "", 0) {
+		t.Error("ไม่มีเลข ITC ไม่ควรนับว่าซ้ำ")
 	}
 }
 
-func TestDeriveMFGFromMachine(t *testing.T) {
+func TestFindMFGRowForPair(t *testing.T) {
 	db := newTestDB(t)
-	db.Create(&models.MachineSpec{
-		MachineNo:      "LX10400690",
-		ITControllerSN: "KQ3000045093",
-		CountryName:    "Indonesia",
-		UploadDate:     time.Now(),
-	})
-	seedMaster(t, "YN22E00849FA", "KQ3000045093", "878250022802", "")
+	db.Create(&models.MFGAssembly{MachineNo: "LX1", ITControllerNo: "878250022802"})
 
-	itc, country := deriveMFGFromMachine("LX10400690")
-	if itc != "878250022802" {
-		t.Errorf("derived itc = %q, want 878250022802", itc)
+	if findMFGRowForPair("LX1", "878250022802") == nil {
+		t.Error("ควรเจอแถวของคู่เดิม")
 	}
-	if country != "Indonesia" {
-		t.Errorf("derived country = %q, want Indonesia", country)
+	if findMFGRowForPair("LX2", "878250022802") != nil {
+		t.Error("คนละเครื่องไม่ควรถือเป็นคู่เดิม")
 	}
-
-	if itc, _ := deriveMFGFromMachine(""); itc != "" {
-		t.Errorf("empty machine should derive empty, got %q", itc)
+	if findMFGRowForPair("LX1", "") != nil {
+		t.Error("ไม่มีเลข ITC ไม่ควรเจอ")
 	}
 }
 
-func TestResolveITControllerNoPriority(t *testing.T) {
-	db := newTestDB(t)
+// TestMFGStatusFromPlan คือหัวใจของการแก้บั๊ก:
+// WH ยืนยันแล้วอย่างเดียวไม่พอ ต้องประกอบตรงแผนด้วยจึงจะ MATCHED
+func TestMFGStatusFromPlan(t *testing.T) {
+	cases := []struct {
+		name      string
+		duplicate bool
+		planState string
+		whMatched bool
+		want      string
+	}{
+		{"ตรงแผน + WH ยืนยัน", false, PlanStateMatch, true, models.MFGStatusMatched},
+		{"ตรงแผน แต่ WH ยังไม่ยืนยัน", false, PlanStateMatch, false, models.MFGStatusNotMatched},
+		{"ผิดแผน แม้ WH ยืนยันแล้ว", false, PlanStateMismatch, true, models.MFGStatusNotMatched},
+		{"ไม่ได้สแกน ITC", false, PlanStateNoScan, true, models.MFGStatusNotMatched},
+		{"ไม่มีแผน", false, PlanStateNoPlan, true, models.MFGStatusNotMatched},
+		{"ไม่มีในทะเบียน", false, PlanStateNotInMaster, true, models.MFGStatusNotMatched},
 
-	if itc, _ := resolveITControllerNo("", "878250022802"); itc != "878250022802" {
-		t.Errorf("preferred 12-digit not honored: %q", itc)
+		// DUPLICATE ใช้เฉพาะกรณี "ของถูกตัว แต่สแกนซ้ำ" เท่านั้น
+		{"ตรงแผน แต่สแกนซ้ำ", true, PlanStateMatch, true, models.MFGStatusDuplicate},
+		{"ตรงแผน สแกนซ้ำ WH ยังไม่ยืนยัน", true, PlanStateMatch, false, models.MFGStatusDuplicate},
+
+		// ผิดแผนต้องชนะ DUPLICATE เสมอ ห้ามให้ป้ายซ้ำมากลบทับปัญหาประกอบผิดตัว
+		{"ผิดแผน + ซ้ำ", true, PlanStateMismatch, true, models.MFGStatusNotMatched},
+		{"ไม่ได้สแกน + ซ้ำ", true, PlanStateNoScan, true, models.MFGStatusNotMatched},
+		{"ไม่มีแผน + ซ้ำ", true, PlanStateNoPlan, true, models.MFGStatusNotMatched},
 	}
 
-	db.Create(&models.MFGAssembly{MachineNo: "LX1", ITControllerNo: "878250099999", Country: "Malaysia"})
-	itc, country := resolveITControllerNo("LX1", "not-a-number")
-	if itc != "878250099999" {
-		t.Errorf("resolve from MFGAssembly = %q, want 878250099999", itc)
-	}
-	if country != "Malaysia" {
-		t.Errorf("resolve country from MFGAssembly = %q, want Malaysia", country)
+	for _, tc := range cases {
+		got := mfgStatusFromPlan(tc.duplicate, tc.planState, tc.whMatched)
+		if got != tc.want {
+			t.Errorf("%s: status = %q, want %q", tc.name, got, tc.want)
+		}
 	}
 }
 
-func TestPlannedITCForMachine(t *testing.T) {
+func TestPlanResolverEvaluate(t *testing.T) {
 	db := newTestDB(t)
 
-	t.Run("no plan when machine empty", func(t *testing.T) {
-		_, state := plannedITCForMachine("", "x")
-		if state != "NO_PLAN" {
-			t.Errorf("state = %q, want NO_PLAN", state)
+	seedPlan(t, db, "LX10400690", "878250022801", "Indonesia")
+	seedPlan(t, db, "LX10400691", "878250022802", "Vietnam")
+	seedPlan(t, db, "NOITC", "", "Thailand")
+
+	seedMaster(t, "YN22E00849FA", "KQ3000045091", "878250022801", "359779081234561")
+	seedMaster(t, "YN22E00849FA", "KQ3000045092", "878250022802", "359779081234562")
+
+	r := newMFGPlanResolver()
+
+	t.Run("ตรงกับแผน", func(t *testing.T) {
+		res := r.evaluate("LX10400690", "878250022801")
+		if res.State != PlanStateMatch {
+			t.Fatalf("state = %q, want MATCH", res.State)
+		}
+		if !res.OK() {
+			t.Error("OK() should be true")
 		}
 	})
 
-	t.Run("NO_OPTION when spec has no IT controller", func(t *testing.T) {
-		db.Create(&models.MachineSpec{MachineNo: "NOOPT", ITController: "-", ITControllerSN: "-", UploadDate: time.Now()})
-		_, state := plannedITCForMachine("NOOPT", "878250022802")
-		if state != "NO_OPTION" {
-			t.Errorf("state = %q, want NO_OPTION", state)
+	// เคสตรงกับรูปที่ผู้ใช้แจ้ง: เครื่อง LX10400690 แต่สแกน ITC ของเครื่อง LX10400691
+	t.Run("ผิดตัว ต้องเป็น MISMATCH", func(t *testing.T) {
+		res := r.evaluate("LX10400690", "878250022802")
+		if res.State != PlanStateMismatch {
+			t.Fatalf("state = %q, want MISMATCH", res.State)
+		}
+		if res.PlannedITC != "878250022801" {
+			t.Errorf("planned = %q, want 878250022801", res.PlannedITC)
+		}
+		if res.OwnerMachine != "LX10400691" {
+			t.Errorf("owner = %q, want LX10400691", res.OwnerMachine)
 		}
 	})
 
-	db.Create(&models.MachineSpec{MachineNo: "PLAN1", ITController: "YN22E00849FA", ITControllerSN: "KQ3000045093", UploadDate: time.Now()})
-	seedMaster(t, "YN22E00849FA", "KQ3000045093", "878250022802", "")
-
-	t.Run("MATCH when scanned equals planned", func(t *testing.T) {
-		planned, state := plannedITCForMachine("PLAN1", "878250022802")
-		if state != "MATCH" {
-			t.Fatalf("state = %q, want MATCH", state)
-		}
-		if planned != "878250022802" {
-			t.Errorf("planned = %q, want 878250022802", planned)
+	t.Run("ไม่ได้สแกน ITC", func(t *testing.T) {
+		if res := r.evaluate("LX10400690", ""); res.State != PlanStateNoScan {
+			t.Errorf("state = %q, want NO_SCAN", res.State)
 		}
 	})
 
-	t.Run("MISMATCH when scanned differs", func(t *testing.T) {
-		planned, state := plannedITCForMachine("PLAN1", "999999999999")
-		if state != "MISMATCH" {
-			t.Fatalf("state = %q, want MISMATCH", state)
-		}
-		if planned != "878250022802" {
-			t.Errorf("planned = %q, want 878250022802", planned)
+	t.Run("ไม่มีในทะเบียน Master Data", func(t *testing.T) {
+		if res := r.evaluate("LX10400690", "999999999999"); res.State != PlanStateNotInMaster {
+			t.Errorf("state = %q, want NOT_IN_MASTER", res.State)
 		}
 	})
+
+	t.Run("ไม่มีแผนของเครื่องนี้", func(t *testing.T) {
+		if res := r.evaluate("UNKNOWN", "878250022801"); res.State != PlanStateNoPlan {
+			t.Errorf("state = %q, want NO_PLAN", res.State)
+		}
+	})
+
+	t.Run("แผนไม่ได้กำหนด ITC", func(t *testing.T) {
+		if res := r.evaluate("NOITC", "878250022801"); res.State != PlanStateNoITC {
+			t.Errorf("state = %q, want NO_ITC_PLAN", res.State)
+		}
+	})
+}
+
+func TestApplyManualStatus(t *testing.T) {
+	// ห้ามยกระดับเป็น MATCHED เอง
+	if got := applyManualStatus(models.MFGStatusNotMatched, models.MFGStatusMatched); got != models.MFGStatusNotMatched {
+		t.Errorf("manual MATCHED should be ignored, got %q", got)
+	}
+	// ลดระดับได้
+	if got := applyManualStatus(models.MFGStatusMatched, models.MFGStatusNotMatched); got != models.MFGStatusNotMatched {
+		t.Errorf("manual downgrade = %q, want NOT_MATCHED", got)
+	}
+	// ไม่ระบุ = ให้ระบบตัดสิน
+	if got := applyManualStatus(models.MFGStatusMatched, ""); got != models.MFGStatusMatched {
+		t.Errorf("empty request = %q, want MATCHED", got)
+	}
 }
 
 func TestScanMFGAssemblyMatched(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "พนักงาน MFG", "MFG")
+
+	seedPlan(t, db, "LX10400690", "878250022802", "Indonesia")
+	seedMaster(t, "YN22E00849FA", "KQ3000045092", "878250022802", "359779081234562")
 
 	db.Create(&models.PartCheck{
 		PartType:    "ITC",
@@ -153,6 +220,9 @@ func TestScanMFGAssemblyMatched(t *testing.T) {
 	if resp["status"] != models.MFGStatusMatched {
 		t.Fatalf("status = %v, want MATCHED", resp["status"])
 	}
+	if resp["message"] != "ข้อมูลตรง บันทึกรายการสำเร็จ" {
+		t.Errorf("message = %v", resp["message"])
+	}
 
 	var row models.MFGAssembly
 	if err := db.Where("machine_no = ?", "LX10400690").First(&row).Error; err != nil {
@@ -163,10 +233,101 @@ func TestScanMFGAssemblyMatched(t *testing.T) {
 	}
 }
 
+// TestScanMFGAssemblyWrongController จำลองบั๊กที่ผู้ใช้แจ้งมาโดยตรง:
+// เครื่อง LX10400690 ต้องคู่กับ ...801 แต่สแกน ...802 ซึ่ง WH ยืนยันไว้แล้ว
+// ของเดิมจะตอบ MATCHED — ต้องได้ NOT_MATCHED
+func TestScanMFGAssemblyWrongController(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
+
+	seedPlan(t, db, "LX10400690", "878250022801", "Indonesia")
+	seedPlan(t, db, "LX10400691", "878250022802", "Vietnam")
+	seedMaster(t, "YN22E00849FA", "KQ3000045091", "878250022801", "359779081234561")
+	seedMaster(t, "YN22E00849FA", "KQ3000045092", "878250022802", "359779081234562")
+
+	// WH ยืนยัน ...802 ไว้แล้ว (แต่มันเป็นของเครื่องอื่น)
+	db.Create(&models.PartCheck{
+		PartType:    "ITC",
+		MachineNo:   "878250022802",
+		MatchStatus: models.MatchStatusMatch,
+		LicenseNo:   "E05036901604",
+		CheckedBy:   "WH",
+	})
+
+	body := `{"machineNo":"LX10400690","itControllerNo":"878250022802"}`
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c)
+
+	mustStatus(t, rec, 201)
+	resp := decodeJSON(t, rec)
+
+	if resp["status"] != models.MFGStatusNotMatched {
+		t.Fatalf("status = %v, want NOT_MATCHED (ประกอบผิดตัว)", resp["status"])
+	}
+	if resp["plannedState"] != PlanStateMismatch {
+		t.Errorf("plannedState = %v, want MISMATCH", resp["plannedState"])
+	}
+	if resp["plannedITControllerNo"] != "878250022801" {
+		t.Errorf("plannedITControllerNo = %v, want 878250022801", resp["plannedITControllerNo"])
+	}
+	if resp["message"] != "ข้อมูลไม่ตรง" {
+		t.Errorf("message = %v, want ข้อมูลไม่ตรง", resp["message"])
+	}
+}
+
+// TestGetMFGAssembliesKeepsMismatch กันไม่ให้บั๊กเดิมกลับมา:
+// ตอนดึงรายการมาแสดง ห้ามเขียนทับสถานะเป็น MATCHED เพียงเพราะ WH ยืนยันเลขนั้นไว้
+func TestGetMFGAssembliesKeepsMismatch(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
+
+	seedPlan(t, db, "LX10400690", "878250022801", "Indonesia")
+	seedPlan(t, db, "LX10400691", "878250022802", "Vietnam")
+	seedMaster(t, "YN22E00849FA", "KQ3000045091", "878250022801", "359779081234561")
+	seedMaster(t, "YN22E00849FA", "KQ3000045092", "878250022802", "359779081234562")
+
+	db.Create(&models.MFGAssembly{
+		MachineNo:      "LX10400690",
+		ITControllerNo: "878250022802", // ผิดตัว
+		Status:         models.MFGStatusNotMatched,
+	})
+
+	// WH เพิ่งมายืนยันทีหลัง — จุดนี้แหละที่ของเดิมทำให้สถานะเด้งกลับเป็น MATCHED
+	db.Create(&models.PartCheck{
+		PartType:    "ITC",
+		MachineNo:   "878250022802",
+		MatchStatus: models.MatchStatusMatch,
+		CheckedBy:   "WH",
+	})
+
+	c, rec := newContext("GET", "", u.ID, u.Username)
+	GetMFGAssemblies(c)
+	mustStatus(t, rec, 200)
+
+	var rows []models.MFGAssembly
+	if err := json.Unmarshal(rec.Body.Bytes(), &rows); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	if rows[0].Status != models.MFGStatusNotMatched {
+		t.Fatalf("status = %q, want NOT_MATCHED", rows[0].Status)
+	}
+	if rows[0].PlanITControllerNo != "878250022801" {
+		t.Errorf("PlanITControllerNo = %q, want 878250022801", rows[0].PlanITControllerNo)
+	}
+}
+
+// DUPLICATE ต้องเกิดเฉพาะตอน "ของถูกตัว แต่สแกนไปแล้ว"
 func TestScanMFGAssemblyDuplicate(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
 
+	seedPlan(t, db, "LX10400690", "878250022802", "Indonesia")
+	seedMaster(t, "YN22E00849FA", "KQ3000045092", "878250022802", "359779081234562")
+
+	// เลขนี้ถูกใช้กับ "เครื่องอื่น" ไปแล้ว
 	db.Create(&models.MFGAssembly{MachineNo: "LX0", ITControllerNo: "878250022802"})
 
 	body := `{"machineNo":"LX10400690","itControllerNo":"878250022802"}`
@@ -180,6 +341,159 @@ func TestScanMFGAssemblyDuplicate(t *testing.T) {
 	}
 }
 
+// TestMFGScanRetryAfterWHConfirms คือบั๊กที่ผู้ใช้แจ้ง:
+//
+//	รอบ 1: MFG สแกนก่อน WH ยังไม่ยืนยัน -> NOT_MATCHED  (ถูกต้อง)
+//	รอบ 2: WH ยืนยันแล้ว MFG สแกนเครื่องเดิมซ้ำ
+//	       ของเดิมขึ้น DUPLICATE ทำให้ไม่มีทางได้ MATCHED เลย
+//	       ต้องอัปเดตแถวเดิมเป็น MATCHED แทน และต้องไม่เกิดแถวใหม่
+func TestMFGScanRetryAfterWHConfirms(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
+
+	seedPlan(t, db, "LX10400690", "878250022801", "Indonesia")
+	seedMaster(t, "YN22E00849FA", "KQ3000045091", "878250022801", "359779081234561")
+
+	body := `{"machineNo":"LX10400690","itControllerNo":"878250022801"}`
+
+	// รอบ 1 — WH ยังไม่ยืนยัน
+	c1, rec1 := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c1)
+	mustStatus(t, rec1, 201)
+	if got := decodeJSON(t, rec1)["status"]; got != models.MFGStatusNotMatched {
+		t.Fatalf("รอบ 1: status = %v, want NOT_MATCHED", got)
+	}
+
+	// WH มายืนยันทีหลัง
+	db.Create(&models.PartCheck{
+		PartType:    "ITC",
+		MachineNo:   "878250022801",
+		MatchStatus: models.MatchStatusMatch,
+		LicenseNo:   "E05036901604",
+		CheckedBy:   "WH",
+	})
+
+	// รอบ 2 — สแกนเครื่องเดิมซ้ำ ต้องได้ MATCHED ไม่ใช่ DUPLICATE
+	c2, rec2 := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c2)
+	mustStatus(t, rec2, 201)
+
+	resp := decodeJSON(t, rec2)
+	if resp["status"] != models.MFGStatusMatched {
+		t.Fatalf("รอบ 2: status = %v, want MATCHED (สแกนซ้ำเครื่องเดิมคือการลองใหม่)", resp["status"])
+	}
+	if resp["retried"] != true {
+		t.Errorf("รอบ 2: retried = %v, want true", resp["retried"])
+	}
+
+	// ต้องไม่เกิดแถวใหม่
+	var count int64
+	db.Model(&models.MFGAssembly{}).Where("machine_no = ?", "LX10400690").Count(&count)
+	if count != 1 {
+		t.Fatalf("แถวของ LX10400690 = %d, want 1 (ต้องแก้แถวเดิม ไม่สร้างใหม่)", count)
+	}
+}
+
+// สแกนซ้ำหลังบันทึกสำเร็จแล้ว ต้องบอกว่าเคยบันทึกแล้ว และห้ามทำให้ข้อมูลเดิมเสีย
+func TestMFGScanRepeatAfterMatched(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
+
+	seedPlan(t, db, "LX10400690", "878250022801", "Indonesia")
+	seedMaster(t, "YN22E00849FA", "KQ3000045091", "878250022801", "359779081234561")
+	db.Create(&models.PartCheck{
+		PartType:    "ITC",
+		MachineNo:   "878250022801",
+		MatchStatus: models.MatchStatusMatch,
+		CheckedBy:   "WH",
+	})
+
+	body := `{"machineNo":"LX10400690","itControllerNo":"878250022801"}`
+
+	c1, rec1 := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c1)
+	mustStatus(t, rec1, 201)
+
+	c2, rec2 := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c2)
+	mustStatus(t, rec2, 200)
+
+	resp := decodeJSON(t, rec2)
+	if resp["status"] != models.MFGStatusDuplicate {
+		t.Fatalf("status = %v, want DUPLICATE", resp["status"])
+	}
+	if resp["message"] != "รายการนี้เคยบันทึกไปแล้ว" {
+		t.Errorf("message = %v", resp["message"])
+	}
+
+	// แถวเดิมต้องยังเป็น MATCHED อยู่
+	var row models.MFGAssembly
+	db.Where("machine_no = ?", "LX10400690").First(&row)
+	if row.Status != models.MFGStatusMatched {
+		t.Errorf("แถวเดิม status = %q, want MATCHED (ห้ามถูกเขียนทับเป็น DUPLICATE)", row.Status)
+	}
+}
+
+// TestScanMFGAssemblyMismatchBeatsDuplicate คือเคสแถวที่ 4 ที่ผู้ใช้แจ้งกลับมา:
+// เครื่อง LX10400692 ต้องคู่กับ ...803 แต่สแกน ...801 ซึ่งเคยบันทึกไปแล้ว
+// ต้องได้ NOT_MATCHED (ประกอบผิดตัว) ไม่ใช่ DUPLICATE
+func TestScanMFGAssemblyMismatchBeatsDuplicate(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
+
+	seedPlan(t, db, "LX10400690", "878250022801", "Indonesia")
+	seedPlan(t, db, "LX10400692", "878250022803", "Philippines")
+	seedMaster(t, "YN22E00849FA", "KQ3000045091", "878250022801", "359779081234561")
+	seedMaster(t, "YN22E00849FB", "KQ3000045093", "878250022803", "359779081234563")
+
+	// ...801 เคยถูกบันทึกไปแล้ว -> เข้าเงื่อนไข duplicate
+	db.Create(&models.MFGAssembly{MachineNo: "LX10400690", ITControllerNo: "878250022801"})
+
+	body := `{"machineNo":"LX10400692","itControllerNo":"878250022801"}`
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c)
+
+	mustStatus(t, rec, 201)
+	resp := decodeJSON(t, rec)
+
+	if resp["status"] != models.MFGStatusNotMatched {
+		t.Fatalf("status = %v, want NOT_MATCHED — ผิดแผนต้องชนะ DUPLICATE", resp["status"])
+	}
+	if resp["plannedState"] != PlanStateMismatch {
+		t.Errorf("plannedState = %v, want MISMATCH", resp["plannedState"])
+	}
+	if resp["plannedITControllerNo"] != "878250022803" {
+		t.Errorf("plannedITControllerNo = %v, want 878250022803", resp["plannedITControllerNo"])
+	}
+}
+
+// ไม่สแกน IT Controller ต้องไม่ผ่าน และระบบต้องไม่เติมเลขให้เอง
+func TestScanMFGAssemblyWithoutController(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
+
+	seedPlan(t, db, "LX10400690", "878250022801", "Indonesia")
+	seedMaster(t, "YN22E00849FA", "KQ3000045091", "878250022801", "359779081234561")
+
+	body := `{"machineNo":"LX10400690"}`
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c)
+
+	mustStatus(t, rec, 201)
+	resp := decodeJSON(t, rec)
+	if resp["status"] != models.MFGStatusNotMatched {
+		t.Fatalf("status = %v, want NOT_MATCHED", resp["status"])
+	}
+
+	var row models.MFGAssembly
+	if err := db.Where("machine_no = ?", "LX10400690").First(&row).Error; err != nil {
+		t.Fatalf("row not saved: %v", err)
+	}
+	if row.ITControllerNo != "" {
+		t.Errorf("ITControllerNo = %q, ระบบต้องไม่เติมเลขให้เองตอนไม่ได้สแกน", row.ITControllerNo)
+	}
+}
+
 func TestScanMFGAssemblyRequiresMachineNo(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
@@ -189,4 +503,81 @@ func TestScanMFGAssemblyRequiresMachineNo(t *testing.T) {
 	ScanMFGAssembly(c)
 
 	mustStatus(t, rec, 400)
+	_ = db
+}
+
+func TestPlanForMachineFallsBackToPlanning(t *testing.T) {
+	db := newTestDB(t)
+
+	data, _ := json.Marshal(map[string]string{
+		"Machine":          "LX10400692",
+		"IT Controller No": "878250022803",
+		"Country Name":     "Philippines",
+	})
+	// แถวเก่าที่ไม่ได้เก็บคอลัมน์ machine_no แยกไว้
+	db.Create(&models.UploadDataRow{
+		Dataset:  models.DatasetPlanning,
+		DataJSON: string(data),
+	})
+
+	plan := planForMachine("LX10400692")
+	if plan == nil {
+		t.Fatal("plan not found via JSON fallback")
+	}
+	if got := PlannedITCOf(plan); got != "878250022803" {
+		t.Errorf("planned itc = %q, want 878250022803", got)
+	}
+	if got := plannedCountryOf(plan); got != "Philippines" {
+		t.Errorf("country = %q, want Philippines", got)
+	}
+	_ = config.DB
+}
+
+// ข้อความที่เด้งเตือนต้องสั้น ส่วนรายละเอียดไปอยู่ใน Detail
+func TestMFGPlanMessagesAreShort(t *testing.T) {
+	cases := []struct {
+		state string
+		want  string
+	}{
+		{PlanStateMatch, "ข้อมูลตรง"},
+		{PlanStateMismatch, "ข้อมูลไม่ตรง"},
+		{PlanStateNoITC, "ข้อมูลไม่ตรง"},
+		{PlanStateNotInMaster, "ไม่พบข้อมูล กรุณาติดต่อ ADMIN"},
+		{PlanStateNoPlan, "ไม่พบข้อมูล กรุณาติดต่อ ADMIN"},
+		{PlanStateNoScan, "ยังไม่ได้สแกน IT Controller"},
+	}
+	for _, tc := range cases {
+		got := mfgPlanMessage(MFGPlanResult{State: tc.state})
+		if got != tc.want {
+			t.Errorf("%s: message = %q, want %q", tc.state, got, tc.want)
+		}
+	}
+
+	// รายละเอียดยังต้องมีข้อมูลครบไว้สืบสาเหตุ
+	res := MFGPlanResult{
+		State:        PlanStateMismatch,
+		PlannedITC:   "878250022503",
+		ScannedITC:   "878250022501",
+		OwnerMachine: "YN15436801",
+	}
+	detail := mfgPlanDetail("YN15436803", res)
+	for _, want := range []string{"YN15436803", "878250022503", "878250022501", "YN15436801"} {
+		if !strings.Contains(detail, want) {
+			t.Errorf("detail ขาด %q: %s", want, detail)
+		}
+	}
+}
+
+func TestMFGFinalMessages(t *testing.T) {
+	matched := MFGPlanResult{State: PlanStateMatch}
+
+	if got := mfgFinalMessage(models.MFGStatusMatched, matched, "E05"); got != "ข้อมูลตรง บันทึกรายการสำเร็จ" {
+		t.Errorf("MATCHED message = %q", got)
+	}
+	if got := mfgFinalMessage(models.MFGStatusDuplicate, matched, ""); got != "รายการนี้เคยบันทึกไปแล้ว" {
+		t.Errorf("DUPLICATE message = %q", got)
+	}
+	if got := mfgFinalMessage(models.MFGStatusNotMatched, matched, ""); got != "ข้อมูลตรง แต่ฝั่ง WH ยังไม่ได้สแกนยืนยัน" {
+		t.Errorf("WH pending message = %q", got)
+	}
 }

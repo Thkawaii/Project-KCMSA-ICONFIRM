@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAppNavigate, useAppParams } from '../../lib/nav.jsx'
 import AppShell from '../../components/AppShell.jsx'
-import { getMachineSpecByMachineNo } from '../../api/Machinespeclookup.js'
+import { getMachineProfile } from '../../api/machineProfile.js'
 import {
   ArrowDownTrayIcon,
   CheckCircleIcon,
@@ -35,7 +35,7 @@ export default function QAMachineDetail() {
       setLoading(true)
       setLoadError('')
       try {
-        const data = await getMachineSpecByMachineNo(machineNo)
+        const data = await getMachineProfile(machineNo)
         if (!cancelled) {
           setSpec(data)
           setApprovals(getApprovals(machineNo))

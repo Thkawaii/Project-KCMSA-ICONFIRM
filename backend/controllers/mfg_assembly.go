@@ -14,18 +14,48 @@ import (
 func GetMFGAssemblies(c *gin.Context) {
 	var rows []models.MFGAssembly
 	config.DB.Order("id asc").Find(&rows)
+
+	// โหลดแผน + ทะเบียน Master Data ครั้งเดียว แล้วใช้เทียบทุกแถว
+	resolver := newMFGPlanResolver()
+
+	itcOwner := map[string]string{} // IT Controller -> เครื่องแรกที่ใช้เลขนี้
+	seenPair := map[string]bool{}   // คู่ เครื่อง+IT Controller ที่เจอไปแล้ว
+
 	for i := range rows {
 		rows[i].Item = strconv.Itoa(i + 1)
 		enrichMFGWithWH(&rows[i])
-		if rows[i].Status != models.MFGStatusDuplicate {
-			if rows[i].WHMatched {
-				rows[i].Status = models.MFGStatusMatched
-			} else {
-				rows[i].Status = models.MFGStatusNotMatched
+
+		plan := resolver.evaluate(rows[i].MachineNo, rows[i].ITControllerNo)
+		applyMFGPlan(&rows[i], plan)
+
+		duplicate := false
+		if itc := strings.TrimSpace(rows[i].ITControllerNo); itc != "" {
+			mc := strings.TrimSpace(rows[i].MachineNo)
+			key := mc + "|" + itc
+
+			if owner, ok := itcOwner[itc]; !ok {
+				itcOwner[itc] = mc
+			} else if owner != mc {
+				duplicate = true // เลขเดียวกันไปโผล่กับเครื่องอื่น
+			} else if seenPair[key] {
+				duplicate = true // คู่เดิมซ้ำแถว
 			}
+			seenPair[key] = true
 		}
+
+		rows[i].Status = mfgStatusFromPlan(duplicate, plan.State, rows[i].WHMatched)
 	}
+
 	c.JSON(200, rows)
+}
+
+func applyMFGPlan(row *models.MFGAssembly, plan MFGPlanResult) {
+	row.PlanITControllerNo = plan.PlannedITC
+	row.PlanState = plan.State
+	row.PlanMatched = plan.OK()
+	row.PlanMessage = plan.Message
+	row.PlanDetail = plan.Detail
+	row.PlanOwnerMachineNo = plan.OwnerMachine
 }
 
 func parseMFGDate(s string) *time.Time {
@@ -53,75 +83,65 @@ func lookupMFGCountry(itcNo string) string {
 	return ""
 }
 
-func isMFGDuplicate(itcNo string) bool {
+// itcUsedOnOtherMachine เลข IT Controller นี้เคยถูกบันทึกกับ "เครื่องอื่น" ไปแล้วหรือไม่
+//
+// เดิมนับว่าซ้ำทันทีที่เจอเลขนี้ในตาราง ไม่สนว่าเป็นเครื่องไหน
+// ทำให้ MFG สแกนเครื่องเดิมซ้ำ (เช่น รอบแรก WH ยังไม่ได้ยืนยัน) แล้วติด DUPLICATE
+// ทั้งที่เป็นการสแกนเครื่องเดียวกันเพื่อลองใหม่ ไม่ใช่การเอาชิ้นเดียวไปใส่สองเครื่อง
+func itcUsedOnOtherMachine(machineNo, itcNo string, excludeID uint) bool {
 	itcNo = strings.TrimSpace(itcNo)
 	if itcNo == "" {
 		return false
 	}
+
+	q := config.DB.Model(&models.MFGAssembly{}).
+		Where("it_controller_no = ? AND machine_no <> ?", itcNo, strings.TrimSpace(machineNo))
+	if excludeID != 0 {
+		q = q.Where("id <> ?", excludeID)
+	}
+
 	var count int64
-	config.DB.Model(&models.MFGAssembly{}).Where("it_controller_no = ?", itcNo).Count(&count)
+	q.Count(&count)
 	return count > 0
 }
 
-func computeMFGStatus(itcNo string, whMatched bool) string {
-	switch {
-	case isMFGDuplicate(itcNo):
-		return models.MFGStatusDuplicate
-	case whMatched:
-		return models.MFGStatusMatched
-	default:
-		return models.MFGStatusNotMatched
+// findMFGRowForPair หาแถวเดิมของคู่ เครื่อง + IT Controller เดียวกัน
+// ถ้าเจอแปลว่าเป็นการสแกนซ้ำของคู่เดิม ให้แก้แถวเดิมแทนที่จะสร้างแถวใหม่
+func findMFGRowForPair(machineNo, itcNo string) *models.MFGAssembly {
+	machineNo = strings.TrimSpace(machineNo)
+	itcNo = strings.TrimSpace(itcNo)
+	if machineNo == "" || itcNo == "" {
+		return nil
 	}
+
+	var row models.MFGAssembly
+	err := config.DB.Where("machine_no = ? AND it_controller_no = ?", machineNo, itcNo).
+		Order("id desc").First(&row).Error
+	if err != nil {
+		return nil
+	}
+	return &row
 }
 
-func mfgStatusMessage(status, itcNo, licenseNo string) string {
-	switch status {
-	case models.MFGStatusDuplicate:
-		return "รายการซ้ำ — IT Controller No. " + itcNo + " เคยบันทึกไปแล้ว"
-	case models.MFGStatusMatched:
-		msg := "ตรงกับใบอนุญาตนำเข้า (WH ยืนยันแล้ว)"
-		if licenseNo != "" {
-			msg += " — ใบอนุญาต " + licenseNo
-		}
-		return msg
-	default:
-		return "ไม่ตรงกับใบอนุญาต — ฝั่ง WH ยังไม่ยืนยัน"
+func mfgCountryFor(machineNo, itcNo string, plan map[string]string) string {
+	// ประเทศจากใบอนุญาตนำเข้าเชื่อถือได้ที่สุด รองลงมาคือแผน
+	if v := lookupMFGCountry(itcNo); v != "" {
+		return v
 	}
-}
+	if v := plannedCountryOf(plan); v != "" {
+		return v
+	}
 
-func deriveMFGFromMachine(machineNo string) (itcNo, country string) {
 	machineNo = strings.TrimSpace(machineNo)
 	if machineNo == "" {
-		return "", ""
+		return ""
 	}
-
-	var specs []models.MachineSpec
-	config.DB.Where("machine_no = ?", machineNo).Order("upload_date desc").Find(&specs)
-
-	var itcSN string
-	for _, s := range specs {
-		if itcSN == "" && strings.TrimSpace(s.ITControllerSN) != "" && strings.TrimSpace(s.ITControllerSN) != "-" {
-			itcSN = strings.TrimSpace(s.ITControllerSN)
-		}
-		if country == "" && strings.TrimSpace(s.CountryName) != "" {
-			country = strings.TrimSpace(s.CountryName)
-		}
+	var exp models.ExportLicenseItem
+	if err := config.DB.Where("machine_no = ?", machineNo).Order("id desc").
+		First(&exp).Error; err == nil {
+		return strings.TrimSpace(exp.Country)
 	}
-
-	if itcSN != "" {
-		var m models.MasterData
-		q := config.DB.Where("serial_no = ? AND component_type = ?", itcSN, "it_controller")
-		if err := q.First(&m).Error; err == nil && m.ITControllerNo != nil {
-			itcNo = strings.TrimSpace(*m.ITControllerNo)
-		} else {
-			var m2 models.MasterData
-			if e := config.DB.Where("serial_no = ?", itcSN).First(&m2).Error; e == nil && m2.ITControllerNo != nil {
-				itcNo = strings.TrimSpace(*m2.ITControllerNo)
-			}
-		}
-	}
-
-	return itcNo, country
+	return ""
 }
 
 func looks12Digit(s string) bool {
@@ -137,6 +157,9 @@ func looks12Digit(s string) bool {
 	return true
 }
 
+// resolveITControllerNo ใช้เฉพาะตอนปั๊มตาราง Assembly เพื่อเดาเลข IT Controller
+// ของเครื่องที่ไฟล์ Planning ไม่ได้กรอกมา — ห้ามเอาไปใช้ตอนสแกน
+// เพราะการเติมค่าให้เองตอนสแกนจะทำให้ระบบตรวจว่า "ตรง" เสมอ ทั้งที่ไม่ได้สแกนจริง
 func resolveITControllerNo(machineNo, preferred string) (itcNo, country string) {
 	machineNo = strings.TrimSpace(machineNo)
 
@@ -144,12 +167,19 @@ func resolveITControllerNo(machineNo, preferred string) (itcNo, country string) 
 		itcNo = p
 	}
 
+	if plan := planForMachine(machineNo); plan != nil {
+		if itcNo == "" {
+			itcNo = PlannedITCOf(plan)
+		}
+		country = plannedCountryOf(plan)
+	}
+
 	if machineNo != "" {
 		var mfgRow models.MFGAssembly
 		if err := config.DB.Where("machine_no = ?", machineNo).Order("id desc").
 			First(&mfgRow).Error; err == nil {
-			if v := strings.TrimSpace(mfgRow.ITControllerNo); v != "" {
-				itcNo = v
+			if itcNo == "" {
+				itcNo = strings.TrimSpace(mfgRow.ITControllerNo)
 			}
 			if country == "" {
 				country = strings.TrimSpace(mfgRow.Country)
@@ -157,36 +187,15 @@ func resolveITControllerNo(machineNo, preferred string) (itcNo, country string) 
 		}
 	}
 
-	if derived, dc := deriveMFGFromMachine(machineNo); derived != "" || dc != "" {
-		if itcNo == "" && derived != "" {
-			itcNo = derived
-		}
-		if country == "" && dc != "" {
-			country = dc
-		}
-	}
-
-	if itcNo == "" && machineNo != "" {
+	if machineNo != "" && (itcNo == "" || country == "") {
 		var exp models.ExportLicenseItem
 		if err := config.DB.Where("machine_no = ?", machineNo).
 			Order("id desc").First(&exp).Error; err == nil {
-			if v := strings.TrimSpace(exp.ITControllerNo); v != "" {
-				itcNo = v
+			if itcNo == "" {
+				itcNo = strings.TrimSpace(exp.ITControllerNo)
 			}
-			if country == "" && strings.TrimSpace(exp.Country) != "" {
+			if country == "" {
 				country = strings.TrimSpace(exp.Country)
-			}
-		}
-	}
-
-	if itcNo == "" && machineNo != "" {
-		var specs []models.MachineSpec
-		config.DB.Where("machine_no = ?", machineNo).Order("upload_date desc").Find(&specs)
-		for _, s := range specs {
-			sn := strings.TrimSpace(s.ITControllerSN)
-			if looks12Digit(sn) {
-				itcNo = sn
-				break
 			}
 		}
 	}
@@ -251,48 +260,6 @@ type MFGScanRequest struct {
 	ITControllerNo string `json:"itControllerNo"`
 }
 
-func plannedITCForMachine(machineNo, scannedITC string) (plannedITCNo, state string) {
-	machineNo = strings.TrimSpace(machineNo)
-	scannedITC = strings.TrimSpace(scannedITC)
-	if machineNo == "" {
-		return "", "NO_PLAN"
-	}
-
-	var specs []models.MachineSpec
-	config.DB.Where("machine_no = ?", machineNo).Order("upload_date desc").Find(&specs)
-
-	var plannedPN, plannedSN string
-	for _, s := range specs {
-		if plannedPN == "" && strings.TrimSpace(s.ITController) != "" {
-			plannedPN = strings.TrimSpace(s.ITController)
-		}
-		if plannedSN == "" && strings.TrimSpace(s.ITControllerSN) != "" {
-			plannedSN = strings.TrimSpace(s.ITControllerSN)
-		}
-	}
-
-	isBlank := func(v string) bool { return v == "" || v == "-" }
-
-	if isBlank(plannedPN) && isBlank(plannedSN) {
-		return "", "NO_OPTION"
-	}
-
-	if !isBlank(plannedSN) {
-		var m models.MasterData
-		if err := config.DB.Where("serial_no = ?", plannedSN).First(&m).Error; err == nil && m.ITControllerNo != nil {
-			plannedITCNo = strings.TrimSpace(*m.ITControllerNo)
-		}
-	}
-
-	if plannedITCNo == "" {
-		return "", "NO_PLAN"
-	}
-	if scannedITC != "" && scannedITC == plannedITCNo {
-		return plannedITCNo, "MATCH"
-	}
-	return plannedITCNo, "MISMATCH"
-}
-
 func resolveMachineNo(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -322,74 +289,97 @@ func ScanMFGAssembly(c *gin.Context) {
 
 	machineNo = resolveMachineNo(machineNo)
 
-	derivedCountry := ""
-	if itcNo == "" {
-		itcNo, derivedCountry = deriveMFGFromMachine(machineNo)
-	} else {
-		_, derivedCountry = deriveMFGFromMachine(machineNo)
-	}
-
-	country := derivedCountry
-	if country == "" {
-		country = lookupMFGCountry(itcNo)
-	}
+	// เทียบกับแผนใน Master Data ก่อน — ไม่เติมเลข IT Controller ให้เองเด็ดขาด
+	// ค่าที่บันทึกคือสิ่งที่สแกนได้จริงเท่านั้น
+	resolver := newMFGPlanResolver()
+	plan := resolver.evaluate(machineNo, itcNo)
 
 	userID, name := lookupUserName(c)
 	now := time.Now()
 
-	duplicate := isMFGDuplicate(itcNo)
+	// สแกนคู่ เครื่อง+IT Controller เดิมซ้ำ = การลองใหม่ ไม่ใช่ของซ้ำ
+	// เคสที่เจอบ่อย: MFG สแกนก่อน WH ยังไม่ยืนยัน -> NOT_MATCHED
+	// พอ WH ยืนยันแล้ว MFG สแกนใหม่ ต้องอัปเดตแถวเดิมให้เป็น MATCHED ได้
+	existing := findMFGRowForPair(machineNo, itcNo)
+
+	// ถ้าคู่นี้บันทึกสำเร็จไปแล้ว ไม่ต้องแก้อะไร แค่บอกว่าเคยบันทึกแล้ว
+	if existing != nil && existing.Status == models.MFGStatusMatched {
+		enrichMFGWithWH(existing)
+		applyMFGPlan(existing, plan)
+
+		CreateAuditLog("MFG_ASSEMBLY", existing.ID, "scan_repeat",
+			machineNo+"/"+models.MFGStatusDuplicate, userID, name)
+
+		c.JSON(200, gin.H{
+			"row":                   existing,
+			"status":                models.MFGStatusDuplicate,
+			"matched":               false,
+			"whMatched":             existing.WHMatched,
+			"message":               "รายการนี้เคยบันทึกไปแล้ว",
+			"plan":                  plan,
+			"plannedITControllerNo": plan.PlannedITC,
+			"plannedState":          plan.State,
+			"plannedMatch":          plan.OK(),
+		})
+		return
+	}
+
+	// ซ้ำจริง = เลข IT Controller เดียวกันไปโผล่กับเครื่องอื่น
+	duplicate := itcUsedOnOtherMachine(machineNo, itcNo, 0)
 
 	row := models.MFGAssembly{
 		DateAssembly:    &now,
 		MachineNo:       machineNo,
 		ITControllerNo:  itcNo,
-		Country:         country,
+		Country:         mfgCountryFor(machineNo, itcNo, resolver.planOf(machineNo)),
 		CheckDate:       &now,
 		CreatedBy:       name,
 		CreatedDatetime: now,
 		UpdatedDatetime: now,
 		UserID:          userID,
 	}
+	if existing != nil {
+		// ลองใหม่: แก้แถวเดิม เก็บผู้สร้างและเวลาสร้างไว้ตามเดิม
+		row.ID = existing.ID
+		row.Item = existing.Item
+		row.CreatedBy = existing.CreatedBy
+		row.CreatedDatetime = existing.CreatedDatetime
+	}
 
 	enrichMFGWithWH(&row)
+	row.Status = mfgStatusFromPlan(duplicate, plan.State, row.WHMatched)
 
-	switch {
-	case duplicate:
-		row.Status = models.MFGStatusDuplicate
-	case row.WHMatched:
-		row.Status = models.MFGStatusMatched
-	default:
-		row.Status = models.MFGStatusNotMatched
+	action := "scan_create"
+	if existing != nil {
+		action = "scan_update"
+		if err := config.DB.Save(&row).Error; err != nil {
+			c.JSON(500, gin.H{"message": err.Error()})
+			return
+		}
+	} else {
+		if err := config.DB.Create(&row).Error; err != nil {
+			c.JSON(500, gin.H{"message": err.Error()})
+			return
+		}
+		row.Item = strconv.FormatUint(uint64(row.ID), 10)
+		config.DB.Model(&row).Update("item", row.Item)
 	}
 
-	if err := config.DB.Create(&row).Error; err != nil {
-		c.JSON(500, gin.H{"message": err.Error()})
-		return
-	}
+	applyMFGPlan(&row, plan)
 
-	row.Item = strconv.FormatUint(uint64(row.ID), 10)
-	config.DB.Model(&row).Update("item", row.Item)
-
-	CreateAuditLog("MFG_ASSEMBLY", row.ID, "scan_create", machineNo+"/"+row.Status, userID, name)
-
-	message := mfgStatusMessage(row.Status, itcNo, row.WHLicenseNo)
-
-	plannedITCNo, plannedState := plannedITCForMachine(machineNo, itcNo)
-	if plannedState == "MISMATCH" {
-		message = "IT Controller ไม่ตรงกับที่แผนกำหนดให้เครื่องนี้ (แผน: " + plannedITCNo + ")"
-	} else if plannedState == "NO_OPTION" && row.Status != models.MFGStatusMatched {
-		message = "เครื่องนี้ไม่ได้สั่งติด IT Controller ตามแผน — " + message
-	}
+	CreateAuditLog("MFG_ASSEMBLY", row.ID, action, machineNo+"/"+row.Status, userID, name)
 
 	c.JSON(201, gin.H{
 		"row":                   row,
 		"status":                row.Status,
 		"matched":               row.Status == models.MFGStatusMatched,
 		"whMatched":             row.WHMatched,
-		"message":               message,
-		"plannedITControllerNo": plannedITCNo,
-		"plannedState":          plannedState,
-		"plannedMatch":          plannedState == "MATCH",
+		"retried":               existing != nil,
+		"message":               mfgFinalMessage(row.Status, plan, row.WHLicenseNo),
+		"plan":                  plan,
+		"plannedITControllerNo": plan.PlannedITC,
+		"plannedState":          plan.State,
+		"plannedMatch":          plan.OK(),
 	})
 }
 
@@ -401,6 +391,19 @@ type MFGAssemblyRequest struct {
 	Country        string `json:"country"`
 	CheckDate      string `json:"checkDate"`
 	Status         string `json:"status"`
+}
+
+// applyManualStatus อนุญาตให้คนกรอกสถานะเองได้เฉพาะกรณี "ลดระดับ" เท่านั้น
+// ห้ามกดเป็น MATCHED เองถ้าระบบตรวจแล้วไม่ตรงแผน มิฉะนั้นการตรวจสอบก็ไร้ความหมาย
+func applyManualStatus(systemStatus, requested string) string {
+	requested = strings.ToUpper(strings.TrimSpace(requested))
+	if requested == "" || requested == models.MFGStatusMatched {
+		return systemStatus
+	}
+	if systemStatus == models.MFGStatusMatched {
+		return requested
+	}
+	return systemStatus
 }
 
 func CreateMFGAssembly(c *gin.Context) {
@@ -429,17 +432,18 @@ func CreateMFGAssembly(c *gin.Context) {
 		checkDate = &now
 	}
 
-	machineNo := strings.TrimSpace(req.MachineNo)
+	machineNo := resolveMachineNo(strings.TrimSpace(req.MachineNo))
 	itcNo := strings.TrimSpace(req.ITControllerNo)
 
-	machineNo = resolveMachineNo(machineNo)
+	resolver := newMFGPlanResolver()
+	plan := resolver.evaluate(machineNo, itcNo)
 
 	country := strings.TrimSpace(req.Country)
 	if country == "" {
-		country = lookupMFGCountry(itcNo)
+		country = mfgCountryFor(machineNo, itcNo, resolver.planOf(machineNo))
 	}
 
-	duplicate := isMFGDuplicate(itcNo)
+	duplicate := itcUsedOnOtherMachine(machineNo, itcNo, 0)
 
 	row := models.MFGAssembly{
 		Item:            item,
@@ -455,20 +459,17 @@ func CreateMFGAssembly(c *gin.Context) {
 	}
 
 	enrichMFGWithWH(&row)
-
-	status := strings.TrimSpace(req.Status)
-	if status == "" {
-		status = computeMFGStatus(itcNo, row.WHMatched)
-		if duplicate {
-			status = models.MFGStatusDuplicate
-		}
-	}
-	row.Status = status
+	row.Status = applyManualStatus(
+		mfgStatusFromPlan(duplicate, plan.State, row.WHMatched),
+		req.Status,
+	)
 
 	if err := config.DB.Create(&row).Error; err != nil {
 		c.JSON(500, gin.H{"message": err.Error()})
 		return
 	}
+
+	applyMFGPlan(&row, plan)
 
 	CreateAuditLog("MFG_ASSEMBLY", row.ID, "create", row.MachineNo, userID, name)
 	c.JSON(201, row)
@@ -497,7 +498,6 @@ func UpdateMFGAssembly(c *gin.Context) {
 	row.MachineNo = strings.TrimSpace(req.MachineNo)
 	row.ITControllerNo = strings.TrimSpace(req.ITControllerNo)
 	row.Country = strings.TrimSpace(req.Country)
-	row.Status = strings.TrimSpace(req.Status)
 	if d := parseMFGDate(req.DateAssembly); d != nil {
 		row.DateAssembly = d
 	}
@@ -506,10 +506,24 @@ func UpdateMFGAssembly(c *gin.Context) {
 	}
 	row.UpdatedDatetime = time.Now()
 
+	// แก้ไขแล้วต้องตรวจซ้ำเสมอ — เปลี่ยนเลขเครื่อง/เลข IT Controller แล้วสถานะเดิมใช้ไม่ได้
+	resolver := newMFGPlanResolver()
+	plan := resolver.evaluate(row.MachineNo, row.ITControllerNo)
+
+	duplicate := itcUsedOnOtherMachine(row.MachineNo, row.ITControllerNo, row.ID)
+
+	enrichMFGWithWH(&row)
+	row.Status = applyManualStatus(
+		mfgStatusFromPlan(duplicate, plan.State, row.WHMatched),
+		req.Status,
+	)
+
 	if err := config.DB.Save(&row).Error; err != nil {
 		c.JSON(500, gin.H{"message": err.Error()})
 		return
 	}
+
+	applyMFGPlan(&row, plan)
 
 	userID, name := lookupUserName(c)
 	CreateAuditLog("MFG_ASSEMBLY", row.ID, "edit", row.MachineNo, userID, name)

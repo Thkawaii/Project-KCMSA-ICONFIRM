@@ -62,6 +62,7 @@ const MATCH_LABELS = {
   NOT_FOUND: { Icon: XMarkIcon, text: 'ไม่พบในใบอนุญาต', cls: 'il-badge-bad' },
   WRONG_INVOICE: { Icon: ExclamationTriangleIcon, text: 'คนละอินวอยซ์', cls: 'il-badge-warn' },
   WRONG_PRODNO: { Icon: ExclamationTriangleIcon, text: 'หมายเลขการผลิตไม่ตรง', cls: 'il-badge-warn' },
+  WRONG_PART: { Icon: XMarkIcon, text: 'ข้อมูลไม่ตรง', cls: 'il-badge-bad' },
   DUPLICATE: { Icon: ExclamationTriangleIcon, text: 'ยืนยันซ้ำ', cls: 'il-badge-warn' },
   NOT_REQUIRED: { Icon: MinusIcon, text: 'ไม่ต้องเทียบ', cls: 'il-badge-muted' },
 }
@@ -205,7 +206,6 @@ export default function WHPartConfirmationPage() {
       scanLoading('กำลังตรวจสอบกับบัญชีใบอนุญาต...')
       try {
         const res = await scanPartCheck({
-          machineTag: '',
           partType: partTypeCode,
           pn: needsPN ? pn : '',
           sn,
@@ -218,7 +218,6 @@ export default function WHPartConfirmationPage() {
         const buildLastScan = () =>
           setLastScan({
             id: check.ID,
-            machineTag: check.Tag || '',
             partType: check.PartType || partTypeCode,
             pn: needsPN ? pn : '',
             sn: check.SN || sn,
@@ -443,7 +442,6 @@ export default function WHPartConfirmationPage() {
     if (term) {
       list = list.filter(
         (r) =>
-          (r.Tag || '').toLowerCase().includes(term) ||
           (r.PN || '').toLowerCase().includes(term) ||
           (r.SN || '').toLowerCase().includes(term) ||
           (r.MachineNo || '').toLowerCase().includes(term) ||
@@ -852,7 +850,14 @@ export default function WHPartConfirmationPage() {
                   <td className="wh-cell-head" data-label="Part">
                     <strong>{tagLabel(r.PartType)}</strong>
                   </td>
-                  <td data-label="P/N">{r.PN || '—'}</td>
+                  <td data-label="P/N">
+                    {r.PN || '—'}
+                    {r.MatchStatus === 'WRONG_PART' && r.ExpectedPN && (
+                      <span className="mfg-plan-hint" title={r.MatchDetail || ''}>
+                        แผน: {r.ExpectedPN}
+                      </span>
+                    )}
+                  </td>
                   <td className="il-mono" data-label="S/N">
                     {r.SN || '—'}
                   </td>
@@ -866,7 +871,9 @@ export default function WHPartConfirmationPage() {
                     <button className="tsf-action-btn" onClick={() => setDetailRow(r)}>
                       รายละเอียด
                     </button>
-                    {['NOT_FOUND', 'NOT_REQUIRED', 'DUPLICATE'].includes(r.MatchStatus) && (
+                    {['NOT_FOUND', 'NOT_REQUIRED', 'DUPLICATE', 'WRONG_PART', 'WRONG_INVOICE', 'WRONG_PRODNO'].includes(
+                      r.MatchStatus,
+                    ) && (
                       <button
                         className="tsf-action-btn tsf-action-btn-danger"
                         onClick={() => handleDeleteCheck(r)}
@@ -954,12 +961,6 @@ export default function WHPartConfirmationPage() {
                 <DocumentTextIcon className="size-4" /> ข้อมูลชิ้นงาน
               </span>
               <div className="wh-detail-grid">
-                {detailRow.Tag ? (
-                  <div className="wh-detail-item">
-                    <span className="wh-detail-label">Machine TAG</span>
-                    <span className="wh-detail-value mono">{detailRow.Tag}</span>
-                  </div>
-                ) : null}
                 <div className="wh-detail-item">
                   <span className="wh-detail-label">P/N</span>
                   <span className="wh-detail-value mono">{detailRow.PN || '—'}</span>
@@ -1001,6 +1002,9 @@ export default function WHPartConfirmationPage() {
                   <span className="wh-detail-result-msg">{detailRow.MatchMessage}</span>
                 ) : null}
               </div>
+              {detailRow.MatchDetail ? (
+                <div className="wh-detail-result-detail">{detailRow.MatchDetail}</div>
+              ) : null}
             </div>
 
             <div className="wh-detail-meta">

@@ -35,7 +35,52 @@ func GetPartChecks(c *gin.Context) {
 
 	query.Find(&rows)
 
+	enrichPartChecksWithExpected(rows)
+
 	c.JSON(200, rows)
+}
+
+// enrichPartChecksWithExpected เติม "ค่าที่ถูกต้องตามทะเบียน" ให้แถวที่ P/N ไม่ตรงกับ S/N
+// โหลด Master Data ทีเดียวแล้วเทียบในหน่วยความจำ ไม่ยิง query ต่อแถว
+func enrichPartChecksWithExpected(rows []models.PartCheck) {
+	serials := map[string]bool{}
+	for _, r := range rows {
+		if r.MatchStatus == models.MatchStatusWrongPart && strings.TrimSpace(r.SN) != "" {
+			serials[strings.TrimSpace(r.SN)] = true
+		}
+	}
+	if len(serials) == 0 {
+		return
+	}
+
+	list := make([]string, 0, len(serials))
+	for sn := range serials {
+		list = append(list, sn)
+	}
+
+	var masters []models.MasterData
+	config.DB.Where("serial_no IN ?", list).Find(&masters)
+
+	pnBySerial := map[string]string{}
+	for _, m := range masters {
+		sn := strings.TrimSpace(m.SerialNo)
+		if sn != "" && pnBySerial[sn] == "" {
+			pnBySerial[sn] = m.PartNo
+		}
+	}
+
+	for i := range rows {
+		if rows[i].MatchStatus != models.MatchStatusWrongPart {
+			continue
+		}
+		expected := pnBySerial[strings.TrimSpace(rows[i].SN)]
+		if expected == "" {
+			continue
+		}
+		rows[i].ExpectedPN = expected
+		rows[i].MatchDetail = "S/N " + rows[i].SN + " คู่กับ P/N " + expected +
+			" แต่สแกนได้ " + rows[i].PN
+	}
 }
 
 func DeletePartCheck(c *gin.Context) {
@@ -126,10 +171,9 @@ func derefStr(p *string) string {
 }
 
 type ScanPartCheckRequest struct {
-	MachineTag string `json:"machineTag"`
-	PartType   string `json:"partType" binding:"required"`
-	PN         string `json:"pn"`
-	SN         string `json:"sn" binding:"required"`
+	PartType string `json:"partType" binding:"required"`
+	PN       string `json:"pn"`
+	SN       string `json:"sn" binding:"required"`
 
 	ProductionNo string `json:"productionNo"`
 	InvoiceNo    string `json:"invoiceNo"`
@@ -141,21 +185,6 @@ func ScanPartCheck(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"message": err.Error()})
 		return
-	}
-
-	rawTag := strings.TrimSpace(req.MachineTag)
-	tagType := ""
-	refNo := rawTag
-
-	if rawTag != "" {
-		parts := strings.SplitN(rawTag, "-", 2)
-		if len(parts) == 2 {
-			prefix := strings.ToUpper(strings.TrimSpace(parts[0]))
-			if _, ok := tagTypeLabels[prefix]; ok {
-				tagType = prefix
-				refNo = strings.TrimSpace(parts[1])
-			}
-		}
 	}
 
 	partType := strings.ToUpper(strings.TrimSpace(req.PartType))
@@ -181,9 +210,6 @@ func ScanPartCheck(c *gin.Context) {
 	now := time.Now()
 
 	check := models.PartCheck{
-		Tag:             rawTag,
-		TagType:         tagType,
-		RefNo:           refNo,
 		PartType:        partType,
 		PN:              strings.TrimSpace(req.PN),
 		SN:              sn,
@@ -204,6 +230,17 @@ func ScanPartCheck(c *gin.Context) {
 		if master == nil {
 			check.MatchStatus = models.MatchStatusNotFound
 			check.MatchMessage = "ไม่พบข้อมูลในระบบ กรุณาติดต่อ ADMIN"
+		} else if scannedPN := strings.TrimSpace(check.PN); scannedPN != "" &&
+			master.PartNo != "" && !strings.EqualFold(scannedPN, master.PartNo) {
+
+			// สแกนเจอ S/N ในทะเบียนก็จริง แต่ P/N ที่สแกนมาเป็นของคนละพาร์ท
+			// เดิมโค้ดยอมผ่านให้ เพราะเช็คแค่ว่า "มีข้อมูลอยู่" ไม่ได้เช็คว่าตรงกัน
+			check.MachineNo = derefStr(master.ITControllerNo)
+			check.MatchStatus = models.MatchStatusWrongPart
+			check.MatchMessage = "ข้อมูลไม่ตรง"
+			check.ExpectedPN = master.PartNo
+			check.MatchDetail = "S/N " + master.SerialNo + " คู่กับ P/N " + master.PartNo +
+				" แต่สแกนได้ " + scannedPN
 		} else {
 			machineNo := derefStr(master.ITControllerNo)
 			imei := derefStr(master.IMEI)
@@ -247,7 +284,6 @@ func ScanPartCheck(c *gin.Context) {
 			Where("id = ?", matchedItem.ID).
 			Updates(map[string]interface{}{
 				"confirm_status":     models.LicenseItemConfirmed,
-				"confirmed_tag":      rawTag,
 				"confirmed_by":       name,
 				"confirmed_datetime": now,
 			})

@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,6 +14,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+var errNoMachinesToGenerate = errors.New(
+	"ยังไม่มีหมายเลขเครื่องให้ปั๊ม — กรุณาอัปโหลดข้อมูล Engine หรือ Planning ก่อน")
 
 // คอลัมน์เก่าของ Assembly ที่เลิกใช้แล้ว
 // "IT Controller" มาจากการไล่เดาห่วงโซ่ (mfg_assemblies → machine_specs → export_license_items)
@@ -129,7 +134,25 @@ func orderKeysFromRow(m map[string]string) []string {
 	return dedupStrings(keys)
 }
 
-func GenerateAssembly(c *gin.Context) {
+// assemblyGenResult สรุปผลการปั๊มตาราง Assembly
+type assemblyGenResult struct {
+	Machines         int      `json:"machines"`
+	Created          int      `json:"created"`
+	Updated          int      `json:"updated"`
+	Skipped          int      `json:"skipped"`
+	WH1Rows          int      `json:"wh1Rows"`
+	PartsFilled      int      `json:"partsFilled"`
+	PartsMissing     int      `json:"partsMissing"`
+	MatchedByMachine int      `json:"matchedByMachine"`
+	MatchedByOrder   int      `json:"matchedByOrder"`
+	Warnings         []string `json:"warnings"`
+}
+
+// runAssemblyGeneration ปั๊มตาราง Assembly จากข้อมูลที่อัปโหลดไว้
+//
+// แยกออกมาจาก handler เพื่อให้เรียกอัตโนมัติได้ทันทีหลังอัปโหลดไฟล์
+// ไม่ต้องรอให้ใครเปิดหน้า Assembly ก่อน
+func runAssemblyGeneration(userID uint, userName string) (assemblyGenResult, error) {
 
 	planning := loadUploadRows(models.DatasetPlanning)
 	engine := loadUploadRows(models.DatasetEngine)
@@ -236,13 +259,9 @@ func GenerateAssembly(c *gin.Context) {
 	}
 
 	if len(orderedMachines) == 0 {
-		c.JSON(400, gin.H{
-			"message": "ยังไม่มีหมายเลขเครื่องให้ปั๊ม — กรุณาอัปโหลดข้อมูล Engine หรือ Planning ก่อน",
-		})
-		return
+		return assemblyGenResult{}, errNoMachinesToGenerate
 	}
 
-	userID, userName := lookupUserName(c)
 	now := time.Now()
 
 	created, updated, skipped := 0, 0, 0
@@ -278,17 +297,6 @@ func GenerateAssembly(c *gin.Context) {
 		itcNo := planITC
 
 		guessedITC, deriveCountry := resolveITControllerNo(mc, planITC)
-
-		if itDevice == "" {
-			var specs []models.MachineSpec
-			config.DB.Where("machine_no = ?", mc).Order("upload_date desc").Find(&specs)
-			for _, s := range specs {
-				if strings.TrimSpace(s.ITDevice) != "" {
-					itDevice = strings.TrimSpace(s.ITDevice)
-					break
-				}
-			}
-		}
 
 		licCountry := lookupMFGCountry(itcNo)
 		if licCountry == "" {
@@ -367,8 +375,7 @@ func GenerateAssembly(c *gin.Context) {
 			existing.UserID = userID
 			if e := tx.Save(&existing).Error; e != nil {
 				tx.Rollback()
-				c.JSON(500, gin.H{"message": "อัปเดต Assembly ไม่สำเร็จ: " + e.Error()})
-				return
+				return assemblyGenResult{}, fmt.Errorf("อัปเดต Assembly ไม่สำเร็จ: %w", e)
 			}
 			updated++
 		} else {
@@ -383,8 +390,7 @@ func GenerateAssembly(c *gin.Context) {
 			}
 			if e := tx.Create(&row).Error; e != nil {
 				tx.Rollback()
-				c.JSON(500, gin.H{"message": "สร้างแถว Assembly ไม่สำเร็จ: " + e.Error()})
-				return
+				return assemblyGenResult{}, fmt.Errorf("สร้างแถว Assembly ไม่สำเร็จ: %w", e)
 			}
 			created++
 		}
@@ -394,7 +400,6 @@ func GenerateAssembly(c *gin.Context) {
 
 	CreateAuditLog("UPLOAD_DATA", 0, "generate_assembly", userName, userID, userName)
 
-	message := "ปั๊มตาราง Assembly อัตโนมัติสำเร็จ"
 	var warnings []string
 	if len(wh1) == 0 {
 		warnings = append(warnings,
@@ -410,17 +415,45 @@ func GenerateAssembly(c *gin.Context) {
 			"มี "+strconv.Itoa(partsMissing)+" เครื่องที่หา Assembly Parts ใน WH1 ไม่เจอ")
 	}
 
+	return assemblyGenResult{
+		Machines:         len(orderedMachines),
+		Created:          created,
+		Updated:          updated,
+		Skipped:          skipped,
+		WH1Rows:          len(wh1),
+		PartsFilled:      partsFilled,
+		PartsMissing:     partsMissing,
+		MatchedByMachine: matchedByMachine,
+		MatchedByOrder:   matchedByOrder,
+		Warnings:         warnings,
+	}, nil
+}
+
+// GenerateAssembly คือปุ่ม "ปั๊มตาราง Assembly" ที่กดเองจากหน้าจอ
+func GenerateAssembly(c *gin.Context) {
+	userID, userName := lookupUserName(c)
+
+	res, err := runAssemblyGeneration(userID, userName)
+	if err != nil {
+		if errors.Is(err, errNoMachinesToGenerate) {
+			c.JSON(400, gin.H{"message": err.Error()})
+			return
+		}
+		c.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
 	c.JSON(200, gin.H{
-		"message":          message,
-		"warnings":         warnings,
-		"machines":         len(orderedMachines),
-		"created":          created,
-		"updated":          updated,
-		"skipped":          skipped,
-		"wh1Rows":          len(wh1),
-		"partsFilled":      partsFilled,
-		"partsMissing":     partsMissing,
-		"matchedByMachine": matchedByMachine,
-		"matchedByOrder":   matchedByOrder,
+		"message":          "ปั๊มตาราง Assembly อัตโนมัติสำเร็จ",
+		"warnings":         res.Warnings,
+		"machines":         res.Machines,
+		"created":          res.Created,
+		"updated":          res.Updated,
+		"skipped":          res.Skipped,
+		"wh1Rows":          res.WH1Rows,
+		"partsFilled":      res.PartsFilled,
+		"partsMissing":     res.PartsMissing,
+		"matchedByMachine": res.MatchedByMachine,
+		"matchedByOrder":   res.MatchedByOrder,
 	})
 }

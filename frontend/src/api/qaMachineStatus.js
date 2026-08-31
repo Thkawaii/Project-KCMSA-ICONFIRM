@@ -83,6 +83,7 @@ export const SECTION_DEFS = [
     title: 'IT device',
     fields: [
       { key: 'ITDevice', label: 'IT device' },
+      { key: 'ITControllerNo', label: 'IT controller No.' },
       { key: 'ITController', label: 'IT controller (P/N)' },
       { key: 'ITControllerSN', label: 'IT controller (S/N)' },
     ],

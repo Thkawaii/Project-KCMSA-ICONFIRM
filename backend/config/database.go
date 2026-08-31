@@ -47,8 +47,6 @@ func ConnectDB() {
 
 		&models.MasterData{},
 
-		&models.MachineSpec{},
-
 		&models.AuditLog{},
 
 		&models.PartCheck{},
@@ -58,8 +56,6 @@ func ConnectDB() {
 		&models.ExportLicenseItem{},
 
 		&models.UploadDataRow{},
-
-		&models.WHMachineStock{},
 
 		&models.MFGAssembly{},
 

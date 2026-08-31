@@ -161,14 +161,12 @@ type exportLicenseLink struct {
 	ImportCountry       string `json:"ImportCountry"`
 	ImportConfirmStatus string `json:"ImportConfirmStatus"`
 
-	SpecMatched bool   `json:"SpecMatched"`
-	SpecCountry string `json:"SpecCountry"`
+	PlanMatched bool   `json:"PlanMatched"`
+	PlanCountry string `json:"PlanCountry"`
 
 	MFGMatched   bool   `json:"MFGMatched"`
 	MFGStatus    string `json:"MFGStatus"`
 	MFGMachineNo string `json:"MFGMachineNo"`
-
-	StockMatched bool `json:"StockMatched"`
 
 	LinkLevel string `json:"LinkLevel"`
 }
@@ -216,15 +214,10 @@ func resolveExportLinks(items []models.ExportLicenseItem) []exportLicenseRow {
 		}
 	}
 
-	specByMachine := map[string]models.MachineSpec{}
+	// แผนประกอบมาจาก upload_data_rows (Planning/Assembly) ซึ่งเป็นแหล่งที่มีข้อมูลจริง
+	planByMachine := map[string]map[string]string{}
 	if len(machineNos) > 0 {
-		var specs []models.MachineSpec
-		config.DB.Where("machine_no IN ?", machineNos).Find(&specs)
-		for _, r := range specs {
-			if _, ok := specByMachine[r.MachineNo]; !ok {
-				specByMachine[r.MachineNo] = r
-			}
-		}
+		planByMachine = loadMachinePlans()
 	}
 
 	mfgByITC := map[string]models.MFGAssembly{}
@@ -235,15 +228,6 @@ func resolveExportLinks(items []models.ExportLicenseItem) []exportLicenseRow {
 			if _, ok := mfgByITC[r.ITControllerNo]; !ok {
 				mfgByITC[r.ITControllerNo] = r
 			}
-		}
-	}
-
-	stockByOrder := map[string]bool{}
-	if len(machineNos) > 0 {
-		var st []models.WHMachineStock
-		config.DB.Select("order_no").Where("order_no IN ?", machineNos).Find(&st)
-		for _, r := range st {
-			stockByOrder[r.OrderNo] = true
 		}
 	}
 
@@ -259,23 +243,19 @@ func resolveExportLinks(items []models.ExportLicenseItem) []exportLicenseRow {
 			link.ImportCountry = imp.ExportCountry
 			link.ImportConfirmStatus = imp.ConfirmStatus
 		}
-		if spec, ok := specByMachine[it.MachineNo]; ok && it.MachineNo != "" {
-			link.SpecMatched = true
-			link.SpecCountry = spec.CountryName
+		if plan, ok := planByMachine[it.MachineNo]; ok && it.MachineNo != "" {
+			link.PlanMatched = true
+			link.PlanCountry = plannedCountryOf(plan)
 		}
 		if mfg, ok := mfgByITC[it.ITControllerNo]; ok && isControllerNo(it.ITControllerNo) {
 			link.MFGMatched = true
 			link.MFGStatus = mfg.Status
 			link.MFGMachineNo = mfg.MachineNo
 		}
-		if it.MachineNo != "" && stockByOrder[it.MachineNo] {
-			link.StockMatched = true
-		}
-
 		switch {
-		case link.ImportMatched && link.SpecMatched:
+		case link.ImportMatched && link.PlanMatched:
 			link.LinkLevel = "FULL"
-		case link.ImportMatched || link.SpecMatched || link.MFGMatched || link.StockMatched:
+		case link.ImportMatched || link.PlanMatched || link.MFGMatched:
 			link.LinkLevel = "PARTIAL"
 		default:
 			link.LinkLevel = "NONE"
@@ -357,15 +337,8 @@ func GetExportLicenseTrace(c *gin.Context) {
 	}
 
 	if item.MachineNo != "" {
-		var specs []models.MachineSpec
-		config.DB.Where("machine_no = ?", item.MachineNo).Find(&specs)
-		if len(specs) > 0 {
-			resp["machineSpecs"] = specs
-		}
-
-		var stock models.WHMachineStock
-		if err := config.DB.Where("order_no = ?", item.MachineNo).First(&stock).Error; err == nil {
-			resp["whStock"] = stock
+		if plan := planForMachine(item.MachineNo); plan != nil {
+			resp["machinePlan"] = buildMachineProfile(item.MachineNo, plan)
 		}
 	}
 
