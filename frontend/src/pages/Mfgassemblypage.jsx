@@ -8,6 +8,7 @@ import { scanStep, scanLoading, scanClose, scanCloseWait, scanSuccessToast, scan
 import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, QrCodeIcon, CameraIcon, ArrowUpTrayIcon, ArrowsRightLeftIcon } from '../components/icons.jsx';
 import AppShell from '../components/AppShell.jsx';
 import SelectField from '../components/Selectfield.jsx';
+import PartTag from '../components/Parttag.jsx';
 import bcMachine from '../assets/barcodes/Machine_Barcode.gif';
 export const MFG_NAV_ITEMS = [{
   to: '/mfg-assembly',
@@ -472,7 +473,7 @@ export default function MFGAssemblyPage() {
           if (!scanBusy) runScanFlow();
         }
       }}>
-          <span className="pc-barcode-kind">Machine No + IT Controller</span>
+          <span className="pc-barcode-kind">Machine No + หมายเลขเครื่อง</span>
           <div className="pc-barcode-title">
             {scanBusy ? 'กำลังบันทึก...' : 'Machine — Part Confirmation'}
           </div>
@@ -522,7 +523,7 @@ export default function MFGAssemblyPage() {
               <th>Item</th>
               <th>Date Ass'y</th>
               <th>Machine No</th>
-              <th>IT Controller No.</th>
+              <th>No.</th>
               <th>Model</th>
               <th>Country</th>
               <th>Check Date</th>
@@ -554,9 +555,9 @@ export default function MFGAssemblyPage() {
                     <td className="il-mono" data-label="Machine No">
                       {a.MachineNo || '—'}
                     </td>
-                    <td className="il-mono" data-label="IT Controller No.">
+                    <td className="il-mono" data-label="No.">
                       {a.ITControllerNo || '—'}
-                      {a.PlanComponentLabel && a.PlanComponent !== 'ITC' && <span className="mfg-part-tag">{a.PlanComponentLabel}</span>}
+                      {a.PlanComponent && <PartTag code={a.PlanComponent} label={a.PlanComponentLabel} />}
                       {a.PlanState === 'MISMATCH' && a.PlanITControllerNo && <span className="mfg-plan-hint" title={a.PlanDetail || a.PlanMessage}>
                           แผน: {a.PlanITControllerNo}
                         </span>}
@@ -757,7 +758,7 @@ export default function MFGAssemblyPage() {
               <span className="mfg-detail-hero-model">{detailRow.asm.model || '—'}</span>
               <span className="mfg-detail-hero-sub">
                 {detailRow.row.MachineNo || '—'}
-                {detailRow.row.ITControllerNo ? ` · IT Controller ${detailRow.row.ITControllerNo}` : ''}
+                {detailRow.row.ITControllerNo ? ` · ${detailRow.row.PlanComponentLabel || 'หมายเลขเครื่อง'} ${detailRow.row.ITControllerNo}` : ''}
               </span>
             </div>
 
@@ -770,8 +771,11 @@ export default function MFGAssemblyPage() {
                   <span className="il-detail-value">{detailRow.row.MachineNo || '—'}</span>
                 </div>
                 <div className="il-detail-item">
-                  <span className="il-detail-label">IT Controller No.</span>
-                  <span className="il-detail-value">{detailRow.row.ITControllerNo || '—'}</span>
+                  <span className="il-detail-label">No.</span>
+                  <span className="il-detail-value il-detail-value-tagged">
+                    <span>{detailRow.row.ITControllerNo || '—'}</span>
+                    <PartTag code={detailRow.row.PlanComponent} label={detailRow.row.PlanComponentLabel} />
+                  </span>
                 </div>
                 <div className="il-detail-item">
                   <span className="il-detail-label">Model (Assembly Parts Name)</span>

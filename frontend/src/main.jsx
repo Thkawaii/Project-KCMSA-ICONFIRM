@@ -22,6 +22,7 @@ import './AppShell.css';
 import './ImportLicense.css';
 import './Filedropzone.css';
 import './Dropzone.css';
+import './components/Parttag.css';
 import './Selectfield.css';
 import './theme.css';
 const resolveHomeRoute = homeRouteForRole;

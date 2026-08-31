@@ -8,6 +8,7 @@ import { inDateTab } from '../lib/dateRange.js';
 import { CheckIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, DocumentTextIcon, ExclamationTriangleIcon, MinusIcon, PART_ICONS_BY_CODE, ShieldCheckIcon, TagIcon, XMarkIcon } from '../components/icons.jsx';
 import AppShell from '../components/AppShell.jsx';
 import SelectField from '../components/Selectfield.jsx';
+import PartTag from '../components/Parttag.jsx';
 import { WH_NAV_ITEMS } from './Importlicensepage.jsx';
 import bcItc from '../assets/barcodes/IT_Controller.gif';
 import bcSwingSn from '../assets/barcodes/Swing_Motor__SN_.gif';
@@ -95,10 +96,19 @@ const MATCH_LABELS = {
     cls: 'il-badge-muted'
   }
 };
-function matchBadge(status) {
+const NON_LICENSE_MATCH_TEXT = {
+  MATCH: 'ข้อมูลถูกต้อง',
+  NOT_FOUND: 'ข้อมูลไม่ถูกต้อง',
+  WRONG_PART: 'ข้อมูลไม่ถูกต้อง',
+  WRONG_INVOICE: 'ข้อมูลไม่ถูกต้อง',
+  WRONG_PRODNO: 'ข้อมูลไม่ถูกต้อง'
+};
+function matchBadge(status, partType) {
   const m = MATCH_LABELS[status] || MATCH_LABELS.NOT_REQUIRED;
+  const code = String(partType || '').toUpperCase();
+  const text = code && code !== 'ITC' && NON_LICENSE_MATCH_TEXT[status] ? NON_LICENSE_MATCH_TEXT[status] : m.text;
   return <span className={'il-badge ' + m.cls}>
-      <m.Icon className="inline size-3.5 align-text-bottom" /> {m.text}
+      <m.Icon className="inline size-3.5 align-text-bottom" /> {text}
     </span>;
 }
 const BARCODE_CARDS = [{
@@ -494,7 +504,7 @@ export default function WHPartConfirmationPage() {
             · S/N <span className="il-mono">{lastScan.sn}</span>
             {lastScan.machineNo ? <>
                 {' '}
-                · หมายเลขเครื่อง (IT Controller){' '}
+                · หมายเลขเครื่อง{' '}
                 <span className="il-mono">{lastScan.machineNo}</span>
               </> : null}
             {lastScan.productionNo ? <>
@@ -503,7 +513,7 @@ export default function WHPartConfirmationPage() {
               </> : null}
           </div>
           <div className="il-result-msg">
-            {matchBadge(lastScan.matchStatus)} {lastScan.message}
+            {matchBadge(lastScan.matchStatus, lastScan.partType)} {lastScan.message}
           </div>
         </div>}
         </>}
@@ -720,7 +730,7 @@ export default function WHPartConfirmationPage() {
             entries per page
           </div>
           <div className="wh-filter-field">
-            <span className="wh-filter-label">ผลเทียบใบอนุญาต</span>
+            <span className="wh-filter-label">ผลการตรวจสอบ</span>
             <SelectField value={matchFilter} onChange={setMatchFilter} options={[{
               value: 'all',
               label: 'ทั้งหมด'
@@ -750,8 +760,8 @@ export default function WHPartConfirmationPage() {
               <th>Part</th>
               <th>P/N</th>
               <th>S/N</th>
-              <th>หมายเลขเครื่อง (IT Controller)</th>
-              <th>ผลเทียบใบอนุญาต</th>
+              <th>หมายเลขเครื่อง</th>
+              <th>ผลการตรวจสอบ</th>
               <th>Checked By</th>
               <th>วันที่</th>
               <th></th>
@@ -768,9 +778,9 @@ export default function WHPartConfirmationPage() {
                     {(page - 1) * pageSize + idx + 1}
                   </td>
                   <td className="wh-cell-head" data-label="Part">
-                    <strong>{tagLabel(r.PartType)}</strong>
+                    {tagLabel(r.PartType)}
                   </td>
-                  <td data-label="P/N">
+                  <td className="il-mono" data-label="P/N">
                     {r.PN || '—'}
                     {r.MatchStatus === 'WRONG_PART' && r.ExpectedPN && <span className="mfg-plan-hint" title={r.MatchDetail || ''}>
                         แผน: {r.ExpectedPN}
@@ -779,10 +789,10 @@ export default function WHPartConfirmationPage() {
                   <td className="il-mono" data-label="S/N">
                     {r.SN || '—'}
                   </td>
-                  <td className="il-mono" data-label="หมายเลขเครื่อง (IT Controller)">
+                  <td className="il-mono" data-label="หมายเลขเครื่อง">
                     {r.MachineNo || '—'}
                   </td>
-                  <td data-label="ผลเทียบใบอนุญาต">{matchBadge(r.MatchStatus)}</td>
+                  <td data-label="ผลการตรวจสอบ">{matchBadge(r.MatchStatus, r.PartType)}</td>
                   <td data-label="Checked By">{r.CheckedBy}</td>
                   <td data-label="วันที่">{new Date(r.CheckedDatetime).toLocaleString('th-TH')}</td>
                   <td className="wh-cell-action">
@@ -863,8 +873,11 @@ export default function WHPartConfirmationPage() {
                   <span className="wh-detail-value mono">{detailRow.SN || '—'}</span>
                 </div>
                 <div className="wh-detail-item">
-                  <span className="wh-detail-label">หมายเลขเครื่อง (IT Controller)</span>
-                  <span className="wh-detail-value mono">{detailRow.MachineNo || '—'}</span>
+                  <span className="wh-detail-label">หมายเลขเครื่อง</span>
+                  <span className="wh-detail-value mono wh-detail-value-tagged">
+                    <span>{detailRow.MachineNo || '—'}</span>
+                    <PartTag code={detailRow.PartType} />
+                  </span>
                 </div>
                 <div className="wh-detail-item">
                   <span className="wh-detail-label">หมายเลขการผลิต (IMEI)</span>
@@ -890,7 +903,7 @@ export default function WHPartConfirmationPage() {
                 </div>
               </div>
               <div className="wh-detail-result">
-                {matchBadge(detailRow.MatchStatus)}
+                {matchBadge(detailRow.MatchStatus, detailRow.PartType)}
                 {detailRow.MatchMessage ? <span className="wh-detail-result-msg">{detailRow.MatchMessage}</span> : null}
               </div>
               {detailRow.MatchDetail ? <div className="wh-detail-result-detail">{detailRow.MatchDetail}</div> : null}

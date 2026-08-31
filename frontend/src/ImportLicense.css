@@ -1519,15 +1519,3 @@
   color: #b91c1c;
 }
 
-.mfg-part-tag {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: #eef2ff;
-  border: 1px solid #c7d2fe;
-  font-size: 10px;
-  font-weight: 700;
-  color: #4338ca;
-  vertical-align: middle;
-}
