@@ -189,7 +189,7 @@ export default function FormatSettingsPage() {
       <div className="fmt-page">
         <div className="fmt-page-head">
           <h2 style={{
-          fontWeight: 700,
+          fontWeight: 100,
           fontSize: 22,
           color: 'var(--color-brand-ink, #06312f)',
           margin: 0

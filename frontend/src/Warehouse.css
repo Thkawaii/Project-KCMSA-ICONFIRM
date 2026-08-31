@@ -74,7 +74,7 @@
 
 .wh-title {
   font-size: 24px;
-  font-weight: 700;
+  font-weight: 100;
   color: #0f172a;
   margin: 0 0 4px;
 }
@@ -1332,7 +1332,7 @@
 }
 .pc-barcode-title {
   font-size: 21px;
-  font-weight: 700;
+  font-weight: 100;
   color: #101828;
   letter-spacing: 0.2px;
   text-align: center;
