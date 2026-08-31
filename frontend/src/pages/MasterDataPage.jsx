@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import AppShell from '../components/AppShell.jsx';
 import { ADMIN_NAV_ITEMS } from './AdminDashboardpage.jsx';
 import SelectField from '../components/Selectfield.jsx';
+import useFileDrop from '../lib/useFileDrop.js';
 import { getMasterData, uploadMasterData, deleteMasterData, clearMasterData, previewMasterDataChanges } from '../api/masterData.js';
 import { getUploadData, uploadDataFile, deleteUploadDataRow, updateUploadDataRow, clearUploadData, previewUploadData, generateAssembly } from '../api/uploadData.js';
 import { PreviewResult, ChangePreview, MasterDataEditModal } from '../components/FormatTools.jsx';
@@ -141,11 +142,26 @@ export default function MasterDataPage() {
     }
   }
   const [reloadKey, setReloadKey] = useState(0);
-  function handleFileChange(e) {
-    setPendingFile(e.target.files?.[0] || null);
+  function acceptFile(file) {
+    setPendingFile(file || null);
     setUploadMsg(null);
     setPreviewData(null);
   }
+  function handleFileChange(e) {
+    acceptFile(e.target.files?.[0] || null);
+  }
+  const {
+    dragging: fileDragging,
+    stateClass: fileDropState,
+    dropProps: fileDropProps
+  } = useFileDrop({
+    accept: '.xlsx,.xls,.csv',
+    disabled: uploading,
+    onFile: acceptFile,
+    onReject: (file, hint) => setUploadMsg({
+      error: `ไฟล์ "${file.name}" ไม่รองรับ — ต้องเป็น ${hint}`
+    })
+  });
   async function handleUpload() {
     if (!pendingFile) {
       setUploadMsg({
@@ -198,13 +214,18 @@ export default function MasterDataPage() {
       </div>
 
       <div className="upload-panel upload-panel-wide">
-        <label className={'upload-dropzone upload-panel-dropzone' + (pendingFile ? ' upload-dropzone-filled' : '')} htmlFor="md-file">
+        <label className={['upload-dropzone', 'upload-panel-dropzone', pendingFile ? 'upload-dropzone-filled' : '', fileDropState].filter(Boolean).join(' ')} htmlFor="md-file" {...fileDropProps}>
           <input id="md-file" ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} className="upload-card-input-hidden" />
-          <CloudArrowUpIcon className="size-[26px]" />
+          <span className="upload-dropzone-icon">
+            <CloudArrowUpIcon className="size-[26px]" />
+          </span>
           <span className="upload-dropzone-text">
-            {pendingFile ? pendingFile.name : `คลิกเพื่อเลือกไฟล์ (${typeLabel(uploadType)})`}
+            {fileDragging ? <span className="dz-drop-text">
+                <span className="dz-arrow">↓</span> ปล่อยไฟล์ได้เลย
+              </span> : pendingFile ? pendingFile.name : `ลากไฟล์มาวาง หรือคลิกเพื่อเลือก (${typeLabel(uploadType)})`}
           </span>
           <span className="upload-dropzone-hint">.xlsx, .xls, .csv</span>
+          {!pendingFile && !fileDragging && <span className="dz-nudge">พร้อมรับไฟล์แล้ว — วางตรงนี้</span>}
           {EXPECTED_COLUMNS_BY_TYPE[uploadType] && <span className="upload-dropzone-hint" style={{
           marginTop: 2
         }}>

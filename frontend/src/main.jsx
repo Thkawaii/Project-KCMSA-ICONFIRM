@@ -21,6 +21,7 @@ import './Warehouse.css';
 import './AppShell.css';
 import './ImportLicense.css';
 import './Filedropzone.css';
+import './Dropzone.css';
 import './Selectfield.css';
 import './theme.css';
 const resolveHomeRoute = homeRouteForRole;
@@ -111,6 +112,14 @@ function AppScreen() {
       {showWeeklyPopup && <LicenseWeeklyPopup />}
     </>;
 }
+['dragover', 'drop'].forEach(type => {
+  window.addEventListener(type, e => {
+    if (e.defaultPrevented) return;
+    if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+    e.preventDefault();
+    if (e.type === 'dragover' && e.dataTransfer) e.dataTransfer.dropEffect = 'none';
+  });
+});
 ReactDOM.createRoot(document.getElementById('root')).render(<React.StrictMode>
     <NavProvider initialView={getToken() ? resolveHomeRoute(localStorage.getItem('iconfirm_role')) : '/login'}>
       <AppScreen />
