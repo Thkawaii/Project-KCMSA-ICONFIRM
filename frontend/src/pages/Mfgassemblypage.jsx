@@ -247,7 +247,7 @@ export default function MFGAssemblyPage() {
       const machineNo = parsed1.machineNo || code1.trim();
       const code2 = await scanStep({
         title: 'สแกนหมายเลขพาร์ท (S/N)',
-        html: `<div class="scan-popup-hint">Machine No: <b>${machineNo || '-'}</b><br>รองรับ IT Controller, CV, SM, MP, PH, CounterWeight</div>`,
+        html: `<div class="scan-popup-hint">Machine No: <b>${machineNo || '-'}</b></div>`,
         placeholder: 'ยิงบาร์โค้ด หรือพิมพ์หมายเลขพาร์ท แล้วกดปุ่ม',
         confirmText: 'บันทึก'
       });
