@@ -1,62 +1,98 @@
 .part-tag {
-  display: inline-block;
+  display: inline-flex;
+  align-items: stretch;
   margin-left: 6px;
-  padding: 1px 7px;
   border-radius: 999px;
+  overflow: hidden;
+  font-family: var(--font-sans, system-ui, -apple-system, 'Segoe UI', sans-serif);
   font-size: 10.5px;
-  font-weight: 700;
-  line-height: 1.6;
-  letter-spacing: 0.2px;
+  line-height: 1;
   white-space: nowrap;
   vertical-align: middle;
-  color: var(--pt-fg, #334155);
   background: var(--pt-bg, #f1f5f9);
   border: 1px solid var(--pt-bd, #e2e8f0);
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.part-tag:hover {
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.1);
+  transform: translateY(-1px);
+}
+
+.part-tag-code {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  min-width: 26px;
+  justify-content: center;
+  background: var(--pt-solid, #64748b);
+  color: #fff;
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+}
+
+.part-tag-name {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px 4px 7px;
+  color: var(--pt-fg, #334155);
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .part-tag-itc {
-  --pt-fg: #4338ca;
+  --pt-solid: #4f46e5;
+  --pt-fg: #3730a3;
   --pt-bg: #eef2ff;
   --pt-bd: #c7d2fe;
 }
 
 .part-tag-sm {
+  --pt-solid: #00a39d;
   --pt-fg: #0f766e;
   --pt-bg: #e1f5ee;
   --pt-bd: #99e6d5;
 }
 
 .part-tag-ph {
+  --pt-solid: #d97706;
   --pt-fg: #b45309;
   --pt-bg: #fef3e2;
   --pt-bd: #fcd9a0;
 }
 
 .part-tag-mp {
+  --pt-solid: #ec4899;
   --pt-fg: #be185d;
   --pt-bg: #fce7f3;
   --pt-bd: #f9a8d4;
 }
 
 .part-tag-cv {
+  --pt-solid: #e11d48;
   --pt-fg: #be123c;
   --pt-bg: #ffe4e9;
   --pt-bd: #fda4b4;
 }
 
 .part-tag-en {
+  --pt-solid: #0369a1;
   --pt-fg: #075985;
   --pt-bg: #e0f2fe;
   --pt-bd: #a5d8f3;
 }
 
 .part-tag-cw {
+  --pt-solid: #b45309;
   --pt-fg: #92400e;
   --pt-bg: #fdf0dd;
   --pt-bd: #f6ce93;
 }
 
 .part-tag-mc {
+  --pt-solid: #0891b2;
   --pt-fg: #0e7490;
   --pt-bg: #e0f7fa;
   --pt-bd: #a5e4ee;
@@ -74,6 +110,19 @@
 .wh-detail-value-tagged .part-tag,
 .il-detail-value-tagged .part-tag {
   margin-left: 0;
-  font-family: var(--font-sans, system-ui, sans-serif);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .part-tag {
+    transition: none;
+  }
+  .part-tag:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .part-tag-name {
+    padding: 4px 8px 4px 6px;
+  }
+}
