@@ -18,6 +18,8 @@ var tagTypeLabels = map[string]string{
 	"SM":  "Swing Motor",
 	"MP":  "Motor Propel",
 	"PH":  "Pump Assy HYD",
+	"EN":  "Engine",
+	"CW":  "Counter Weight",
 }
 
 func GetPartChecks(c *gin.Context) {
@@ -40,8 +42,6 @@ func GetPartChecks(c *gin.Context) {
 	c.JSON(200, rows)
 }
 
-// enrichPartChecksWithExpected เติม "ค่าที่ถูกต้องตามทะเบียน" ให้แถวที่ P/N ไม่ตรงกับ S/N
-// โหลด Master Data ทีเดียวแล้วเทียบในหน่วยความจำ ไม่ยิง query ต่อแถว
 func enrichPartChecksWithExpected(rows []models.PartCheck) {
 	serials := map[string]bool{}
 	for _, r := range rows {
@@ -203,6 +203,11 @@ func ScanPartCheck(c *gin.Context) {
 		return
 	}
 
+	if partType == ComponentEN && strings.TrimSpace(req.PN) == "" {
+		c.JSON(400, gin.H{"message": "Engine ต้องสแกนทั้ง P/N และ S/N"})
+		return
+	}
+
 	productionNo := strings.TrimSpace(req.ProductionNo)
 	invoiceNo := strings.TrimSpace(req.InvoiceNo)
 
@@ -224,6 +229,13 @@ func ScanPartCheck(c *gin.Context) {
 
 	var matchedItem *models.ImportLicenseItem
 
+	switch partType {
+	case ComponentEN:
+		checkEnginePart(&check)
+	case ComponentCW:
+		checkCounterWeightPart(&check)
+	}
+
 	if partType == "ITC" {
 		master := resolveITControllerMaster(check.PN, sn)
 
@@ -233,8 +245,6 @@ func ScanPartCheck(c *gin.Context) {
 		} else if scannedPN := strings.TrimSpace(check.PN); scannedPN != "" &&
 			master.PartNo != "" && !strings.EqualFold(scannedPN, master.PartNo) {
 
-			// สแกนเจอ S/N ในทะเบียนก็จริง แต่ P/N ที่สแกนมาเป็นของคนละพาร์ท
-			// เดิมโค้ดยอมผ่านให้ เพราะเช็คแค่ว่า "มีข้อมูลอยู่" ไม่ได้เช็คว่าตรงกัน
 			check.MachineNo = derefStr(master.ITControllerNo)
 			check.MatchStatus = models.MatchStatusWrongPart
 			check.MatchMessage = "ข้อมูลไม่ตรง"
@@ -303,4 +313,59 @@ func ScanPartCheck(c *gin.Context) {
 		"message":     check.MatchMessage,
 		"item":        matchedItem,
 	})
+}
+
+func checkEnginePart(check *models.PartCheck) {
+	row, ok := engineRowFor(check.PN, check.SN)
+	if !ok {
+
+		if other, found := engineRowByValue(check.SN); found {
+			engine := strings.TrimSpace(pickField(other, "ENGINE", "Engine"))
+			history := strings.TrimSpace(pickField(other, "History", "Engine History"))
+
+			expected := engine
+			if strings.EqualFold(engine, check.SN) {
+				expected = history
+			}
+
+			check.MachineNo = strings.TrimSpace(pickField(other, "Machine No", "Machine"))
+			check.MatchStatus = models.MatchStatusWrongPart
+			check.MatchMessage = "ข้อมูลไม่ตรง"
+			check.ExpectedPN = expected
+			check.MatchDetail = "S/N " + check.SN + " คู่กับ P/N " + expected +
+				" แต่สแกนได้ " + check.PN
+			return
+		}
+
+		check.MatchStatus = models.MatchStatusNotFound
+		check.MatchMessage = "ไม่พบข้อมูล กรุณาติดต่อ ADMIN"
+		check.MatchDetail = "ไม่พบ Engine P/N " + check.PN + " S/N " + check.SN +
+			" ในไฟล์ Engine ที่อัปโหลดไว้"
+		return
+	}
+
+	check.MachineNo = strings.TrimSpace(pickField(row, "Machine No", "Machine"))
+	check.MatchStatus = models.MatchStatusMatch
+	check.MatchMessage = "ข้อมูลตรง"
+	check.MatchDetail = "ตรงกับไฟล์ Engine ของเครื่อง " + check.MachineNo
+}
+
+func checkCounterWeightPart(check *models.PartCheck) {
+	scanned := strings.TrimSpace(check.SN)
+
+	for machineNo, plan := range loadMachinePlans() {
+		planned := PlannedNoOf(plan, ComponentCW)
+		if planned != "" && strings.EqualFold(planned, scanned) {
+			check.MachineNo = machineNo
+			check.MatchStatus = models.MatchStatusMatch
+			check.MatchMessage = "ข้อมูลตรง"
+			check.MatchDetail = "Counter Weight " + scanned + " ตรงกับแผนของเครื่อง " + machineNo
+			return
+		}
+	}
+
+	check.MatchStatus = models.MatchStatusNotFound
+	check.MatchMessage = "ไม่พบข้อมูล กรุณาติดต่อ ADMIN"
+	check.MatchDetail = "ไม่พบ Counter Weight " + scanned +
+		" ในแผนประกอบของเครื่องใดเลย (ตรวจว่าไฟล์ Planning มีคอลัมน์ CW No. หรือยัง)"
 }

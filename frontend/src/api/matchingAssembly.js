@@ -1,23 +1,21 @@
-import { apiFetch } from './client.js'
-
+import { apiFetch } from './client.js';
 export function getMatchingAssemblies() {
-  return apiFetch('/matching-assembly')
+  return apiFetch('/matching-assembly');
 }
-
 export function createMatchingAssembly(payload) {
   return apiFetch('/matching-assembly', {
     method: 'POST',
-    body: JSON.stringify(payload),
-  })
+    body: JSON.stringify(payload)
+  });
 }
-
 export function updateMatchingAssembly(id, payload) {
   return apiFetch(`/matching-assembly/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify(payload),
-  })
+    body: JSON.stringify(payload)
+  });
 }
-
 export function deleteMatchingAssembly(id) {
-  return apiFetch(`/matching-assembly/${id}`, { method: 'DELETE' })
+  return apiFetch(`/matching-assembly/${id}`, {
+    method: 'DELETE'
+  });
 }

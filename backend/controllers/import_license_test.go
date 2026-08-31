@@ -128,7 +128,6 @@ func TestMatchImportLicenseCodeAlias(t *testing.T) {
 	}
 }
 
-// วันหมดอายุต้องถูกคำนวณและเก็บลงฐานข้อมูล ไม่ใช่คำนวณสดที่หน้าจออย่างเดียว
 func TestImportLicenseFillExpireDate(t *testing.T) {
 	issue := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
 
@@ -143,7 +142,6 @@ func TestImportLicenseFillExpireDate(t *testing.T) {
 		t.Errorf("ExpireDate = %v, want %v (ออก + 6 เดือน)", m.ExpireDate, want)
 	}
 
-	// ถ้าไฟล์ระบุมาเองแล้ว ห้ามเขียนทับ
 	custom := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
 	m2 := models.ImportLicenseItem{IssueDate: &issue, ExpireDate: &custom}
 	m2.FillExpireDate()
@@ -151,7 +149,6 @@ func TestImportLicenseFillExpireDate(t *testing.T) {
 		t.Errorf("ExpireDate ถูกเขียนทับ = %v, want %v", m2.ExpireDate, custom)
 	}
 
-	// ไม่มีวันที่ออก ก็ไม่ต้องเดา
 	m3 := models.ImportLicenseItem{}
 	m3.FillExpireDate()
 	if m3.ExpireDate != nil {

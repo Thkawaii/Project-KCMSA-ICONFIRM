@@ -291,7 +291,6 @@ func GetImportLicenseSummary(c *gin.Context) {
 	c.JSON(200, rows)
 }
 
-// อายุใบอนุญาตนำเข้า อ้างอิงค่าเดียวกับฝั่ง model เพื่อไม่ให้หลุดจากกัน
 const LicenseValidityMonths = models.ImportLicenseValidityMonths
 
 const (
@@ -519,7 +518,7 @@ func UploadImportLicenseItems(c *gin.Context) {
 		if row.IssueDate == nil {
 			row.IssueDate = fallbackIssueDate
 		}
-		// วันหมดอายุ = วันที่ออกใบอนุญาต + 6 เดือน (ถ้าไฟล์ไม่ได้ระบุมาเอง)
+
 		row.FillExpireDate()
 
 		if row.MachineNo == "" {

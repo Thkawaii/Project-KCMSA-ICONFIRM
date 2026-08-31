@@ -31,7 +31,6 @@ func SetupRoutes(r *gin.Engine) {
 		}
 	}
 
-	// สเปกเครื่องรายคัน ประกอบสดจากไฟล์ Planning/Assembly/Engine ที่อัปโหลดจริง
 	auth.GET("/machine-profile/:machineNo", controllers.GetMachineProfile)
 
 	uploadData := auth.Group("/upload-data")

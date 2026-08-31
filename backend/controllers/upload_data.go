@@ -92,6 +92,7 @@ var udDatasets = map[string]udDataset{
 			col("Piping, arm", "pipingarm"),
 			col("Shoe"),
 			col("Counter weight", "counterweight"),
+			col("CW No", "cwno", "cwpartno", "counterweightno", "counterweightpartno"),
 			col("Lower ATT", "loweratt"),
 			col("Lever"),
 			col("Multi control", "multicontrol"),
@@ -212,6 +213,7 @@ var udDatasets = map[string]udDataset{
 			col("Pump Assy HYD No", "pumpassyhydno", "pumpassyno", "pumpno", "pumpassy", "pumpassyhyd"),
 			col("Motor Propel No", "motorpropelno", "propelno", "propelmotorno", "propel"),
 			col("Control Valve No", "controlvalveno", "cvno", "valveno", "controlvalve"),
+			col("CW No", "cwno", "cwpartno", "counterweightno", "counterweightpartno"),
 			col("Assembly_Parts_Number", "assemblypartsnumber", "assemblypartsno", "partsnumber", "assemblyparts"),
 			col("Assembly_Parts_Name", "assemblypartsname", "partsname", "model", "modelname"),
 		},
@@ -697,6 +699,7 @@ func UploadDataFile(c *gin.Context) {
 	now := time.Now()
 
 	var parsed []models.UploadDataRow
+	var planConflicts []planRowConflict
 	skipped := 0
 
 	for i := headerIdx + 1; i < len(rows); i++ {
@@ -753,6 +756,16 @@ func UploadDataFile(c *gin.Context) {
 			continue
 		}
 
+		if dataset == models.DatasetPlanning {
+			if filled := countPlanComponents(data); len(filled) > 1 {
+				planConflicts = append(planConflicts, planRowConflict{
+					RowNo:     i + 1,
+					MachineNo: machineFromRow(data),
+					Filled:    filled,
+				})
+			}
+		}
+
 		jsonBytes, _ := json.Marshal(data)
 
 		row := models.UploadDataRow{
@@ -765,6 +778,14 @@ func UploadDataFile(c *gin.Context) {
 		fillUploadDataKeys(&row, dataset, data)
 
 		parsed = append(parsed, row)
+	}
+
+	if len(planConflicts) > 0 {
+		c.JSON(400, gin.H{
+			"message":   planConflictMessage(planConflicts),
+			"conflicts": planConflicts,
+		})
+		return
 	}
 
 	if len(parsed) == 0 {

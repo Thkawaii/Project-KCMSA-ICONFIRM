@@ -137,10 +137,6 @@ func buildRegistryIndex() *registryIndex {
 		add(idx.pn, m.PartNo)
 	}
 
-	// หมายเลขเครื่อง (เช่น LX10400691) ไม่ได้อยู่ใน master_data
-	// เดิม idx.machine มีแต่เลข IT Controller กับ IMEI ทำให้เพิ่ม alias ของ
-	// หมายเลขเครื่องไม่ได้เลย ทั้งที่เครื่องนั้นมีอยู่จริงในระบบ
-	// จึงต้องรวมหมายเลขเครื่องจากทุกที่ที่บันทึกไว้จริงเข้ามาด้วย
 	for mc := range loadMachinePlans() {
 		add(idx.machine, mc)
 	}

@@ -161,14 +161,12 @@ func TestScanPartCheckRequiresSN(t *testing.T) {
 	mustStatus(t, rec, 400)
 }
 
-// สแกน S/N ที่มีในทะเบียนจริง แต่ P/N เป็นของคนละพาร์ท ต้องไม่ผ่าน
 func TestScanPartCheckWrongPart(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
 	seedMaster(t, "YN22E00849FA", "KQ3000045152", "878250022802", "111122223333444")
 	seedLicenseItem(t, "878250022802", "TQ60610", "111122223333444", "E05036901604", "Indonesia", "")
 
-	// P/N ลงท้าย FG แทนที่จะเป็น FA
 	body := `{"partType":"ITC","pn":"YN22E00849FG","sn":"KQ3000045152"}`
 	c, rec := newContext("POST", body, u.ID, u.Username)
 	ScanPartCheck(c)
@@ -186,12 +184,11 @@ func TestScanPartCheckWrongPart(t *testing.T) {
 	if err := db.Where("part_type = ?", "ITC").First(&pc).Error; err != nil {
 		t.Fatalf("partcheck not saved: %v", err)
 	}
-	// ข้อความที่เด้งเตือนต้องสั้น
+
 	if pc.MatchMessage != "ข้อมูลไม่ตรง" {
 		t.Errorf("MatchMessage = %q, want ข้อมูลไม่ตรง", pc.MatchMessage)
 	}
 
-	// ใบอนุญาตต้องไม่ถูกยืนยัน
 	var item models.ImportLicenseItem
 	db.Where("machine_no = ?", "878250022802").First(&item)
 	if item.ConfirmStatus == models.LicenseItemConfirmed {
@@ -199,7 +196,6 @@ func TestScanPartCheckWrongPart(t *testing.T) {
 	}
 }
 
-// รายการที่ P/N ไม่ตรง ต้องมีค่าที่ถูกต้องติดมาด้วย เพื่อแสดงบรรทัด "แผน :"
 func TestGetPartChecksFillsExpectedPN(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
@@ -231,4 +227,112 @@ func TestGetPartChecksFillsExpectedPN(t *testing.T) {
 	if rows[0].MatchDetail == "" {
 		t.Error("MatchDetail ต้องไม่ว่าง")
 	}
+}
+
+func TestScanPartCheckEngine(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
+
+	data, _ := json.Marshal(map[string]string{
+		"Machine No": "LX10400690",
+		"ENGINE":     "J05E-TP",
+		"History":    "J05E-11223344",
+	})
+	db.Create(&models.UploadDataRow{
+		Dataset:   models.DatasetEngine,
+		MachineNo: "LX10400690",
+		DataJSON:  string(data),
+	})
+
+	body := `{"partType":"EN","pn":"J05E-TP","sn":"J05E-11223344"}`
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanPartCheck(c)
+
+	mustStatus(t, rec, 201)
+	if got := decodeJSON(t, rec)["matchStatus"]; got != models.MatchStatusMatch {
+		t.Fatalf("matchStatus = %v, want MATCH", got)
+	}
+
+	var pc models.PartCheck
+	db.Where("part_type = ?", "EN").First(&pc)
+	if pc.MachineNo != "LX10400690" {
+		t.Errorf("MachineNo = %q, want LX10400690", pc.MachineNo)
+	}
+}
+
+func TestScanPartCheckEngineWrongPair(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
+
+	data, _ := json.Marshal(map[string]string{
+		"Machine No": "LX10400690",
+		"ENGINE":     "J05E-TP",
+		"History":    "J05E-11223344",
+	})
+	db.Create(&models.UploadDataRow{
+		Dataset: models.DatasetEngine, MachineNo: "LX10400690", DataJSON: string(data),
+	})
+
+	body := `{"partType":"EN","pn":"J08E-TP","sn":"J05E-11223344"}`
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanPartCheck(c)
+
+	mustStatus(t, rec, 201)
+	if got := decodeJSON(t, rec)["matchStatus"]; got != models.MatchStatusWrongPart {
+		t.Fatalf("matchStatus = %v, want WRONG_PART", got)
+	}
+}
+
+func TestScanPartCheckEngineRequiresPN(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
+
+	body := `{"partType":"EN","sn":"J05E-11223344"}`
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanPartCheck(c)
+	mustStatus(t, rec, 400)
+	_ = db
+}
+
+func TestScanPartCheckCounterWeight(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
+
+	data, _ := json.Marshal(map[string]string{
+		"Machine No": "LX10400692",
+		"CW No":      "CW2411003",
+	})
+	db.Create(&models.UploadDataRow{
+		Dataset: models.DatasetAssembly, MachineNo: "LX10400692", DataJSON: string(data),
+	})
+
+	body := `{"partType":"CW","sn":"CW2411003"}`
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanPartCheck(c)
+
+	mustStatus(t, rec, 201)
+	if got := decodeJSON(t, rec)["matchStatus"]; got != models.MatchStatusMatch {
+		t.Fatalf("matchStatus = %v, want MATCH", got)
+	}
+
+	var pc models.PartCheck
+	db.Where("part_type = ?", "CW").First(&pc)
+	if pc.MachineNo != "LX10400692" {
+		t.Errorf("MachineNo = %q, want LX10400692", pc.MachineNo)
+	}
+}
+
+func TestScanPartCheckCounterWeightNotFound(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
+
+	body := `{"partType":"CW","sn":"CW9999999"}`
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanPartCheck(c)
+
+	mustStatus(t, rec, 201)
+	if got := decodeJSON(t, rec)["matchStatus"]; got != models.MatchStatusNotFound {
+		t.Fatalf("matchStatus = %v, want NOT_FOUND", got)
+	}
+	_ = db
 }

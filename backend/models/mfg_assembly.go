@@ -33,9 +33,10 @@ type MFGAssembly struct {
 	WHCheckedBy       string     `gorm:"column:wh_checked_by;size:100"`
 	WHCheckedDatetime *time.Time `gorm:"column:wh_checked_datetime"`
 
-	// ผลเทียบกับแผนประกอบใน Master Data — คำนวณสดทุกครั้งที่อ่าน ไม่เก็บลง DB
 	PlanITControllerNo string `gorm:"-"`
 	PlanState          string `gorm:"-"`
+	PlanComponent      string `gorm:"-"`
+	PlanComponentLabel string `gorm:"-"`
 	PlanMatched        bool   `gorm:"-"`
 	PlanMessage        string `gorm:"-"`
 	PlanDetail         string `gorm:"-"`
