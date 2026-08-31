@@ -309,7 +309,7 @@ export default function WarehousePage() {
                     </tr>}
                   {!loading && filtered.map((row, idx) => <tr key={row.ID} className={row.RemainQty <= 0 ? 'wh-row-empty' : ''}>
                         <td className="wh-cell-head" data-label="FIFO">#{idx + 1}</td>
-                        <td data-label="Part No.">{row.PartNo}</td>
+                        <td className="il-mono" data-label="Part No.">{row.PartNo}</td>
                         <td data-label="Part Name">{row.PartName}</td>
                         <td data-label="Assembly For">{row.AssemblyPartName}</td>
                         <td data-label="Shelf">
