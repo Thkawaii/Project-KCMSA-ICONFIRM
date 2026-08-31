@@ -258,7 +258,7 @@ export default function WHAlertBell() {
             renderMeta={(it) => (
               <>
                 Exception License {it.ExceptionLicense || '—'}
-                {it.DeclarationDate ? ` · ใบขน ${formatThaiDate(it.DeclarationDate)}` : ''}
+                {it.IssueDate ? ` · ออกใบอนุญาต ${formatThaiDate(it.IssueDate)}` : ''}
               </>
             )}
             titleField={(it) => it.SerialNumber || '—'}

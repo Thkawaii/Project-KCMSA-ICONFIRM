@@ -256,7 +256,7 @@ function ExportAlertItem({ item, hidden = false, onOpen, onDismiss, onRestore })
           </span>
           <span className="lab-item-meta">
             Exception License {item.ExceptionLicense || '—'}
-            {item.DeclarationDate ? ` · ใบขน ${formatThaiDate(item.DeclarationDate)}` : ''}
+            {item.IssueDate ? ` · ออกใบอนุญาต ${formatThaiDate(item.IssueDate)}` : ''}
           </span>
           <span className="lab-item-expiry">หมดอายุ {formatThaiDate(item.ExpiryDate)}</span>
         </span>

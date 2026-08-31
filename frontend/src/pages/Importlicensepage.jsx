@@ -76,8 +76,11 @@ const EXPIRY_BADGE_CLASS = {
   [EXPIRY_STATUS.NO_DATE]: 'il-badge il-badge-muted',
 }
 
-function ExpiryCell({ issueDate }) {
-  const exp = computeLicenseExpiry(issueDate)
+function ExpiryCell({ issueDate, expireDate }) {
+  // ใช้วันหมดอายุที่บันทึกไว้ในฐานข้อมูลก่อน ถ้ายังไม่มีค่อยคำนวณสดจากวันที่ออก
+  const exp = expireDate
+    ? computeExpireStatus(expireDate, 30)
+    : computeLicenseExpiry(issueDate)
   return (
     <div className="il-expiry-cell">
       <span className={EXPIRY_BADGE_CLASS[exp.status]}>{STATUS_LABEL[exp.status]}</span>
@@ -582,7 +585,7 @@ export default function ImportLicensePage() {
                   <td data-label="เลขใบอนุญาตนำเข้า">{row.LicenseNo || '—'}</td>
                   <td data-label="วันที่ออกใบอนุญาต">{formatThaiDate(row.IssueDate)}</td>
                   <td data-label="หมดอายุ (6 เดือน)">
-                    <ExpiryCell issueDate={row.IssueDate} />
+                    <ExpiryCell issueDate={row.IssueDate} expireDate={row.ExpireDate} />
                   </td>
                   <td data-label="เลขอินวอยซ์นำเข้า">{row.InvoiceNo || '—'}</td>
                   <td data-label="เลขใบขนสินค้าขาเข้า">{row.DeclarationNo || '—'}</td>
@@ -808,16 +811,19 @@ function ExportExpiryCell({ expireDate }) {
 }
 
 function computeExportExpiry(row, withinDays = 7) {
+  // วันหมดอายุที่บันทึกไว้เชื่อถือได้ที่สุด
+  if (row.ExpireDate) {
+    return computeExpireStatus(row.ExpireDate, withinDays)
+  }
+  // ไฟล์เก่าที่ยังไม่มีค่า ให้คำนวณสดจากวันที่ออก (หรือวันที่ใบขน)
+  const base = row.IssueDate
   let expireRaw = null
-  if (row.DeclarationDate) {
-    const d = new Date(row.DeclarationDate)
+  if (base) {
+    const d = new Date(base)
     if (!Number.isNaN(d.getTime())) {
       d.setMonth(d.getMonth() + 1)
       expireRaw = d
     }
-  }
-  if (!expireRaw && row.ExpireDate) {
-    expireRaw = row.ExpireDate
   }
   return computeExpireStatus(expireRaw, withinDays)
 }
@@ -1068,7 +1074,7 @@ export function WHExportLicensePanel() {
       const columns = [
         { key: 'item', header: 'Item', type: 'number', width: 6 },
         { key: 'assemblyDate', header: "Date Ass'y", type: 'center', width: 14 },
-        { key: 'declarationDate', header: 'วันที่นำออกใบอนุญาต', type: 'center', width: 18 },
+        { key: 'issueDate', header: 'วันที่นำออกใบอนุญาต', type: 'center', width: 18 },
         { key: 'machineNo', header: 'Machine No', type: 'text' },
         { key: 'itControllerNo', header: 'IT Controller S/N', type: 'text' },
         { key: 'invoiceNo', header: 'Invoice', type: 'text' },
@@ -1087,15 +1093,15 @@ export function WHExportLicensePanel() {
         columns,
         rows: [...groups.get(country)]
           .sort((a, b) => {
-            const ta = a.DeclarationDate ? new Date(a.DeclarationDate).getTime() : Infinity
-            const tb = b.DeclarationDate ? new Date(b.DeclarationDate).getTime() : Infinity
+            const ta = a.IssueDate ? new Date(a.IssueDate).getTime() : Infinity
+            const tb = b.IssueDate ? new Date(b.IssueDate).getTime() : Infinity
             return ta - tb
           })
           .map((r, i) => ({
           __danger: computeExportExpiry(r).status === EXPIRY_STATUS.EXPIRED,
           item: i + 1,
           assemblyDate: r.AssemblyDate ? formatThaiDate(r.AssemblyDate) : '—',
-          declarationDate: r.DeclarationDate ? formatThaiDate(r.DeclarationDate) : '—',
+          issueDate: r.IssueDate ? formatThaiDate(r.IssueDate) : '—',
           machineNo: dash2(r.MachineNo),
           itControllerNo: dash2(r.ITControllerNo || r.SerialNumber),
           invoiceNo: dash2(r.InvoiceNo),
@@ -1533,7 +1539,7 @@ export function WHExportLicensePanel() {
                     {row.ExportLicenseNo || row.ExceptionLicense || '—'}
                   </td>
                   <td data-label="วันที่นำออกใบอนุญาต">
-                    {row.DeclarationDate ? formatThaiDate(row.DeclarationDate) : '—'}
+                    {formatThaiDate(row.IssueDate)}
                   </td>
                   <td data-label="หมดอายุ (1 เดือน)">
                     <ExportOneMonthExpiryCell row={row} />

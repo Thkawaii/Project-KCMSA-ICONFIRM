@@ -64,6 +64,12 @@ var importLicenseColumns = map[string]func(*models.ImportLicenseItem, string){
 	"วันออกใบอนุญาต":    func(m *models.ImportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
 	"วันนำเข้า":         func(m *models.ImportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
 	"issuedate":         func(m *models.ImportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+
+	"expiredate":        func(m *models.ImportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
+	"expirydate":        func(m *models.ImportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
+	"expire":            func(m *models.ImportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
+	"วันหมดอายุ":        func(m *models.ImportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
+	"หมดอายุ":           func(m *models.ImportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
 	"importlicensedate": func(m *models.ImportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
 	"licensedate":       func(m *models.ImportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
 	"importdate":        func(m *models.ImportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
@@ -285,7 +291,8 @@ func GetImportLicenseSummary(c *gin.Context) {
 	c.JSON(200, rows)
 }
 
-const LicenseValidityMonths = 6
+// อายุใบอนุญาตนำเข้า อ้างอิงค่าเดียวกับฝั่ง model เพื่อไม่ให้หลุดจากกัน
+const LicenseValidityMonths = models.ImportLicenseValidityMonths
 
 const (
 	LicenseExpiryExpired = "EXPIRED"
@@ -512,6 +519,8 @@ func UploadImportLicenseItems(c *gin.Context) {
 		if row.IssueDate == nil {
 			row.IssueDate = fallbackIssueDate
 		}
+		// วันหมดอายุ = วันที่ออกใบอนุญาต + 6 เดือน (ถ้าไฟล์ไม่ได้ระบุมาเอง)
+		row.FillExpireDate()
 
 		if row.MachineNo == "" {
 			skipped++
@@ -564,6 +573,7 @@ func UploadImportLicenseItems(c *gin.Context) {
 					"remark":         row.Remark,
 					"export_country": row.ExportCountry,
 					"issue_date":     row.IssueDate,
+					"expire_date":    row.ExpireDate,
 					"extra_json":     row.ExtraJSON,
 					"file_name":      row.FileName,
 					"upload_date":    now,
@@ -739,6 +749,7 @@ func PreviewImportLicenseMapping(c *gin.Context) {
 		if it.IssueDate == nil {
 			it.IssueDate = fallbackIssueDate
 		}
+		it.FillExpireDate()
 		if it.MachineNo == "" || seenMachine[it.MachineNo] {
 			continue
 		}
