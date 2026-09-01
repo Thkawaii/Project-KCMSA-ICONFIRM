@@ -91,7 +91,7 @@ func itcUsedOnOtherMachine(machineNo, itcNo string, excludeID uint) bool {
 	}
 
 	q := config.DB.Model(&models.MFGAssembly{}).
-		Where("it_controller_no = ? AND machine_no <> ?", itcNo, strings.TrimSpace(machineNo))
+		Where("no = ? AND machine_no <> ?", itcNo, strings.TrimSpace(machineNo))
 	if excludeID != 0 {
 		q = q.Where("id <> ?", excludeID)
 	}
@@ -109,7 +109,7 @@ func findMFGRowForPair(machineNo, itcNo string) *models.MFGAssembly {
 	}
 
 	var row models.MFGAssembly
-	err := config.DB.Where("machine_no = ? AND it_controller_no = ?", machineNo, itcNo).
+	err := config.DB.Where("machine_no = ? AND no = ?", machineNo, itcNo).
 		Order("id desc").First(&row).Error
 	if err != nil {
 		return nil

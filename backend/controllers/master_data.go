@@ -130,7 +130,7 @@ func countMasterDataRefs(serialNo, itcNo string) masterDataRefCounts {
 		r.PartCheck += pc
 
 		var mfg int64
-		config.DB.Model(&models.MFGAssembly{}).Where("it_controller_no = ?", itcNo).Count(&mfg)
+		config.DB.Model(&models.MFGAssembly{}).Where("no = ?", itcNo).Count(&mfg)
 		r.MFGAssembly += mfg
 
 		var il int64
