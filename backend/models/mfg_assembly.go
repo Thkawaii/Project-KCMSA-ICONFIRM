@@ -17,7 +17,7 @@ type MFGAssembly struct {
 
 	MachineNo string `gorm:"column:machine_no;size:60;index"`
 
-	ITControllerNo string `gorm:"column:it_controller_no;size:40;index"`
+	ITControllerNo string `gorm:"column:no;size:40;index"`
 
 	Country string `gorm:"column:country;size:100"`
 

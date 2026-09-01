@@ -74,6 +74,10 @@ var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"itcontroller":             func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
 	"itcserialno":              func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
 	"itcno":                    func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
+	"itcontrollersn":           func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
+	"itcsn":                    func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
+	"itsn":                     func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
+	"controllersn":             func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
 
 	"invoicedate": func(m *models.ExportLicenseItem, v string) { m.InvoiceDate = parseLicenseDate(v) },
 	"invdate":     func(m *models.ExportLicenseItem, v string) { m.InvoiceDate = parseLicenseDate(v) },
@@ -228,7 +232,7 @@ func resolveExportLinks(items []models.ExportLicenseItem) []exportLicenseRow {
 	mfgByITC := map[string]models.MFGAssembly{}
 	if len(itcNos) > 0 {
 		var mfg []models.MFGAssembly
-		config.DB.Where("it_controller_no IN ?", itcNos).Find(&mfg)
+		config.DB.Where("no IN ?", itcNos).Find(&mfg)
 		for _, r := range mfg {
 			if _, ok := mfgByITC[r.ITControllerNo]; !ok {
 				mfgByITC[r.ITControllerNo] = r
@@ -336,7 +340,7 @@ func GetExportLicenseTrace(c *gin.Context) {
 		}
 
 		var mfg models.MFGAssembly
-		if err := config.DB.Where("it_controller_no = ?", item.ITControllerNo).First(&mfg).Error; err == nil {
+		if err := config.DB.Where("no = ?", item.ITControllerNo).First(&mfg).Error; err == nil {
 			resp["mfgAssembly"] = mfg
 		}
 	}
@@ -364,7 +368,7 @@ func UploadExportLicense(c *gin.Context) {
 	headerIdx, headers := findExportHeaderRow(
 		rows,
 		exportLicenseKnownHeaders(),
-		[]string{"serialnumber", "serialno", "serial", "sn", "snno", "itcontrollerserialno", "itcontrollerno", "machineno"},
+		[]string{"serialnumber", "serialno", "serial", "sn", "snno", "itcontrollerserialno", "itcontrollerno", "itcontrollersn", "machineno"},
 		2,
 	)
 	if headerIdx < 0 {
@@ -482,7 +486,7 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 	headerIdx, headers := findExportHeaderRow(
 		rows,
 		exportLicenseKnownHeaders(),
-		[]string{"serialnumber", "serialno", "serial", "sn", "snno", "itcontrollerserialno", "itcontrollerno", "machineno"},
+		[]string{"serialnumber", "serialno", "serial", "sn", "snno", "itcontrollerserialno", "itcontrollerno", "itcontrollersn", "machineno"},
 		2,
 	)
 	if headerIdx < 0 {
