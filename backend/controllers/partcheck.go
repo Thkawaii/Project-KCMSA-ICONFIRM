@@ -232,8 +232,8 @@ func ScanPartCheck(c *gin.Context) {
 	switch partType {
 	case ComponentEN:
 		checkEnginePart(&check)
-	case ComponentCW:
-		checkCounterWeightPart(&check)
+	case ComponentCV, ComponentSM, ComponentMP, ComponentPH, ComponentCW:
+		checkPlanComponentPart(&check, partType)
 	}
 
 	if partType == "ITC" {
@@ -330,7 +330,7 @@ func checkEnginePart(check *models.PartCheck) {
 
 			check.MachineNo = strings.TrimSpace(pickField(other, "Machine No", "Machine"))
 			check.MatchStatus = models.MatchStatusWrongPart
-			check.MatchMessage = "ข้อมูลไม่ตรง"
+			check.MatchMessage = "ข้อมูลไม่ถูกต้อง"
 			check.ExpectedPN = expected
 			check.MatchDetail = "S/N " + check.SN + " คู่กับ P/N " + expected +
 				" แต่สแกนได้ " + check.PN
@@ -338,7 +338,7 @@ func checkEnginePart(check *models.PartCheck) {
 		}
 
 		check.MatchStatus = models.MatchStatusNotFound
-		check.MatchMessage = "ไม่พบข้อมูล กรุณาติดต่อ ADMIN"
+		check.MatchMessage = "ข้อมูลไม่ถูกต้อง"
 		check.MatchDetail = "ไม่พบ Engine P/N " + check.PN + " S/N " + check.SN +
 			" ในไฟล์ Engine ที่อัปโหลดไว้"
 		return
@@ -346,26 +346,55 @@ func checkEnginePart(check *models.PartCheck) {
 
 	check.MachineNo = strings.TrimSpace(pickField(row, "Machine No", "Machine"))
 	check.MatchStatus = models.MatchStatusMatch
-	check.MatchMessage = "ข้อมูลตรง"
+	check.MatchMessage = "ข้อมูลถูกต้อง"
 	check.MatchDetail = "ตรงกับไฟล์ Engine ของเครื่อง " + check.MachineNo
 }
 
-func checkCounterWeightPart(check *models.PartCheck) {
+// checkPlanComponentPart เทียบเลขที่สแกนกับแผนประกอบ (Planning/Assembly)
+// ใช้กับ Control Valve / Swing Motor / Motor Propel / Pump Assy HYD / Counter Weight
+func checkPlanComponentPart(check *models.PartCheck, component string) {
 	scanned := strings.TrimSpace(check.SN)
+	label := ComponentLabel(component)
+
+	otherMachine := ""
+	otherComponent := ""
 
 	for machineNo, plan := range loadMachinePlans() {
-		planned := PlannedNoOf(plan, ComponentCW)
-		if planned != "" && strings.EqualFold(planned, scanned) {
+
+		if planned := PlannedNoOf(plan, component); planned != "" &&
+			strings.EqualFold(planned, scanned) {
 			check.MachineNo = machineNo
 			check.MatchStatus = models.MatchStatusMatch
-			check.MatchMessage = "ข้อมูลตรง"
-			check.MatchDetail = "Counter Weight " + scanned + " ตรงกับแผนของเครื่อง " + machineNo
+			check.MatchMessage = "ข้อมูลถูกต้อง"
+			check.MatchDetail = label + " " + scanned + " ตรงกับแผนของเครื่อง " + machineNo
 			return
+		}
+
+		if otherComponent != "" {
+			continue
+		}
+		for _, spec := range componentSpecs {
+			if spec.Code == component {
+				continue
+			}
+			if v := PlannedNoOf(plan, spec.Code); v != "" && strings.EqualFold(v, scanned) {
+				otherMachine = machineNo
+				otherComponent = spec.Code
+				break
+			}
 		}
 	}
 
+	check.MatchMessage = "ข้อมูลไม่ถูกต้อง"
+
+	if otherComponent != "" {
+		check.MatchStatus = models.MatchStatusWrongPart
+		check.MatchDetail = scanned + " เป็น " + ComponentLabel(otherComponent) +
+			" ของเครื่อง " + otherMachine + " ไม่ใช่ " + label
+		return
+	}
+
 	check.MatchStatus = models.MatchStatusNotFound
-	check.MatchMessage = "ไม่พบข้อมูล กรุณาติดต่อ ADMIN"
-	check.MatchDetail = "ไม่พบ Counter Weight " + scanned +
-		" ในแผนประกอบของเครื่องใดเลย (ตรวจว่าไฟล์ Planning มีคอลัมน์ CW No. หรือยัง)"
+	check.MatchDetail = "ไม่พบ " + label + " " + scanned +
+		" ในแผนประกอบของเครื่องใดเลย"
 }

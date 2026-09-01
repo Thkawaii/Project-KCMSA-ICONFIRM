@@ -166,7 +166,6 @@ export default function WHPartConfirmationPage() {
   const [licensePageSize, setLicensePageSize] = useState(10);
   const [licensePage, setLicensePage] = useState(1);
   const [highlightId, setHighlightId] = useState(null);
-  const [lastScan, setLastScan] = useState(null);
   const [dateTab, setDateTab] = useState('all');
   const [search, setSearch] = useState('');
   const [matchFilter, setMatchFilter] = useState('all');
@@ -256,32 +255,22 @@ export default function WHPartConfirmationPage() {
           invoiceNo: ''
         });
         const check = res.check || res;
-        const buildLastScan = () => setLastScan({
-          id: check.ID,
-          partType: check.PartType || partTypeCode,
-          pn: needsPN ? pn : '',
-          sn: check.SN || sn,
-          machineNo: check.MachineNo || '',
-          productionNo: check.ProductionNo || '',
-          matchStatus: check.MatchStatus,
-          message: check.MatchMessage || res.message,
-          at: check.CheckedDatetime || new Date().toISOString()
-        });
-        buildLastScan();
         if (res.item?.ID) {
           setHighlightId(res.item.ID);
           setTimeout(() => setHighlightId(null), 6000);
         }
         if (res.matched) {
-          successToast = `ตรงกับบัญชี: ${sn}`;
+          successToast = isITC ? `ตรงกับบัญชี: ${sn}` : `บันทึกแล้ว: ${tagLabel(check.PartType)} — ${sn}`;
         } else if (isITC) {
           const errMsg = check.MatchMessage || res.message || 'ไม่ตรงกับบัญชีใบอนุญาตนำเข้า';
           const isMasterDataMiss = check.MatchStatus === 'NOT_FOUND' && errMsg.includes('ทะเบียนกลาง');
           await scanErrorAlert(errMsg, isMasterDataMiss ? {
             hint: 'กรุณาติดต่อ ADMIN'
           } : undefined);
-        } else {
+        } else if (check.MatchStatus === 'NOT_REQUIRED') {
           successToast = `บันทึกแล้ว: ${tagLabel(check.PartType)} — ${sn}`;
+        } else {
+          await scanErrorAlert('ข้อมูลไม่ถูกต้อง');
         }
         await loadRows();
       } catch (err) {
@@ -489,33 +478,6 @@ export default function WHPartConfirmationPage() {
               </div>)}
           </div>
 
-          {armedPart && <p className="pc-scan-mode-hint">
-              กำลังสแกนในโหมด <b>{tagLabel(armedPart)}</b> — ยิงบาร์โค้ดที่ระบุชนิดไม่ได้
-              (เช่น P/N, S/N ที่เป็นเลขล้วน) จะเข้าโหมดนี้ให้เอง ถ้าจะเปลี่ยนชนิดให้แตะการ์ดอื่น
-            </p>}
-
-      {lastScan && <div className={'il-result-bar' + (lastScan.matchStatus === 'MATCH' ? ' il-result-ok' : lastScan.matchStatus === 'NOT_REQUIRED' ? '' : ' il-result-bad')}>
-          <div>
-            <strong>{tagLabel(lastScan.partType)}</strong>
-            {lastScan.pn ? <>
-                {' '}
-                · P/N <span className="il-mono">{lastScan.pn}</span>
-              </> : null}{' '}
-            · S/N <span className="il-mono">{lastScan.sn}</span>
-            {lastScan.machineNo ? <>
-                {' '}
-                · หมายเลขเครื่อง{' '}
-                <span className="il-mono">{lastScan.machineNo}</span>
-              </> : null}
-            {lastScan.productionNo ? <>
-                {' '}
-                · หมายเลขการผลิต <span className="il-mono">{lastScan.productionNo}</span>
-              </> : null}
-          </div>
-          <div className="il-result-msg">
-            {matchBadge(lastScan.matchStatus, lastScan.partType)} {lastScan.message}
-          </div>
-        </div>}
         </>}
 
       {isManager && <>

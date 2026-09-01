@@ -137,6 +137,7 @@ func SetupRoutes(r *gin.Engine) {
 	qa.Use(middleware.RoleMiddleware("QA"))
 	{
 		qa.GET("/confirmed", controllers.GetQAConfirmedTable)
+		qa.GET("/part-scan-summary", controllers.GetQAPartScanSummary)
 	}
 
 	auditLog := auth.Group("/audit-log")
