@@ -165,7 +165,7 @@ a {
   align-items: center;
   gap: 0.32em;
   font-size: clamp(15px, 4vw, 26px);
-  font-weight: 700;
+  font-weight: 300;
   letter-spacing: 0.045em;
   line-height: 1;
   color: var(--text-primary);
@@ -204,7 +204,7 @@ a {
 .card-title {
   margin: 2px 0 6px;
   font-size: 23px;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: -0.02em;
   text-align: center;
   color: #0f172a;
