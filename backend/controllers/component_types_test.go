@@ -38,19 +38,34 @@ func TestComponentNeedsLicense(t *testing.T) {
 	}
 }
 
-func TestMFGStatusForNonLicensedParts(t *testing.T) {
-	for _, code := range []string{ComponentCV, ComponentSM, ComponentMP, ComponentPH, ComponentCW} {
-		got := mfgStatusFor(code, false, PlanStateMatch, false)
-		if got != models.MFGStatusMatched {
-			t.Errorf("%s: status = %q, want MATCHED (ไม่ต้องรอ WH)", code, got)
+func TestEveryComponentNeedsWHScan(t *testing.T) {
+	for _, code := range AllComponentCodes() {
+		if !ComponentNeedsWHScan(code) {
+			t.Errorf("%s: ต้องบังคับให้ WH สแกนก่อนประกอบ", code)
+		}
+	}
+	if ComponentNeedsWHScan("") {
+		t.Error("ชนิดพาร์ทว่างไม่ควรบังคับ WH")
+	}
+	if ComponentNeedsWHScan("ZZ") {
+		t.Error("ชนิดพาร์ทที่ไม่รู้จักไม่ควรบังคับ WH")
+	}
+}
+
+func TestMFGStatusForAllPartsWaitsForWH(t *testing.T) {
+	for _, code := range []string{ComponentITC, ComponentCV, ComponentSM, ComponentMP, ComponentPH, ComponentEN, ComponentCW} {
+		if got := mfgStatusFor(code, false, PlanStateMatch, false); got != models.MFGStatusNotMatched {
+			t.Errorf("%s: WH ยังไม่สแกน status = %q, want NOT_MATCHED", code, got)
+		}
+		if got := mfgStatusFor(code, false, PlanStateMatch, true); got != models.MFGStatusMatched {
+			t.Errorf("%s: WH สแกนแล้ว status = %q, want MATCHED", code, got)
 		}
 		if bad := mfgStatusFor(code, false, PlanStateMismatch, true); bad != models.MFGStatusNotMatched {
 			t.Errorf("%s: ผิดแผนต้องเป็น NOT_MATCHED", code)
 		}
-	}
-
-	if got := mfgStatusFor(ComponentITC, false, PlanStateMatch, false); got != models.MFGStatusNotMatched {
-		t.Errorf("ITC ที่ WH ยังไม่ยืนยัน = %q, want NOT_MATCHED", got)
+		if dup := mfgStatusFor(code, true, PlanStateMatch, true); dup != models.MFGStatusDuplicate {
+			t.Errorf("%s: ซ้ำต้องเป็น DUPLICATE", code)
+		}
 	}
 }
 
@@ -97,17 +112,39 @@ func TestMFGScanSwingMotor(t *testing.T) {
 	})
 
 	body := `{"machineNo":"LX10400691","serialNo":"SW2411002"}`
+
 	c, rec := newContext("POST", body, u.ID, u.Username)
 	ScanMFGAssembly(c)
-
 	mustStatus(t, rec, 201)
 	resp := decodeJSON(t, rec)
 
 	if resp["component"] != ComponentSM {
 		t.Errorf("component = %v, want SM", resp["component"])
 	}
-	if resp["status"] != models.MFGStatusMatched {
-		t.Fatalf("status = %v, want MATCHED (Swing Motor ไม่ต้องรอ WH)", resp["status"])
+	if resp["status"] != models.MFGStatusNotMatched {
+		t.Fatalf("status = %v, want NOT_MATCHED (WH ยังไม่ได้สแกน Swing Motor)", resp["status"])
+	}
+	if resp["whMissing"] != true {
+		t.Errorf("whMissing = %v, want true", resp["whMissing"])
+	}
+
+	db.Create(&models.PartCheck{
+		PartType:    ComponentSM,
+		SN:          "SW2411002",
+		MatchStatus: models.MatchStatusMatch,
+		CheckedBy:   "WH",
+	})
+
+	c2, rec2 := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c2)
+	mustStatus(t, rec2, 201)
+	resp2 := decodeJSON(t, rec2)
+
+	if resp2["status"] != models.MFGStatusMatched {
+		t.Fatalf("หลัง WH สแกนแล้ว status = %v, want MATCHED", resp2["status"])
+	}
+	if resp2["whMissing"] != false {
+		t.Errorf("whMissing = %v, want false", resp2["whMissing"])
 	}
 }
 

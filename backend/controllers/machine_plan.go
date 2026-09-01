@@ -298,7 +298,7 @@ func mfgStatusFor(component string, duplicate bool, planState string, whMatched 
 		return models.MFGStatusNotMatched
 	case duplicate:
 		return models.MFGStatusDuplicate
-	case !ComponentNeedsLicense(component):
+	case !ComponentNeedsWHScan(component):
 		return models.MFGStatusMatched
 	case whMatched:
 		return models.MFGStatusMatched
@@ -317,7 +317,11 @@ func mfgFinalMessage(status string, res MFGPlanResult, licenseNo string) string 
 
 	default:
 		if res.State == PlanStateMatch {
-			return "ข้อมูลตรง แต่ฝั่ง WH ยังไม่ได้สแกนยืนยัน"
+			base := "ข้อมูลตรง แต่ฝั่ง WH ยังไม่ได้สแกนยืนยัน"
+			if label := strings.TrimSpace(res.Label); label != "" {
+				return base + " " + label + " — ต้องให้ WH สแกนรับเข้าคลังก่อน จึงจะประกอบได้"
+			}
+			return base
 		}
 		return res.Message
 	}

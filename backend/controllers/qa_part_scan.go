@@ -10,7 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ลำดับชนิดพาร์ทที่แสดงบน QA Dashboard (ITC / CV / SM / MP / PH / Engine / CW)
 var qaScanComponentOrder = []string{
 	ComponentITC,
 	ComponentCV,
@@ -21,7 +20,6 @@ var qaScanComponentOrder = []string{
 	ComponentCW,
 }
 
-// QAScanUnit = 1 แถว = 1 เครื่อง x 1 ชนิดพาร์ท ที่ "แผนกำหนดให้ต้องมี"
 type QAScanUnit struct {
 	MachineNo      string `json:"machineNo"`
 	Model          string `json:"model"`
@@ -63,7 +61,6 @@ type QAPartScanSummaryResponse struct {
 	GeneratedAt string                `json:"generatedAt"`
 }
 
-// qaScanKey ทำให้เลขซีเรียลเทียบกันได้ ไม่สนตัวพิมพ์/ช่องว่าง/ขีด
 func qaScanKey(s string) string {
 	s = strings.ToUpper(strings.TrimSpace(unwrapExcelText(s)))
 	if s == "" || s == "-" {
@@ -86,13 +83,10 @@ func rfc3339Ptr(t *time.Time) string {
 	return rfc3339(*t)
 }
 
-// GetQAPartScanSummary คืนข้อมูลดิบให้ QA Dashboard ไปสรุปเอง
-// (ยอดสแกนแล้ว / ยังไม่สแกน แยกตามชนิดพาร์ทและตาม Model + กรองตามช่วงเวลาได้)
 func GetQAPartScanSummary(c *gin.Context) {
 
 	plans := loadMachinePlans()
 
-	// แผน Engine อยู่คนละไฟล์ (dataset engine) → ดึงแยก
 	enginePlanByMachine := map[string]string{}
 	for _, row := range loadUploadRows(models.DatasetEngine) {
 		mc := strings.TrimSpace(pickField(row, "Machine No", "Machine"))
@@ -107,7 +101,6 @@ func GetQAPartScanSummary(c *gin.Context) {
 		}
 	}
 
-	// ---- ผลสแกนฝั่ง WH ----
 	var checks []models.PartCheck
 	config.DB.Order("checked_datetime asc").Find(&checks)
 
@@ -117,18 +110,17 @@ func GetQAPartScanSummary(c *gin.Context) {
 		if comp == "" {
 			continue
 		}
-		// ITC เก็บเลขเครื่อง (IT Controller No) ไว้ที่ MachineNo, Engine เก็บทั้ง PN/SN
+
 		for _, raw := range []string{ck.SN, ck.PN, ck.MachineNo} {
 			k := qaScanKey(raw)
 			if k == "" {
 				continue
 			}
-			// เรียงจากเก่า→ใหม่ ตัวหลังสุด (ล่าสุด) จึงชนะ
+
 			checkByComponentKey[comp+"|"+k] = ck
 		}
 	}
 
-	// ---- ผลประกอบฝั่ง MFG ----
 	var mfgRows []models.MFGAssembly
 	config.DB.Order("id asc").Find(&mfgRows)
 
@@ -139,7 +131,6 @@ func GetQAPartScanSummary(c *gin.Context) {
 		}
 	}
 
-	// ---- Model ของเครื่อง ----
 	modelByITC := map[string]string{}
 
 	var masters []models.MasterData
@@ -199,7 +190,7 @@ func GetQAPartScanSummary(c *gin.Context) {
 				planned = enginePlanByMachine[machineNo]
 			}
 			if planned == "" {
-				// แผนไม่ได้กำหนดพาร์ทชนิดนี้ให้เครื่องนี้ → ไม่นับเป็น "ยังไม่สแกน"
+
 				continue
 			}
 			counted = true

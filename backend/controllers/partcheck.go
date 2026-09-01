@@ -350,8 +350,6 @@ func checkEnginePart(check *models.PartCheck) {
 	check.MatchDetail = "ตรงกับไฟล์ Engine ของเครื่อง " + check.MachineNo
 }
 
-// checkPlanComponentPart เทียบเลขที่สแกนกับแผนประกอบ (Planning/Assembly)
-// ใช้กับ Control Valve / Swing Motor / Motor Propel / Pump Assy HYD / Counter Weight
 func checkPlanComponentPart(check *models.PartCheck, component string) {
 	scanned := strings.TrimSpace(check.SN)
 	label := ComponentLabel(component)

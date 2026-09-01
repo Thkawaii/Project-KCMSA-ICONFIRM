@@ -19,6 +19,8 @@ type MFGAssembly struct {
 
 	ITControllerNo string `gorm:"column:no;size:40;index"`
 
+	Component string `gorm:"column:component;size:10;index"`
+
 	Country string `gorm:"column:country;size:100"`
 
 	CheckDate *time.Time `gorm:"column:check_date"`
@@ -32,6 +34,12 @@ type MFGAssembly struct {
 	WHModel           string     `gorm:"column:wh_model;size:50"`
 	WHCheckedBy       string     `gorm:"column:wh_checked_by;size:100"`
 	WHCheckedDatetime *time.Time `gorm:"column:wh_checked_datetime"`
+
+	ComponentLabel string `gorm:"-"`
+	WHRequired     bool   `gorm:"-"`
+	WHPartType     string `gorm:"-"`
+	WHMatchStatus  string `gorm:"-"`
+	WHMessage      string `gorm:"-"`
 
 	PlanITControllerNo string `gorm:"-"`
 	PlanState          string `gorm:"-"`

@@ -662,6 +662,43 @@ function ExportExpiryCell({
         </>}
     </div>;
 }
+const EXTRA_COUNTRY_KEYS = ['country', 'countryname', 'exportcountry', 'ประเทศ', 'ปลายทาง', 'ส่งออกไปประเทศ'];
+const EXTRA_COL_LIMIT = 25;
+function normExtraKey(k) {
+  return String(k).replace(/^\[\+\]\s*/, '').toLowerCase().replace(/[\s_./-]/g, '');
+}
+function extraLabel(k) {
+  return String(k).replace(/^\[\+\]\s*/, '').trim();
+}
+function parseExtraJson(json) {
+  if (!json) return {};
+  try {
+    const obj = JSON.parse(json);
+    if (!obj || typeof obj !== 'object') return {};
+    const out = {};
+    Object.entries(obj).forEach(([k, v]) => {
+      if (EXTRA_COUNTRY_KEYS.includes(normExtraKey(k))) return;
+      const val = String(v ?? '').trim();
+      if (val) out[extraLabel(k)] = val;
+    });
+    return out;
+  } catch {
+    return {};
+  }
+}
+function collectExtraColumns(rows) {
+  const counts = new Map();
+  rows.forEach(r => {
+    Object.keys(parseExtraJson(r.extra_json)).forEach(label => {
+      counts.set(label, (counts.get(label) || 0) + 1);
+    });
+  });
+  const labels = Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(e => e[0]);
+  return {
+    spread: labels.slice(0, EXTRA_COL_LIMIT),
+    overflow: labels.slice(EXTRA_COL_LIMIT)
+  };
+}
 function computeExportExpiry(row, withinDays = 7) {
   if (row.ExpireDate) {
     return computeExpireStatus(row.ExpireDate, withinDays);
@@ -869,7 +906,7 @@ export function WHExportLicensePanel() {
         if (b === UNKNOWN) return -1;
         return a.localeCompare(b);
       });
-      const columns = [{
+      const baseColumns = [{
         key: 'item',
         header: 'Item',
         type: 'number',
@@ -882,6 +919,11 @@ export function WHExportLicensePanel() {
       }, {
         key: 'issueDate',
         header: 'วันที่นำออกใบอนุญาต',
+        type: 'center',
+        width: 18
+      }, {
+        key: 'expiryDate',
+        header: 'หมดอายุ (1 เดือน)',
         type: 'center',
         width: 18
       }, {
@@ -924,29 +966,58 @@ export function WHExportLicensePanel() {
         type: 'text'
       }];
       const dash2 = v => v && String(v).trim() !== '' ? String(v) : '—';
-      const sheets = countryNames.map(country => ({
-        sheetName: country,
-        columns,
-        rows: [...groups.get(country)].sort((a, b) => {
+      const sheets = countryNames.map(country => {
+        const list = [...groups.get(country)].sort((a, b) => {
           const ta = a.IssueDate ? new Date(a.IssueDate).getTime() : Infinity;
           const tb = b.IssueDate ? new Date(b.IssueDate).getTime() : Infinity;
           return ta - tb;
-        }).map((r, i) => ({
-          __danger: computeExportExpiry(r).status === EXPIRY_STATUS.EXPIRED,
-          item: i + 1,
-          assemblyDate: r.AssemblyDate ? formatThaiDate(r.AssemblyDate) : '—',
-          issueDate: r.IssueDate ? formatThaiDate(r.IssueDate) : '—',
-          machineNo: dash2(r.MachineNo),
-          itControllerNo: dash2(r.ITControllerNo || r.SerialNumber),
-          invoiceNo: dash2(r.InvoiceNo),
-          invoiceDate: r.InvoiceDate ? formatThaiDate(r.InvoiceDate) : '—',
-          exportEntry: dash2(r.ExportEntry),
-          importLicenseNo: dash2(r.ImportLicenseNo),
-          exportLicenseNo: dash2(r.ExportLicenseNo || r.ExceptionLicense),
-          country: country === UNKNOWN ? '—' : country,
-          remark: dash2(r.Remark)
-        }))
-      }));
+        });
+        const extra = collectExtraColumns(list);
+        const extraColumns = extra.spread.map((label, idx) => ({
+          key: `x${idx}`,
+          header: label,
+          type: 'text'
+        }));
+        if (extra.overflow.length) {
+          extraColumns.push({
+            key: 'xOverflow',
+            header: `คอลัมน์เพิ่ม (อีก ${extra.overflow.length} คอลัมน์)`,
+            type: 'text',
+            width: 40
+          });
+        }
+        return {
+          sheetName: country,
+          columns: [...baseColumns, ...extraColumns],
+          rows: list.map((r, i) => {
+            const exp = computeExportExpiry(r);
+            const extraValues = parseExtraJson(r.extra_json);
+            const row = {
+              __danger: exp.status === EXPIRY_STATUS.EXPIRED,
+              item: i + 1,
+              assemblyDate: r.AssemblyDate ? formatThaiDate(r.AssemblyDate) : '—',
+              issueDate: r.IssueDate ? formatThaiDate(r.IssueDate) : '—',
+              expiryDate: exp.hasDate ? formatThaiDate(exp.expiryDate) : '—',
+              machineNo: dash2(r.MachineNo),
+              itControllerNo: dash2(r.ITControllerNo || r.SerialNumber),
+              invoiceNo: dash2(r.InvoiceNo),
+              invoiceDate: r.InvoiceDate ? formatThaiDate(r.InvoiceDate) : '—',
+              exportEntry: dash2(r.ExportEntry),
+              importLicenseNo: dash2(r.ImportLicenseNo),
+              exportLicenseNo: dash2(r.ExportLicenseNo || r.ExceptionLicense),
+              country: country === UNKNOWN ? '—' : country,
+              remark: dash2(r.Remark)
+            };
+            extra.spread.forEach((label, idx) => {
+              row[`x${idx}`] = extraValues[label] ?? '';
+            });
+            if (extra.overflow.length) {
+              row.xOverflow = extra.overflow.filter(label => extraValues[label]).map(label => `${label}: ${extraValues[label]}`).join('\n');
+            }
+            return row;
+          })
+        };
+      });
       const blob = buildStyledXlsxWorkbookBlob({
         sheets
       });

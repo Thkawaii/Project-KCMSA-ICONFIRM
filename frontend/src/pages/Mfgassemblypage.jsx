@@ -305,7 +305,15 @@ export default function MFGAssemblyPage() {
         }
       }
       scanClose();
-      if (ok) successMsg = msg;else toastError(msg);
+      if (ok) {
+        successMsg = msg;
+      } else if (res?.whMissing) {
+        await scanErrorAlert(msg, {
+          hint: 'ให้ฝ่ายคลัง (WH) สแกนรับพาร์ทนี้เข้าระบบก่อน แล้วค่อยสแกนประกอบอีกครั้ง'
+        });
+      } else {
+        toastError(msg);
+      }
       await loadRows();
     } catch (err) {
       scanClose();
@@ -560,6 +568,9 @@ export default function MFGAssemblyPage() {
                       {a.PlanComponent && <PartTag code={a.PlanComponent} label={a.PlanComponentLabel} />}
                       {a.PlanState === 'MISMATCH' && a.PlanITControllerNo && <span className="mfg-plan-hint" title={a.PlanDetail || a.PlanMessage}>
                           แผน: {a.PlanITControllerNo}
+                        </span>}
+                      {a.PlanState === 'MATCH' && a.WHRequired && !a.WHMatched && <span className="mfg-plan-hint" title={`ต้องให้ WH สแกนรับ ${a.ComponentLabel || 'พาร์ทนี้'} เข้าคลังก่อน จึงจะประกอบได้`}>
+                          รอ WH สแกน
                         </span>}
                     </td>
                     <td data-label="Model" title={asmTitle}>

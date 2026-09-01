@@ -20,7 +20,6 @@
   transform: translateY(-1px);
 }
 
-/* จุดสีนำหน้า — ตัวอักษรย่อถูกซ่อน เหลือแค่จุดตามดีไซน์ badge */
 .part-tag-code {
   flex: 0 0 auto;
   width: 7px;

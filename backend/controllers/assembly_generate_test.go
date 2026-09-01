@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -255,6 +256,57 @@ func TestGenerateAssemblyPartsMergeAcrossRows(t *testing.T) {
 	}
 }
 
+func TestGenerateAssemblyConflictingPlanningRowsUseLatestAndWarn(t *testing.T) {
+	db := newTestDB(t)
+
+	rows := []map[string]string{
+		{"Machine": "LX10400699", "IT Controller No": "878250011111", "KCM Order": "KCM-9"},
+		// แถวหลังของ "เครื่องเดียวกัน" กรอก IT Controller No ไม่ตรงกับแถวแรก —
+		// เคสนี้ต้องไม่เกิดค่าผสม/ค่าผิดเงียบ ๆ: ต้องใช้ค่าล่าสุดและมี warning แจ้ง
+		{"Machine": "LX10400699", "IT Controller No": "878250099999", "KCM Order": "KCM-9"},
+	}
+	for _, r := range rows {
+		b, err := json.Marshal(r)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		db.Create(&models.UploadDataRow{
+			Dataset:   models.DatasetPlanning,
+			MachineNo: "LX10400699",
+			DataJSON:  string(b),
+		})
+	}
+
+	res, err := runAssemblyGeneration(1, "tester")
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	var out models.UploadDataRow
+	if err := db.Where("dataset = ? AND machine_no = ?", models.DatasetAssembly, "LX10400699").
+		First(&out).Error; err != nil {
+		t.Fatalf("assembly row not created: %v", err)
+	}
+	var data map[string]string
+	if err := json.Unmarshal([]byte(out.DataJSON), &data); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if data["IT Controller No"] != "878250099999" {
+		t.Errorf("IT Controller No = %q, want ค่าจากแถว Planning ล่าสุด (878250099999)", data["IT Controller No"])
+	}
+
+	found := false
+	for _, w := range res.Warnings {
+		if strings.Contains(w, "LX10400699") && strings.Contains(w, "IT Controller No") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("warnings = %v, ต้องมี warning เตือนว่าเครื่อง LX10400699 มีค่า IT Controller No ไม่ตรงกันข้ามแถว", res.Warnings)
+	}
+}
+
 func TestJoinKeyVariants(t *testing.T) {
 	cases := []struct {
 		a, b string
@@ -315,5 +367,58 @@ func TestGenerateAssemblyUpsertNoDuplicate(t *testing.T) {
 		Count(&count)
 	if count != 1 {
 		t.Fatalf("assembly rows = %d, want 1 (upsert must not duplicate)", count)
+	}
+}
+
+func TestGenerateAssemblyMergesSplitPlanningRows(t *testing.T) {
+	db := newTestDB(t)
+
+	rows := []map[string]string{
+		{"Machine": "LX10400690", "IT Controller No": "878250022801", "Country Name": "Indonesia", "KCM Order": "KCM2411001"},
+		{"Machine": "LX10400690", "Swing Motor No": "SW2411001", "KCM Order": "KCM2411001"},
+		{"Machine": "LX10400690", "Control Valve No": "CV2411001", "KCM Order": "KCM2411001"},
+		{"Machine": "LX10400690", "Motor Propel No": "MP2411001", "CW No": "CW2411001", "KCM Order": "KCM2411001"},
+		{"Machine": "LX10400690", "Pump Assy HYD No": "PH2411001", "KCM Order": "KCM2411001"},
+	}
+	for _, r := range rows {
+		b, err := json.Marshal(r)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		db.Create(&models.UploadDataRow{
+			Dataset:   models.DatasetPlanning,
+			MachineNo: "LX10400690",
+			DataJSON:  string(b),
+		})
+	}
+
+	if _, err := runAssemblyGeneration(1, "tester"); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	var out models.UploadDataRow
+	if err := db.Where("dataset = ? AND machine_no = ?", models.DatasetAssembly, "LX10400690").
+		First(&out).Error; err != nil {
+		t.Fatalf("assembly row not created: %v", err)
+	}
+
+	var data map[string]string
+	if err := json.Unmarshal([]byte(out.DataJSON), &data); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	want := map[string]string{
+		"IT Controller No": "878250022801",
+		"Swing Motor No":   "SW2411001",
+		"Control Valve No": "CV2411001",
+		"Motor Propel No":  "MP2411001",
+		"Pump Assy HYD No": "PH2411001",
+		"CW No":            "CW2411001",
+		"Country Name":     "Indonesia",
+	}
+	for k, v := range want {
+		if data[k] != v {
+			t.Errorf("%s = %q, want %q — ต้องรวมค่าจากทุกแถวของเครื่องเดียวกัน", k, data[k], v)
+		}
 	}
 }

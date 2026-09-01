@@ -17,23 +17,31 @@ func GetMFGAssemblies(c *gin.Context) {
 
 	resolver := newMFGPlanResolver()
 
-	itcOwner := map[string]string{}
+	serialOwner := map[string]string{}
 	seenPair := map[string]bool{}
 
 	for i := range rows {
 		rows[i].Item = strconv.Itoa(i + 1)
-		enrichMFGWithWH(&rows[i])
 
-		plan := resolver.evaluate(rows[i].MachineNo, rows[i].ITControllerNo)
+		plan := resolver.evaluateComponent(
+			rows[i].MachineNo, rows[i].ITControllerNo, rows[i].Component)
+
+		if strings.TrimSpace(rows[i].Component) == "" {
+			rows[i].Component = plan.Component
+		}
+
+		enrichMFGWithWH(&rows[i])
 		applyMFGPlan(&rows[i], plan)
 
 		duplicate := false
-		if itc := strings.TrimSpace(rows[i].ITControllerNo); itc != "" {
+		if serial := strings.TrimSpace(rows[i].ITControllerNo); serial != "" {
 			mc := strings.TrimSpace(rows[i].MachineNo)
-			key := mc + "|" + itc
+			comp := strings.ToUpper(strings.TrimSpace(rows[i].Component))
+			ownerKey := comp + "|" + serial
+			key := ownerKey + "|" + mc
 
-			if owner, ok := itcOwner[itc]; !ok {
-				itcOwner[itc] = mc
+			if owner, ok := serialOwner[ownerKey]; !ok {
+				serialOwner[ownerKey] = mc
 			} else if owner != mc {
 				duplicate = true
 			} else if seenPair[key] {
@@ -194,6 +202,62 @@ func resolveITControllerNo(machineNo, preferred string) (itcNo, country string) 
 	return itcNo, country
 }
 
+func findWHPartCheck(component, serial string) *models.PartCheck {
+	serial = strings.TrimSpace(serial)
+	if serial == "" {
+		return nil
+	}
+	component = strings.ToUpper(strings.TrimSpace(component))
+
+	q := config.DB.Model(&models.PartCheck{}).
+		Where("match_status = ?", models.MatchStatusMatch).
+		Where("(machine_no = ? OR sn = ? OR pn = ?)", serial, serial, serial)
+
+	if component != "" {
+		q = q.Where("part_type = ?", component)
+	}
+
+	var pc models.PartCheck
+	if err := q.Order("checked_datetime desc").First(&pc).Error; err != nil {
+		return nil
+	}
+	return &pc
+}
+
+func latestWHPartCheckAnyStatus(component, serial string) *models.PartCheck {
+	serial = strings.TrimSpace(serial)
+	if serial == "" {
+		return nil
+	}
+	component = strings.ToUpper(strings.TrimSpace(component))
+
+	q := config.DB.Model(&models.PartCheck{}).
+		Where("(machine_no = ? OR sn = ? OR pn = ?)", serial, serial, serial)
+	if component != "" {
+		q = q.Where("part_type = ?", component)
+	}
+
+	var pc models.PartCheck
+	if err := q.Order("checked_datetime desc").First(&pc).Error; err != nil {
+		return nil
+	}
+	return &pc
+}
+
+func mfgComponentOf(row *models.MFGAssembly) string {
+	if c := strings.ToUpper(strings.TrimSpace(row.Component)); c != "" {
+		return c
+	}
+	serial := strings.TrimSpace(row.ITControllerNo)
+	if serial == "" {
+		return ""
+	}
+	if c := DetectComponentFromPlan(planForMachine(row.MachineNo), serial); c != "" {
+		return c
+	}
+	return DetectComponentType(serial)
+}
+
 func enrichMFGWithWH(row *models.MFGAssembly) {
 	row.WHMatched = false
 	row.WHLicenseNo = ""
@@ -202,29 +266,41 @@ func enrichMFGWithWH(row *models.MFGAssembly) {
 	row.WHModel = ""
 	row.WHCheckedBy = ""
 	row.WHCheckedDatetime = nil
+	row.WHMatchStatus = ""
+	row.WHMessage = ""
 
-	itcNo := strings.TrimSpace(row.ITControllerNo)
-	if itcNo == "" {
+	component := mfgComponentOf(row)
+	row.WHPartType = component
+	row.WHRequired = ComponentNeedsWHScan(component)
+	row.ComponentLabel = ComponentLabel(component)
+
+	serial := strings.TrimSpace(row.ITControllerNo)
+	if serial == "" {
 		return
 	}
 
-	var pc models.PartCheck
-	err := config.DB.
-		Where("machine_no = ? AND match_status = ?",
-			itcNo, models.MatchStatusMatch).
-		Order("checked_datetime desc").
-		First(&pc).Error
-	if err != nil {
+	pc := findWHPartCheck(component, serial)
+	if pc == nil {
+		if other := latestWHPartCheckAnyStatus(component, serial); other != nil {
+			row.WHMatchStatus = other.MatchStatus
+			row.WHMessage = other.MatchMessage
+		}
 		return
 	}
 
 	row.WHMatched = true
+	row.WHMatchStatus = pc.MatchStatus
+	row.WHMessage = pc.MatchMessage
 	row.WHLicenseNo = pc.LicenseNo
 	row.WHInvoiceNo = pc.InvoiceNo
 	row.WHProductionNo = pc.ProductionNo
 	row.WHCheckedBy = pc.CheckedBy
 	t := pc.CheckedDatetime
 	row.WHCheckedDatetime = &t
+
+	if component != "" && component != ComponentITC {
+		return
+	}
 
 	var lic models.ImportLicenseItem
 	found := false
@@ -234,7 +310,7 @@ func enrichMFGWithWH(row *models.MFGAssembly) {
 		}
 	}
 	if !found {
-		if config.DB.Where("machine_no = ?", itcNo).First(&lic).Error == nil {
+		if config.DB.Where("machine_no = ?", serial).First(&lic).Error == nil {
 			found = true
 		}
 	}
@@ -300,6 +376,9 @@ func ScanMFGAssembly(c *gin.Context) {
 	existing := findMFGRowForPair(machineNo, itcNo)
 
 	if existing != nil && existing.Status == models.MFGStatusMatched {
+		if strings.TrimSpace(existing.Component) == "" {
+			existing.Component = plan.Component
+		}
 		enrichMFGWithWH(existing)
 		applyMFGPlan(existing, plan)
 
@@ -326,6 +405,7 @@ func ScanMFGAssembly(c *gin.Context) {
 		DateAssembly:    &now,
 		MachineNo:       machineNo,
 		ITControllerNo:  itcNo,
+		Component:       plan.Component,
 		Country:         mfgCountryFor(machineNo, itcNo, resolver.planOf(machineNo)),
 		CheckDate:       &now,
 		CreatedBy:       name,
@@ -373,6 +453,10 @@ func ScanMFGAssembly(c *gin.Context) {
 		"component":             plan.Component,
 		"componentLabel":        plan.Label,
 		"message":               mfgFinalMessage(row.Status, plan, row.WHLicenseNo),
+		"whRequired":            row.WHRequired,
+		"whMissing":             row.WHRequired && !row.WHMatched,
+		"whMatchStatus":         row.WHMatchStatus,
+		"whMessage":             row.WHMessage,
 		"plan":                  plan,
 		"plannedITControllerNo": plan.PlannedITC,
 		"plannedState":          plan.State,
@@ -445,6 +529,7 @@ func CreateMFGAssembly(c *gin.Context) {
 		DateAssembly:    dateAss,
 		MachineNo:       machineNo,
 		ITControllerNo:  itcNo,
+		Component:       plan.Component,
 		Country:         country,
 		CheckDate:       checkDate,
 		CreatedBy:       name,
@@ -502,7 +587,8 @@ func UpdateMFGAssembly(c *gin.Context) {
 	row.UpdatedDatetime = time.Now()
 
 	resolver := newMFGPlanResolver()
-	plan := resolver.evaluate(row.MachineNo, row.ITControllerNo)
+	plan := resolver.evaluateComponent(row.MachineNo, row.ITControllerNo, row.Component)
+	row.Component = plan.Component
 
 	duplicate := itcUsedOnOtherMachine(row.MachineNo, row.ITControllerNo, row.ID)
 

@@ -26,6 +26,8 @@ type ComponentSpec struct {
 
 	NeedsLicense bool
 
+	NeedsWHScan bool
+
 	ExclusiveInPlan bool
 }
 
@@ -39,6 +41,7 @@ var componentSpecs = []ComponentSpec{
 
 		Prefixes:        nil,
 		NeedsLicense:    true,
+		NeedsWHScan:     true,
 		ExclusiveInPlan: true,
 	},
 	{
@@ -46,6 +49,7 @@ var componentSpecs = []ComponentSpec{
 		Label:           "Control Valve",
 		PlanKeys:        []string{"Control Valve No", "Control Valve No.", "ControlValveNo", extraColumnPrefix + "Control Valve No"},
 		Prefixes:        []string{"CV"},
+		NeedsWHScan:     true,
 		ExclusiveInPlan: true,
 	},
 	{
@@ -53,6 +57,7 @@ var componentSpecs = []ComponentSpec{
 		Label:           "Swing Motor",
 		PlanKeys:        []string{"Swing Motor No", "Swing Motor No.", "SwingMotorNo", extraColumnPrefix + "Swing Motor No"},
 		Prefixes:        []string{"SM", "SW"},
+		NeedsWHScan:     true,
 		ExclusiveInPlan: true,
 	},
 	{
@@ -60,6 +65,7 @@ var componentSpecs = []ComponentSpec{
 		Label:           "Motor Propel",
 		PlanKeys:        []string{"Motor Propel No", "Motor Propel No.", "MotorPropelNo", extraColumnPrefix + "Motor Propel No"},
 		Prefixes:        []string{"MP"},
+		NeedsWHScan:     true,
 		ExclusiveInPlan: true,
 	},
 	{
@@ -67,6 +73,7 @@ var componentSpecs = []ComponentSpec{
 		Label:           "Pump Assy HYD",
 		PlanKeys:        []string{"Pump Assy HYD No", "Pump Assy HYD No.", "PumpAssyHYDNo", extraColumnPrefix + "Pump Assy HYD No"},
 		Prefixes:        []string{"PH", "PA"},
+		NeedsWHScan:     true,
 		ExclusiveInPlan: true,
 	},
 	{
@@ -78,13 +85,15 @@ var componentSpecs = []ComponentSpec{
 			extraColumnPrefix + "CW No", extraColumnPrefix + "CW no",
 			extraColumnPrefix + "CounterWeight No", extraColumnPrefix + "Counter Weight No",
 		},
-		Prefixes: []string{"CW"},
+		Prefixes:    []string{"CW"},
+		NeedsWHScan: true,
 	},
 	{
-		Code:     ComponentEN,
-		Label:    "Engine",
-		PlanKeys: []string{"Engine", "ENGINE"},
-		Prefixes: nil,
+		Code:        ComponentEN,
+		Label:       "Engine",
+		PlanKeys:    []string{"Engine", "ENGINE"},
+		Prefixes:    nil,
+		NeedsWHScan: true,
 	},
 }
 
@@ -111,6 +120,19 @@ func IsKnownComponent(code string) bool {
 func ComponentNeedsLicense(code string) bool {
 	s, ok := componentByCode[strings.ToUpper(strings.TrimSpace(code))]
 	return ok && s.NeedsLicense
+}
+
+func ComponentNeedsWHScan(code string) bool {
+	s, ok := componentByCode[strings.ToUpper(strings.TrimSpace(code))]
+	return ok && s.NeedsWHScan
+}
+
+func AllComponentCodes() []string {
+	out := make([]string, 0, len(componentSpecs))
+	for _, s := range componentSpecs {
+		out = append(out, s.Code)
+	}
+	return out
 }
 
 func exclusivePlanComponents() []ComponentSpec {
