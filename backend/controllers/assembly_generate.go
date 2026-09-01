@@ -20,6 +20,56 @@ var errNoMachinesToGenerate = errors.New(
 
 var legacyAssemblyITCKeys = []string{"IT Controller", "IT Controller Match"}
 
+// assemblySingleValueFields ต้องมีค่าเดียวต่อ 1 เครื่องเท่านั้น (แตกเป็นหลายแถวใน
+// Planning ได้ แต่ห้ามมีค่าไม่ตรงกันของฟิลด์เดียวกันสำหรับเครื่องเดียวกัน)
+var assemblySingleValueFields = []string{
+	"IT Controller No", "Swing Motor No", "Pump Assy HYD No",
+	"Motor Propel No", "Control Valve No", "CW No",
+}
+
+func isAssemblySingleValueField(k string) bool {
+	for _, f := range assemblySingleValueFields {
+		if f == k {
+			return true
+		}
+	}
+	return false
+}
+
+type planFieldConflict struct {
+	Machine string
+	Field   string
+	Old     string
+	New     string
+}
+
+func planFieldConflictMessage(conflicts []planFieldConflict) string {
+	var b strings.Builder
+	b.WriteString("พบ Planning หลายแถวของเครื่องเดียวกันที่กรอกค่าฟิลด์เดียวกันไม่ตรงกัน — " +
+		"ระบบเลือกใช้ค่าจากแถวที่อัปโหลด/แก้ไขล่าสุดแทน กรุณาตรวจสอบแถว Planning ที่ซ้ำซ้อน:")
+
+	limit := len(conflicts)
+	if limit > 10 {
+		limit = 10
+	}
+	for _, cf := range conflicts[:limit] {
+		b.WriteString("\nเครื่อง ")
+		b.WriteString(cf.Machine)
+		b.WriteString(" · ")
+		b.WriteString(cf.Field)
+		b.WriteString(": ")
+		b.WriteString(cf.Old)
+		b.WriteString(" → ")
+		b.WriteString(cf.New)
+	}
+	if len(conflicts) > limit {
+		b.WriteString("\n... และอีก ")
+		b.WriteString(strconv.Itoa(len(conflicts) - limit))
+		b.WriteString(" รายการ")
+	}
+	return b.String()
+}
+
 func loadUploadRows(dataset string) []map[string]string {
 	var rows []models.UploadDataRow
 	config.DB.Where("dataset = ?", dataset).Order("id asc").Find(&rows)
@@ -143,13 +193,39 @@ func runAssemblyGeneration(userID uint, userName string) (assemblyGenResult, err
 
 	planningByMachine := map[string]map[string]string{}
 	orderToMachine := map[string]string{}
+	var planConflicts []planFieldConflict
 	for _, p := range planning {
 		mc := strings.TrimSpace(pickField(p, "Machine", "Machine No"))
 		if mc == "" {
 			continue
 		}
-		if _, ok := planningByMachine[mc]; !ok {
-			planningByMachine[mc] = p
+		cur, ok := planningByMachine[mc]
+		if !ok {
+			cur = map[string]string{}
+			planningByMachine[mc] = cur
+		}
+		for k, v := range p {
+			v = strings.TrimSpace(v)
+			if v == "" {
+				continue
+			}
+			existing := strings.TrimSpace(cur[k])
+			if existing == "" {
+				cur[k] = v
+				continue
+			}
+			if existing == v {
+				continue
+			}
+			// เครื่องเดียวกันมีค่าฟิลด์นี้ไม่ตรงกันจากคนละแถว Planning —
+			// ใช้ค่าที่อัปโหลด/แก้ไขล่าสุด (แถวหลังสุดตามลำดับ id) แทนค่าเดิม
+			// เสมอ เพื่อไม่ให้ค้างค่าเก่าที่อาจถูกแก้ไขไปแล้วโดยไม่รู้ตัว
+			cur[k] = v
+			if isAssemblySingleValueField(k) {
+				planConflicts = append(planConflicts, planFieldConflict{
+					Machine: mc, Field: k, Old: existing, New: v,
+				})
+			}
 		}
 
 		for _, raw := range []string{p["KCM Order"], p["Work order"], p["Order No"]} {
@@ -384,6 +460,9 @@ func runAssemblyGeneration(userID uint, userName string) (assemblyGenResult, err
 	CreateAuditLog("UPLOAD_DATA", 0, "generate_assembly", userName, userID, userName)
 
 	var warnings []string
+	if len(planConflicts) > 0 {
+		warnings = append(warnings, planFieldConflictMessage(planConflicts))
+	}
 	if len(wh1) == 0 {
 		warnings = append(warnings,
 			"ยังไม่ได้อัปโหลดข้อมูล WH1 — คอลัมน์ Assembly_Parts_Number / Assembly_Parts_Name จะว่าง "+

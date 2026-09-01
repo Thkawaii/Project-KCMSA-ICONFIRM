@@ -3,9 +3,6 @@ import { getQAPartScanSummary } from '../../api/qaPartScan.js';
 import { resolvePeriodRange, periodRangeLabel, shiftPeriodAnchor } from '../../lib/dateRange.js';
 import { ArrowPathIcon, ChevronLeftIcon, ChevronRightIcon, QrCodeIcon, WrenchScrewdriverIcon, XMarkIcon } from '../../components/icons.jsx';
 
-/* ------------------------------------------------------------------ */
-/* helpers                                                             */
-/* ------------------------------------------------------------------ */
 
 const COMPONENT_LABELS = {
   ITC: 'IT Controller',
@@ -54,9 +51,6 @@ const fmtTime = v => v ? new Date(v).toLocaleString('th-TH', {
   minute: '2-digit'
 }) : '';
 
-/* ------------------------------------------------------------------ */
-/* period control                                                      */
-/* ------------------------------------------------------------------ */
 
 function PeriodBar({
   mode,
@@ -94,9 +88,6 @@ function PeriodBar({
     </div>;
 }
 
-/* ------------------------------------------------------------------ */
-/* stage card — WH / MFG อย่างละใบ กดดูรายละเอียดได้ทั้งสองฝั่ง          */
-/* ------------------------------------------------------------------ */
 
 function StageStat({
   title,
@@ -154,8 +145,6 @@ function StageStat({
     </div>;
 }
 
-/* detail modal                                                        */
-/* ------------------------------------------------------------------ */
 
 function DetailModal({
   selection,
@@ -271,9 +260,6 @@ function DetailModal({
     </div>;
 }
 
-/* ------------------------------------------------------------------ */
-/* main                                                                */
-/* ------------------------------------------------------------------ */
 
 export default function QAScanDashboard() {
   const [units, setUnits] = useState([]);

@@ -205,16 +205,18 @@ export default function QAMachineList() {
   const stats = useMemo(() => {
     const total = confirmedRows.length;
     const withPhoto = confirmedRows.filter(r => r.photoURL).length;
+    const machines = new Set(confirmedRows.map(r => r.machineNo).filter(Boolean)).size;
     return {
       total,
-      withPhoto
+      withPhoto,
+      machines
     };
   }, [confirmedRows]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return confirmedRows.filter(r => {
       if (q) {
-        const matchesSearch = [r.partName, r.model, r.asmModel, r.specCode, r.specDetail, r.itDevice, r.machineNo, r.partNo, r.serialNo, r.itControllerNo, r.imei, r.licenseNo, r.invoiceNo].some(v => (v || '').toLowerCase().includes(q));
+        const matchesSearch = [r.partName, r.componentLabel, r.component, r.model, r.asmModel, r.specCode, r.specDetail, r.itDevice, r.machineNo, r.partNo, r.serialNo, r.itControllerNo, r.imei, r.licenseNo, r.invoiceNo].some(v => (v || '').toLowerCase().includes(q));
         if (!matchesSearch) return false;
       }
       if (periodMode !== 'all') {
@@ -248,9 +250,9 @@ export default function QAMachineList() {
         minute: '2-digit'
       })}`;
       const checkDateLabel = periodLabel;
-      const PHOTO_COL_INDEX = 11;
-      const head = [['ITEM', 'Part Name', 'Model (Assembly)', 'Spec Code', 'IT device', 'Machine No', 'Part No.', 'Serial No.', 'IT Controller No.', 'ส่งออกไปประเทศ', 'ผลเทียบใบอนุญาต', 'รูปถ่าย', 'Status']];
-      const body = list.map((r, i) => [String(i + 1), dash(r.partName), dash(r.asmModel), dash(r.specCode), dash(r.itDevice), dash(r.machineNo), dash(r.partNo), dash(r.serialNo), dash(r.itControllerNo), dash(r.exportCountry), licenseMatchMeta(r.matchStatus).label, '', 'Matched']);
+      const PHOTO_COL_INDEX = 12;
+      const head = [['ITEM', 'Part Name', 'ชนิดพาร์ท', 'Model (Assembly)', 'Spec Code', 'IT device', 'Machine No', 'Part No.', 'Serial No.', 'IT Controller No.', 'ส่งออกไปประเทศ', 'ผลเทียบใบอนุญาต', 'รูปถ่าย', 'Status']];
+      const body = list.map((r, i) => [String(i + 1), dash(r.partName), dash(r.componentLabel || r.component), dash(r.asmModel), dash(r.specCode), dash(r.itDevice), dash(r.machineNo), dash(r.partNo), dash(r.serialNo), dash(r.itControllerNo), dash(r.exportCountry), licenseMatchMeta(r.matchStatus).label, '', dash(r.status)]);
       const drawHeader = () => {
         doc.setFont('Sarabun', 'bold');
         doc.setFontSize(16);
@@ -266,7 +268,7 @@ export default function QAMachineList() {
         doc.text(`วันที่พิมพ์: ${printedStr}`, pageWidth - 10, 17, {
           align: 'right'
         });
-        doc.text(`จำนวน: ${list.length} เครื่อง`, pageWidth - 10, 22, {
+        doc.text(`จำนวน: ${list.length} รายการ`, pageWidth - 10, 22, {
           align: 'right'
         });
       };
@@ -305,7 +307,7 @@ export default function QAMachineList() {
             cellWidth: 16,
             minCellHeight: 14
           },
-          12: {
+          13: {
             halign: 'center'
           }
         },
@@ -375,6 +377,11 @@ export default function QAMachineList() {
         key: 'partName',
         header: 'Part Name',
         type: 'text'
+      }, {
+        key: 'componentLabel',
+        header: 'ชนิดพาร์ท',
+        type: 'center',
+        width: 16
       }, {
         key: 'model',
         header: 'Model',
@@ -457,6 +464,7 @@ export default function QAMachineList() {
       const rows = list.map((r, i) => ({
         item: i + 1,
         partName: dash(r.partName),
+        componentLabel: dash(r.componentLabel || r.component),
         model: dash(r.model),
         asmModel: dash(r.asmModel),
         specCode: dash(r.specCode),
@@ -473,7 +481,7 @@ export default function QAMachineList() {
         matchStatus: licenseMatchMeta(r.matchStatus).label,
         confirmedAt: r.confirmedAt ? thaiDateLabel(toYMD(new Date(r.confirmedAt))) : '—',
         photo: photos[i] || null,
-        status: 'Matched'
+        status: dash(r.status)
       }));
       const blob = buildStyledXlsxBlob({
         sheetName: 'QA Check Sheet',
@@ -497,7 +505,7 @@ export default function QAMachineList() {
 
       <div className="qa-filter-card">
         <div className="qa-filter-top">
-          <PeriodRangePicker mode={periodMode} onModeChange={handlePeriodModeChange} anchor={periodAnchor} onAnchorChange={setPeriodAnchor} min={dateBounds.min} max={dateBounds.max} label="ช่วงวันที่ยืนยัน (สำหรับ Check Sheet)" countLabel={`${filtered.length} เครื่อง`} />
+          <PeriodRangePicker mode={periodMode} onModeChange={handlePeriodModeChange} anchor={periodAnchor} onAnchorChange={setPeriodAnchor} min={dateBounds.min} max={dateBounds.max} label="ช่วงวันที่ยืนยัน (สำหรับ Check Sheet)" countLabel={`${filtered.length} รายการ`} />
           {periodMode !== 'all' && <button type="button" className="qa-clear-btn" onClick={clearDateFilter}>
               <XMarkIcon className="size-4" />
               ล้างช่วง
@@ -519,7 +527,7 @@ export default function QAMachineList() {
       marginTop: 10,
       marginBottom: 16
     }}>
-        {periodMode === 'all' ? `ยังไม่ได้เลือกช่วง — Export จะได้ทั้งหมด ${filtered.length} เครื่อง (เลือกช่วงเพื่อออกเฉพาะรายวัน/สัปดาห์/เดือน/ปี)` : `กำลังกรองช่วง ${periodLabel} — พบ ${filtered.length} เครื่อง (Export PDF/Excel จะได้เฉพาะช่วงนี้)`}
+        {periodMode === 'all' ? `ยังไม่ได้เลือกช่วง — Export จะได้ทั้งหมด ${filtered.length} รายการ / ${stats.machines} เครื่อง (เลือกช่วงเพื่อออกเฉพาะรายวัน/สัปดาห์/เดือน/ปี)` : `กำลังกรองช่วง ${periodLabel} — พบ ${filtered.length} รายการ (Export PDF/Excel จะได้เฉพาะช่วงนี้)`}
       </p>
 
       <QAScanDashboard />
@@ -558,6 +566,7 @@ export default function QAMachineList() {
             <tr>
               <th>ITEM</th>
               <th>Part Name</th>
+              <th>ชนิดพาร์ท</th>
               <th>Model</th>
               <th>Model (Assembly)</th>
               <th>Spec Code</th>
@@ -579,17 +588,20 @@ export default function QAMachineList() {
           </thead>
           <tbody>
             {loading && <tr>
-                <td colSpan={19} className="wh-empty-cell">
+                <td colSpan={20} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
             {!loading && pageRows.map((r, i) => {
             const lic = licenseMatchMeta(r.matchStatus);
-            return <tr key={r.itControllerNo}>
+            return <tr key={r.rowKey || `${r.component}|${r.machineNo}|${r.serialNo}`}>
                     <td className="wh-cell-head" data-label="ITEM">
                       <strong>{(page - 1) * pageSize + i + 1}</strong>
                     </td>
                     <td data-label="Part Name">{dash(r.partName)}</td>
+                    <td data-label="ชนิดพาร์ท">
+                      <span className="il-badge il-badge-muted">{dash(r.componentLabel || r.component)}</span>
+                    </td>
                     <td data-label="Model">{dash(r.model)}</td>
                     <td data-label="Model (Assembly)">{dash(r.asmModel)}</td>
                     <td data-label="Spec Code">{dash(r.specCode)}</td>
@@ -635,7 +647,9 @@ export default function QAMachineList() {
                         </button> : '—'}
                     </td>
                     <td data-label="Status">
-                      <span className="il-badge il-badge-ok">Matched</span>
+                      <span className={r.status === 'MATCHED' ? 'il-badge il-badge-ok' : 'il-badge il-badge-warn'}>
+                        {r.status || 'MATCHED'}
+                      </span>
                     </td>
                     <td className="wh-cell-action" data-label="รายละเอียด">
                       <button className="tsf-action-btn" onClick={() => setDetailRow(r)}>
@@ -645,8 +659,8 @@ export default function QAMachineList() {
                   </tr>;
           })}
             {!loading && filtered.length === 0 && <tr>
-                <td colSpan={19} className="wh-empty-cell">
-                  {confirmedRows.length === 0 ? 'ยังไม่มีเครื่องที่ครบเงื่อนไข — ต้องให้ WH ยืนยันตรงกับใบอนุญาต และ MFG สแกนได้ Matched ก่อน' : 'ไม่พบรายการที่ค้นหา'}
+                <td colSpan={20} className="wh-empty-cell">
+                  {confirmedRows.length === 0 ? 'ยังไม่มีรายการที่ครบเงื่อนไข — ทุกพาร์ท (IT Controller / CV / SM / MP / PH / Engine / Counter Weight) ต้องให้ WH สแกนรับเข้าคลังก่อน แล้ว MFG จึงประกอบได้' : 'ไม่พบรายการที่ค้นหา'}
                 </td>
               </tr>}
           </tbody>

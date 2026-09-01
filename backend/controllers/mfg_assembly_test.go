@@ -510,7 +510,7 @@ func TestMFGPlanMessagesAreShort(t *testing.T) {
 		{PlanStateNoITC, "ข้อมูลไม่ตรง"},
 		{PlanStateNotInMaster, "ไม่พบข้อมูล กรุณาติดต่อ ADMIN"},
 		{PlanStateNoPlan, "ไม่พบข้อมูล กรุณาติดต่อ ADMIN"},
-		{PlanStateNoScan, "ยังไม่ได้สแกน IT Controller"},
+		{PlanStateNoScan, "ยังไม่ได้สแกนหมายเลขพาร์ท"},
 	}
 	for _, tc := range cases {
 		got := mfgPlanMessage(MFGPlanResult{State: tc.state})

@@ -177,7 +177,6 @@ func TestScanPartCheckPlanComponentNotFound(t *testing.T) {
 	}
 }
 
-// สแกนถูกเลข แต่เลือกชนิดพาร์ทผิด ต้องไม่ผ่าน
 func TestScanPartCheckPlanComponentWrongType(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
