@@ -1,101 +1,92 @@
 .part-tag {
   display: inline-flex;
-  align-items: stretch;
+  align-items: center;
+  gap: 6px;
   margin-left: 6px;
+  padding: 5px 11px;
   border-radius: 999px;
-  overflow: hidden;
   font-family: var(--font-sans, system-ui, -apple-system, 'Segoe UI', sans-serif);
-  font-size: 10.5px;
+  font-size: 11.5px;
   line-height: 1;
   white-space: nowrap;
   vertical-align: middle;
   background: var(--pt-bg, #f1f5f9);
-  border: 1px solid var(--pt-bd, #e2e8f0);
-  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.04);
+  border: none;
   transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .part-tag:hover {
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.1);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--pt-solid, #64748b) 22%, transparent);
   transform: translateY(-1px);
 }
 
+/* จุดสีนำหน้า — ตัวอักษรย่อถูกซ่อน เหลือแค่จุดตามดีไซน์ badge */
 .part-tag-code {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 6px;
-  min-width: 26px;
-  justify-content: center;
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
   background: var(--pt-solid, #64748b);
-  color: #fff;
-  font-weight: 700;
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
+  font-size: 0;
+  line-height: 0;
+  overflow: hidden;
+  text-indent: -999px;
 }
 
 .part-tag-name {
   display: inline-flex;
   align-items: center;
-  padding: 4px 9px 4px 7px;
   color: var(--pt-fg, #334155);
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.01em;
 }
 
 .part-tag-itc {
-  --pt-solid: #4f46e5;
-  --pt-fg: #3730a3;
-  --pt-bg: #eef2ff;
-  --pt-bd: #c7d2fe;
+  --pt-solid: #ef4444;
+  --pt-fg: #dc2626;
+  --pt-bg: #fee2e2;
 }
 
 .part-tag-sm {
-  --pt-solid: #00a39d;
-  --pt-fg: #0f766e;
-  --pt-bg: #e1f5ee;
-  --pt-bd: #99e6d5;
+  --pt-solid: #f59e0b;
+  --pt-fg: #b45309;
+  --pt-bg: #fef3c7;
 }
 
 .part-tag-ph {
-  --pt-solid: #d97706;
-  --pt-fg: #b45309;
-  --pt-bg: #fef3e2;
-  --pt-bd: #fcd9a0;
+  --pt-solid: #10b981;
+  --pt-fg: #047857;
+  --pt-bg: #d1fae5;
 }
 
 .part-tag-mp {
-  --pt-solid: #ec4899;
-  --pt-fg: #be185d;
-  --pt-bg: #fce7f3;
-  --pt-bd: #f9a8d4;
+  --pt-solid: #3b82f6;
+  --pt-fg: #1d4ed8;
+  --pt-bg: #dbeafe;
 }
 
 .part-tag-cv {
-  --pt-solid: #e11d48;
-  --pt-fg: #be123c;
-  --pt-bg: #ffe4e9;
-  --pt-bd: #fda4b4;
+  --pt-solid: #6366f1;
+  --pt-fg: #4338ca;
+  --pt-bg: #e0e7ff;
 }
 
 .part-tag-en {
-  --pt-solid: #0369a1;
-  --pt-fg: #075985;
-  --pt-bg: #e0f2fe;
-  --pt-bd: #a5d8f3;
+  --pt-solid: #a855f7;
+  --pt-fg: #7e22ce;
+  --pt-bg: #f3e8ff;
 }
 
 .part-tag-cw {
-  --pt-solid: #b45309;
-  --pt-fg: #92400e;
-  --pt-bg: #fdf0dd;
-  --pt-bd: #f6ce93;
+  --pt-solid: #ec4899;
+  --pt-fg: #be185d;
+  --pt-bg: #fce7f3;
 }
 
 .part-tag-mc {
-  --pt-solid: #0891b2;
-  --pt-fg: #0e7490;
-  --pt-bg: #e0f7fa;
-  --pt-bd: #a5e4ee;
+  --pt-solid: #64748b;
+  --pt-fg: #475569;
+  --pt-bg: #f1f5f9;
 }
 
 .wh-detail-value-tagged,
@@ -122,7 +113,7 @@
 }
 
 @media (max-width: 720px) {
-  .part-tag-name {
-    padding: 4px 8px 4px 6px;
+  .part-tag {
+    padding: 4px 9px;
   }
 }

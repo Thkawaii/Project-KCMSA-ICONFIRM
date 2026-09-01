@@ -1308,18 +1308,18 @@
   line-height: 1.5;
 }
 
-.pc-card-itc { --pc-accent: #4f46e5; }
-.pc-card-sm  { --pc-accent: #00a39d; }
-.pc-card-ph  { --pc-accent: #d97706; }
-.pc-card-mp  { --pc-accent: #ec4899; }
-.pc-card-cv  { --pc-accent: #e11d48; }
-.pc-card-en  { --pc-accent: #0369a1; }
-.pc-card-cw  { --pc-accent: #b45309; }
-.pc-card-mc  { --pc-accent: #0891b2; }
+.pc-card-itc { --pc-accent: #ef4444; }
+.pc-card-sm  { --pc-accent: #f59e0b; }
+.pc-card-ph  { --pc-accent: #10b981; }
+.pc-card-mp  { --pc-accent: #3b82f6; }
+.pc-card-cv  { --pc-accent: #6366f1; }
+.pc-card-en  { --pc-accent: #a855f7; }
+.pc-card-cw  { --pc-accent: #ec4899; }
+.pc-card-mc  { --pc-accent: #64748b; }
 
 .pc-barcode-kind {
   position: absolute;
-  top: 12px;
+  top: 7px;
   right: 14px;
   font-size: 11px;
   font-weight: 700;

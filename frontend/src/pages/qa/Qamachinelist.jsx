@@ -5,6 +5,7 @@ import PeriodRangePicker from '../../components/PeriodRangePicker.jsx';
 import { inPeriod, periodRangeLabel, periodFileTag } from '../../lib/dateRange.js';
 import { ArrowDownTrayIcon, CameraIcon, CheckCircleIcon, ClockIcon, DocumentTextIcon, QrCodeIcon, Squares2X2Icon, TagIcon, WrenchScrewdriverIcon, XMarkIcon } from '../../components/icons.jsx';
 import { getQAConfirmedTable } from '../../api/qaConfirmed.js';
+import QAScanDashboard from './QaScanDashboard.jsx';
 import { API_BASE_URL } from '../../api/client.js';
 import { jsPDF } from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
@@ -521,28 +522,7 @@ export default function QAMachineList() {
         {periodMode === 'all' ? `ยังไม่ได้เลือกช่วง — Export จะได้ทั้งหมด ${filtered.length} เครื่อง (เลือกช่วงเพื่อออกเฉพาะรายวัน/สัปดาห์/เดือน/ปี)` : `กำลังกรองช่วง ${periodLabel} — พบ ${filtered.length} เครื่อง (Export PDF/Excel จะได้เฉพาะช่วงนี้)`}
       </p>
 
-      <div className="dash-stats-row">
-        <div className="dash-stat-card">
-          <div className="dash-stat-label">
-            <span>เครื่องที่ยืนยันแล้ว</span>
-            <span className="dash-stat-icon dash-icon-green">
-              <Squares2X2Icon className="size-4" />
-            </span>
-          </div>
-          <div className="dash-stat-value">{stats.total}</div>
-          <div className="qa-stat-sub">ครบเงื่อนไข WH + MFG</div>
-        </div>
-        <div className="dash-stat-card">
-          <div className="dash-stat-label">
-            <span>มีรูปถ่ายยืนยัน</span>
-            <span className="dash-stat-icon dash-icon-blue">
-              <CameraIcon className="size-4" />
-            </span>
-          </div>
-          <div className="dash-stat-value">{stats.withPhoto}</div>
-          <div className="qa-stat-sub">จาก {stats.total} เครื่อง</div>
-        </div>
-      </div>
+      <QAScanDashboard />
 
       {loadError && <p className="form-error" role="alert">
           {loadError}

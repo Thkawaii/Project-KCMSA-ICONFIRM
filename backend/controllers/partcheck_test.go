@@ -124,19 +124,81 @@ func TestScanPartCheckITCNotFound(t *testing.T) {
 	}
 }
 
-func TestScanPartCheckNonITCNotRequired(t *testing.T) {
+func TestScanPartCheckPlanComponentMatch(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
 
-	body := `{"partType":"CV","pn":"CV-PN","sn":"CV-SN-01"}`
+	data, _ := json.Marshal(map[string]string{
+		"Machine No":       "LX10400693",
+		"Swing Motor No":   "SM2411009",
+		"Control Valve No": "CV2411009",
+	})
+	db.Create(&models.UploadDataRow{
+		Dataset: models.DatasetAssembly, MachineNo: "LX10400693", DataJSON: string(data),
+	})
+
+	body := `{"partType":"SM","sn":"SM2411009"}`
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanPartCheck(c)
+
+	mustStatus(t, rec, 201)
+	if got := decodeJSON(t, rec)["matchStatus"]; got != models.MatchStatusMatch {
+		t.Fatalf("matchStatus = %v, want MATCH", got)
+	}
+
+	var pc models.PartCheck
+	db.Where("part_type = ?", "SM").First(&pc)
+	if pc.MachineNo != "LX10400693" {
+		t.Errorf("MachineNo = %q, want LX10400693", pc.MachineNo)
+	}
+}
+
+func TestScanPartCheckPlanComponentNotFound(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
+
+	body := `{"partType":"SM","sn":"adssda"}`
 	c, rec := newContext("POST", body, u.ID, u.Username)
 	ScanPartCheck(c)
 
 	mustStatus(t, rec, 201)
 	resp := decodeJSON(t, rec)
-	if resp["matchStatus"] != models.MatchStatusNotRequired {
-		t.Fatalf("matchStatus = %v, want NOT_REQUIRED for non-ITC", resp["matchStatus"])
+	if resp["matchStatus"] != models.MatchStatusNotFound {
+		t.Fatalf("matchStatus = %v, want NOT_FOUND", resp["matchStatus"])
 	}
+	if resp["matched"] == true {
+		t.Error("matched ต้องไม่เป็น true เมื่อข้อมูลไม่ถูกต้อง")
+	}
+
+	var pc models.PartCheck
+	db.Where("part_type = ?", "SM").First(&pc)
+	if pc.MatchMessage != "ข้อมูลไม่ถูกต้อง" {
+		t.Errorf("MatchMessage = %q, want ข้อมูลไม่ถูกต้อง", pc.MatchMessage)
+	}
+}
+
+// สแกนถูกเลข แต่เลือกชนิดพาร์ทผิด ต้องไม่ผ่าน
+func TestScanPartCheckPlanComponentWrongType(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
+
+	data, _ := json.Marshal(map[string]string{
+		"Machine No":     "LX10400694",
+		"Swing Motor No": "SM2411010",
+	})
+	db.Create(&models.UploadDataRow{
+		Dataset: models.DatasetAssembly, MachineNo: "LX10400694", DataJSON: string(data),
+	})
+
+	body := `{"partType":"MP","sn":"SM2411010"}`
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanPartCheck(c)
+
+	mustStatus(t, rec, 201)
+	if got := decodeJSON(t, rec)["matchStatus"]; got != models.MatchStatusWrongPart {
+		t.Fatalf("matchStatus = %v, want WRONG_PART", got)
+	}
+	_ = db
 }
 
 func TestScanPartCheckRejectsMachineType(t *testing.T) {
