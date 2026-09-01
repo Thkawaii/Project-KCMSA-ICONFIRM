@@ -103,6 +103,7 @@ const NON_LICENSE_MATCH_TEXT = {
   WRONG_INVOICE: 'ข้อมูลไม่ถูกต้อง',
   WRONG_PRODNO: 'ข้อมูลไม่ถูกต้อง'
 };
+const INVALID_MATCH_STATUSES = ['NOT_FOUND', 'WRONG_PART', 'WRONG_INVOICE', 'WRONG_PRODNO'];
 function matchBadge(status, partType) {
   const m = MATCH_LABELS[status] || MATCH_LABELS.NOT_REQUIRED;
   const code = String(partType || '').toUpperCase();
@@ -435,7 +436,11 @@ export default function WHPartConfirmationPage() {
     if (dateTab !== 'all') {
       list = list.filter(r => inDateTab(r.CheckedDatetime, dateTab));
     }
-    if (matchFilter !== 'all') {
+    if (matchFilter === 'VALID') {
+      list = list.filter(r => r.MatchStatus === 'MATCH');
+    } else if (matchFilter === 'INVALID') {
+      list = list.filter(r => INVALID_MATCH_STATUSES.includes(r.MatchStatus));
+    } else if (matchFilter !== 'all') {
       list = list.filter(r => r.MatchStatus === matchFilter);
     }
     const term = search.trim().toLowerCase();
@@ -697,11 +702,11 @@ export default function WHPartConfirmationPage() {
               value: 'all',
               label: 'ทั้งหมด'
             }, {
-              value: 'MATCH',
-              label: 'ตรงกับใบอนุญาต'
+              value: 'VALID',
+              label: 'ข้อมูลถูกต้อง/ตรงกับใบอนุญาต'
             }, {
-              value: 'NOT_FOUND',
-              label: 'ไม่พบในใบอนุญาต'
+              value: 'INVALID',
+              label: 'ข้อมูลไม่ถูกต้อง/ไม่พบในใบอนุญาต'
             }, {
               value: 'NOT_REQUIRED',
               label: 'ไม่ต้องเทียบ'
