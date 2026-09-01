@@ -119,7 +119,7 @@ function StageStat({
           <Icon className="size-4.5" />
         </span>
         <div className="min-w-0">
-          <div className="truncate text-[14px] font-bold text-slate-800">{title}</div>
+          <div className="truncate text-[14px] font-normal text-slate-800">{title}</div>
           <div className="truncate text-[11px] text-slate-400">{subtitle}</div>
         </div>
         <span className="ml-auto rounded-full bg-brand-50 px-2 py-0.5 text-[13px] font-bold text-brand-700 tabular-nums ring-1 ring-brand-100">
@@ -191,9 +191,8 @@ function DetailModal({
       <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-solid border-slate-200 bg-white shadow-[0_24px_64px_-20px_rgb(16_24_40/0.5)] sm:rounded-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-start gap-3 border-b border-solid border-slate-200 bg-slate-50/70 px-5 py-4">
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-[16px] font-bold text-slate-900">
-              {stageName} · {statusName}
-              {selection.label ? ` · ${selection.label}` : ''}
+            <h3 className="truncate text-[16px] font-normal text-slate-900">
+              {stageName} ({statusName})
             </h3>
             <p className="mt-0.5 text-[12px] text-slate-500">{rows.length} รายการ</p>
           </div>
@@ -366,4 +365,3 @@ export default function QAScanDashboard() {
       {selection && <DetailModal selection={selection} units={rows} onClose={() => setSelection(null)} onSelectionChange={setSelection} />}
     </section>;
 }
-
