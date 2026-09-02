@@ -658,30 +658,33 @@ func GetExportLicenseAlerts(c *gin.Context) {
 	var rows []models.ExportLicenseItem
 	config.DB.Order("id asc").Find(&rows)
 
-	type alertRow struct {
-		ID               uint       `json:"ID"`
-		SerialNumber     string     `json:"SerialNumber"`
-		ExceptionLicense string     `json:"ExceptionLicense"`
-		IssueDate        *time.Time `json:"IssueDate"`
-		ExpiryDate       *time.Time `json:"ExpiryDate"`
-		DaysLeft         int        `json:"DaysLeft"`
-		Status           string     `json:"Status"`
-	}
-
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
-	var (
-		out                                   = []alertRow{}
-		expiredCnt, soonCnt, validCnt, noDate int
-	)
+	// จัดกลุ่มตาม Exception License เดียวกับที่ใบอนุญาตนำเข้ากลุ่มตาม License+Invoice
+	// เพื่อไม่ให้เครื่องหลายเครื่องในใบเดียวกันโผล่ซ้ำเป็นหลายรายการ
+	type licenseGroup struct {
+		ExceptionLicense string
+		Total            int
+		IssueDate        *time.Time
+		ExpiryDate       *time.Time
+		HasDate          bool
+	}
+	groups := map[string]*licenseGroup{}
+	order := make([]string, 0)
 
 	for _, r := range rows {
-		row := alertRow{
-			ID:               r.ID,
-			SerialNumber:     r.SerialNumber,
-			ExceptionLicense: r.ExceptionLicense,
-			IssueDate:        r.IssueDate,
+		key := r.ExceptionLicense
+		g, ok := groups[key]
+		if !ok {
+			g = &licenseGroup{ExceptionLicense: key}
+			groups[key] = g
+			order = append(order, key)
+		}
+		g.Total++
+
+		if r.IssueDate != nil && (g.IssueDate == nil || r.IssueDate.Before(*g.IssueDate)) {
+			g.IssueDate = r.IssueDate
 		}
 
 		var expiry *time.Time
@@ -691,8 +694,37 @@ func GetExportLicenseAlerts(c *gin.Context) {
 			e := r.IssueDate.AddDate(0, ExportLicenseValidityMonths, 0)
 			expiry = &e
 		}
+		if expiry != nil {
+			g.HasDate = true
+			if g.ExpiryDate == nil || expiry.Before(*g.ExpiryDate) {
+				g.ExpiryDate = expiry
+			}
+		}
+	}
 
-		if expiry == nil {
+	type alertRow struct {
+		ExceptionLicense string     `json:"ExceptionLicense"`
+		Total            int        `json:"Total"`
+		IssueDate        *time.Time `json:"IssueDate"`
+		ExpiryDate       *time.Time `json:"ExpiryDate"`
+		DaysLeft         int        `json:"DaysLeft"`
+		Status           string     `json:"Status"`
+	}
+
+	var (
+		out                                   = []alertRow{}
+		expiredCnt, soonCnt, validCnt, noDate int
+	)
+
+	for _, key := range order {
+		g := groups[key]
+		row := alertRow{
+			ExceptionLicense: g.ExceptionLicense,
+			Total:            g.Total,
+			IssueDate:        g.IssueDate,
+		}
+
+		if !g.HasDate {
 			row.Status = LicenseExpiryNoDate
 			noDate++
 			if !onlyAlert {
@@ -701,7 +733,7 @@ func GetExportLicenseAlerts(c *gin.Context) {
 			continue
 		}
 
-		expDay := time.Date(expiry.Year(), expiry.Month(), expiry.Day(), 0, 0, 0, 0, now.Location())
+		expDay := time.Date(g.ExpiryDate.Year(), g.ExpiryDate.Month(), g.ExpiryDate.Day(), 0, 0, 0, 0, now.Location())
 		row.ExpiryDate = &expDay
 		row.DaysLeft = int(expDay.Sub(today).Hours() / 24)
 

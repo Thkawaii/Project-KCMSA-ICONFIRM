@@ -77,8 +77,8 @@ export default function LicenseWeeklyPopup() {
     };
   }, [items]);
   if (!open) return null;
-  const titleOf = it => it.kind === 'import' ? it.LicenseNo || 'ไม่มีเลขใบอนุญาต' : it.SerialNumber || '—';
-  const metaOf = it => it.kind === 'import' ? `นำเข้า · Invoice ${it.InvoiceNo || '—'}${it.Model ? ` · ${it.Model}` : ''}` : `ส่งออก · Exception ${it.ExceptionLicense || '—'}`;
+  const titleOf = it => it.kind === 'import' ? it.LicenseNo || 'ไม่มีเลขใบอนุญาต' : it.ExceptionLicense || 'ไม่มีเลขใบอนุญาต';
+  const metaOf = it => it.kind === 'import' ? `นำเข้า · Invoice ${it.InvoiceNo || '—'}${it.Model ? ` · ${it.Model}` : ''}` : `ส่งออก · ${it.Total || 1} เครื่อง`;
   const openItem = it => {
     handleClose();
     if (it.kind === 'import') {
@@ -89,7 +89,6 @@ export default function LicenseWeeklyPopup() {
       });
     } else {
       navigate('/warehouse/export-license', {
-        focusSerial: it.SerialNumber || '',
         focusException: it.ExceptionLicense || '',
         focusTs: Date.now()
       });

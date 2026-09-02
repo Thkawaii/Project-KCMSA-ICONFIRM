@@ -7,9 +7,9 @@ function expiryDay(item) {
   return d.toISOString().slice(0, 10);
 }
 export function exportDismissKey(item) {
-  const serial = item?.SerialNumber || '—';
+  const license = item?.ExceptionLicense || '—';
   const status = item?.Status || '—';
-  return `${serial}|${status}|${expiryDay(item)}`;
+  return `${license}|${status}|${expiryDay(item)}`;
 }
 export function readExportDismissed() {
   try {
