@@ -1088,11 +1088,23 @@ export function WHExportLicensePanel() {
     setPage(1);
   }, [search, exceptionFilter, expiryFilter, pageSize, periodMode, periodAnchor]);
   useEffect(() => {
+    const exc = (params?.focusException || '').trim();
     const sn = (params?.focusSerial || '').trim();
-    if (!sn) return;
+    if (!exc && !sn) return;
+    setExpiryFilter('all');
+    setPeriodMode('all');
+    setPeriodAnchor('');
     setExceptionFilter('all');
-    setSearch(sn);
+    setSearch(exc || sn);
   }, [params?.focusSerial, params?.focusException, params?.focusTs]);
+  useEffect(() => {
+    const exc = (params?.focusException || '').trim();
+    if (!exc) return;
+    if (rows.some(r => (r.ExceptionLicense || '') === exc)) {
+      setExceptionFilter(exc);
+      setSearch('');
+    }
+  }, [rows, params?.focusException, params?.focusTs]);
   async function handleUpload() {
     if (!file) {
       setMsg({
