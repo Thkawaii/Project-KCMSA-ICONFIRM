@@ -184,6 +184,12 @@ type exportLicenseLink struct {
 type exportLicenseRow struct {
 	models.ExportLicenseItem
 	Link exportLicenseLink `json:"Link"`
+
+	// Lead time — ต้องยื่นเรื่องให้ กสทช. ก่อนใบอนุญาตนำออกหมดอายุ 15 วัน
+	LeadTimeDate *time.Time `json:"LeadTimeDate"`
+	LeadStatus   string     `json:"LeadStatus"`
+	LeadDaysLeft int        `json:"LeadDaysLeft"`
+	LeadDays     int        `json:"LeadDays"`
 }
 
 func isControllerNo(s string) bool {
@@ -240,6 +246,8 @@ func resolveExportLinks(items []models.ExportLicenseItem) []exportLicenseRow {
 		}
 	}
 
+	now := time.Now()
+
 	out := make([]exportLicenseRow, 0, len(items))
 	for _, it := range items {
 		link := exportLicenseLink{}
@@ -270,7 +278,20 @@ func resolveExportLinks(items []models.ExportLicenseItem) []exportLicenseRow {
 			link.LinkLevel = "NONE"
 		}
 
-		out = append(out, exportLicenseRow{ExportLicenseItem: it, Link: link})
+		// วันหมดอายุยึด "วันที่นำออกใบอนุญาต + 1 เดือน" เสมอ
+		// (ข้อมูลเก่าบางแถวมีวันหมดอายุจากไฟล์ Excel ที่ไม่ตรงกับกติกา)
+		it.ExpireDate = it.EffectiveExpireDate()
+
+		leadStatus, leadDaysLeft := it.LeadStatusAt(now)
+
+		out = append(out, exportLicenseRow{
+			ExportLicenseItem: it,
+			Link:              link,
+			LeadTimeDate:      it.LeadTimeDate(),
+			LeadStatus:        leadStatus,
+			LeadDaysLeft:      leadDaysLeft,
+			LeadDays:          models.ExportLicenseLeadDays,
+		})
 	}
 	return out
 }
@@ -325,11 +346,21 @@ func GetExportLicenseTrace(c *gin.Context) {
 		return
 	}
 
+	item.ExpireDate = item.EffectiveExpireDate()
+	leadStatus, leadDaysLeft := item.LeadStatusAt(time.Now())
+
 	resp := gin.H{
 		"item": item,
 		"keys": gin.H{
 			"itControllerNo": item.ITControllerNo,
 			"machineNo":      item.MachineNo,
+		},
+		"expiry": gin.H{
+			"expireDate":   item.ExpireDate,
+			"leadTimeDate": item.LeadTimeDate(),
+			"leadStatus":   leadStatus,
+			"leadDaysLeft": leadDaysLeft,
+			"leadDays":     models.ExportLicenseLeadDays,
 		},
 	}
 
@@ -687,13 +718,8 @@ func GetExportLicenseAlerts(c *gin.Context) {
 			g.IssueDate = r.IssueDate
 		}
 
-		var expiry *time.Time
-		if r.ExpireDate != nil {
-			expiry = r.ExpireDate
-		} else if r.IssueDate != nil {
-			e := r.IssueDate.AddDate(0, ExportLicenseValidityMonths, 0)
-			expiry = &e
-		}
+		// ยึด IssueDate + 1 เดือน เป็นหลัก ถ้าไม่มีค่อยใช้ ExpireDate จากไฟล์
+		expiry := r.EffectiveExpireDate()
 		if expiry != nil {
 			g.HasDate = true
 			if g.ExpiryDate == nil || expiry.Before(*g.ExpiryDate) {
@@ -709,11 +735,17 @@ func GetExportLicenseAlerts(c *gin.Context) {
 		ExpiryDate       *time.Time `json:"ExpiryDate"`
 		DaysLeft         int        `json:"DaysLeft"`
 		Status           string     `json:"Status"`
+
+		LeadTimeDate *time.Time `json:"LeadTimeDate"`
+		LeadDaysLeft int        `json:"LeadDaysLeft"`
+		LeadStatus   string     `json:"LeadStatus"`
+		LeadDays     int        `json:"LeadDays"`
 	}
 
 	var (
 		out                                   = []alertRow{}
 		expiredCnt, soonCnt, validCnt, noDate int
+		leadOverdueCnt, leadDueCnt            int
 	)
 
 	for _, key := range order {
@@ -722,6 +754,8 @@ func GetExportLicenseAlerts(c *gin.Context) {
 			ExceptionLicense: g.ExceptionLicense,
 			Total:            g.Total,
 			IssueDate:        g.IssueDate,
+			LeadDays:         models.ExportLicenseLeadDays,
+			LeadStatus:       models.ExportLeadNoDate,
 		}
 
 		if !g.HasDate {
@@ -737,6 +771,20 @@ func GetExportLicenseAlerts(c *gin.Context) {
 		row.ExpiryDate = &expDay
 		row.DaysLeft = int(expDay.Sub(today).Hours() / 24)
 
+		leadDay := expDay.AddDate(0, 0, -models.ExportLicenseLeadDays)
+		row.LeadTimeDate = &leadDay
+		row.LeadDaysLeft = models.DaysBetween(today, leadDay)
+		switch {
+		case row.LeadDaysLeft < 0:
+			row.LeadStatus = models.ExportLeadOverdue
+			leadOverdueCnt++
+		case row.LeadDaysLeft <= 7:
+			row.LeadStatus = models.ExportLeadDue
+			leadDueCnt++
+		default:
+			row.LeadStatus = models.ExportLeadOK
+		}
+
 		switch {
 		case row.DaysLeft < 0:
 			row.Status = LicenseExpiryExpired
@@ -749,7 +797,8 @@ func GetExportLicenseAlerts(c *gin.Context) {
 			validCnt++
 		}
 
-		if onlyAlert && row.Status == LicenseExpiryValid {
+		// ยังไม่หมดอายุ แต่ถ้าเลย/ใกล้ถึงกำหนดยื่น กสทช. แล้ว ก็ยังต้องเตือน
+		if onlyAlert && row.Status == LicenseExpiryValid && row.LeadStatus == models.ExportLeadOK {
 			continue
 		}
 		out = append(out, row)
@@ -777,12 +826,15 @@ func GetExportLicenseAlerts(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"generatedAt": now,
 		"withinDays":  withinDays,
+		"leadDays":    models.ExportLicenseLeadDays,
 		"counts": gin.H{
-			"expired":  expiredCnt,
-			"expiring": soonCnt,
-			"valid":    validCnt,
-			"noDate":   noDate,
-			"alert":    expiredCnt + soonCnt,
+			"expired":     expiredCnt,
+			"expiring":    soonCnt,
+			"valid":       validCnt,
+			"noDate":      noDate,
+			"alert":       expiredCnt + soonCnt,
+			"leadOverdue": leadOverdueCnt,
+			"leadDue":     leadDueCnt,
 		},
 		"items": out,
 	})
@@ -881,7 +933,7 @@ func RenewExportLicense(c *gin.Context) {
 
 	now := time.Now()
 
-	noDateBase := now.AddDate(0, -ExportLicenseValidityMonths, 0)
+	noDateBase := models.AddMonthsClamped(now, -ExportLicenseValidityMonths)
 
 	updated := 0
 	for i := range rows {
@@ -890,7 +942,7 @@ func RenewExportLicense(c *gin.Context) {
 			base = *rows[i].IssueDate
 		}
 		newDate := base.AddDate(0, 0, req.Days)
-		newExp := newDate.AddDate(0, ExportLicenseValidityMonths, 0)
+		newExp := models.AddMonthsClamped(newDate, ExportLicenseValidityMonths)
 
 		if err := config.DB.Model(&models.ExportLicenseItem{}).
 			Where("id = ?", rows[i].ID).
@@ -906,7 +958,8 @@ func RenewExportLicense(c *gin.Context) {
 		updated++
 	}
 
-	newExpiry := rows[0].IssueDate.AddDate(0, ExportLicenseValidityMonths, 0)
+	newExpiry := models.AddMonthsClamped(*rows[0].IssueDate, ExportLicenseValidityMonths)
+	newLeadTime := newExpiry.AddDate(0, 0, -models.ExportLicenseLeadDays)
 
 	userID, userName := lookupUserName(c)
 	CreateAuditLog("EXPORT_LICENSE", 0, "renew",
@@ -914,8 +967,10 @@ func RenewExportLicense(c *gin.Context) {
 		userID, userName)
 
 	c.JSON(200, gin.H{
-		"renewed":   updated,
-		"days":      req.Days,
-		"newExpiry": newExpiry,
+		"renewed":     updated,
+		"days":        req.Days,
+		"newExpiry":   newExpiry,
+		"newLeadTime": newLeadTime,
+		"leadDays":    models.ExportLicenseLeadDays,
 	})
 }

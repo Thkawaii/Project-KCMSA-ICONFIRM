@@ -65,6 +65,8 @@ func ConnectDB() {
 
 	DropLegacyAssemblyDataset()
 
+	NormalizeExportLicenseExpiry()
+
 	SeedData()
 
 	SeedOrgUsers()
@@ -92,5 +94,40 @@ func DropLegacyAssemblyDataset() {
 	}
 	if res.RowsAffected > 0 {
 		log.Printf("Removed %d legacy assembly rows from upload_data_rows", res.RowsAffected)
+	}
+}
+
+// NormalizeExportLicenseExpiry แก้วันหมดอายุใบอนุญาตนำออกของข้อมูลเก่าให้ตรงกติกา
+// อายุใบอนุญาตนำออก = วันที่นำออกใบอนุญาต + 1 เดือน
+// ข้อมูลเก่าบางแถวรับวันหมดอายุมาจากไฟล์ Excel ตรง ๆ (เช่น 31 ธ.ค.) ทำให้เหลือวันผิด
+func NormalizeExportLicenseExpiry() {
+	if DB == nil {
+		return
+	}
+
+	var rows []models.ExportLicenseItem
+	if err := DB.Where("issue_date IS NOT NULL").Find(&rows).Error; err != nil {
+		log.Println("normalize export license expiry:", err)
+		return
+	}
+
+	fixed := 0
+	for i := range rows {
+		want := models.AddMonthsClamped(*rows[i].IssueDate, models.ExportLicenseValidityMonths)
+		if rows[i].ExpireDate != nil && rows[i].ExpireDate.Equal(want) {
+			continue
+		}
+		if err := DB.Model(&models.ExportLicenseItem{}).
+			Where("id = ?", rows[i].ID).
+			Update("expire_date", want).Error; err != nil {
+			log.Println("normalize export license expiry:", err)
+			return
+		}
+		fixed++
+	}
+
+	if fixed > 0 {
+		log.Printf("Export License: แก้วันหมดอายุให้ตรงกติกา (นำออก + %d เดือน) %d รายการ",
+			models.ExportLicenseValidityMonths, fixed)
 	}
 }
