@@ -233,12 +233,16 @@ function DetailModal({
                     {u.scannedInPeriod ? <span className="text-slate-600">
                         {fmtTime(u.scannedAt)}
                         {u.scannedBy ? <span className="ml-1 text-slate-400">· {u.scannedBy}</span> : null}
+                      </span> : u.scanAttempted ? <span className="font-semibold text-amber-600" title={u.matchMessage || ''}>
+                        สแกนไม่ผ่าน
                       </span> : <span className="text-slate-400">ยังไม่สแกน</span>}
                   </td>
                   <td className="border-b border-solid border-slate-100 px-4 py-2.5 whitespace-nowrap">
                     {u.assembledInPeriod ? <span className="text-slate-600">
                         {fmtTime(u.assembledAt)}
                         {u.assembledBy ? <span className="ml-1 text-slate-400">· {u.assembledBy}</span> : null}
+                      </span> : u.assembleAttempted ? <span className="font-semibold text-amber-600" title="MFG บันทึกไว้แล้ว แต่สถานะยังไม่ผ่าน">
+                        บันทึกแล้ว · รอ WH
                       </span> : <span className="text-slate-400">ยังไม่ประกอบ</span>}
                   </td>
                 </tr>)}

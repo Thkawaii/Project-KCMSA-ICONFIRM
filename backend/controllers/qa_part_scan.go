@@ -28,18 +28,24 @@ type QAScanUnit struct {
 
 	PlannedNo string `json:"plannedNo"`
 
-	Scanned      bool   `json:"scanned"`
-	ScannedNo    string `json:"scannedNo"`
-	ScannedPN    string `json:"scannedPN"`
-	ScannedAt    string `json:"scannedAt"`
-	ScannedBy    string `json:"scannedBy"`
-	MatchStatus  string `json:"matchStatus"`
-	MatchMessage string `json:"matchMessage"`
+	// Scanned = WH สแกนแล้วและผลเป็น MATCH เท่านั้น
+	// ScanAttempted = เคยมีการสแกน แต่ผลอาจไม่ผ่าน (NOT_FOUND / WRONG_PART)
+	Scanned       bool   `json:"scanned"`
+	ScanAttempted bool   `json:"scanAttempted"`
+	ScannedNo     string `json:"scannedNo"`
+	ScannedPN     string `json:"scannedPN"`
+	ScannedAt     string `json:"scannedAt"`
+	ScannedBy     string `json:"scannedBy"`
+	MatchStatus   string `json:"matchStatus"`
+	MatchMessage  string `json:"matchMessage"`
 
-	Assembled       bool   `json:"assembled"`
-	AssembledAt     string `json:"assembledAt"`
-	AssembledBy     string `json:"assembledBy"`
-	AssembledStatus string `json:"assembledStatus"`
+	// Assembled = MFG บันทึกแล้วและสถานะเป็น MATCHED เท่านั้น
+	// AssembleAttempted = เคยบันทึก แต่สถานะยังเป็น NOT_MATCHED (เช่น WH ยังไม่รับเข้า)
+	Assembled         bool   `json:"assembled"`
+	AssembleAttempted bool   `json:"assembleAttempted"`
+	AssembledAt       string `json:"assembledAt"`
+	AssembledBy       string `json:"assembledBy"`
+	AssembledStatus   string `json:"assembledStatus"`
 
 	LicenseNo string `json:"licenseNo"`
 	InvoiceNo string `json:"invoiceNo"`
@@ -104,12 +110,23 @@ func GetQAPartScanSummary(c *gin.Context) {
 	var checks []models.PartCheck
 	config.DB.Order("checked_datetime asc").Find(&checks)
 
-	checkByComponentKey := map[string]models.PartCheck{}
+	// ดัชนีการสแกนของ WH แยกเป็น 2 ชั้น
+	//   matched* = เฉพาะการสแกนที่ผลเป็น MATCH → ใช้ตัดสินว่า "สแกนแล้ว" จริง
+	//   latest*  = การสแกนล่าสุดทุกสถานะ       → ใช้บอกว่าเคยสแกนแต่ยังไม่ผ่าน
+	// และแยกอีกชั้นเป็นแบบผูก Machine No. (กันพาร์ทที่ใช้เลขเดียวกันหลายเครื่อง เช่น Engine P/N)
+	matchedCheckByMachine := map[string]models.PartCheck{}
+	matchedCheckByNo := map[string]models.PartCheck{}
+	latestCheckByMachine := map[string]models.PartCheck{}
+	latestCheckByNo := map[string]models.PartCheck{}
+
 	for _, ck := range checks {
 		comp := strings.ToUpper(strings.TrimSpace(ck.PartType))
 		if comp == "" {
 			continue
 		}
+
+		isMatch := strings.EqualFold(strings.TrimSpace(ck.MatchStatus), models.MatchStatusMatch)
+		mcKey := qaScanKey(ck.MachineNo)
 
 		for _, raw := range []string{ck.SN, ck.PN, ck.MachineNo} {
 			k := qaScanKey(raw)
@@ -117,17 +134,68 @@ func GetQAPartScanSummary(c *gin.Context) {
 				continue
 			}
 
-			checkByComponentKey[comp+"|"+k] = ck
+			latestCheckByNo[comp+"|"+k] = ck
+			if isMatch {
+				matchedCheckByNo[comp+"|"+k] = ck
+			}
+			if mcKey != "" {
+				latestCheckByMachine[comp+"|"+mcKey+"|"+k] = ck
+				if isMatch {
+					matchedCheckByMachine[comp+"|"+mcKey+"|"+k] = ck
+				}
+			}
 		}
+	}
+
+	// คืนค่า (แถวที่เจอ, ผ่าน MATCH ไหม, เคยสแกนไหม)
+	lookupCheck := func(comp, machineNo, planned string) (models.PartCheck, bool, bool) {
+		numKey := qaScanKey(planned)
+		if numKey == "" {
+			return models.PartCheck{}, false, false
+		}
+		mcKey := qaScanKey(machineNo)
+
+		if mcKey != "" {
+			if ck, ok := matchedCheckByMachine[comp+"|"+mcKey+"|"+numKey]; ok {
+				return ck, true, true
+			}
+		}
+		if ck, ok := matchedCheckByNo[comp+"|"+numKey]; ok {
+			return ck, true, true
+		}
+		if mcKey != "" {
+			if ck, ok := latestCheckByMachine[comp+"|"+mcKey+"|"+numKey]; ok {
+				return ck, false, true
+			}
+		}
+		if ck, ok := latestCheckByNo[comp+"|"+numKey]; ok {
+			return ck, false, true
+		}
+		return models.PartCheck{}, false, false
 	}
 
 	var mfgRows []models.MFGAssembly
 	config.DB.Order("id asc").Find(&mfgRows)
 
-	mfgByKey := map[string]models.MFGAssembly{}
+	// ดัชนีการประกอบของ MFG — ผูก Machine No. คู่กับเลขพาร์ทเสมอ
+	// และแยก MATCHED ออกจากแถวที่บันทึกไว้แต่ยังไม่ผ่าน (NOT_MATCHED)
+	// แถว DUPLICATE เป็นเพียง log การสแกนซ้ำ ไม่นับเป็นการประกอบ
+	matchedMFGByKey := map[string]models.MFGAssembly{}
+	latestMFGByKey := map[string]models.MFGAssembly{}
 	for _, m := range mfgRows {
-		if k := qaScanKey(m.ITControllerNo); k != "" {
-			mfgByKey[k] = m
+		serialKey := qaScanKey(m.ITControllerNo)
+		if serialKey == "" {
+			continue
+		}
+		status := strings.ToUpper(strings.TrimSpace(m.Status))
+		if status == models.MFGStatusDuplicate {
+			continue
+		}
+
+		k := qaScanKey(m.MachineNo) + "|" + serialKey
+		latestMFGByKey[k] = m
+		if status == models.MFGStatusMatched {
+			matchedMFGByKey[k] = m
 		}
 	}
 
@@ -206,8 +274,9 @@ func GetQAPartScanSummary(c *gin.Context) {
 				Country:        country,
 			}
 
-			if ck, ok := checkByComponentKey[comp+"|"+qaScanKey(planned)]; ok {
-				u.Scanned = true
+			if ck, matched, attempted := lookupCheck(comp, machineNo, planned); attempted {
+				u.Scanned = matched
+				u.ScanAttempted = true
 				u.ScannedNo = strings.TrimSpace(ck.SN)
 				u.ScannedPN = strings.TrimSpace(ck.PN)
 				u.ScannedAt = rfc3339(ck.CheckedDatetime)
@@ -229,8 +298,15 @@ func GetQAPartScanSummary(c *gin.Context) {
 				}
 			}
 
-			if m, ok := mfgByKey[qaScanKey(planned)]; ok {
-				u.Assembled = true
+			mfgKey := qaScanKey(machineNo) + "|" + qaScanKey(planned)
+			m, ok := matchedMFGByKey[mfgKey]
+			assembled := ok
+			if !ok {
+				m, ok = latestMFGByKey[mfgKey]
+			}
+			if ok {
+				u.Assembled = assembled
+				u.AssembleAttempted = true
 				u.AssembledAt = rfc3339(m.CreatedDatetime)
 				if m.DateAssembly != nil {
 					u.AssembledAt = rfc3339Ptr(m.DateAssembly)
