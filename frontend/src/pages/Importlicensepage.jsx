@@ -12,7 +12,7 @@ import { useAppParams } from '../lib/nav.jsx';
 import { buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js';
 import PeriodRangePicker from '../components/PeriodRangePicker.jsx';
 import { inPeriod, periodRangeLabel, periodFileTag } from '../lib/dateRange.js';
-import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardDocumentCheckIcon, CubeIcon, DocumentTextIcon, ReceiptPercentIcon, Squares2X2Icon, XMarkIcon } from '../components/icons.jsx';
+import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardDocumentCheckIcon, ClockIcon, CubeIcon, DocumentTextIcon, RectangleStackIcon, ReceiptPercentIcon, ShieldCheckIcon, Squares2X2Icon, TagIcon, TruckIcon, WrenchScrewdriverIcon, XMarkIcon } from '../components/icons.jsx';
 export const WH_NAV_ITEMS = [{
   to: '/warehouse',
   label: 'Import License',
@@ -542,13 +542,9 @@ function ImportDetailModal({
   row,
   onClose
 }) {
-  const item = (label, value) => <div className="il-detail-item">
-      <span className="il-detail-label">{label}</span>
-      <span className="il-detail-value">{value === 0 || value ? value : '—'}</span>
-    </div>;
-  const section = (title, children) => <div className="il-detail-section">
-      <div className="il-detail-section-head">{title}</div>
-      <div className="il-detail-grid">{children}</div>
+  const item = (label, value) => <div className="wh-detail-item">
+      <span className="wh-detail-label">{label}</span>
+      <span className="wh-detail-value">{value === 0 || value ? value : '—'}</span>
     </div>;
   const exp = computeLicenseExpiry(row.IssueDate);
   const CONFIRM_LABEL = {
@@ -565,12 +561,26 @@ function ImportDetailModal({
     extraEntries = [];
   }
   return <div className="wh-modal-overlay" onClick={onClose}>
-      <div className="wh-modal il-detail-modal" onClick={e => e.stopPropagation()}>
-        <h3 className="wh-modal-title">รายละเอียดใบอนุญาตนำเข้า</h3>
+      <div className="wh-modal wh-detail-modal" onClick={e => e.stopPropagation()}>
+        <button type="button" className="wh-detail-close" onClick={onClose} aria-label="ปิด">
+          <XMarkIcon className="size-4" />
+        </button>
 
-        <div className="il-detail-body">
-        <div className="il-detail-card">
-          <div className="il-detail-grid">
+        <div className="wh-detail-header">
+          <span className="wh-detail-header-icon">
+            <DocumentTextIcon className="size-5" />
+          </span>
+          <div>
+            <h3 className="wh-modal-title">รายละเอียดใบอนุญาตนำเข้า</h3>
+            <span className="wh-detail-header-sub">{row.Model || row.Brand || '—'}</span>
+          </div>
+        </div>
+
+        <div className="wh-detail-section">
+          <span className="wh-detail-section-title">
+            <CubeIcon className="size-4" /> ข้อมูลเครื่อง
+          </span>
+          <div className="wh-detail-grid">
             {item('หมายเลขเครื่อง', row.MachineNo)}
             {item('หมายเลขการผลิต', row.ProductionNo)}
             {item('ตราอักษร', row.Brand)}
@@ -580,35 +590,61 @@ function ImportDetailModal({
           </div>
         </div>
 
-        <div className="il-detail-links">
-        {section('ข้อมูลใบอนุญาต', <>
+        <div className="wh-detail-divider" />
+
+        <div className="wh-detail-section">
+          <span className="wh-detail-section-title">
+            <DocumentTextIcon className="size-4" /> ข้อมูลใบอนุญาต
+          </span>
+          <div className="wh-detail-grid">
             {item('เลขใบอนุญาตนำเข้า', row.LicenseNo)}
             {item('เลขอินวอยซ์นำเข้า', row.InvoiceNo)}
             {item('เลขใบขนสินค้าขาเข้า', row.DeclarationNo)}
             {item('วันที่ออกใบอนุญาต', row.IssueDate ? formatThaiDate(row.IssueDate) : '')}
             {item('วันหมดอายุ (6 เดือน)', exp.hasDate ? formatThaiDate(exp.expiryDate) : '')}
-            {item('สถานะอายุ', <span className="il-detail-status">
+            <div className="wh-detail-item">
+              <span className="wh-detail-label">สถานะอายุ</span>
+              <span className="wh-detail-value il-detail-status">
                 <span className={EXPIRY_BADGE_CLASS[exp.status]}>{STATUS_LABEL[exp.status]}</span>
                 {exp.hasDate && <span className="il-detail-days">{daysLeftLabel(exp.daysLeft)}</span>}
-              </span>)}
+              </span>
+            </div>
             {item('หมายเหตุ', row.Remark)}
-          </>)}
+          </div>
+        </div>
 
-        {section('สถานะการยืนยัน', <>
+        <div className="wh-detail-divider" />
+
+        <div className="wh-detail-section">
+          <span className="wh-detail-section-title">
+            <ShieldCheckIcon className="size-4" /> สถานะการยืนยัน
+          </span>
+          <div className="wh-detail-grid">
             {item('สถานะ', confirmLabel)}
             {item('ผู้ยืนยัน', row.ConfirmedBy)}
             {item('วันเวลาที่ยืนยัน', row.ConfirmedDatetime ? formatThaiDate(row.ConfirmedDatetime) : '')}
-          </>)}
-
-        {extraEntries.length > 0 && section('คอลัมน์เพิ่มจากไฟล์', <>
-              {extraEntries.map(([k, v]) => item(String(k).replace(/^\[\+\]\s*/, ''), v))}
-            </>)}
-
-        {section('ที่มาของข้อมูล', <>
-            {item('ชื่อไฟล์', row.FileName)}
-            {item('วันที่อัปโหลด', row.UploadDate ? formatThaiDate(row.UploadDate) : '')}
-          </>)}
+          </div>
         </div>
+
+        {extraEntries.length > 0 && <>
+            <div className="wh-detail-divider" />
+            <div className="wh-detail-section">
+              <span className="wh-detail-section-title">
+                <RectangleStackIcon className="size-4" /> คอลัมน์เพิ่มจากไฟล์
+              </span>
+              <div className="wh-detail-grid">
+                {extraEntries.map(([k, v]) => item(String(k).replace(/^\[\+\]\s*/, ''), v))}
+              </div>
+            </div>
+          </>}
+
+        <div className="wh-detail-meta">
+          <span>
+            <TagIcon className="size-3.5" /> ไฟล์ {row.FileName || '—'}
+          </span>
+          <span>
+            <ClockIcon className="size-3.5" /> อัปโหลดเมื่อ {row.UploadDate ? formatThaiDate(row.UploadDate) : '—'}
+          </span>
         </div>
 
         <div className="wh-modal-actions">
@@ -743,29 +779,49 @@ function ExportTraceModal({
       alive = false;
     };
   }, [row.ID]);
-  const item = (label, value) => value ? <div className="il-detail-item">
-        <span className="il-detail-label">{label}</span>
-        <span className="il-detail-value">{value}</span>
+  const item = (label, value) => value ? <div className="wh-detail-item">
+        <span className="wh-detail-label">{label}</span>
+        <span className="wh-detail-value">{value}</span>
       </div> : null;
-  const itemAlways = (label, value) => <div className="il-detail-item">
-      <span className="il-detail-label">{label}</span>
-      <span className="il-detail-value">{value || '—'}</span>
-    </div>;
-  const linkSection = (title, children) => <div className="il-detail-section">
-      <div className="il-detail-section-head">{title}</div>
-      <div className="il-detail-grid">{children}</div>
+  const itemAlways = (label, value) => <div className="wh-detail-item">
+      <span className="wh-detail-label">{label}</span>
+      <span className="wh-detail-value">{value || '—'}</span>
     </div>;
   return <div className="wh-modal-overlay" onClick={onClose}>
-      <div className="wh-modal il-detail-modal" onClick={e => e.stopPropagation()}>
-        <h3 className="wh-modal-title">รายละเอียดใบอนุญาตส่งออก</h3>
+      <div className="wh-modal wh-detail-modal" onClick={e => e.stopPropagation()}>
+        <button type="button" className="wh-detail-close" onClick={onClose} aria-label="ปิด">
+          <XMarkIcon className="size-4" />
+        </button>
 
-        <div className="il-detail-body">
-        <div className="il-detail-card">
-          <div className="il-detail-grid">
+        <div className="wh-detail-header">
+          <span className="wh-detail-header-icon">
+            <TruckIcon className="size-5" />
+          </span>
+          <div>
+            <h3 className="wh-modal-title">รายละเอียดใบอนุญาตส่งออก</h3>
+            <span className="wh-detail-header-sub">{row.MachineNo || row.SerialNumber || '—'}</span>
+          </div>
+        </div>
+
+        <div className="wh-detail-section">
+          <span className="wh-detail-section-title">
+            <CubeIcon className="size-4" /> ข้อมูลชิ้นงาน
+          </span>
+          <div className="wh-detail-grid">
             {item('Machine No', row.MachineNo)}
             {item('IT Controller S/N', row.ITControllerNo || row.SerialNumber)}
             {item('Serial Number', row.SerialNumber)}
             {item('ประเทศปลายทาง', country)}
+          </div>
+        </div>
+
+        <div className="wh-detail-divider" />
+
+        <div className="wh-detail-section">
+          <span className="wh-detail-section-title">
+            <DocumentTextIcon className="size-4" /> ข้อมูลใบขนส่งออก
+          </span>
+          <div className="wh-detail-grid">
             {item('Invoice No.', row.InvoiceNo)}
             {item('Invoice Date', row.InvoiceDate ? formatThaiDate(row.InvoiceDate) : '')}
             {item('Export Entry', row.ExportEntry)}
@@ -779,8 +835,13 @@ function ExportTraceModal({
         {loading && <p className="il-detail-note">กำลังโหลดข้อมูลที่เชื่อมโยง...</p>}
         {err && <p className="il-detail-note il-detail-note-err">{err}</p>}
 
-        {!loading && !err && <div className="il-detail-links">
-            {linkSection('Import License (บัญชี กสทช.)', data?.importLicense ? <>
+        {!loading && !err && <>
+            <div className="wh-detail-divider" />
+            <div className="wh-detail-section">
+              <span className="wh-detail-section-title">
+                <ShieldCheckIcon className="size-4" /> Import License (บัญชี กสทช.)
+              </span>
+              {data?.importLicense ? <div className="wh-detail-grid">
                   {item('เลขใบอนุญาต (กสทช.)', data.importLicense.LicenseNo)}
                   {item('Invoice นำเข้า', data.importLicense.InvoiceNo)}
                   {item('รุ่น', data.importLicense.Model)}
@@ -788,36 +849,28 @@ function ExportTraceModal({
                   {item('สถานะยืนยัน', data.importLicense.ConfirmStatus)}
                   {itemAlways('ผู้ยืนยัน (WH)', data.importLicense.ConfirmedBy)}
                   {itemAlways('วันที่เช็ค', data.importLicense.ConfirmedDatetime ? formatThaiDate(data.importLicense.ConfirmedDatetime) : '')}
-                </> : <div className="il-detail-item" style={{
-            gridColumn: '1 / -1'
-          }}>
-                  <span className="il-detail-value" style={{
-              color: 'var(--muted, #6b7280)',
-              fontStyle: 'italic'
-            }}>
-                    ไม่พบใบอนุญาตนำเข้าที่เชื่อมโยง — ตรวจสอบว่าเลข IT Controller (
-                    {row.ITControllerNo || row.SerialNumber || '—'}) ตรงกับ “หมายเลขเครื่อง”
-                    ในบัญชีใบอนุญาตนำเข้า และเป็นเลข 12 หลัก
+                </div> : <p className="il-detail-note">
+                  ไม่พบใบอนุญาตนำเข้าที่เชื่อมโยง — ตรวจสอบว่าเลข IT Controller (
+                  {row.ITControllerNo || row.SerialNumber || '—'}) ตรงกับ “หมายเลขเครื่อง”
+                  ในบัญชีใบอนุญาตนำเข้า และเป็นเลข 12 หลัก
+                </p>}
+            </div>
+
+            {data?.mfgAssembly && <>
+                <div className="wh-detail-divider" />
+                <div className="wh-detail-section">
+                  <span className="wh-detail-section-title">
+                    <WrenchScrewdriverIcon className="size-4" /> MFG Assembly (ผลตรวจตอนประกอบ)
                   </span>
-                </div>)}
-
-            {data?.mfgAssembly && linkSection('MFG Assembly (ผลตรวจตอนประกอบ)', <>
-                  {item('สถานะ', data.mfgAssembly.Status)}
-                  {item('Machine No (ที่ประกอบ)', data.mfgAssembly.MachineNo)}
-                  {itemAlways('วันที่ประกอบ', data.mfgAssembly.DateAssembly ? formatThaiDate(data.mfgAssembly.DateAssembly) : '')}
-                  {itemAlways('Check By (MFG)', data.mfgAssembly.CreatedBy)}
-                </>)}
-
-            {data?.machinePlan && linkSection('แผนประกอบ (Planning / WH1 / WH2 / Engine)', <>
-                  {item('IT Controller ตามแผน', data.machinePlan.ITControllerNo)}
-                  {item('รุ่นฐาน', data.machinePlan.BaseSpec)}
-                  {item('Spec Code', data.machinePlan.Spec1)}
-                  {item('ประเทศ', data.machinePlan.CountryName)}
-                  {item('KCM Order', data.machinePlan.KCMOrder)}
-                  {item('Assembly Parts No.', data.machinePlan.AssemblyPartsNumber)}
-                </>)}
-          </div>}
-        </div>
+                  <div className="wh-detail-grid">
+                    {item('สถานะ', data.mfgAssembly.Status)}
+                    {item('Machine No (ที่ประกอบ)', data.mfgAssembly.MachineNo)}
+                    {itemAlways('วันที่ประกอบ', data.mfgAssembly.DateAssembly ? formatThaiDate(data.mfgAssembly.DateAssembly) : '')}
+                    {itemAlways('Check By (MFG)', data.mfgAssembly.CreatedBy)}
+                  </div>
+                </div>
+              </>}
+          </>}
 
         <div className="wh-modal-actions">
           <button className="wh-modal-cancel" onClick={onClose}>
