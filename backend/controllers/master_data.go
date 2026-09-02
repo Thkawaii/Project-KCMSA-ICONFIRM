@@ -220,6 +220,7 @@ func UpdateMasterData(c *gin.Context) {
 		action = "update_key"
 		auditDetail = "S/N " + oldSN + "→" + newSN + " | ITC " + oldITC + "→" + newITC
 	}
+	InvalidateMachineIndex()
 	CreateAuditLog("MASTER_DATA", uint(id), action, auditDetail, userID, userName)
 
 	var out models.MasterData
@@ -527,6 +528,7 @@ func UploadMasterData(c *gin.Context) {
 		imported++
 	}
 
+	InvalidateMachineIndex()
 	CreateAuditLog("MASTER_DATA", 0, "upload_excel", fallbackComponentType, userID, userName)
 
 	c.JSON(201, gin.H{
@@ -693,6 +695,7 @@ func ClearMasterData(c *gin.Context) {
 	if label == "" {
 		label = "ALL"
 	}
+	InvalidateMachineIndex()
 	CreateAuditLog("MASTER_DATA", 0, "clear", label, userID, userName)
 
 	c.JSON(200, gin.H{"deleted": res.RowsAffected})
@@ -868,6 +871,7 @@ func DeleteMasterData(c *gin.Context) {
 	}
 
 	userID, userName := lookupUserName(c)
+	InvalidateMachineIndex()
 	CreateAuditLog("MASTER_DATA", row.ID, "delete", row.SerialNo, userID, userName)
 
 	c.JSON(200, gin.H{"deleted": true})

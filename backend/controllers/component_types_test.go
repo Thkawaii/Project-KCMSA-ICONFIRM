@@ -106,7 +106,7 @@ func TestMFGScanSwingMotor(t *testing.T) {
 		"Country Name":   "Vietnam",
 	})
 	db.Create(&models.UploadDataRow{
-		Dataset:   models.DatasetAssembly,
+		Dataset:   models.DatasetPlanning,
 		MachineNo: "LX10400691",
 		DataJSON:  string(data),
 	})
@@ -161,7 +161,7 @@ func TestMFGScanSwingMotorMismatch(t *testing.T) {
 			"Swing Motor No": tc.sm,
 		})
 		db.Create(&models.UploadDataRow{
-			Dataset:   models.DatasetAssembly,
+			Dataset:   models.DatasetPlanning,
 			MachineNo: tc.mc,
 			DataJSON:  string(data),
 		})
@@ -205,7 +205,7 @@ func TestPlannedNoOfFallsBackToExtraColumn(t *testing.T) {
 }
 
 func TestPlanningDatasetHasCWNoColumn(t *testing.T) {
-	for _, ds := range []string{"planning", "assembly"} {
+	for _, ds := range []string{"planning"} {
 		found := false
 		for _, c := range udDatasets[ds].Columns {
 			if c.Label == "CW No" {

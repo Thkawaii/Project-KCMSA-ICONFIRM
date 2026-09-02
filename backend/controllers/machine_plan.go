@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"encoding/json"
 	"strings"
 
 	"iconfirm/config"
@@ -16,8 +15,6 @@ const (
 	PlanStateNoITC       = "NO_ITC_PLAN"
 	PlanStateNotInMaster = "NOT_IN_MASTER"
 )
-
-var planDatasetPriority = []string{models.DatasetAssembly, models.DatasetPlanning}
 
 var planITCKeys = []string{
 	"IT Controller No", "IT Controller No.", "ITControllerNo",
@@ -45,43 +42,10 @@ func plannedCountryOf(plan map[string]string) string { return planValue(plan, pl
 
 func plannedDeviceOf(plan map[string]string) string { return planValue(plan, planDeviceKeys...) }
 
-func planRowMachineNo(r models.UploadDataRow, data map[string]string) string {
-	if v := strings.TrimSpace(r.MachineNo); v != "" {
-		return v
-	}
-	return machineFromRow(data)
-}
-
+// loadMachinePlans คืนข้อมูลแผนประกอบของทุกเครื่อง โดยรวมสด ๆ จาก
+// ALL PART (ทะเบียนกลาง) + Planning + WH1 + WH2 + Engine
 func loadMachinePlans() map[string]map[string]string {
-	out := map[string]map[string]string{}
-
-	for i := len(planDatasetPriority) - 1; i >= 0; i-- {
-		var rows []models.UploadDataRow
-		config.DB.Where("dataset = ?", planDatasetPriority[i]).Order("id asc").Find(&rows)
-
-		for _, r := range rows {
-			data := map[string]string{}
-			if err := json.Unmarshal([]byte(r.DataJSON), &data); err != nil {
-				continue
-			}
-			mc := planRowMachineNo(r, data)
-			if mc == "" {
-				continue
-			}
-			cur, ok := out[mc]
-			if !ok {
-				cur = map[string]string{}
-				out[mc] = cur
-			}
-			for k, v := range data {
-				if strings.TrimSpace(v) != "" {
-					cur[k] = v
-				}
-			}
-		}
-	}
-
-	return out
+	return machineIndex()
 }
 
 func planForMachine(machineNo string) map[string]string {
@@ -89,20 +53,7 @@ func planForMachine(machineNo string) map[string]string {
 	if machineNo == "" {
 		return nil
 	}
-
-	for _, ds := range planDatasetPriority {
-		var rows []models.UploadDataRow
-		config.DB.Where("dataset = ? AND machine_no = ?", ds, machineNo).
-			Order("id asc").Find(&rows)
-		for _, r := range rows {
-			data := map[string]string{}
-			if err := json.Unmarshal([]byte(r.DataJSON), &data); err == nil && len(data) > 0 {
-				return data
-			}
-		}
-	}
-
-	return loadMachinePlans()[machineNo]
+	return machineIndex()[machineNo]
 }
 
 type MFGPlanResult struct {
@@ -270,7 +221,8 @@ func mfgPlanDetail(machineNo string, res MFGPlanResult) string {
 		return "ไม่พบ " + part + " " + res.ScannedITC + " ในทะเบียน Master Data"
 
 	case PlanStateNoPlan:
-		return "ไม่พบแผนประกอบของเครื่อง " + mc + " ใน Master Data (Planning/Assembly)"
+		return "ไม่พบแผนประกอบของเครื่อง " + mc +
+			" ใน Master Data (Planning / WH1 / WH2 / Engine)"
 
 	case PlanStateNoITC:
 		return "แผนของเครื่อง " + mc + " ไม่ได้กำหนด " + part + " ไว้ แต่มีการสแกน " + res.ScannedITC

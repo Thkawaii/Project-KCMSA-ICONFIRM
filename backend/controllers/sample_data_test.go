@@ -36,7 +36,6 @@ func TestSampleUploadDataFiles(t *testing.T) {
 		{"05_WH1.xlsx", "wh1"},
 		{"06_WH2.xlsx", "wh2"},
 		{"07_Engine.xlsx", "engine"},
-		{"08_Assembly.xlsx", "assembly"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.dataset, func(t *testing.T) {

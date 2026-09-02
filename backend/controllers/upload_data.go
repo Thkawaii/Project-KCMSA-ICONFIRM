@@ -198,26 +198,6 @@ var udDatasets = map[string]udDataset{
 			col("ENGINE", "engine"),
 		},
 	},
-
-	models.DatasetAssembly: {
-		MinHits: 2,
-		Anchors: []string{"machineno", "itcontrollerno", "itcontroller", "speccode", "assemblypartsname"},
-		Columns: []udColumn{
-			col("Machine No", "machineno", "machinenumber", "mcno", "mcnumber", "machineid"),
-			col("Spec Code", "speccode", "specificationcode"),
-			col("Specification Detail", "specificationdetail", "specdetail", "specification"),
-			col("Country Name", "countryname", "country"),
-			col("IT device", "itdevice", "device"),
-			col("IT Controller No", "itcontrollerno", "itcontrollernumber", "itcno", "itcontrollerserial", "itcontroller", "controller"),
-			col("Swing Motor No", "swingmotorno", "swingmotor", "swno", "swingno", "swingmotornumber"),
-			col("Pump Assy HYD No", "pumpassyhydno", "pumpassyno", "pumpno", "pumpassy", "pumpassyhyd"),
-			col("Motor Propel No", "motorpropelno", "propelno", "propelmotorno", "propel"),
-			col("Control Valve No", "controlvalveno", "cvno", "valveno", "controlvalve"),
-			col("CW No", "cwno", "cwpartno", "counterweightno", "counterweightpartno"),
-			col("Assembly_Parts_Number", "assemblypartsnumber", "assemblypartsno", "partsnumber", "assemblyparts"),
-			col("Assembly_Parts_Name", "assemblypartsname", "partsname", "model", "modelname"),
-		},
-	},
 }
 
 var udDatasetLabels = map[string]string{
@@ -225,7 +205,6 @@ var udDatasetLabels = map[string]string{
 	models.DatasetWH1:      "WH1",
 	models.DatasetWH2:      "WH2",
 	models.DatasetEngine:   "Engine",
-	models.DatasetAssembly: "Assembly",
 }
 
 var udDatasetKeyFields = map[string][]string{
@@ -233,7 +212,6 @@ var udDatasetKeyFields = map[string][]string{
 	models.DatasetWH1:      {"Order No", "Parts No", "Work order"},
 	models.DatasetWH2:      {"ORDER No.", "Parts No"},
 	models.DatasetEngine:   {"Machine No"},
-	models.DatasetAssembly: {"Machine No"},
 }
 
 var udDatasetCoreFields = map[string][]string{
@@ -241,7 +219,6 @@ var udDatasetCoreFields = map[string][]string{
 	models.DatasetWH1:      {"Assembly Parts Number", "Name"},
 	models.DatasetWH2:      {"PARTS NAME", "Quantity"},
 	models.DatasetEngine:   {"ENGINE"},
-	models.DatasetAssembly: {"IT Controller No", "Spec Code", "Assembly_Parts_Number"},
 }
 
 var udDatasetKeyLabel = map[string]string{
@@ -249,7 +226,6 @@ var udDatasetKeyLabel = map[string]string{
 	models.DatasetWH1:      "Order · Parts · WO",
 	models.DatasetWH2:      "Order · Parts",
 	models.DatasetEngine:   "Machine No",
-	models.DatasetAssembly: "Machine No",
 }
 
 func uploadDataDiffKey(dataset string, data map[string]string) string {
@@ -391,7 +367,7 @@ func PreviewUploadDataMapping(c *gin.Context) {
 	dataset := strings.ToLower(strings.TrimSpace(c.Param("dataset")))
 	ds, ok := udDatasets[dataset]
 	if !ok {
-		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine | assembly)"})
+		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine)"})
 		return
 	}
 	ds = withRuntimeAliases(ds, dataset)
@@ -601,7 +577,7 @@ func GetUploadData(c *gin.Context) {
 
 	dataset := strings.ToLower(strings.TrimSpace(c.Query("dataset")))
 	if _, ok := udDatasets[dataset]; !ok {
-		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine | assembly)"})
+		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine)"})
 		return
 	}
 
@@ -672,7 +648,7 @@ func UploadDataFile(c *gin.Context) {
 	dataset := strings.ToLower(strings.TrimSpace(c.Param("dataset")))
 	ds, ok := udDatasets[dataset]
 	if !ok {
-		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine | assembly)"})
+		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine)"})
 		return
 	}
 	ds = withRuntimeAliases(ds, dataset)
@@ -833,6 +809,7 @@ func UploadDataFile(c *gin.Context) {
 	}
 	tx.Commit()
 
+	InvalidateMachineIndex()
 	CreateAuditLog("UPLOAD_DATA", 0, "upload_"+dataset, fileName, userID, userName)
 
 	c.JSON(201, gin.H{
@@ -859,8 +836,6 @@ func fillUploadDataKeys(row *models.UploadDataRow, dataset string, data map[stri
 		row.PartsNo = data["Parts No"]
 	case models.DatasetEngine:
 		row.MachineNo = normalizeDigitCell(data["Machine No"])
-	case models.DatasetAssembly:
-		row.MachineNo = normalizeDigitCell(data["Machine No"])
 	}
 }
 
@@ -884,6 +859,7 @@ func DeleteUploadDataRow(c *gin.Context) {
 	}
 
 	userID, userName := lookupUserName(c)
+	InvalidateMachineIndex()
 	CreateAuditLog("UPLOAD_DATA", row.ID, "delete_"+row.Dataset, row.MachineNo, userID, userName)
 
 	c.JSON(200, gin.H{"deleted": true})
@@ -937,6 +913,7 @@ func UpdateUploadDataRow(c *gin.Context) {
 	}
 
 	userID, userName := lookupUserName(c)
+	InvalidateMachineIndex()
 	CreateAuditLog("UPLOAD_DATA", row.ID, "edit_"+row.Dataset, row.MachineNo, userID, userName)
 
 	c.JSON(200, gin.H{"updated": true})
@@ -946,7 +923,7 @@ func ClearUploadData(c *gin.Context) {
 
 	dataset := strings.ToLower(strings.TrimSpace(c.Query("dataset")))
 	if _, ok := udDatasets[dataset]; !ok {
-		c.JSON(400, gin.H{"message": "ต้องระบุ dataset ที่ต้องการลบ (planning | wh1 | wh2 | engine | assembly)"})
+		c.JSON(400, gin.H{"message": "ต้องระบุ dataset ที่ต้องการลบ (planning | wh1 | wh2 | engine)"})
 		return
 	}
 
@@ -957,6 +934,7 @@ func ClearUploadData(c *gin.Context) {
 	}
 
 	userID, userName := lookupUserName(c)
+	InvalidateMachineIndex()
 	CreateAuditLog("UPLOAD_DATA", 0, "clear_"+dataset, dataset, userID, userName)
 
 	c.JSON(200, gin.H{"deleted": res.RowsAffected})
@@ -966,7 +944,7 @@ func ExportUploadData(c *gin.Context) {
 
 	dataset := strings.ToLower(strings.TrimSpace(c.Query("dataset")))
 	if _, ok := udDatasets[dataset]; !ok {
-		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine | assembly)"})
+		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine)"})
 		return
 	}
 
