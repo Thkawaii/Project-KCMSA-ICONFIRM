@@ -10,7 +10,6 @@ const TARGET_COLUMNS = {
   wh1: ['Warehouse', 'Order No', 'Work order', 'Parts No', 'Name', 'Assembly Parts Number', 'Assembly Parts Name', 'Note', 'Final Color'],
   wh2: ['Order', 'ORDER No.', 'Parts No', 'PARTS NAME', 'Quantity', 'LOCATION', 'Note'],
   engine: ['Machine No', 'History', 'ENGINE'],
-  assembly: ['Machine No', 'Spec Code', 'Specification Detail', 'Country Name', 'IT device', 'IT Controller No', 'Assembly_Parts_Number', 'Assembly_Parts_Name'],
   import_license: ['ลำดับ', 'ตราอักษร', {
     value: 'รุ่น',
     label: 'แบบ/รุ่น'
@@ -136,10 +135,6 @@ const SCOPES = [{
 }, {
   scope: 'engine',
   label: 'Engine',
-  group: 'ข้อมูล'
-}, {
-  scope: 'assembly',
-  label: 'Assembly',
   group: 'ข้อมูล'
 }, {
   scope: 'master_data',

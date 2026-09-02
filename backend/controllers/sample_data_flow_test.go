@@ -42,9 +42,7 @@ func TestSampleDataDrivesFullFlow(t *testing.T) {
 	loadSampleDataset(t, "04_Planning.xlsx", "planning")
 	loadSampleDataset(t, "07_Engine.xlsx", "engine")
 
-	if _, err := runAssemblyGeneration(1, "tester"); err != nil {
-		t.Fatalf("generate assembly: %v", err)
-	}
+	InvalidateMachineIndex()
 
 	plan := planForMachine("LX10400690")
 	if plan == nil {

@@ -134,7 +134,7 @@ func TestScanPartCheckPlanComponentMatch(t *testing.T) {
 		"Control Valve No": "CV2411009",
 	})
 	db.Create(&models.UploadDataRow{
-		Dataset: models.DatasetAssembly, MachineNo: "LX10400693", DataJSON: string(data),
+		Dataset: models.DatasetPlanning, MachineNo: "LX10400693", DataJSON: string(data),
 	})
 
 	body := `{"partType":"SM","sn":"SM2411009"}`
@@ -186,7 +186,7 @@ func TestScanPartCheckPlanComponentWrongType(t *testing.T) {
 		"Swing Motor No": "SM2411010",
 	})
 	db.Create(&models.UploadDataRow{
-		Dataset: models.DatasetAssembly, MachineNo: "LX10400694", DataJSON: string(data),
+		Dataset: models.DatasetPlanning, MachineNo: "LX10400694", DataJSON: string(data),
 	})
 
 	body := `{"partType":"MP","sn":"SM2411010"}`
@@ -364,7 +364,7 @@ func TestScanPartCheckCounterWeight(t *testing.T) {
 		"CW No":      "CW2411003",
 	})
 	db.Create(&models.UploadDataRow{
-		Dataset: models.DatasetAssembly, MachineNo: "LX10400692", DataJSON: string(data),
+		Dataset: models.DatasetPlanning, MachineNo: "LX10400692", DataJSON: string(data),
 	})
 
 	body := `{"partType":"CW","sn":"CW2411003"}`

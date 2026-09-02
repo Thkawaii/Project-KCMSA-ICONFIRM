@@ -25,7 +25,7 @@ func seedPlan(t *testing.T, db *gorm.DB, machineNo, itcNo, country string) {
 	}
 
 	row := models.UploadDataRow{
-		Dataset:   models.DatasetAssembly,
+		Dataset:   models.DatasetPlanning,
 		MachineNo: machineNo,
 		DataJSON:  string(b),
 		FileName:  "test-plan",

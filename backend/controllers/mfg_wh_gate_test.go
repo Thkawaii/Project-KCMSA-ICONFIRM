@@ -21,7 +21,7 @@ func seedComponentPlan(t *testing.T, db *gorm.DB, machineNo string, fields map[s
 		t.Fatalf("marshal plan: %v", err)
 	}
 	row := models.UploadDataRow{
-		Dataset:   models.DatasetAssembly,
+		Dataset:   models.DatasetPlanning,
 		MachineNo: machineNo,
 		DataJSON:  string(b),
 		FileName:  "test-plan",

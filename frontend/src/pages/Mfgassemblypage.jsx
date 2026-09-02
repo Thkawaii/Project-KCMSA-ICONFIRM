@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getMFGAssemblies, scanMFGAssembly, createMFGAssembly, updateMFGAssembly, deleteMFGAssembly, uploadMFGAssemblyPhoto } from '../api/mfgAssembly.js';
 import { API_BASE_URL } from '../api/client.js';
-import { getUploadData } from '../api/uploadData.js';
+import { getMachinePlans, indexMachinePlans, lookupMachinePlan } from '../api/machinePlans.js';
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js';
 import { inDateTab, DATE_TAB_OPTIONS } from '../lib/dateRange.js';
 import { scanStep, scanLoading, scanClose, scanCloseWait, scanSuccessToast, scanErrorAlert, scanPhotoCapture } from '../lib/scanPopup.js';
@@ -120,8 +120,7 @@ export default function MFGAssemblyPage() {
   const [photoEditRow, setPhotoEditRow] = useState(null);
   const photoFileInputRef = useRef(null);
   const pendingPhotoRowIdRef = useRef(null);
-  const [assemblyByPair, setAssemblyByPair] = useState({});
-  const [assemblyByMachine, setAssemblyByMachine] = useState({});
+  const [planIndex, setPlanIndex] = useState(null);
   const [detailRow, setDetailRow] = useState(null);
   const [scanBusy, setScanBusy] = useState(false);
   const busyRef = useRef(false);
@@ -149,56 +148,22 @@ export default function MFGAssemblyPage() {
   }, []);
   useEffect(() => {
     let cancelled = false;
-    async function loadAssembly() {
-      const norm = v => String(v || '').trim().toUpperCase();
-      const byPair = {};
-      const byMachine = {};
+    async function loadMachinePlans() {
       try {
-        const PAGE = 500;
-        let p = 1;
-        for (let guard = 0; guard < 200; guard++) {
-          const data = await getUploadData('assembly', undefined, p, PAGE);
-          const batch = data?.rows || [];
-          for (const r of batch) {
-            let obj = {};
-            try {
-              obj = JSON.parse(r.DataJSON || '{}');
-            } catch {
-              obj = {};
-            }
-            const machine = norm(obj['Machine No']);
-            const itc = norm(obj['IT Controller No']);
-            const info = {
-              model: obj['Assembly_Parts_Name'] || '',
-              partsNumber: obj['Assembly_Parts_Number'] || '',
-              specCode: obj['Spec Code'] || '',
-              specDetail: obj['Specification Detail'] || '',
-              country: obj['Country Name'] || '',
-              itDevice: obj['IT device'] || ''
-            };
-            if (machine && itc) byPair[`${machine}|${itc}`] = info;
-            if (machine && !byMachine[machine]) byMachine[machine] = info;
-          }
-          const totalPages = data?.totalPages || 1;
-          if (p >= totalPages || batch.length === 0) break;
-          p += 1;
-        }
-        if (!cancelled) {
-          setAssemblyByPair(byPair);
-          setAssemblyByMachine(byMachine);
-        }
-      } catch {}
+        // รายละเอียดเครื่องรวมจาก ALL PART / Planning / WH1 / WH2 / Engine
+        const data = await getMachinePlans();
+        if (!cancelled) setPlanIndex(indexMachinePlans(data?.rows || []));
+      } catch {
+        if (!cancelled) setPlanIndex(null);
+      }
     }
-    loadAssembly();
+    loadMachinePlans();
     return () => {
       cancelled = true;
     };
   }, []);
   function assemblyFor(row) {
-    const norm = v => String(v || '').trim().toUpperCase();
-    const machine = norm(row.MachineNo);
-    const itc = norm(row.ITControllerNo);
-    return assemblyByPair[`${machine}|${itc}`] || assemblyByMachine[machine] || null;
+    return lookupMachinePlan(planIndex, row.MachineNo, row.ITControllerNo);
   }
   useEffect(() => {
     setPage(1);
@@ -814,6 +779,54 @@ export default function MFGAssemblyPage() {
                   <span className="il-detail-label">Country</span>
                   <span className="il-detail-value">
                     {detailRow.asm.country || detailRow.row.Country || '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="il-detail-card" style={{
+          marginTop: 12
+        }}>
+              <span className="il-detail-card-title">ข้อมูลจาก ALL PART / Planning / WH1 / WH2 / Engine</span>
+              <div className="il-detail-grid">
+                <div className="il-detail-item">
+                  <span className="il-detail-label">KCM Order</span>
+                  <span className="il-detail-value">{detailRow.asm.kcmOrder || '—'}</span>
+                </div>
+                <div className="il-detail-item">
+                  <span className="il-detail-label">LOT No.</span>
+                  <span className="il-detail-value">{detailRow.asm.lotNo || '—'}</span>
+                </div>
+                <div className="il-detail-item">
+                  <span className="il-detail-label">Engine (P/N · S/N)</span>
+                  <span className="il-detail-value">
+                    {detailRow.asm.engine || detailRow.asm.engineHistory ? `${detailRow.asm.engine || '—'} · ${detailRow.asm.engineHistory || '—'}` : '—'}
+                  </span>
+                </div>
+                <div className="il-detail-item">
+                  <span className="il-detail-label">IT Controller (P/N · S/N)</span>
+                  <span className="il-detail-value">
+                    {detailRow.asm.itControllerPartNo || detailRow.asm.itControllerSN ? `${detailRow.asm.itControllerPartNo || '—'} · ${detailRow.asm.itControllerSN || '—'}` : '—'}
+                  </span>
+                </div>
+                <div className="il-detail-item">
+                  <span className="il-detail-label">WH1 (Order · Parts)</span>
+                  <span className="il-detail-value">
+                    {detailRow.asm.wh1OrderNo || detailRow.asm.wh1PartsNo ? `${detailRow.asm.wh1OrderNo || '—'} · ${detailRow.asm.wh1PartsNo || '—'}` : '—'}
+                  </span>
+                </div>
+                <div className="il-detail-item">
+                  <span className="il-detail-label">WH2 (Order · Parts)</span>
+                  <span className="il-detail-value">
+                    {detailRow.asm.wh2OrderNo || detailRow.asm.wh2PartsNo ? `${detailRow.asm.wh2OrderNo || '—'} · ${detailRow.asm.wh2PartsNo || '—'}` : '—'}
+                  </span>
+                </div>
+                <div className="il-detail-item" style={{
+              gridColumn: '1 / -1'
+            }}>
+                  <span className="il-detail-label">ชื่อพาร์ทจากคลัง (WH1 / WH2)</span>
+                  <span className="il-detail-value">
+                    {detailRow.asm.wh1PartsName || detailRow.asm.wh2PartsName || '—'}
                   </span>
                 </div>
               </div>

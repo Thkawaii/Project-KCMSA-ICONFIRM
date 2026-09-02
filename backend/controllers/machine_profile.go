@@ -93,6 +93,8 @@ func buildMachineProfile(machineNo string, plan map[string]string) MachineProfil
 	p.DigNavi = get("DigNavi")
 	p.CabGuard = get("Cab guard")
 
+	p.Engine = get("ENGINE", "Engine")
+	p.EngineHistory = get("History", "Engine History")
 	p.EngineStartKey = get("Engine start key")
 	p.Radio = get("Radio")
 	p.OtherOption = get("Other option")
@@ -165,7 +167,7 @@ func GetMachineProfile(c *gin.Context) {
 	if plan == nil {
 		c.JSON(404, gin.H{
 			"message": "ไม่พบข้อมูลเครื่อง " + machineNo +
-				" — กรุณาอัปโหลดไฟล์ Planning แล้วกดปั๊มตาราง Assembly ก่อน",
+				" — กรุณาอัปโหลดไฟล์ Planning / WH1 / WH2 / Engine ก่อน",
 		})
 		return
 	}

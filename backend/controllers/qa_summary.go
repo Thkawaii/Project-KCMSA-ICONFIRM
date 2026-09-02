@@ -42,12 +42,14 @@ type QAConfirmedRow struct {
 	ITDevice   string `json:"itDevice"`
 }
 
+// qaAssemblyIndexes สร้างดัชนีข้อมูลเครื่อง (รวมจาก ALL PART / Planning / WH1 / WH2 / Engine)
+// ทั้งแบบค้นด้วยหมายเลขเครื่อง และค้นด้วยเลข IT Controller
 func qaAssemblyIndexes() (byMachine, byITC map[string]map[string]string) {
 	byMachine = map[string]map[string]string{}
 	byITC = map[string]map[string]string{}
 
-	for _, a := range loadUploadRows(models.DatasetAssembly) {
-		if mc := strings.TrimSpace(a["Machine No"]); mc != "" {
+	for mc, a := range machineIndex() {
+		if mc = strings.TrimSpace(mc); mc != "" {
 			if _, ok := byMachine[mc]; !ok {
 				byMachine[mc] = a
 			}

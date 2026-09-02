@@ -11,9 +11,6 @@ export const DATASETS = [{
 }, {
   key: 'engine',
   label: 'Engine'
-}, {
-  key: 'assembly',
-  label: 'Assembly'
 }];
 export function getUploadData(dataset, keyword, page = 1, limit = 100) {
   const params = new URLSearchParams({
@@ -69,11 +66,6 @@ export function updateUploadDataRow(id, data) {
     body: JSON.stringify({
       data
     })
-  });
-}
-export function generateAssembly() {
-  return apiFetch('/upload-data/assembly/generate', {
-    method: 'POST'
   });
 }
 export function clearUploadData(dataset) {

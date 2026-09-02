@@ -33,6 +33,10 @@ func SetupRoutes(r *gin.Engine) {
 
 	auth.GET("/machine-profile/:machineNo", controllers.GetMachineProfile)
 
+	// รายละเอียดเครื่องทุกคัน รวมจาก ALL PART / Planning / WH1 / WH2 / Engine
+	// ใช้แสดงรายละเอียดในหน้า WH, MFG และ LOG
+	auth.GET("/machine-plans", controllers.GetMachinePlans)
+
 	uploadData := auth.Group("/upload-data")
 	{
 		uploadData.GET("", controllers.GetUploadData)
@@ -43,7 +47,6 @@ func SetupRoutes(r *gin.Engine) {
 		{
 			manage.POST("/upload/:dataset", controllers.UploadDataFile)
 			manage.POST("/preview/:dataset", controllers.PreviewUploadDataMapping)
-			manage.POST("/assembly/generate", controllers.GenerateAssembly)
 			manage.PUT("/:id", controllers.UpdateUploadDataRow)
 			manage.DELETE("/:id", controllers.DeleteUploadDataRow)
 			manage.DELETE("", controllers.ClearUploadData)

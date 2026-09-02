@@ -4,7 +4,7 @@ import { ADMIN_NAV_ITEMS } from './AdminDashboardpage.jsx';
 import SelectField from '../components/Selectfield.jsx';
 import useFileDrop from '../lib/useFileDrop.js';
 import { getMasterData, uploadMasterData, deleteMasterData, clearMasterData, previewMasterDataChanges } from '../api/masterData.js';
-import { getUploadData, uploadDataFile, deleteUploadDataRow, updateUploadDataRow, clearUploadData, previewUploadData, generateAssembly } from '../api/uploadData.js';
+import { getUploadData, uploadDataFile, deleteUploadDataRow, updateUploadDataRow, clearUploadData, previewUploadData } from '../api/uploadData.js';
 import { PreviewResult, ChangePreview, MasterDataEditModal } from '../components/FormatTools.jsx';
 import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js';
 import { buildStyledXlsxBlob, buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js';
@@ -46,9 +46,6 @@ const DATASET_TYPES = [{
 }, {
   value: 'engine',
   label: 'Engine'
-}, {
-  value: 'assembly',
-  label: 'Assembly'
 }];
 const UPLOAD_TYPE_OPTIONS = [...COMPONENT_TYPES.map(t => ({
   value: t.value,
@@ -658,7 +655,6 @@ function DatasetView({
   const [loadError, setLoadError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [exporting, setExporting] = useState(false);
-  const [generating, setGenerating] = useState(false);
   const [localReload, setLocalReload] = useState(0);
   const [editRow, setEditRow] = useState(null);
   const [page, setPage] = useState(1);
@@ -677,21 +673,6 @@ function DatasetView({
     const t = setTimeout(runSearch, 350);
     return () => clearTimeout(t);
   }, [keyword]);
-  const autoGenDone = useRef(false);
-  useEffect(() => {
-    if (dataset !== 'assembly' || autoGenDone.current) return;
-    autoGenDone.current = true;
-    let cancelled = false;
-    (async () => {
-      try {
-        await generateAssembly();
-      } catch {}
-      if (!cancelled) setLocalReload(n => n + 1);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [dataset]);
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -828,25 +809,6 @@ function DatasetView({
       setExporting(false);
     }
   }
-  async function handleGenerate() {
-    if (generating) return;
-    setGenerating(true);
-    try {
-      const res = await generateAssembly();
-      const created = res?.created ?? 0;
-      const updated = res?.updated ?? 0;
-      const skipped = res?.skipped ?? 0;
-      toastSuccess(`ปั๊ม Assembly สำเร็จ — เพิ่มใหม่ ${created}, อัปเดต ${updated}, ไม่เปลี่ยน ${skipped} (จาก ${res?.machines ?? 0} เครื่อง)` + (res?.partsFilled !== undefined ? ` · ได้ Assembly Parts ${res.partsFilled} เครื่อง` : ''));
-      for (const w of res?.warnings || []) {
-        toastError(w);
-      }
-      setLocalReload(n => n + 1);
-    } catch (err) {
-      toastError(err.message || 'ปั๊ม Assembly ไม่สำเร็จ');
-    } finally {
-      setGenerating(false);
-    }
-  }
   function cellValue(row, colName) {
     try {
       const data = JSON.parse(row.DataJSON || '{}');
@@ -881,9 +843,6 @@ function DatasetView({
                 <ArrowDownTrayIcon className="size-4" /> Export Excel
               </>}
           </button>
-          {dataset === 'assembly' && <button className="wh-modal-confirm" onClick={handleGenerate} disabled={generating} title="ระบบปั๊มตาราง Assembly ให้อัตโนมัติตอนเปิดหน้าอยู่แล้ว — กดปุ่มนี้เพื่อดึงข้อมูลล่าสุดซ้ำ (จาก Planning / WH1 / Engine + ทะเบียนกลาง จับคู่ด้วยหมายเลขเครื่อง)">
-              {generating ? 'กำลังปั๊ม...' : 'Stamp Assembly'}
-            </button>}
           <button className="qa-fail-btn" onClick={handleClear} disabled={total === 0}>
             ล้างทั้งหมด
           </button>

@@ -808,7 +808,7 @@ function ExportTraceModal({
                   {itemAlways('Check By (MFG)', data.mfgAssembly.CreatedBy)}
                 </>)}
 
-            {data?.machinePlan && linkSection('แผนประกอบ (Planning / Assembly)', <>
+            {data?.machinePlan && linkSection('แผนประกอบ (Planning / WH1 / WH2 / Engine)', <>
                   {item('IT Controller ตามแผน', data.machinePlan.ITControllerNo)}
                   {item('รุ่นฐาน', data.machinePlan.BaseSpec)}
                   {item('Spec Code', data.machinePlan.Spec1)}

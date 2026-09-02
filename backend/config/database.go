@@ -63,6 +63,8 @@ func ConnectDB() {
 		&models.CodeAlias{},
 	)
 
+	DropLegacyAssemblyDataset()
+
 	SeedData()
 
 	SeedOrgUsers()
@@ -74,4 +76,21 @@ func ConnectDB() {
 	}
 
 	log.Println("Database Connected")
+}
+
+// DropLegacyAssemblyDataset ลบข้อมูลตาราง Assembly เดิมออกจากฐานข้อมูล
+// ตอนนี้ระบบรวมข้อมูลจาก ALL PART / Planning / WH1 / WH2 / Engine ให้สด ๆ แทนแล้ว
+// จึงไม่ต้องเก็บแถว dataset = "assembly" ที่ซ้ำซ้อนไว้อีก
+func DropLegacyAssemblyDataset() {
+	if DB == nil {
+		return
+	}
+	res := DB.Where("dataset = ?", "assembly").Delete(&models.UploadDataRow{})
+	if res.Error != nil {
+		log.Println("drop legacy assembly dataset:", res.Error)
+		return
+	}
+	if res.RowsAffected > 0 {
+		log.Printf("Removed %d legacy assembly rows from upload_data_rows", res.RowsAffected)
+	}
 }
