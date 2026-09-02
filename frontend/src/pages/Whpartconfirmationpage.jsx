@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getPartChecks, scanPartCheck, deletePartCheck } from '../api/partcheck.js';
 import { getImportLicenseItems } from '../api/importLicense.js';
 import { API_BASE_URL } from '../api/client.js';
-import { getMachinePlans, indexMachinePlans, lookupMachinePlan } from '../api/machinePlans.js';
 import { scanStep, scanSelect, scanLoading, scanSuccessToast, scanErrorAlert, scanClose } from '../lib/scanPopup.js';
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js';
 import { inDateTab } from '../lib/dateRange.js';
@@ -174,7 +173,6 @@ export default function WHPartConfirmationPage() {
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const [detailRow, setDetailRow] = useState(null);
-  const [planIndex, setPlanIndex] = useState(null);
   const busyRef = useRef(false);
   const fireRef = useRef(() => {});
   const armedPartRef = useRef(null);
@@ -194,22 +192,6 @@ export default function WHPartConfirmationPage() {
   }
   useEffect(() => {
     loadRows();
-  }, []);
-  useEffect(() => {
-    let cancelled = false;
-    async function loadMachinePlanIndex() {
-      try {
-        // รายละเอียดเครื่องรวมจาก ALL PART / Planning / WH1 / WH2 / Engine
-        const data = await getMachinePlans();
-        if (!cancelled) setPlanIndex(indexMachinePlans(data?.rows || []));
-      } catch {
-        if (!cancelled) setPlanIndex(null);
-      }
-    }
-    loadMachinePlanIndex();
-    return () => {
-      cancelled = true;
-    };
   }, []);
   useEffect(() => {
     setPage(1);
@@ -887,69 +869,7 @@ export default function WHPartConfirmationPage() {
                   <span className="wh-detail-value mono">{detailRow.InvoiceNo || '—'}</span>
                 </div>
               </div>
-              <div className="wh-detail-result">
-                {matchBadge(detailRow.MatchStatus, detailRow.PartType)}
-                {detailRow.MatchMessage ? <span className="wh-detail-result-msg">{detailRow.MatchMessage}</span> : null}
-              </div>
-              {detailRow.MatchDetail ? <div className="wh-detail-result-detail">{detailRow.MatchDetail}</div> : null}
             </div>
-
-            {(() => {
-          const mp = lookupMachinePlan(planIndex, detailRow.MachineNo, detailRow.SN);
-          if (!mp) return null;
-          const pair = (a, b) => a || b ? `${a || '—'} · ${b || '—'}` : '—';
-          return <>
-                  <div className="wh-detail-divider" />
-
-                  <div className="wh-detail-section">
-                    <span className="wh-detail-section-title">
-                      <DocumentTextIcon className="size-4" /> ข้อมูลเครื่อง (ALL PART / Planning / WH1 / WH2 / Engine)
-                    </span>
-                    <div className="wh-detail-grid">
-                      <div className="wh-detail-item">
-                        <span className="wh-detail-label">Machine No</span>
-                        <span className="wh-detail-value mono">{mp.machineNo || '—'}</span>
-                      </div>
-                      <div className="wh-detail-item">
-                        <span className="wh-detail-label">Model (Assembly Parts Name)</span>
-                        <span className="wh-detail-value">{mp.model || '—'}</span>
-                      </div>
-                      <div className="wh-detail-item">
-                        <span className="wh-detail-label">Spec Code</span>
-                        <span className="wh-detail-value">{mp.specCode || '—'}</span>
-                      </div>
-                      <div className="wh-detail-item">
-                        <span className="wh-detail-label">Specification Detail</span>
-                        <span className="wh-detail-value">{mp.specDetail || '—'}</span>
-                      </div>
-                      <div className="wh-detail-item">
-                        <span className="wh-detail-label">IT device</span>
-                        <span className="wh-detail-value">{mp.itDevice || '—'}</span>
-                      </div>
-                      <div className="wh-detail-item">
-                        <span className="wh-detail-label">ประเทศปลายทาง</span>
-                        <span className="wh-detail-value">{mp.country || '—'}</span>
-                      </div>
-                      <div className="wh-detail-item">
-                        <span className="wh-detail-label">KCM Order · LOT</span>
-                        <span className="wh-detail-value mono">{pair(mp.kcmOrder, mp.lotNo)}</span>
-                      </div>
-                      <div className="wh-detail-item">
-                        <span className="wh-detail-label">Engine (P/N · S/N)</span>
-                        <span className="wh-detail-value mono">{pair(mp.engine, mp.engineHistory)}</span>
-                      </div>
-                      <div className="wh-detail-item">
-                        <span className="wh-detail-label">WH1 (Order · Parts)</span>
-                        <span className="wh-detail-value mono">{pair(mp.wh1OrderNo, mp.wh1PartsNo)}</span>
-                      </div>
-                      <div className="wh-detail-item">
-                        <span className="wh-detail-label">WH2 (Order · Parts)</span>
-                        <span className="wh-detail-value mono">{pair(mp.wh2OrderNo, mp.wh2PartsNo)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </>;
-        })()}
 
             <div className="wh-detail-meta">
               <span>
