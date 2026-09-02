@@ -847,8 +847,20 @@ function ExportTraceModal({
             {item('Export License', row.ExportLicenseNo || row.ExceptionLicense)}
             {itemAlways('Import License', row.ImportLicenseNo)}
             {item('วันที่นำออกใบอนุญาต', row.IssueDate ? formatThaiDate(row.IssueDate) : '')}
-            {itemAlways('หมดอายุ (1 เดือน)', expiryInfo.hasDate ? `${formatThaiDate(expiryInfo.expiryDate)} · ${daysLeftLabel(expiryInfo.daysLeft)}` : '')}
-            {itemAlways(`Lead time (ยื่น กสทช. ก่อนหมดอายุ ${EXPORT_LICENSE_LEAD_DAYS} วัน)`, expiryInfo.hasDate ? `${formatThaiDate(expiryInfo.leadDate)} · ${leadDaysLabel(expiryInfo.leadDaysLeft)}` : '')}
+            <div className="wh-detail-item">
+              <span className="wh-detail-label">หมดอายุ (1 เดือน)</span>
+              <span className="wh-detail-value il-detail-status">
+                <span className={EXPIRY_BADGE_CLASS[expiryInfo.status]}>{STATUS_LABEL[expiryInfo.status]}</span>
+                {expiryInfo.hasDate && <span className="il-detail-days">{formatThaiDate(expiryInfo.expiryDate)} · {daysLeftLabel(expiryInfo.daysLeft)}</span>}
+              </span>
+            </div>
+            <div className="wh-detail-item">
+              <span className="wh-detail-label">{`Lead time (${EXPORT_LICENSE_LEAD_DAYS} วัน)`}</span>
+              <span className="wh-detail-value il-detail-status">
+                <span className={LEAD_BADGE_CLASS[expiryInfo.leadStatus]}>{LEAD_STATUS_LABEL[expiryInfo.leadStatus]}</span>
+                {expiryInfo.hasDate && <span className="il-detail-days">{formatThaiDate(expiryInfo.leadDate)} · {leadDaysLabel(expiryInfo.leadDaysLeft)}</span>}
+              </span>
+            </div>
             {item("Date Ass'y", row.AssemblyDate ? formatThaiDate(row.AssemblyDate) : '')}
             {item('Remark', row.Remark)}
           </div>
@@ -861,10 +873,10 @@ function ExportTraceModal({
             <div className="wh-detail-divider" />
             <div className="wh-detail-section">
               <span className="wh-detail-section-title">
-                <ShieldCheckIcon className="size-4" /> Import License (บัญชี กสทช.)
+                <ShieldCheckIcon className="size-4" /> Import License
               </span>
               {data?.importLicense ? <div className="wh-detail-grid">
-                  {item('เลขใบอนุญาต (กสทช.)', data.importLicense.LicenseNo)}
+                  {item('เลขใบอนุญาตนำเข้า', data.importLicense.LicenseNo)}
                   {item('Invoice นำเข้า', data.importLicense.InvoiceNo)}
                   {item('รุ่น', data.importLicense.Model)}
                   {item('ประเทศส่งออก', data.importLicense.ExportCountry)}
@@ -1003,7 +1015,7 @@ export function WHExportLicensePanel() {
         width: 18
       }, {
         key: 'leadTimeDate',
-        header: `Lead time (ยื่น กสทช. ก่อนหมดอายุ ${EXPORT_LICENSE_LEAD_DAYS} วัน)`,
+        header: `Lead time (${EXPORT_LICENSE_LEAD_DAYS} วัน)`,
         type: 'center',
         width: 24
       }, {
@@ -1446,7 +1458,7 @@ export function WHExportLicensePanel() {
               <th>Export License</th>
               <th>วันที่นำออกใบอนุญาต</th>
               <th>หมดอายุ (1 เดือน)</th>
-              <th>Lead time (ยื่นก่อน {EXPORT_LICENSE_LEAD_DAYS} วัน)</th>
+              <th>Lead time ({EXPORT_LICENSE_LEAD_DAYS} วัน)</th>
               <th>Remark</th>
               <th>คอลัมน์เพิ่ม</th>
               <th></th>
@@ -1491,7 +1503,7 @@ export function WHExportLicensePanel() {
                   <td data-label="หมดอายุ (1 เดือน)">
                     <ExportOneMonthExpiryCell row={row} />
                   </td>
-                  <td data-label={`Lead time (ยื่นก่อน ${EXPORT_LICENSE_LEAD_DAYS} วัน)`}>
+                  <td data-label={`Lead time (${EXPORT_LICENSE_LEAD_DAYS} วัน)`}>
                     <ExportLeadTimeCell row={row} />
                   </td>
                   <td data-label="Remark">{row.Remark || '—'}</td>

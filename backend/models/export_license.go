@@ -33,6 +33,8 @@ type ExportLicenseItem struct {
 
 	ExpireDate *time.Time `gorm:"index"`
 
+	LeadTime *time.Time `gorm:"index"`
+
 	Remark string `gorm:"column:remark;size:255"`
 
 	ExtraJSON string `gorm:"type:text" json:"extra_json"`
