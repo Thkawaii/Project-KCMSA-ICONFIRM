@@ -404,6 +404,90 @@ func TestMFGScanRepeatAfterMatched(t *testing.T) {
 	if row.Status != models.MFGStatusMatched {
 		t.Errorf("แถวเดิม status = %q, want MATCHED (ห้ามถูกเขียนทับเป็น DUPLICATE)", row.Status)
 	}
+
+	// การสแกนซ้ำต้องถูกบันทึกเป็นแถวใหม่ เพื่อให้ขึ้นในตารางได้
+	var dup models.MFGAssembly
+	if err := db.Where("machine_no = ? AND status = ?",
+		"LX10400690", models.MFGStatusDuplicate).First(&dup).Error; err != nil {
+		t.Fatalf("ไม่พบแถว DUPLICATE ของการสแกนซ้ำ: %v", err)
+	}
+	if dup.ID == row.ID {
+		t.Error("แถว DUPLICATE ต้องเป็นคนละแถวกับแถวประกอบจริง")
+	}
+}
+
+func TestGetMFGAssembliesShowsDuplicateRow(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
+
+	seedPlan(t, db, "LX10400690", "878250022801", "Indonesia")
+	seedMaster(t, "YN22E00849FA", "KQ3000045091", "878250022801", "359779081234561")
+	db.Create(&models.PartCheck{
+		PartType:    "ITC",
+		MachineNo:   "878250022801",
+		MatchStatus: models.MatchStatusMatch,
+		CheckedBy:   "WH",
+	})
+
+	body := `{"machineNo":"LX10400690","itControllerNo":"878250022801"}`
+
+	c1, rec1 := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c1)
+	mustStatus(t, rec1, 201)
+
+	c2, rec2 := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c2)
+	mustStatus(t, rec2, 200)
+
+	c3, rec3 := newContext("GET", "", u.ID, u.Username)
+	GetMFGAssemblies(c3)
+	mustStatus(t, rec3, 200)
+
+	var rows []models.MFGAssembly
+	if err := json.Unmarshal(rec3.Body.Bytes(), &rows); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("rows = %d, want 2 (แถวประกอบจริง + แถวสแกนซ้ำ)", len(rows))
+	}
+	if rows[0].Status != models.MFGStatusMatched {
+		t.Errorf("แถวแรก status = %q, want MATCHED", rows[0].Status)
+	}
+	if rows[1].Status != models.MFGStatusDuplicate {
+		t.Errorf("แถวสแกนซ้ำ status = %q, want DUPLICATE (ต้องขึ้นในตาราง)", rows[1].Status)
+	}
+}
+
+func TestMFGScanAfterDuplicateStillUpdatesRealRow(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
+
+	seedPlan(t, db, "LX10400690", "878250022801", "Indonesia")
+	seedMaster(t, "YN22E00849FA", "KQ3000045091", "878250022801", "359779081234561")
+	db.Create(&models.PartCheck{
+		PartType:    "ITC",
+		MachineNo:   "878250022801",
+		MatchStatus: models.MatchStatusMatch,
+		CheckedBy:   "WH",
+	})
+
+	body := `{"machineNo":"LX10400690","itControllerNo":"878250022801"}`
+
+	for i := 0; i < 3; i++ {
+		c, rec := newContext("POST", body, u.ID, u.Username)
+		ScanMFGAssembly(c)
+		if rec.Code != 200 && rec.Code != 201 {
+			t.Fatalf("รอบ %d: code = %d", i+1, rec.Code)
+		}
+	}
+
+	var matched int64
+	db.Model(&models.MFGAssembly{}).
+		Where("machine_no = ? AND status = ?", "LX10400690", models.MFGStatusMatched).
+		Count(&matched)
+	if matched != 1 {
+		t.Fatalf("แถว MATCHED = %d, want 1 (สแกนซ้ำห้ามสร้างแถวประกอบจริงเพิ่ม)", matched)
+	}
 }
 
 func TestScanMFGAssemblyMismatchBeatsDuplicate(t *testing.T) {

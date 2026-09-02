@@ -168,7 +168,7 @@ export default function AdminDashboardPage() {
       <div>
         <div style={{
         fontSize: 28,
-        fontWeight: 800,
+        fontWeight: 100,
         lineHeight: 1,
         color: '#0f172a'
       }}>{value}</div>

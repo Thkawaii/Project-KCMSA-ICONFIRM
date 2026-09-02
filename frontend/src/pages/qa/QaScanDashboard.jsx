@@ -128,14 +128,14 @@ function StageStat({
         <button type="button" onClick={onOpenDone} className="flex cursor-pointer appearance-none items-center gap-2 rounded-xl border-0 bg-brand-50 px-3 py-2.5 text-left transition hover:bg-brand-100 focus-visible:ring-4 focus-visible:ring-brand-500/25 focus-visible:outline-none">
           <span className="size-2 shrink-0 rounded-full bg-brand-500" />
           <span className="truncate text-[12px] font-semibold text-brand-800">{doneLabel}</span>
-          <span className="ml-auto text-[20px] leading-none font-bold text-brand-700 tabular-nums">
+          <span className="ml-auto text-[16px] leading-none font-bold text-brand-700 tabular-nums">
             {doneValue}
           </span>
         </button>
         <button type="button" onClick={onOpenPending} className="flex cursor-pointer appearance-none items-center gap-2 rounded-xl border-0 bg-slate-100 px-3 py-2.5 text-left transition hover:bg-slate-200/80 focus-visible:ring-4 focus-visible:ring-slate-400/25 focus-visible:outline-none">
           <span className="size-2 shrink-0 rounded-full bg-slate-400" />
           <span className="truncate text-[12px] font-semibold text-slate-600">{pendingLabel}</span>
-          <span className="ml-auto text-[20px] leading-none font-bold text-slate-500 tabular-nums">
+          <span className="ml-auto text-[16px] leading-none font-bold text-brand-700 tabular-nums">
             {pendingValue}
           </span>
         </button>
