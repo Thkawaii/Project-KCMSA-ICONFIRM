@@ -7,6 +7,7 @@ import FileDropZone from '../components/Filedropzone.jsx';
 import SelectField from '../components/Selectfield.jsx';
 import { confirmDelete, toastError, toastSuccess, promptRenewDays } from '../lib/toast.js';
 import { computeLicenseExpiry, formatThaiDate, daysLeftLabel, STATUS_LABEL, EXPIRY_STATUS } from '../lib/licenseExpiry.js';
+import { computeExportLicenseDates, exportLeadTimeDate, leadDaysLabel, LEAD_STATUS, LEAD_STATUS_LABEL, LEAD_BADGE_CLASS, EXPORT_LICENSE_LEAD_DAYS } from '../lib/exportLicenseRules.js';
 import { useDailyTick } from '../lib/useDailyTick.js';
 import { useAppParams } from '../lib/nav.jsx';
 import { buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js';
@@ -266,6 +267,12 @@ export default function ImportLicensePage() {
   const expiryOptions = useMemo(() => [{
     value: 'all',
     label: 'ทุกสถานะวันหมดอายุ'
+  }, {
+    value: LEAD_STATUS.OVERDUE,
+    label: `${LEAD_STATUS_LABEL[LEAD_STATUS.OVERDUE]} (Lead time)`
+  }, {
+    value: LEAD_STATUS.DUE,
+    label: `${LEAD_STATUS_LABEL[LEAD_STATUS.DUE]} (Lead time)`
   }, {
     value: EXPIRY_STATUS.NO_DATE,
     label: STATUS_LABEL[EXPIRY_STATUS.NO_DATE]
@@ -735,20 +742,13 @@ function collectExtraColumns(rows) {
     overflow: labels.slice(EXTRA_COL_LIMIT)
   };
 }
+// วันหมดอายุใบอนุญาตนำออก ยึด "วันที่นำออกใบอนุญาต + 1 เดือน" เสมอ
+// ไม่ใช้วันหมดอายุที่ติดมากับไฟล์ Excel เพราะบางไฟล์ใส่มาไม่ตรงกติกา
+// (เช่น นำออก 10 มี.ค. 2026 แต่ไฟล์ใส่หมดอายุ 31 ธ.ค. 2026 — ที่ถูกคือ 10 เม.ย. 2026)
 function computeExportExpiry(row, withinDays = 7) {
-  if (row.ExpireDate) {
-    return computeExpireStatus(row.ExpireDate, withinDays);
-  }
-  const base = row.IssueDate;
-  let expireRaw = null;
-  if (base) {
-    const d = new Date(base);
-    if (!Number.isNaN(d.getTime())) {
-      d.setMonth(d.getMonth() + 1);
-      expireRaw = d;
-    }
-  }
-  return computeExpireStatus(expireRaw, withinDays);
+  return computeExportLicenseDates(row, {
+    withinDays
+  });
 }
 function ExportOneMonthExpiryCell({
   row
@@ -760,6 +760,24 @@ function ExportOneMonthExpiryCell({
           <span>{formatThaiDate(exp.expiryDate)}</span>
           <span className="il-expiry-days">{daysLeftLabel(exp.daysLeft)}</span>
         </>}
+    </div>;
+}
+// Lead time — ต้องยื่นเรื่องให้ กสทช. ก่อนใบอนุญาตนำออกหมดอายุ 15 วัน
+function ExportLeadTimeCell({
+  row
+}) {
+  const exp = computeExportExpiry(row);
+  if (!exp.hasDate) {
+    return <div className="il-expiry-cell">
+        <span className={LEAD_BADGE_CLASS[LEAD_STATUS.NO_DATE]}>
+          {LEAD_STATUS_LABEL[LEAD_STATUS.NO_DATE]}
+        </span>
+      </div>;
+  }
+  return <div className="il-expiry-cell">
+      <span className={LEAD_BADGE_CLASS[exp.leadStatus]}>{LEAD_STATUS_LABEL[exp.leadStatus]}</span>
+      <span>{formatThaiDate(exp.leadDate)}</span>
+      <span className="il-expiry-days">{leadDaysLabel(exp.leadDaysLeft)}</span>
     </div>;
 }
 function ExportTraceModal({
@@ -779,6 +797,7 @@ function ExportTraceModal({
       alive = false;
     };
   }, [row.ID]);
+  const expiryInfo = computeExportExpiry(row);
   const item = (label, value) => value ? <div className="wh-detail-item">
         <span className="wh-detail-label">{label}</span>
         <span className="wh-detail-value">{value}</span>
@@ -827,6 +846,9 @@ function ExportTraceModal({
             {item('Export Entry', row.ExportEntry)}
             {item('Export License', row.ExportLicenseNo || row.ExceptionLicense)}
             {itemAlways('Import License', row.ImportLicenseNo)}
+            {item('วันที่นำออกใบอนุญาต', row.IssueDate ? formatThaiDate(row.IssueDate) : '')}
+            {itemAlways('หมดอายุ (1 เดือน)', expiryInfo.hasDate ? `${formatThaiDate(expiryInfo.expiryDate)} · ${daysLeftLabel(expiryInfo.daysLeft)}` : '')}
+            {itemAlways(`Lead time (ยื่น กสทช. ก่อนหมดอายุ ${EXPORT_LICENSE_LEAD_DAYS} วัน)`, expiryInfo.hasDate ? `${formatThaiDate(expiryInfo.leadDate)} · ${leadDaysLabel(expiryInfo.leadDaysLeft)}` : '')}
             {item("Date Ass'y", row.AssemblyDate ? formatThaiDate(row.AssemblyDate) : '')}
             {item('Remark', row.Remark)}
           </div>
@@ -980,6 +1002,11 @@ export function WHExportLicensePanel() {
         type: 'center',
         width: 18
       }, {
+        key: 'leadTimeDate',
+        header: `Lead time (ยื่น กสทช. ก่อนหมดอายุ ${EXPORT_LICENSE_LEAD_DAYS} วัน)`,
+        type: 'center',
+        width: 24
+      }, {
         key: 'machineNo',
         header: 'Machine No',
         type: 'text'
@@ -1046,11 +1073,12 @@ export function WHExportLicensePanel() {
             const exp = computeExportExpiry(r);
             const extraValues = parseExtraJson(r.extra_json);
             const row = {
-              __danger: exp.status === EXPIRY_STATUS.EXPIRED,
+              __danger: exp.status === EXPIRY_STATUS.EXPIRED || exp.leadStatus === LEAD_STATUS.OVERDUE,
               item: i + 1,
               assemblyDate: r.AssemblyDate ? formatThaiDate(r.AssemblyDate) : '—',
               issueDate: r.IssueDate ? formatThaiDate(r.IssueDate) : '—',
               expiryDate: exp.hasDate ? formatThaiDate(exp.expiryDate) : '—',
+              leadTimeDate: exp.hasDate ? formatThaiDate(exp.leadDate) : '—',
               machineNo: dash2(r.MachineNo),
               itControllerNo: dash2(r.ITControllerNo || r.SerialNumber),
               invoiceNo: dash2(r.InvoiceNo),
@@ -1240,7 +1268,13 @@ export function WHExportLicensePanel() {
       list = list.filter(r => r.AssemblyDate && inPeriod(r.AssemblyDate, periodMode, periodAnchor));
     }
     if (expiryFilter !== 'all') {
-      list = list.filter(r => computeExportExpiry(r).status === expiryFilter);
+      list = list.filter(r => {
+        const exp = computeExportExpiry(r);
+        if (expiryFilter === LEAD_STATUS.OVERDUE || expiryFilter === LEAD_STATUS.DUE) {
+          return exp.leadStatus === expiryFilter;
+        }
+        return exp.status === expiryFilter;
+      });
     }
     return list;
   }, [rows, exceptionFilter, expiryFilter, search, countryByITC, periodMode, periodAnchor]);
@@ -1412,6 +1446,7 @@ export function WHExportLicensePanel() {
               <th>Export License</th>
               <th>วันที่นำออกใบอนุญาต</th>
               <th>หมดอายุ (1 เดือน)</th>
+              <th>Lead time (ยื่นก่อน {EXPORT_LICENSE_LEAD_DAYS} วัน)</th>
               <th>Remark</th>
               <th>คอลัมน์เพิ่ม</th>
               <th></th>
@@ -1419,7 +1454,7 @@ export function WHExportLicensePanel() {
           </thead>
           <tbody>
             {loading && <tr>
-                <td colSpan={14} className="wh-empty-cell">
+                <td colSpan={15} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
@@ -1456,6 +1491,9 @@ export function WHExportLicensePanel() {
                   <td data-label="หมดอายุ (1 เดือน)">
                     <ExportOneMonthExpiryCell row={row} />
                   </td>
+                  <td data-label={`Lead time (ยื่นก่อน ${EXPORT_LICENSE_LEAD_DAYS} วัน)`}>
+                    <ExportLeadTimeCell row={row} />
+                  </td>
                   <td data-label="Remark">{row.Remark || '—'}</td>
                   <td data-label="คอลัมน์เพิ่ม">
                     <ExtraColumnsCell json={row.extra_json} />
@@ -1472,7 +1510,7 @@ export function WHExportLicensePanel() {
                   </td>
                 </tr>)}
             {!loading && paged.length === 0 && <tr>
-                <td colSpan={14} className="wh-empty-cell">
+                <td colSpan={15} className="wh-empty-cell">
                   ยังไม่มีข้อมูลใบอนุญาตส่งออก — อัปโหลดไฟล์ Excel หรือ CSV ด้านบนก่อน
                 </td>
               </tr>}

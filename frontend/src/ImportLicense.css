@@ -1526,3 +1526,41 @@
   line-height: 1.5;
   color: #b91c1c;
 }
+
+/* ── Export License · Lead time (ยื่น กสทช. ก่อนใบอนุญาตนำออกหมดอายุ 15 วัน) ── */
+
+.lab-sum-lead {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.lab-section-count .lab-sum-lead {
+  box-shadow: inset 0 0 0 1px rgba(29, 78, 216, 0.2);
+}
+
+.lab-group-lead {
+  color: #1d4ed8;
+}
+.lab-group-lead::before {
+  background: #3b82f6;
+}
+
+.lab-bar-lead {
+  background: #3b82f6;
+}
+
+.lab-item-lead {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #1d4ed8;
+}
+.lab-item-lead-late {
+  color: #b42318;
+}
+
+/* คอลัมน์ Lead time ในตาราง Export License */
+.il-lead-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+}
