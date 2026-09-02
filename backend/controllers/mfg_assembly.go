@@ -50,6 +50,13 @@ func GetMFGAssemblies(c *gin.Context) {
 			seenPair[key] = true
 		}
 
+		// แถวที่ถูกบันทึกไว้เป็น "สแกนซ้ำ" ต้องคงสถานะ DUPLICATE เสมอ
+		// ไม่ให้ถูกคำนวณกลับเป็น MATCHED/NOT_MATCHED จนตารางไม่ตรงกับที่แจ้งตอนสแกน
+		if strings.EqualFold(strings.TrimSpace(rows[i].Status), models.MFGStatusDuplicate) {
+			rows[i].Status = models.MFGStatusDuplicate
+			continue
+		}
+
 		rows[i].Status = mfgStatusFor(plan.Component, duplicate, plan.State, rows[i].WHMatched)
 	}
 
@@ -116,8 +123,11 @@ func findMFGRowForPair(machineNo, itcNo string) *models.MFGAssembly {
 		return nil
 	}
 
+	// ข้ามแถวที่เป็น "log การสแกนซ้ำ" เพื่อให้การสแกนรอบถัดไป
+	// กลับไปแก้แถวประกอบจริงเสมอ ไม่ใช่ไปทับแถว DUPLICATE
 	var row models.MFGAssembly
-	err := config.DB.Where("machine_no = ? AND no = ?", machineNo, itcNo).
+	err := config.DB.Where("machine_no = ? AND no = ? AND status <> ?",
+		machineNo, itcNo, models.MFGStatusDuplicate).
 		Order("id desc").First(&row).Error
 	if err != nil {
 		return nil
@@ -376,20 +386,53 @@ func ScanMFGAssembly(c *gin.Context) {
 	existing := findMFGRowForPair(machineNo, itcNo)
 
 	if existing != nil && existing.Status == models.MFGStatusMatched {
-		if strings.TrimSpace(existing.Component) == "" {
-			existing.Component = plan.Component
+		// สแกนซ้ำคู่ที่ประกอบยืนยันไปแล้ว: แถวเดิมต้องคง MATCHED ไว้
+		// แต่ต้องบันทึกการสแกนรอบนี้เป็นแถว DUPLICATE ให้ขึ้นในตารางด้วย
+		// (เหมือนฝั่ง WH ที่ทุกครั้งที่สแกนจะมีแถวประวัติเสมอ)
+		component := strings.TrimSpace(existing.Component)
+		if component == "" {
+			component = plan.Component
 		}
-		enrichMFGWithWH(existing)
-		applyMFGPlan(existing, plan)
 
-		CreateAuditLog("MFG_ASSEMBLY", existing.ID, "scan_repeat",
+		dup := models.MFGAssembly{
+			DateAssembly:    &now,
+			MachineNo:       machineNo,
+			ITControllerNo:  itcNo,
+			Component:       component,
+			Country:         existing.Country,
+			CheckDate:       &now,
+			CreatedBy:       name,
+			CreatedDatetime: now,
+			UpdatedDatetime: now,
+			UserID:          userID,
+		}
+
+		enrichMFGWithWH(&dup)
+		dup.Status = models.MFGStatusDuplicate
+
+		if err := config.DB.Create(&dup).Error; err != nil {
+			c.JSON(500, gin.H{"message": err.Error()})
+			return
+		}
+		dup.Item = strconv.FormatUint(uint64(dup.ID), 10)
+		config.DB.Model(&dup).Update("item", dup.Item)
+
+		applyMFGPlan(&dup, plan)
+
+		CreateAuditLog("MFG_ASSEMBLY", dup.ID, "scan_repeat",
 			machineNo+"/"+models.MFGStatusDuplicate, userID, name)
 
 		c.JSON(200, gin.H{
-			"row":                   existing,
+			"row":                   dup,
 			"status":                models.MFGStatusDuplicate,
 			"matched":               false,
-			"whMatched":             existing.WHMatched,
+			"duplicate":             true,
+			"originalID":            existing.ID,
+			"whMatched":             dup.WHMatched,
+			"whRequired":            dup.WHRequired,
+			"whMissing":             false,
+			"component":             dup.Component,
+			"componentLabel":        dup.ComponentLabel,
 			"message":               "รายการนี้เคยบันทึกไปแล้ว",
 			"plan":                  plan,
 			"plannedITControllerNo": plan.PlannedITC,

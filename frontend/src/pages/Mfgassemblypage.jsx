@@ -253,7 +253,8 @@ export default function MFGAssemblyPage() {
       const row = res?.row || {};
       const msg = res?.message || 'บันทึกแล้ว';
       const ok = res?.matched || res?.status === 'MATCHED';
-      if (row?.ID) {
+      const isDuplicate = res?.duplicate || res?.status === 'DUPLICATE';
+      if (row?.ID && !isDuplicate) {
         await scanCloseWait();
         const photoBlob = await scanPhotoCapture({
           title: 'ถ่ายรูปป้ายเครื่อง',
@@ -273,18 +274,18 @@ export default function MFGAssemblyPage() {
       if (ok) {
         successMsg = msg;
       } else if (res?.whMissing) {
-        await scanErrorAlert(msg, {
-          hint: 'ให้ฝ่ายคลัง (WH) สแกนรับพาร์ทนี้เข้าระบบก่อน แล้วค่อยสแกนประกอบอีกครั้ง'
-        });
+        await scanErrorAlert(msg);
       } else {
         toastError(msg);
       }
-      await loadRows();
     } catch (err) {
       scanClose();
       await scanErrorAlert(friendlyError(err, 'บันทึกไม่สำเร็จ'));
     } finally {
       setScanBusy(false);
+      // รีเฟรชตารางเสมอ แม้ขั้นตอนถ่ายรูปหรือขั้นตอนอื่นจะพัง
+      // ไม่งั้นแถวที่เพิ่งบันทึกจะไม่ขึ้นในตารางจนกว่าจะรีโหลดหน้า
+      await loadRows();
     }
     if (successMsg) scanSuccessToast(successMsg);
   }
