@@ -5,7 +5,7 @@ import { getMachinePlans, indexMachinePlans, lookupMachinePlan } from '../api/ma
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js';
 import { inDateTab, DATE_TAB_OPTIONS } from '../lib/dateRange.js';
 import { scanStep, scanLoading, scanClose, scanCloseWait, scanSuccessToast, scanErrorAlert, scanPhotoCapture } from '../lib/scanPopup.js';
-import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, QrCodeIcon, CameraIcon, ArrowUpTrayIcon, ArrowsRightLeftIcon } from '../components/icons.jsx';
+import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, QrCodeIcon, CameraIcon, ArrowUpTrayIcon, ArrowsRightLeftIcon, XMarkIcon, DocumentTextIcon, CubeIcon, ClockIcon, TagIcon, WrenchScrewdriverIcon } from '../components/icons.jsx';
 import AppShell from '../components/AppShell.jsx';
 import SelectField from '../components/Selectfield.jsx';
 import PartTag from '../components/Parttag.jsx';
@@ -727,62 +727,85 @@ export default function MFGAssemblyPage() {
         </div>}
 
       {detailRow && <div className="wh-modal-overlay" onClick={() => setDetailRow(null)}>
-          <div className="wh-modal il-detail-modal mfg-assembly-detail" onClick={e => e.stopPropagation()}>
-            <h3 className="wh-modal-title">รายละเอียดการประกอบ</h3>
+          <div className="wh-modal wh-detail-modal" onClick={e => e.stopPropagation()}>
+            <button type="button" className="wh-detail-close" onClick={() => setDetailRow(null)} aria-label="ปิด">
+              <XMarkIcon className="size-4" />
+            </button>
 
-            <div className="mfg-detail-hero">
-              <span className="mfg-detail-hero-label">รุ่นรถที่ประกอบ</span>
-              <span className="mfg-detail-hero-model">{detailRow.asm.model || '—'}</span>
-              <span className="mfg-detail-hero-sub">
-                {detailRow.row.MachineNo || '—'}
-                {detailRow.row.ITControllerNo ? ` · ${detailRow.row.PlanComponentLabel || 'หมายเลขเครื่อง'} ${detailRow.row.ITControllerNo}` : ''}
+            <div className="wh-detail-header">
+              <span className="wh-detail-header-icon">
+                <WrenchScrewdriverIcon className="size-5" />
               </span>
+              <div>
+                <h3 className="wh-modal-title">รายละเอียดการประกอบ</h3>
+                <span className="wh-detail-header-sub">{detailRow.asm.model || '—'}</span>
+              </div>
             </div>
 
-            <div className="il-detail-card" style={{
-          marginTop: 12
-        }}>
-              <div className="il-detail-grid">
-                <div className="il-detail-item">
-                  <span className="il-detail-label">Machine No</span>
-                  <span className="il-detail-value">{detailRow.row.MachineNo || '—'}</span>
+            <div className="wh-detail-section">
+              <span className="wh-detail-section-title">
+                <DocumentTextIcon className="size-4" /> ข้อมูลเครื่อง
+              </span>
+              <div className="wh-detail-grid">
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">Machine No</span>
+                  <span className="wh-detail-value mono">{detailRow.row.MachineNo || '—'}</span>
                 </div>
-                <div className="il-detail-item">
-                  <span className="il-detail-label">No.</span>
-                  <span className="il-detail-value il-detail-value-tagged">
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">No.</span>
+                  <span className="wh-detail-value mono wh-detail-value-tagged">
                     <span>{detailRow.row.ITControllerNo || '—'}</span>
                     <PartTag code={detailRow.row.PlanComponent} label={detailRow.row.PlanComponentLabel} />
                   </span>
                 </div>
-                <div className="il-detail-item">
-                  <span className="il-detail-label">Model (Assembly Parts Name)</span>
-                  <span className="il-detail-value">{detailRow.asm.model || '—'}</span>
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">Model (Assembly Parts Name)</span>
+                  <span className="wh-detail-value">{detailRow.asm.model || '—'}</span>
                 </div>
-                <div className="il-detail-item">
-                  <span className="il-detail-label">Assembly Parts Number</span>
-                  <span className="il-detail-value">{detailRow.asm.partsNumber || '—'}</span>
-                </div>
-                <div className="il-detail-item">
-                  <span className="il-detail-label">Spec Code</span>
-                  <span className="il-detail-value">{detailRow.asm.specCode || '—'}</span>
-                </div>
-                <div className="il-detail-item">
-                  <span className="il-detail-label">IT device</span>
-                  <span className="il-detail-value">{detailRow.asm.itDevice || '—'}</span>
-                </div>
-                <div className="il-detail-item" style={{
-              gridColumn: '1 / -1'
-            }}>
-                  <span className="il-detail-label">Specification Detail</span>
-                  <span className="il-detail-value">{detailRow.asm.specDetail || '—'}</span>
-                </div>
-                <div className="il-detail-item">
-                  <span className="il-detail-label">Country</span>
-                  <span className="il-detail-value">
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">Country</span>
+                  <span className="wh-detail-value">
                     {detailRow.asm.country || detailRow.row.Country || '—'}
                   </span>
                 </div>
               </div>
+            </div>
+
+            <div className="wh-detail-divider" />
+
+            <div className="wh-detail-section">
+              <span className="wh-detail-section-title">
+                <CubeIcon className="size-4" /> ข้อมูลอะไหล่ประกอบ
+              </span>
+              <div className="wh-detail-grid">
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">Assembly Parts Number</span>
+                  <span className="wh-detail-value mono">{detailRow.asm.partsNumber || '—'}</span>
+                </div>
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">Spec Code</span>
+                  <span className="wh-detail-value mono">{detailRow.asm.specCode || '—'}</span>
+                </div>
+                <div className="wh-detail-item">
+                  <span className="wh-detail-label">IT device</span>
+                  <span className="wh-detail-value">{detailRow.asm.itDevice || '—'}</span>
+                </div>
+                <div className="wh-detail-item" style={{
+              gridColumn: '1 / -1'
+            }}>
+                  <span className="wh-detail-label">Specification Detail</span>
+                  <span className="wh-detail-value">{detailRow.asm.specDetail || '—'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="wh-detail-meta">
+              <span>
+                <TagIcon className="size-3.5" /> ประกอบโดย {detailRow.row.CreatedBy || '—'}
+              </span>
+              <span>
+                <ClockIcon className="size-3.5" /> {fmtDate(detailRow.row.CheckDate)}
+              </span>
             </div>
 
             <div className="wh-modal-actions">
