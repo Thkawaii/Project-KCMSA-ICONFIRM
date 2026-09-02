@@ -785,54 +785,6 @@ export default function MFGAssemblyPage() {
               </div>
             </div>
 
-            <div className="il-detail-card" style={{
-          marginTop: 12
-        }}>
-              <span className="il-detail-card-title">ข้อมูลจาก ALL PART / Planning / WH1 / WH2 / Engine</span>
-              <div className="il-detail-grid">
-                <div className="il-detail-item">
-                  <span className="il-detail-label">KCM Order</span>
-                  <span className="il-detail-value">{detailRow.asm.kcmOrder || '—'}</span>
-                </div>
-                <div className="il-detail-item">
-                  <span className="il-detail-label">LOT No.</span>
-                  <span className="il-detail-value">{detailRow.asm.lotNo || '—'}</span>
-                </div>
-                <div className="il-detail-item">
-                  <span className="il-detail-label">Engine (P/N · S/N)</span>
-                  <span className="il-detail-value">
-                    {detailRow.asm.engine || detailRow.asm.engineHistory ? `${detailRow.asm.engine || '—'} · ${detailRow.asm.engineHistory || '—'}` : '—'}
-                  </span>
-                </div>
-                <div className="il-detail-item">
-                  <span className="il-detail-label">IT Controller (P/N · S/N)</span>
-                  <span className="il-detail-value">
-                    {detailRow.asm.itControllerPartNo || detailRow.asm.itControllerSN ? `${detailRow.asm.itControllerPartNo || '—'} · ${detailRow.asm.itControllerSN || '—'}` : '—'}
-                  </span>
-                </div>
-                <div className="il-detail-item">
-                  <span className="il-detail-label">WH1 (Order · Parts)</span>
-                  <span className="il-detail-value">
-                    {detailRow.asm.wh1OrderNo || detailRow.asm.wh1PartsNo ? `${detailRow.asm.wh1OrderNo || '—'} · ${detailRow.asm.wh1PartsNo || '—'}` : '—'}
-                  </span>
-                </div>
-                <div className="il-detail-item">
-                  <span className="il-detail-label">WH2 (Order · Parts)</span>
-                  <span className="il-detail-value">
-                    {detailRow.asm.wh2OrderNo || detailRow.asm.wh2PartsNo ? `${detailRow.asm.wh2OrderNo || '—'} · ${detailRow.asm.wh2PartsNo || '—'}` : '—'}
-                  </span>
-                </div>
-                <div className="il-detail-item" style={{
-              gridColumn: '1 / -1'
-            }}>
-                  <span className="il-detail-label">ชื่อพาร์ทจากคลัง (WH1 / WH2)</span>
-                  <span className="il-detail-value">
-                    {detailRow.asm.wh1PartsName || detailRow.asm.wh2PartsName || '—'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
             <div className="wh-modal-actions">
               <button className="wh-modal-cancel" onClick={() => setDetailRow(null)}>
                 ปิด
