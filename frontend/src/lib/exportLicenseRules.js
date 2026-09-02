@@ -16,7 +16,7 @@ export const LEAD_STATUS = {
 export const LEAD_STATUS_LABEL = {
   [LEAD_STATUS.OVERDUE]: 'เลยกำหนดยื่น',
   [LEAD_STATUS.DUE]: 'ใกล้ถึงกำหนดยื่น',
-  [LEAD_STATUS.OK]: 'ยังไม่ถึงกำหนดยื่น',
+  [LEAD_STATUS.OK]: 'ถึงกำหนดยื่น',
   [LEAD_STATUS.NO_DATE]: 'ยังไม่ระบุวันที่'
 };
 
