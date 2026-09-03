@@ -26,10 +26,10 @@ type CodeAlias struct {
 	Kind string `gorm:"size:20;index" json:"kind"`
 
 	FromCode string `gorm:"column:new;size:150;not null" json:"new"`
-	FromNorm string `gorm:"column:old;size:150;index;not null" json:"old"`
 
-	ToSerialNo string `gorm:"size:150;index" json:"to_serial_no"`
-	ToPartNo   string `gorm:"size:150" json:"to_part_no"`
+	// ToOld คือ "Old (ค่าเดิม)" ตัวจริงที่มีอยู่แล้วในระบบ (ทะเบียน S/N, P/N, Machine No. ฯลฯ)
+	// เก็บอยู่ในคอลัมน์ old — ใช้แทนที่ ToSerialNo/ToPartNo เดิมไปเลย
+	ToOld string `gorm:"column:old;size:150;index;not null" json:"old"`
 
 	Note       string    `gorm:"size:255" json:"note"`
 	UploadDate time.Time `json:"upload_date"`

@@ -42,6 +42,7 @@ func ConnectDB() {
 	DB = db
 
 	RenameCodeAliasColumns()
+	MigrateCodeAliasOldValue()
 
 	db.AutoMigrate(
 
@@ -118,6 +119,55 @@ func RenameCodeAliasColumns() {
 	rename("column_aliases", "scope", "table")
 	rename("column_aliases", "source", "new")
 	rename("column_aliases", "target", "old")
+}
+
+// MigrateCodeAliasOldValue ยุบ to_serial_no / to_part_no เดิมของ change_format_parts ทิ้ง
+// เพราะคอลัมน์ old มีอยู่แล้วและควรเก็บ "Old (ค่าเดิม)" ตัวจริงไปเลย (ไม่ใช่ค่า new ที่ normalize ไว้ค้นหาแบบเดิม)
+//
+//   - ย้ายค่าจาก to_serial_no เข้าคอลัมน์ old (ทับค่าเดิมที่เคยเก็บไว้)
+//   - ลบคอลัมน์ to_serial_no และ to_part_no ทิ้ง (to_part_no ไม่ใช้ต่อแล้ว ไม่มีคอลัมน์ทดแทน)
+//
+// ทำครั้งเดียว (idempotent) — ถ้าคอลัมน์เก่าไม่มีอยู่แล้วจะข้ามไป
+// ต้องรันก่อน AutoMigrate เสมอ เหมือนกับ RenameCodeAliasColumns
+func MigrateCodeAliasOldValue() {
+	if DB == nil {
+		return
+	}
+
+	columnExists := func(table, col string) bool {
+		var count int64
+		if err := DB.Raw(
+			`SELECT COUNT(*) FROM information_schema.columns WHERE table_name = ? AND column_name = ?`,
+			table, col,
+		).Scan(&count).Error; err != nil {
+			log.Println("check column for drop:", err)
+			return false
+		}
+		return count > 0
+	}
+
+	if columnExists("change_format_parts", "to_serial_no") {
+		if err := DB.Exec(
+			`UPDATE change_format_parts SET "old" = "to_serial_no" WHERE "to_serial_no" IS NOT NULL AND "to_serial_no" <> ''`,
+		).Error; err != nil {
+			log.Println("migrate change_format_parts.old <- to_serial_no:", err)
+		} else {
+			log.Println("Migrated change_format_parts.old <- to_serial_no")
+		}
+		if err := DB.Exec(`ALTER TABLE change_format_parts DROP COLUMN "to_serial_no"`).Error; err != nil {
+			log.Println("drop column change_format_parts.to_serial_no:", err)
+		} else {
+			log.Println("Dropped column change_format_parts.to_serial_no")
+		}
+	}
+
+	if columnExists("change_format_parts", "to_part_no") {
+		if err := DB.Exec(`ALTER TABLE change_format_parts DROP COLUMN "to_part_no"`).Error; err != nil {
+			log.Println("drop column change_format_parts.to_part_no:", err)
+		} else {
+			log.Println("Dropped column change_format_parts.to_part_no")
+		}
+	}
 }
 
 // DropLegacyAssemblyDataset ลบข้อมูลตาราง Assembly เดิมออกจากฐานข้อมูล

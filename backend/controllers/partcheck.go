@@ -149,11 +149,8 @@ func resolveITControllerMaster(pn, sn string) *models.MasterData {
 		if strings.TrimSpace(raw) == "" {
 			continue
 		}
-		if a := lookupCodeAlias("it_controller", raw); a != nil && strings.TrimSpace(a.ToSerialNo) != "" {
-			q := config.DB.Where("serial_no = ?", strings.TrimSpace(a.ToSerialNo))
-			if p := strings.TrimSpace(a.ToPartNo); p != "" {
-				q = q.Where("part_no = ?", p)
-			}
+		if a := lookupCodeAlias("it_controller", raw); a != nil && strings.TrimSpace(a.ToOld) != "" {
+			q := config.DB.Where("serial_no = ?", strings.TrimSpace(a.ToOld))
 			if err := q.First(&m).Error; err == nil {
 				return &m
 			}

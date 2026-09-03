@@ -296,8 +296,7 @@ export function CodeAliasPanel({
     try {
       await createCodeAlias({
         new: fromCode.trim(),
-        to_serial_no: toSerial.trim(),
-        to_part_no: '',
+        old: toSerial.trim(),
         component_type: KIND_COMPONENT_TYPE[kind] || componentType,
         kind,
         note: note.trim()
@@ -470,7 +469,7 @@ export function CodeAliasPanel({
             {!loading && rows.map(r => <tr key={r.id}>
                   <td>{KIND_LABEL[r.kind] || '—'}</td>
                   <td style={codeStyle}>{r.new}</td>
-                  <td style={codeStyle}>{r.to_serial_no}</td>
+                  <td style={codeStyle}>{r.old}</td>
                   <td>{r.note || '—'}</td>
                   <td className="wh-cell-action">
                     <button className="qa-fail-btn" onClick={() => handleDelete(r.id)}>ลบ</button>

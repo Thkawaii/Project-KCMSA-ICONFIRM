@@ -112,8 +112,7 @@ func TestMatchImportLicenseCodeAlias(t *testing.T) {
 		ComponentType: "import_license",
 		Kind:          "machine",
 		FromCode:      "NEW-878-250-022-802",
-		FromNorm:      NormalizeCodeValue("NEW-878-250-022-802"),
-		ToSerialNo:    "878250022802",
+		ToOld:         "878250022802",
 	}
 	if err := config.DB.Create(&alias).Error; err != nil {
 		t.Fatalf("seed alias: %v", err)
