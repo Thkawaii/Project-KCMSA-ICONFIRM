@@ -829,7 +829,7 @@ function ExportTraceModal({
           <div className="wh-detail-grid">
             {item('Machine No', row.MachineNo)}
             {item('IT Controller S/N', row.ITControllerNo || row.SerialNumber)}
-            {item('Serial Number', row.SerialNumber)}
+            {itemAlways('Serial Number', data?.masterData?.SerialNo)}
             {item('ประเทศปลายทาง', country)}
           </div>
         </div>
