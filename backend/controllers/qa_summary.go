@@ -102,9 +102,11 @@ func GetQAConfirmedTable(c *gin.Context) {
 		}
 
 		plannedITC := PlannedITCOf(plan)
-		itcNo := plannedITC
+		lookupITC := plannedITC
+		displayITC := ""
 		if component == ComponentITC || component == "" {
-			itcNo = serial
+			lookupITC = serial
+			displayITC = serial
 		}
 
 		row := QAConfirmedRow{
@@ -113,7 +115,7 @@ func GetQAConfirmedTable(c *gin.Context) {
 			ComponentLabel: ComponentLabel(component),
 			PartName:       ComponentLabel(component),
 			MachineNo:      machineNo,
-			ITControllerNo: itcNo,
+			ITControllerNo: displayITC,
 			PartNo:         strings.TrimSpace(pc.PN),
 			SerialNo:       strings.TrimSpace(pc.SN),
 			IMEI:           strings.TrimSpace(pc.ProductionNo),
@@ -138,7 +140,7 @@ func GetQAConfirmedTable(c *gin.Context) {
 		if component == ComponentITC {
 			enrichQARowFromMaster(&row, serial)
 		}
-		enrichQARowFromLicense(&row, pc, itcNo)
+		enrichQARowFromLicense(&row, pc, lookupITC)
 
 		if row.Model == "" && plan != nil {
 			row.Model = planValue(plan,
@@ -155,7 +157,7 @@ func GetQAConfirmedTable(c *gin.Context) {
 		var asm map[string]string
 		if a, ok := asmByMachine[machineNo]; ok {
 			asm = a
-		} else if a, ok := asmByITC[itcNo]; ok {
+		} else if a, ok := asmByITC[lookupITC]; ok {
 			asm = a
 		}
 		if asm != nil {
