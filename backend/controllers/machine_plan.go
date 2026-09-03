@@ -120,11 +120,22 @@ func (r *mfgPlanResolver) evaluateComponent(machineNo, scanned, component string
 	plan := r.planByMachine[machineNo]
 
 	component = strings.ToUpper(strings.TrimSpace(component))
+
+	// ถ้ารู้ชนิดชิ้นส่วนอยู่แล้ว ให้แปลงรหัสที่สแกนตาม Change Format Part ก่อนเทียบแผน
+	if component != "" {
+		scanned = ResolveComponentSerial(component, scanned)
+	}
+
 	if component == "" {
 		component = DetectComponentFromPlan(plan, scanned)
 	}
 	if component == "" {
 		component = DetectComponentType(scanned)
+	}
+
+	// เพิ่งรู้ชนิดชิ้นส่วนทีหลัง — แปลงอีกครั้ง (ไม่มีการตั้งค่าไว้จะได้ค่าเดิม)
+	if component != "" {
+		scanned = ResolveComponentSerial(component, scanned)
 	}
 
 	res := MFGPlanResult{

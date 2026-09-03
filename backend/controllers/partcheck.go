@@ -316,6 +316,10 @@ func ScanPartCheck(c *gin.Context) {
 }
 
 func checkEnginePart(check *models.PartCheck) {
+	// Engine สแกนคู่ P/N + S/N — แปลงตาม Change Format Part (ชนิด P/N และ S/N)
+	check.PN = ResolvePartNo(check.PN)
+	check.SN = ResolveComponentSerial(ComponentEN, check.SN)
+
 	row, ok := engineRowFor(check.PN, check.SN)
 	if !ok {
 
@@ -353,6 +357,12 @@ func checkEnginePart(check *models.PartCheck) {
 func checkPlanComponentPart(check *models.PartCheck, component string) {
 	scanned := strings.TrimSpace(check.SN)
 	label := ComponentLabel(component)
+
+	// แปลงรหัสรูปแบบใหม่ให้เป็นค่าเดิมในระบบ ตามที่ตั้งไว้ในหน้า Change Format Part
+	if resolved := ResolveComponentSerial(component, scanned); !strings.EqualFold(resolved, scanned) {
+		scanned = resolved
+		check.SN = resolved
+	}
 
 	otherMachine := ""
 	otherComponent := ""

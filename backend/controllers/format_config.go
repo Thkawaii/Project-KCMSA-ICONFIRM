@@ -23,6 +23,104 @@ func NormalizeCodeValue(s string) string {
 	return b.String()
 }
 
+// ---------------------------------------------------------------------------
+// ชนิดรหัส (kind) ของ Change Format Part
+//
+// รองรับ 4 ชนิด:
+//
+//	machine = Machine No.
+//	sn      = S/N  (ใช้กับ IT Controller / SM / PH / MP / CV / Engine S/N)
+//	pn      = P/N  (ใช้กับ IT Controller / Engine P/N)
+//	cw      = CW No. (Counter Weight — ไม่ได้อยู่ในทะเบียน S/N จึงต้องแยกชนิด)
+//
+// ---------------------------------------------------------------------------
+
+const (
+	CodeKindMachine = "machine"
+	CodeKindSN      = "sn"
+	CodeKindPN      = "pn"
+	CodeKindCW      = "cw"
+)
+
+// codeKindAliases แปลงคำที่ผู้ใช้พิมพ์เอง หรือคอลัมน์ kind ในไฟล์ที่อัปโหลด
+// ให้เป็นชนิดรหัสมาตรฐาน (คีย์ = ตัวอักษร/ตัวเลขล้วน ตัวพิมพ์เล็ก)
+//
+// ชื่อชิ้นส่วนที่ใช้หมายเลขซีเรียล (SM / PH / MP / CV / ITC) ถูกยุบมาที่ sn
+// เพื่อให้ไฟล์เก่าที่ระบุชื่อชิ้นส่วนไว้ยังอัปโหลดผ่าน
+var codeKindAliases = map[string]string{
+	"machine":       CodeKindMachine,
+	"machineno":     CodeKindMachine,
+	"machinenumber": CodeKindMachine,
+	"mc":            CodeKindMachine,
+	"mcno":          CodeKindMachine,
+
+	"sn":             CodeKindSN,
+	"serial":         CodeKindSN,
+	"serialno":       CodeKindSN,
+	"serialnumber":   CodeKindSN,
+	"itc":            CodeKindSN,
+	"itcontroller":   CodeKindSN,
+	"itcontrollerno": CodeKindSN,
+	"sm":             CodeKindSN,
+	"swingmotor":     CodeKindSN,
+	"swingmotorno":   CodeKindSN,
+	"ph":             CodeKindSN,
+	"pumpassy":       CodeKindSN,
+	"pumpassyhyd":    CodeKindSN,
+	"pumpassyhydno":  CodeKindSN,
+	"mp":             CodeKindSN,
+	"motorpropel":    CodeKindSN,
+	"motorpropelno":  CodeKindSN,
+	"cv":             CodeKindSN,
+	"controlvalve":   CodeKindSN,
+	"controlvalveno": CodeKindSN,
+
+	"pn":         CodeKindPN,
+	"part":       CodeKindPN,
+	"partno":     CodeKindPN,
+	"partnumber": CodeKindPN,
+
+	"cw":              CodeKindCW,
+	"cwno":            CodeKindCW,
+	"cwpartno":        CodeKindCW,
+	"counterweight":   CodeKindCW,
+	"counterweightno": CodeKindCW,
+}
+
+// NormalizeCodeKind คืนชนิดรหัสมาตรฐาน หรือ "" ถ้าไม่ระบุ/ไม่รู้จัก
+func NormalizeCodeKind(raw string) string {
+	key := strings.ToLower(NormalizeCodeValue(raw))
+	if key == "" {
+		return ""
+	}
+	return codeKindAliases[key]
+}
+
+// CodeKindLabel คืนชื่อชนิดรหัสไว้แสดงในข้อความแจ้งเตือน
+func CodeKindLabel(kind string) string {
+	switch NormalizeCodeKind(kind) {
+	case CodeKindMachine:
+		return "Machine No."
+	case CodeKindSN:
+		return "S/N"
+	case CodeKindPN:
+		return "P/N"
+	case CodeKindCW:
+		return "CW No."
+	default:
+		return ""
+	}
+}
+
+// componentTypeOfKind คืนกลุ่ม component_type ที่ควรเก็บแถวนั้นไว้
+// CW แยกกลุ่มของตัวเอง เพื่อไม่ให้ไปชนกับการ resolve ของ IT Controller
+func componentTypeOfKind(kind string) string {
+	if NormalizeCodeKind(kind) == CodeKindCW {
+		return "counter_weight"
+	}
+	return ""
+}
+
 func loadColumnAliases(scope string) map[string][]string {
 	var rows []models.ColumnAlias
 	config.DB.Where(`"table" = ?`, scope).Find(&rows)
@@ -111,6 +209,10 @@ type registryIndex struct {
 	machine map[string]bool
 	sn      map[string]bool
 	pn      map[string]bool
+
+	// cw เก็บหมายเลข Counter Weight (ช่อง CW No ของไฟล์ Planning)
+	// แยกจาก sn เพราะไม่ได้อยู่ในทะเบียนซีเรียล
+	cw map[string]bool
 }
 
 func buildRegistryIndex() *registryIndex {
@@ -118,6 +220,7 @@ func buildRegistryIndex() *registryIndex {
 		machine: map[string]bool{},
 		sn:      map[string]bool{},
 		pn:      map[string]bool{},
+		cw:      map[string]bool{},
 	}
 	add := func(m map[string]bool, raw string) {
 		if n := NormalizeCodeValue(raw); n != "" {
@@ -137,8 +240,34 @@ func buildRegistryIndex() *registryIndex {
 		add(idx.pn, m.PartNo)
 	}
 
-	for mc := range loadMachinePlans() {
+	// หมายเลขรายชิ้นส่วนจากแผนประกอบ (Planning + WH + Engine)
+	// SM / PH / MP / CV / ITC เป็นหมายเลขซีเรียล จึงนับเป็น S/N
+	// ส่วน CW No. เก็บแยกไว้ต่างหาก
+	for mc, plan := range loadMachinePlans() {
 		add(idx.machine, mc)
+		for _, spec := range componentSpecs {
+			v := PlannedNoOf(plan, spec.Code)
+			if v == "" {
+				continue
+			}
+			if spec.Code == ComponentCW {
+				add(idx.cw, v)
+				continue
+			}
+			add(idx.sn, v)
+		}
+	}
+
+	// Engine สแกนคู่ P/N + S/N — ไฟล์ Engine ไม่ได้แยกว่าช่องไหนเป็นอะไรตายตัว
+	// จึงรับค่าจากทั้งสองช่องเข้าทั้ง S/N และ P/N
+	for _, row := range loadUploadRows(models.DatasetEngine) {
+		for _, v := range []string{
+			pickField(row, "ENGINE", "Engine"),
+			pickField(row, "History", "Engine History"),
+		} {
+			add(idx.sn, v)
+			add(idx.pn, v)
+		}
 	}
 
 	var mfgRows []models.MFGAssembly
@@ -162,15 +291,18 @@ func (idx *registryIndex) hasOld(kind, oldValue string) bool {
 	if norm == "" {
 		return false
 	}
-	switch strings.ToLower(strings.TrimSpace(kind)) {
-	case "machine":
+	switch NormalizeCodeKind(kind) {
+	case CodeKindMachine:
 		return idx.machine[norm]
-	case "sn":
+	case CodeKindSN:
 		return idx.sn[norm]
-	case "pn":
+	case CodeKindPN:
 		return idx.pn[norm]
+	case CodeKindCW:
+		return idx.cw[norm]
 	default:
-		return idx.machine[norm] || idx.sn[norm] || idx.pn[norm]
+		// ไม่ได้ระบุชนิด — ยอมรับถ้าเจอค่าเดิมอยู่ที่ใดที่หนึ่งในระบบ
+		return idx.machine[norm] || idx.sn[norm] || idx.pn[norm] || idx.cw[norm]
 	}
 }
 
@@ -215,6 +347,35 @@ func lookupCodeAliasKind(componentType, kind, rawCode string) *models.CodeAlias 
 		return &a
 	}
 	return nil
+}
+
+// resolveByKind แปลงรหัสที่สแกนมา (ค่าใหม่) ให้เป็นค่าเดิมที่มีอยู่ในระบบ
+// ตามที่ตั้งไว้ในหน้า Change Format Part ถ้าไม่มีการตั้งค่าไว้จะคืนค่าเดิมที่รับมา
+func resolveByKind(kind, raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || kind == "" {
+		return raw
+	}
+	if a := lookupCodeAliasKind("", kind, raw); a != nil {
+		if v := strings.TrimSpace(a.ToSerialNo); v != "" {
+			return v
+		}
+	}
+	return raw
+}
+
+// ResolveComponentSerial แปลงหมายเลขชิ้นส่วนที่สแกนมา
+// CW No. ใช้ชนิด cw ส่วนชิ้นส่วนอื่น (ITC / SM / PH / MP / CV / Engine) ใช้ชนิด sn
+func ResolveComponentSerial(component, raw string) string {
+	if strings.ToUpper(strings.TrimSpace(component)) == ComponentCW {
+		return resolveByKind(CodeKindCW, raw)
+	}
+	return resolveByKind(CodeKindSN, raw)
+}
+
+// ResolvePartNo แปลง P/N ที่สแกนมา (ใช้กับ Engine ที่สแกนคู่ P/N + S/N)
+func ResolvePartNo(raw string) string {
+	return resolveByKind(CodeKindPN, raw)
 }
 
 func GetColumnAliases(c *gin.Context) {
@@ -298,7 +459,17 @@ func CreateCodeAlias(c *gin.Context) {
 	in.ToSerialNo = strings.TrimSpace(in.ToSerialNo)
 	in.ToPartNo = strings.TrimSpace(in.ToPartNo)
 	in.ComponentType = strings.TrimSpace(in.ComponentType)
-	in.Kind = strings.ToLower(strings.TrimSpace(in.Kind))
+
+	rawKind := strings.TrimSpace(in.Kind)
+	in.Kind = NormalizeCodeKind(rawKind)
+	if rawKind != "" && in.Kind == "" {
+		c.JSON(400, gin.H{"message": "ชนิดรหัส \"" + rawKind + "\" ไม่ถูกต้อง — รองรับ machine / sn / pn / cw"})
+		return
+	}
+	if in.ComponentType == "" {
+		in.ComponentType = componentTypeOfKind(in.Kind)
+	}
+
 	if in.FromCode == "" || in.ToSerialNo == "" {
 		c.JSON(400, gin.H{"message": "ต้องระบุ New (ค่าใหม่) และ Old (ค่าเดิม) ให้ครบ"})
 		return
@@ -306,7 +477,11 @@ func CreateCodeAlias(c *gin.Context) {
 	in.FromNorm = NormalizeCodeValue(in.FromCode)
 
 	if !oldValueExistsInRegistry(in.Kind, in.ToSerialNo) {
-		c.JSON(400, gin.H{"message": "ไม่พบ Old (ค่าเดิม) \"" + in.ToSerialNo + "\" ในระบบ — ต้องมีค่าเดิมอยู่ในทะเบียนก่อนจึงจะเพิ่มได้"})
+		msg := "ไม่พบ Old (ค่าเดิม) \"" + in.ToSerialNo + "\" ในระบบ — ต้องมีค่าเดิมอยู่ในทะเบียนก่อนจึงจะเพิ่มได้"
+		if label := CodeKindLabel(in.Kind); label != "" {
+			msg += " (ชนิด " + label + ")"
+		}
+		c.JSON(400, gin.H{"message": msg})
 		return
 	}
 
@@ -449,17 +624,33 @@ func UploadCodeAliases(c *gin.Context) {
 			continue
 		}
 		a.FromNorm = NormalizeCodeValue(a.FromCode)
+		rawKind := strings.TrimSpace(a.Kind)
+		a.Kind = NormalizeCodeKind(rawKind)
+		if rawKind != "" && a.Kind == "" {
+			skipped++
+			problems = append(problems, a.FromCode+": ชนิดรหัส \""+rawKind+"\" ไม่ถูกต้อง — ข้ามแถวนี้")
+			continue
+		}
+
 		a.ComponentType = strings.TrimSpace(a.ComponentType)
+		if a.ComponentType == "" {
+			// CW แยกกลุ่มของตัวเอง ไม่งั้นจึงใช้ค่าที่ส่งมากับฟอร์ม
+			a.ComponentType = componentTypeOfKind(a.Kind)
+		}
 		if a.ComponentType == "" {
 			a.ComponentType = defaultComponentType
 		}
-		a.Kind = strings.ToLower(strings.TrimSpace(a.Kind))
+
 		a.UserID = userID
 		a.UploadDate = now
 
 		if !registry.hasOld(a.Kind, a.ToSerialNo) {
+			msg := a.FromCode + ": ไม่พบ Old (ค่าเดิม) \"" + a.ToSerialNo + "\" ในระบบ"
+			if label := CodeKindLabel(a.Kind); label != "" {
+				msg += " (ชนิด " + label + ")"
+			}
 			skipped++
-			problems = append(problems, a.FromCode+": ไม่พบ Old (ค่าเดิม) \""+a.ToSerialNo+"\" ในระบบ — ข้ามแถวนี้")
+			problems = append(problems, msg+" — ข้ามแถวนี้")
 			continue
 		}
 

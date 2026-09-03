@@ -6,7 +6,10 @@ import '../components/FormatTools.css';
 import { ADMIN_NAV_ITEMS } from './AdminDashboardpage.jsx';
 import { FORMAT_NAV_ITEMS } from './MasterDataPage.jsx';
 const TARGET_COLUMNS = {
-  planning: ['Line', 'LOT NO.', 'Machine', 'Product Spec 1', 'Product Spec 2', 'Domestic/Exp', 'Assembly Status', 'Shipping Status', 'KCM Order', 'Country', 'Country Name', 'Brand', 'Destination', 'IT device', 'IT Controller', 'IT Controller No', 'Swing Motor No', 'Pump Assy HYD No', 'Motor Propel No', 'Control Valve No', 'Front ATT', 'Engine start key', 'Note1', 'Note2', 'Note3'],
+  planning: ['Line', 'LOT NO.', 'Machine', 'Product Spec 1', 'Product Spec 2', 'Domestic/Exp', 'Assembly Status', 'Shipping Status', 'KCM Order', 'Country', 'Country Name', 'Brand', 'Destination', 'IT device', 'IT Controller', 'IT Controller No', 'Swing Motor No', 'Pump Assy HYD No', 'Motor Propel No', 'Control Valve No', 'Counter weight', {
+    value: 'CW No',
+    label: 'CW No (Counter Weight)'
+  }, 'Front ATT', 'Engine start key', 'Note1', 'Note2', 'Note3'],
   wh1: ['Warehouse', 'Order No', 'Work order', 'Parts No', 'Name', 'Assembly Parts Number', 'Assembly Parts Name', 'Note', 'Final Color'],
   wh2: ['Order', 'ORDER No.', 'Parts No', 'PARTS NAME', 'Quantity', 'LOCATION', 'Note'],
   engine: ['Machine No', 'History', 'ENGINE'],
