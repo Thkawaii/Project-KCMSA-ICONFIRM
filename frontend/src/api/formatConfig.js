@@ -4,18 +4,18 @@ export function getColumnAliases(scope) {
   return apiFetch(`/format-config/column-alias${qs}`);
 }
 export function createColumnAlias({
-  scope,
-  source,
-  target,
+  table,
+  new: newValue,
+  old,
   note,
   kind
 }) {
   return apiFetch('/format-config/column-alias', {
     method: 'POST',
     body: JSON.stringify({
-      scope,
-      source,
-      target,
+      table,
+      new: newValue,
+      old,
       note: note || '',
       kind: kind || 'rename'
     })

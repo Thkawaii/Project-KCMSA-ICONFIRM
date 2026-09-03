@@ -41,6 +41,8 @@ func ConnectDB() {
 
 	DB = db
 
+	RenameCodeAliasColumns()
+
 	db.AutoMigrate(
 
 		&models.User{},
@@ -78,6 +80,44 @@ func ConnectDB() {
 	}
 
 	log.Println("Database Connected")
+}
+
+// RenameCodeAliasColumns เปลี่ยนชื่อคอลัมน์เดิมให้เป็นชื่อหัวคอลัมน์ใหม่ที่ต้องการ:
+//   - change_format_parts: from_code/from_norm -> new/old
+//   - column_aliases: scope/source/target -> table/new/old
+//
+// ทำครั้งเดียว (idempotent) — ถ้าคอลัมน์เก่าไม่มีอยู่แล้ว (เปลี่ยนไปแล้ว หรือเป็นฐานข้อมูลใหม่) จะข้ามไป
+// ต้องรันก่อน AutoMigrate เสมอ ไม่งั้น AutoMigrate จะพยายามเพิ่มคอลัมน์ใหม่แยกต่างหาก
+// (ซึ่งจะพังเพราะเป็น NOT NULL บนตารางที่มีข้อมูลอยู่แล้ว) แทนที่จะ rename ของเดิม
+func RenameCodeAliasColumns() {
+	if DB == nil {
+		return
+	}
+
+	rename := func(table, oldCol, newCol string) {
+		var count int64
+		if err := DB.Raw(
+			`SELECT COUNT(*) FROM information_schema.columns WHERE table_name = ? AND column_name = ?`,
+			table, oldCol,
+		).Scan(&count).Error; err != nil {
+			log.Println("check column for rename:", err)
+			return
+		}
+		if count == 0 {
+			return
+		}
+		if err := DB.Exec(`ALTER TABLE ` + table + ` RENAME COLUMN "` + oldCol + `" TO "` + newCol + `"`).Error; err != nil {
+			log.Println("rename column", table, oldCol, "->", newCol, ":", err)
+			return
+		}
+		log.Printf("Renamed column %s.%s -> %s", table, oldCol, newCol)
+	}
+
+	rename("change_format_parts", "from_code", "new")
+	rename("change_format_parts", "from_norm", "old")
+	rename("column_aliases", "scope", "table")
+	rename("column_aliases", "source", "new")
+	rename("column_aliases", "target", "old")
 }
 
 // DropLegacyAssemblyDataset ลบข้อมูลตาราง Assembly เดิมออกจากฐานข้อมูล

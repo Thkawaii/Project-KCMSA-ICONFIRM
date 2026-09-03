@@ -5,11 +5,11 @@ import "time"
 type ColumnAlias struct {
 	ID uint `gorm:"primaryKey" json:"id"`
 
-	Scope string `gorm:"size:40;index;not null" json:"scope"`
+	Scope string `gorm:"column:table;size:40;index;not null" json:"table"`
 
-	Source string `gorm:"size:150;not null" json:"source"`
+	Source string `gorm:"column:new;size:150;not null" json:"new"`
 
-	Target string `gorm:"size:150;not null" json:"target"`
+	Target string `gorm:"column:old;size:150;not null" json:"old"`
 
 	Kind string `gorm:"size:20" json:"kind"`
 
@@ -25,8 +25,8 @@ type CodeAlias struct {
 
 	Kind string `gorm:"size:20;index" json:"kind"`
 
-	FromCode string `gorm:"size:150;not null" json:"from_code"`
-	FromNorm string `gorm:"size:150;index;not null" json:"from_norm"`
+	FromCode string `gorm:"column:new;size:150;not null" json:"new"`
+	FromNorm string `gorm:"column:old;size:150;index;not null" json:"old"`
 
 	ToSerialNo string `gorm:"size:150;index" json:"to_serial_no"`
 	ToPartNo   string `gorm:"size:150" json:"to_part_no"`
