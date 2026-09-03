@@ -98,9 +98,9 @@ export function ColumnAliasPanel({
     setSaving(true);
     try {
       await createColumnAlias({
-        scope,
-        source: source.trim(),
-        target: finalTarget,
+        table: scope,
+        new: source.trim(),
+        old: finalTarget,
         note: note.trim(),
         kind: changeKind
       });
@@ -223,8 +223,8 @@ export function ColumnAliasPanel({
               </tr>}
             {!loading && rows.map(r => <tr key={r.id}>
                   <td>{CHANGE_KIND_LABEL[r.kind] || 'เปลี่ยนชื่อ'}</td>
-                  <td style={codeStyle}>{r.source}</td>
-                  <td style={codeStyle}>{r.target}</td>
+                  <td style={codeStyle}>{r.new}</td>
+                  <td style={codeStyle}>{r.old}</td>
                   <td>{r.note || '—'}</td>
                   <td className="wh-cell-action">
                     <button className="qa-fail-btn" onClick={() => handleDelete(r.id)}>ลบ</button>
@@ -281,7 +281,7 @@ export function CodeAliasPanel({
     setSaving(true);
     try {
       await createCodeAlias({
-        from_code: fromCode.trim(),
+        new: fromCode.trim(),
         to_serial_no: toSerial.trim(),
         to_part_no: '',
         component_type: componentType,
@@ -427,7 +427,7 @@ export function CodeAliasPanel({
           <input type="file" accept=".xlsx,.xls,.csv" onChange={handleUpload} style={{
           display: 'none'
         }} disabled={uploading} />
-          {uploading ? 'กำลังอัปโหลด...' : aliasDragging ? 'ปล่อยไฟล์ได้เลย' : 'อัปโหลดหลายรายการจากไฟล์ (ลากวางได้)'}
+          {uploading ? 'กำลังอัปโหลด...' : aliasDragging ? 'ปล่อยไฟล์ได้เลย' : 'อัปโหลดไฟล์'}
         </label>
         <button className="wh-issue-btn fmt-add-btn" onClick={handleAdd} disabled={saving}>
           {saving ? 'กำลังเพิ่ม...' : 'เพิ่ม'}
@@ -456,7 +456,7 @@ export function CodeAliasPanel({
               </tr>}
             {!loading && rows.map(r => <tr key={r.id}>
                   <td>{KIND_LABEL[r.kind] || '—'}</td>
-                  <td style={codeStyle}>{r.from_code}</td>
+                  <td style={codeStyle}>{r.new}</td>
                   <td style={codeStyle}>{r.to_serial_no}</td>
                   <td>{r.note || '—'}</td>
                   <td className="wh-cell-action">

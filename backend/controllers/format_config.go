@@ -25,7 +25,7 @@ func NormalizeCodeValue(s string) string {
 
 func loadColumnAliases(scope string) map[string][]string {
 	var rows []models.ColumnAlias
-	config.DB.Where("scope = ?", scope).Find(&rows)
+	config.DB.Where(`"table" = ?`, scope).Find(&rows)
 
 	out := map[string][]string{}
 	for _, r := range rows {
@@ -41,7 +41,7 @@ func loadColumnAliases(scope string) map[string][]string {
 
 func loadColumnAliasReverse(scope string) map[string]string {
 	var rows []models.ColumnAlias
-	config.DB.Where("scope = ?", scope).Find(&rows)
+	config.DB.Where(`"table" = ?`, scope).Find(&rows)
 
 	out := map[string]string{}
 	for _, r := range rows {
@@ -184,7 +184,7 @@ func lookupCodeAlias(componentType, rawCode string) *models.CodeAlias {
 		return nil
 	}
 
-	q := config.DB.Where("from_norm = ?", norm)
+	q := config.DB.Where("old = ?", norm)
 	if strings.TrimSpace(componentType) != "" {
 		q = q.Where("component_type = ? OR component_type = ''", componentType)
 	}
@@ -202,7 +202,7 @@ func lookupCodeAliasKind(componentType, kind, rawCode string) *models.CodeAlias 
 		return nil
 	}
 
-	q := config.DB.Where("from_norm = ?", norm)
+	q := config.DB.Where("old = ?", norm)
 	if strings.TrimSpace(kind) != "" {
 		q = q.Where("kind = ?", kind)
 	}
@@ -219,9 +219,9 @@ func lookupCodeAliasKind(componentType, kind, rawCode string) *models.CodeAlias 
 
 func GetColumnAliases(c *gin.Context) {
 	var rows []models.ColumnAlias
-	q := config.DB.Order("scope asc").Order("id asc")
+	q := config.DB.Order(`"table" asc`).Order("id asc")
 	if s := strings.TrimSpace(c.Query("scope")); s != "" {
-		q = q.Where("scope = ?", s)
+		q = q.Where(`"table" = ?`, s)
 	}
 	q.Find(&rows)
 	c.JSON(200, rows)
@@ -242,7 +242,7 @@ func CreateColumnAlias(c *gin.Context) {
 		in.Kind = "rename"
 	}
 	if in.Scope == "" || in.Source == "" || in.Target == "" {
-		c.JSON(400, gin.H{"message": "ต้องระบุ scope, source (หัวคอลัมน์ในไฟล์) และ target (คอลัมน์มาตรฐาน)"})
+		c.JSON(400, gin.H{"message": "ต้องระบุ table, new (หัวคอลัมน์ในไฟล์) และ old (คอลัมน์มาตรฐาน)"})
 		return
 	}
 
@@ -464,12 +464,12 @@ func UploadCodeAliases(c *gin.Context) {
 		}
 
 		var old models.CodeAlias
-		if err := config.DB.Where("from_norm = ?", a.FromNorm).First(&old).Error; err == nil {
+		if err := config.DB.Where("old = ?", a.FromNorm).First(&old).Error; err == nil {
 			if err := config.DB.Model(&models.CodeAlias{}).Where("id = ?", old.ID).
 				Updates(map[string]interface{}{
 					"component_type": a.ComponentType,
 					"kind":           a.Kind,
-					"from_code":      a.FromCode,
+					"new":            a.FromCode,
 					"to_serial_no":   a.ToSerialNo,
 					"to_part_no":     a.ToPartNo,
 					"note":           a.Note,
