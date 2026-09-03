@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppShell from '../../components/AppShell.jsx';
 import SelectField from '../../components/Selectfield.jsx';
+import PartTag from '../../components/Parttag.jsx';
 import PeriodRangePicker from '../../components/PeriodRangePicker.jsx';
 import { inPeriod, periodRangeLabel, periodFileTag } from '../../lib/dateRange.js';
 import { ArrowDownTrayIcon, CameraIcon, CheckCircleIcon, ClockIcon, DocumentTextIcon, QrCodeIcon, Squares2X2Icon, TagIcon, WrenchScrewdriverIcon, XMarkIcon } from '../../components/icons.jsx';
@@ -600,7 +601,7 @@ export default function QAMachineList() {
                     </td>
                     <td data-label="Part Name">{dash(r.partName)}</td>
                     <td data-label="ชนิดพาร์ท">
-                      <span className="il-badge il-badge-muted">{dash(r.componentLabel || r.component)}</span>
+                      {r.component ? <PartTag code={r.component} label={r.componentLabel} /> : '—'}
                     </td>
                     <td data-label="Model">{dash(r.model)}</td>
                     <td data-label="Model (Assembly)">{dash(r.asmModel)}</td>
@@ -725,8 +726,11 @@ export default function QAMachineList() {
                   <span className="wh-detail-value mono">{dash(detailRow.machineNo)}</span>
                 </div>
                 <div className="wh-detail-item">
-                  <span className="wh-detail-label">IT Controller No.</span>
-                  <span className="wh-detail-value mono">{dash(detailRow.itControllerNo)}</span>
+                  <span className="wh-detail-label">No.</span>
+                  <span className="wh-detail-value mono wh-detail-value-tagged">
+                    <span>{dash(detailRow.itControllerNo)}</span>
+                    <PartTag code={detailRow.component} label={detailRow.componentLabel} />
+                  </span>
                 </div>
                 <div className="wh-detail-item">
                   <span className="wh-detail-label">Part No.</span>
