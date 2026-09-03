@@ -239,11 +239,25 @@ export function ColumnAliasPanel({
       {body}
     </Collapsible>;
 }
-const KIND_LABEL = {
-  machine: 'Machine No.',
-  pn: 'P/N',
-  sn: 'S/N'
-};
+const CODE_KIND_OPTIONS = [{
+  value: 'machine',
+  label: 'Machine No.',
+  componentType: ''
+}, {
+  value: 'sn',
+  label: 'S/N',
+  componentType: ''
+}, {
+  value: 'pn',
+  label: 'P/N',
+  componentType: ''
+}, {
+  value: 'cw',
+  label: 'CW No.',
+  componentType: 'counter_weight'
+}];
+const KIND_LABEL = Object.fromEntries(CODE_KIND_OPTIONS.map(o => [o.value, o.label]));
+const KIND_COMPONENT_TYPE = Object.fromEntries(CODE_KIND_OPTIONS.map(o => [o.value, o.componentType]));
 export function CodeAliasPanel({
   componentType = 'it_controller',
   embedded = false
@@ -260,9 +274,9 @@ export function CodeAliasPanel({
   async function load() {
     setLoading(true);
     try {
-      const data = await getCodeAliases({
-        componentType
-      });
+      // ไม่กรองตามชนิดชิ้นส่วน เพราะแต่ละแถวจะถูกจัดกลุ่มตาม "ชนิดรหัส" ที่เลือก
+      // (SM / PH / MP / CV / CW / Engine) ไม่ได้อยู่กลุ่ม IT Controller ทั้งหมดแล้ว
+      const data = await getCodeAliases();
       setRows(Array.isArray(data) ? data : []);
     } catch (err) {
       toastError(err.message || 'โหลดรายการจับคู่ค่ารหัสไม่สำเร็จ');
@@ -284,7 +298,7 @@ export function CodeAliasPanel({
         new: fromCode.trim(),
         to_serial_no: toSerial.trim(),
         to_part_no: '',
-        component_type: componentType,
+        component_type: KIND_COMPONENT_TYPE[kind] || componentType,
         kind,
         note: note.trim()
       });
@@ -379,7 +393,12 @@ export function CodeAliasPanel({
       new: 'YN22-E00849',
       old: 'YN22E00849FA',
       kind: 'pn',
-      note: 'ตัวอย่าง P/N (ค่าเดิมต้องมีในระบบ)'
+      note: 'ตัวอย่าง P/N — Engine ใช้ S/N คู่กับ P/N'
+    }, {
+      new: 'CW-2401/NEW',
+      old: 'CW2401001',
+      kind: 'cw',
+      note: 'ตัวอย่าง CW No. (ค่าเดิมต้องมีในช่อง CW No ของไฟล์ Planning)'
     }];
     const blob = buildStyledXlsxBlob({
       sheetName: 'Change Format Part',
@@ -392,16 +411,10 @@ export function CodeAliasPanel({
       <div className="fmt-form">
         <div className="fmt-field">
           <label className="fmt-label">ชนิดรหัส</label>
-          <SelectField value={kind} onChange={setKind} options={[{
-          value: 'machine',
-          label: 'Machine No.'
-        }, {
-          value: 'sn',
-          label: 'S/N'
-        }, {
-          value: 'pn',
-          label: 'P/N'
-        }]} />
+          <SelectField value={kind} onChange={setKind} options={CODE_KIND_OPTIONS.map(o => ({
+          value: o.value,
+          label: o.label
+        }))} />
         </div>
         <div className="fmt-field">
           <label className="fmt-label">New (ค่าใหม่) ({kindText})</label>
