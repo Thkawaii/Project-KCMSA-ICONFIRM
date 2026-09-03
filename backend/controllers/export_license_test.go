@@ -65,6 +65,7 @@ func TestExportLicenseLeadTimeDate(t *testing.T) {
 	}
 }
 
+// สถานะ Lead time ต้องมีแค่ 2 แบบ: ถึงกำหนดยื่น / เลยกำหนดยื่น
 func TestExportLicenseLeadStatus(t *testing.T) {
 	now := time.Date(2026, 3, 20, 9, 0, 0, 0, time.UTC)
 	issue := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
@@ -80,9 +81,31 @@ func TestExportLicenseLeadStatus(t *testing.T) {
 		t.Errorf("status = %q, want %q", status, models.ExportLeadOverdue)
 	}
 
+	// ยังเหลือเวลาอีกมาก ก็ยังเป็น "ถึงกำหนดยื่น" เหมือนกัน (ไม่มีสถานะที่สาม)
 	early := time.Date(2026, 3, 12, 9, 0, 0, 0, time.UTC)
-	if status, _ := m.LeadStatusAt(early); status != models.ExportLeadOK {
-		t.Errorf("status = %q, want %q", status, models.ExportLeadOK)
+	if status, _ := m.LeadStatusAt(early); status != models.ExportLeadDue {
+		t.Errorf("status = %q, want %q", status, models.ExportLeadDue)
+	}
+
+	none := models.ExportLicenseItem{}
+	if status, _ := none.LeadStatusAt(now); status != models.ExportLeadNoDate {
+		t.Errorf("status = %q, want %q", status, models.ExportLeadNoDate)
+	}
+}
+
+// LeadUrgent ใช้ตัดสินว่าจะเตือนหรือไม่ — ไม่ใช่สถานะที่แสดงบนป้าย
+func TestExportLicenseLeadUrgent(t *testing.T) {
+	issue := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC) // หมดอายุ 10 เม.ย. → ยื่นภายใน 26 มี.ค.
+	m := models.ExportLicenseItem{IssueDate: &issue}
+
+	if !m.LeadUrgentAt(time.Date(2026, 3, 20, 9, 0, 0, 0, time.UTC)) {
+		t.Error("เหลือ 6 วัน ต้องถือว่าใกล้ครบกำหนดยื่น")
+	}
+	if m.LeadUrgentAt(time.Date(2026, 3, 12, 9, 0, 0, 0, time.UTC)) {
+		t.Error("เหลือ 14 วัน ยังไม่ต้องเตือน")
+	}
+	if m.LeadUrgentAt(time.Date(2026, 4, 1, 9, 0, 0, 0, time.UTC)) {
+		t.Error("เลยกำหนดยื่นแล้ว ต้องไม่นับเป็น urgent (เป็น overdue)")
 	}
 }
 

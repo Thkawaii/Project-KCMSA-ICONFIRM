@@ -7,7 +7,7 @@ import FileDropZone from '../components/Filedropzone.jsx';
 import SelectField from '../components/Selectfield.jsx';
 import { confirmDelete, toastError, toastSuccess, promptRenewDays } from '../lib/toast.js';
 import { computeLicenseExpiry, formatThaiDate, daysLeftLabel, STATUS_LABEL, EXPIRY_STATUS } from '../lib/licenseExpiry.js';
-import { computeExportLicenseDates, exportLeadTimeDate, leadDaysLabel, LEAD_STATUS, LEAD_STATUS_LABEL, LEAD_BADGE_CLASS, EXPORT_LICENSE_LEAD_DAYS } from '../lib/exportLicenseRules.js';
+import { computeExportLicenseDates, exportLeadTimeDate, leadDaysLabel, leadBadgeClass, LEAD_STATUS, LEAD_STATUS_LABEL, LEAD_BADGE_CLASS, LEAD_FILTER_DUE_SOON, EXPORT_LICENSE_LEAD_DAYS, EXPORT_LICENSE_LEAD_WARN_DAYS } from '../lib/exportLicenseRules.js';
 import { useDailyTick } from '../lib/useDailyTick.js';
 import { useAppParams } from '../lib/nav.jsx';
 import { buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js';
@@ -267,12 +267,6 @@ export default function ImportLicensePage() {
   const expiryOptions = useMemo(() => [{
     value: 'all',
     label: 'ทุกสถานะวันหมดอายุ'
-  }, {
-    value: LEAD_STATUS.OVERDUE,
-    label: `${LEAD_STATUS_LABEL[LEAD_STATUS.OVERDUE]} (Lead time)`
-  }, {
-    value: LEAD_STATUS.DUE,
-    label: `${LEAD_STATUS_LABEL[LEAD_STATUS.DUE]} (Lead time)`
   }, {
     value: EXPIRY_STATUS.NO_DATE,
     label: STATUS_LABEL[EXPIRY_STATUS.NO_DATE]
@@ -763,6 +757,8 @@ function ExportOneMonthExpiryCell({
     </div>;
 }
 // Lead time — ต้องยื่นเรื่องให้ กสทช. ก่อนใบอนุญาตนำออกหมดอายุ 15 วัน
+// สถานะมีแค่ 2 แบบ: "ถึงกำหนดยื่น" กับ "เลยกำหนดยื่น"
+// ถ้าเป็น "ถึงกำหนดยื่น" แต่เหลือเวลาไม่เกิน 7 วัน ป้ายจะเปลี่ยนเป็นสีส้มเตือน (ข้อความเดิม)
 function ExportLeadTimeCell({
   row
 }) {
@@ -775,9 +771,11 @@ function ExportLeadTimeCell({
       </div>;
   }
   return <div className="il-expiry-cell">
-      <span className={LEAD_BADGE_CLASS[exp.leadStatus]}>{LEAD_STATUS_LABEL[exp.leadStatus]}</span>
+      <span className={leadBadgeClass(exp)}>{LEAD_STATUS_LABEL[exp.leadStatus]}</span>
       <span>{formatThaiDate(exp.leadDate)}</span>
-      <span className="il-expiry-days">{leadDaysLabel(exp.leadDaysLeft)}</span>
+      <span className={'il-expiry-days' + (exp.leadAlert ? ' il-lead-days-alert' : '')}>
+        {leadDaysLabel(exp.leadDaysLeft)}
+      </span>
     </div>;
 }
 function ExportTraceModal({
@@ -857,7 +855,7 @@ function ExportTraceModal({
             <div className="wh-detail-item">
               <span className="wh-detail-label">{`Lead time (${EXPORT_LICENSE_LEAD_DAYS} วัน)`}</span>
               <span className="wh-detail-value il-detail-status">
-                <span className={LEAD_BADGE_CLASS[expiryInfo.leadStatus]}>{LEAD_STATUS_LABEL[expiryInfo.leadStatus]}</span>
+                <span className={leadBadgeClass(expiryInfo)}>{LEAD_STATUS_LABEL[expiryInfo.leadStatus]}</span>
                 {expiryInfo.hasDate && <span className="il-detail-days">{formatThaiDate(expiryInfo.leadDate)} · {leadDaysLabel(expiryInfo.leadDaysLeft)}</span>}
               </span>
             </div>
@@ -1019,6 +1017,11 @@ export function WHExportLicensePanel() {
         type: 'center',
         width: 24
       }, {
+        key: 'leadStatus',
+        header: 'สถานะ Lead time',
+        type: 'center',
+        width: 22
+      }, {
         key: 'machineNo',
         header: 'Machine No',
         type: 'text'
@@ -1091,6 +1094,7 @@ export function WHExportLicensePanel() {
               issueDate: r.IssueDate ? formatThaiDate(r.IssueDate) : '—',
               expiryDate: exp.hasDate ? formatThaiDate(exp.expiryDate) : '—',
               leadTimeDate: exp.hasDate ? formatThaiDate(exp.leadDate) : '—',
+              leadStatus: exp.hasDate ? `${LEAD_STATUS_LABEL[exp.leadStatus]} (${leadDaysLabel(exp.leadDaysLeft)})` : '—',
               machineNo: dash2(r.MachineNo),
               itControllerNo: dash2(r.ITControllerNo || r.SerialNumber),
               invoiceNo: dash2(r.InvoiceNo),
@@ -1282,6 +1286,7 @@ export function WHExportLicensePanel() {
     if (expiryFilter !== 'all') {
       list = list.filter(r => {
         const exp = computeExportExpiry(r);
+        if (expiryFilter === LEAD_FILTER_DUE_SOON) return exp.hasDate && exp.leadUrgent;
         if (expiryFilter === LEAD_STATUS.OVERDUE || expiryFilter === LEAD_STATUS.DUE) {
           return exp.leadStatus === expiryFilter;
         }
@@ -1329,7 +1334,16 @@ export function WHExportLicensePanel() {
   }, [rows]);
   const expiryOptions = useMemo(() => [{
     value: 'all',
-    label: 'ทุกสถานะวันหมดอายุ'
+    label: 'ทุกสถานะ'
+  }, {
+    value: LEAD_STATUS.OVERDUE,
+    label: `Lead time · ${LEAD_STATUS_LABEL[LEAD_STATUS.OVERDUE]}`
+  }, {
+    value: LEAD_FILTER_DUE_SOON,
+    label: `Lead time · ใกล้ครบกำหนด (≤ ${EXPORT_LICENSE_LEAD_WARN_DAYS} วัน)`
+  }, {
+    value: LEAD_STATUS.DUE,
+    label: `Lead time · ${LEAD_STATUS_LABEL[LEAD_STATUS.DUE]}`
   }, {
     value: EXPIRY_STATUS.NO_DATE,
     label: STATUS_LABEL[EXPIRY_STATUS.NO_DATE]
