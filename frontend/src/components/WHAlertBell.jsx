@@ -3,6 +3,7 @@ import { getImportLicenseAlerts } from '../api/importLicense.js';
 import { getExportLicenseAlerts } from '../api/exportLicense.js';
 import { useAppNavigate } from '../lib/nav.jsx';
 import { formatThaiDate, daysLeftLabel } from '../lib/licenseExpiry.js';
+import { leadDaysLabel, LEAD_STATUS, EXPORT_LICENSE_LEAD_DAYS, EXPORT_LICENSE_LEAD_WARN_DAYS } from '../lib/exportLicenseRules.js';
 import { dismissKey } from '../lib/licenseDismiss.js';
 import { exportDismissKey } from '../lib/exportLicenseDismiss.js';
 import { BellAlertIcon, XMarkIcon, ClockIcon, ArrowDownTrayIcon, ArrowUpTrayIcon } from './icons.jsx';
@@ -100,11 +101,15 @@ export default function WHAlertBell() {
     };
   }, [impItems]);
   const exp = useMemo(() => {
-    const list = expItems.filter(isAlertStatus);
+    const expired = expItems.filter(it => it.Status === 'EXPIRED');
+    const expiring = expItems.filter(it => it.Status === 'EXPIRING');
+    // ใบที่ยังไม่หมดอายุ แต่เลยกำหนดยื่น หรือใกล้ครบกำหนดยื่น กสทช. แล้ว
+    const lead = expItems.filter(it => !isAlertStatus(it) && (it.LeadStatus === LEAD_STATUS.OVERDUE || it.LeadUrgent));
     return {
-      all: list,
-      expired: list.filter(it => it.Status === 'EXPIRED'),
-      expiring: list.filter(it => it.Status === 'EXPIRING')
+      all: [...expired, ...expiring, ...lead],
+      expired,
+      expiring,
+      lead
     };
   }, [expItems]);
   const unseenCount = useMemo(() => {
@@ -177,7 +182,9 @@ export default function WHAlertBell() {
           <div className="lab-panel-head">
             <div>
               <h3 className="lab-panel-title">แจ้งเตือนอายุใบอนุญาต</h3>
-              <p className="lab-panel-sub">รวมนำเข้า (6 เดือน) และส่งออก (1 เดือน) · ตรวจสอบรายสัปดาห์</p>
+              <p className="lab-panel-sub">
+                รวมนำเข้า (6 เดือน) และส่งออก (1 เดือน) · ส่งออกเตือน Lead time ยื่น กสทช. ล่วงหน้า {EXPORT_LICENSE_LEAD_WARN_DAYS} วัน
+              </p>
             </div>
             <button className="lab-panel-close" onClick={() => setOpen(false)} aria-label="ปิด">
               <XMarkIcon className="size-4" />
@@ -196,7 +203,7 @@ export default function WHAlertBell() {
                 {it.Model ? ` · ${it.Model}` : ''} · {it.Total} เครื่อง
               </>} titleField={it => it.LicenseNo || '—'} />
 
-          <AlertSection theme="export" title="ใบอนุญาตส่งออก" kindIcon={<ArrowUpTrayIcon className="size-3" />} loaded={loaded} expired={exp.expired} expiring={exp.expiring} limit={expLimit} onLimitChange={setExpLimit} noDate={expNoDate} noDateLabel="ยังไม่ได้ระบุวันหมดอายุ/ใบขน" expiringLabel="ใกล้หมดอายุ (ภายใน 7 วัน)" onOpen={goExport} getKey={expKey} renderMeta={it => <>
+          <AlertSection theme="export" title="ใบอนุญาตส่งออก" kindIcon={<ArrowUpTrayIcon className="size-3" />} loaded={loaded} expired={exp.expired} expiring={exp.expiring} limit={expLimit} onLimitChange={setExpLimit} noDate={expNoDate} noDateLabel="ยังไม่ได้ระบุวันหมดอายุ/ใบขน" expiringLabel="ใกล้หมดอายุ (ภายใน 7 วัน)" onOpen={goExport} getKey={expKey} lead={exp.lead} leadLabel={`Lead time · ต้องยื่น กสทช. (ก่อนหมดอายุ ${EXPORT_LICENSE_LEAD_DAYS} วัน)`} renderMeta={it => <>
                 {it.Total || 1} เครื่อง
                 {it.IssueDate ? ` · ออกใบอนุญาต ${formatThaiDate(it.IssueDate)}` : ''}
               </>} titleField={it => it.ExceptionLicense || '—'} />
@@ -215,6 +222,8 @@ function AlertSection({
   loaded,
   expired,
   expiring,
+  lead = [],
+  leadLabel,
   limit,
   onLimitChange,
   noDate,
@@ -225,14 +234,17 @@ function AlertSection({
   renderMeta,
   titleField
 }) {
-  const total = expired.length + expiring.length;
+  const total = expired.length + expiring.length + lead.length;
   const themeClass = theme === 'export' ? ' lab-section-export' : ' lab-section-import';
   const sortByUrgent = (a, b) => (a.DaysLeft ?? 0) - (b.DaysLeft ?? 0);
+  const sortByLead = (a, b) => (a.LeadDaysLeft ?? 0) - (b.LeadDaysLeft ?? 0);
   const limitNum = limit === 'all' ? Infinity : Number(limit);
   const expiredShown = [...expired].sort(sortByUrgent).slice(0, limitNum);
-  const remain = Math.max(0, limitNum - expiredShown.length);
+  let remain = Math.max(0, limitNum - expiredShown.length);
   const expiringShown = [...expiring].sort(sortByUrgent).slice(0, remain);
-  const shownCount = expiredShown.length + expiringShown.length;
+  remain = Math.max(0, remain - expiringShown.length);
+  const leadShown = [...lead].sort(sortByLead).slice(0, remain);
+  const shownCount = expiredShown.length + expiringShown.length + leadShown.length;
   const hiddenByLimit = total - shownCount;
   return <div className={'lab-section' + themeClass}>
       <div className="lab-section-head">
@@ -247,6 +259,10 @@ function AlertSection({
             <span className="lab-sum-num">{expiring.length}</span>
             <span className="lab-sum-lbl">ใกล้หมด</span>
           </span>
+          {leadLabel && <span className="lab-sum-chip lab-sum-lead">
+              <span className="lab-sum-num">{lead.length}</span>
+              <span className="lab-sum-lbl">ต้องยื่น</span>
+            </span>}
         </span>
       </div>
 
@@ -273,6 +289,11 @@ function AlertSection({
             {expiringShown.map(it => <Row key={getKey(it)} item={it} onOpen={onOpen} renderMeta={renderMeta} titleField={titleField} />)}
           </>}
 
+        {leadShown.length > 0 && <>
+            <div className="lab-group-label lab-group-lead">{leadLabel}</div>
+            {leadShown.map(it => <Row key={getKey(it)} item={it} variant="lead" onOpen={onOpen} renderMeta={renderMeta} titleField={titleField} />)}
+          </>}
+
         {hiddenByLimit > 0 && <button type="button" className="lab-more-btn" onClick={() => onLimitChange('all')}>
             + ดูอีก {hiddenByLimit} รายการ
           </button>}
@@ -286,23 +307,32 @@ function AlertSection({
 }
 function Row({
   item,
+  variant = 'expiry',
   onOpen,
   renderMeta,
   titleField
 }) {
   const isExpired = item.Status === 'EXPIRED';
-  return <div className={'lab-item ' + (isExpired ? 'lab-item-expired' : 'lab-item-expiring')}>
+  const isLead = variant === 'lead';
+  const leadLate = item.LeadStatus === LEAD_STATUS.OVERDUE;
+  const wrapClass = isLead ? 'lab-item-lead-row' : isExpired ? 'lab-item-expired' : 'lab-item-expiring';
+  const barClass = isLead ? 'lab-bar-lead' : isExpired ? 'lab-bar-expired' : 'lab-bar-expiring';
+  const daysClass = isLead ? leadLate ? 'lab-days-expired' : 'lab-days-expiring' : isExpired ? 'lab-days-expired' : 'lab-days-expiring';
+  return <div className={'lab-item ' + wrapClass}>
       <button className="lab-item-main" onClick={() => onOpen?.(item)}>
-        <span className={'lab-item-bar ' + (isExpired ? 'lab-bar-expired' : 'lab-bar-expiring')} />
+        <span className={'lab-item-bar ' + barClass} />
         <span className="lab-item-body">
           <span className="lab-item-top">
             <span className="lab-item-license">{titleField(item)}</span>
-            <span className={'lab-item-days ' + (isExpired ? 'lab-days-expired' : 'lab-days-expiring')}>
-              {daysLeftLabel(item.DaysLeft)}
+            <span className={'lab-item-days ' + daysClass}>
+              {isLead ? leadDaysLabel(item.LeadDaysLeft) : daysLeftLabel(item.DaysLeft)}
             </span>
           </span>
           <span className="lab-item-meta">{renderMeta(item)}</span>
           <span className="lab-item-expiry">หมดอายุ {formatThaiDate(item.ExpiryDate)}</span>
+          {isLead && item.LeadTimeDate && <span className={'lab-item-lead' + (leadLate ? ' lab-item-lead-late' : '')}>
+              ยื่น กสทช. ภายใน {formatThaiDate(item.LeadTimeDate)}
+            </span>}
         </span>
       </button>
     </div>;

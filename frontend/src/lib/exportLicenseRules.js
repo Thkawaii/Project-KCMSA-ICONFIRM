@@ -6,26 +6,41 @@ export const EXPORT_LICENSE_VALIDITY_MONTHS = 1;
 // Lead time — ต้องยื่นเรื่องให้ กสทช. ก่อนใบอนุญาตนำออกหมดอายุอย่างน้อย 15 วัน
 export const EXPORT_LICENSE_LEAD_DAYS = 15;
 
+// ช่วง "ใกล้ครบกำหนด" ใช้สำหรับ *การแจ้งเตือนและสี* เท่านั้น
+// ไม่ใช่สถานะใหม่ — ป้ายสถานะยังมีแค่ "ถึงกำหนดยื่น" กับ "เลยกำหนดยื่น"
+export const EXPORT_LICENSE_LEAD_WARN_DAYS = 7;
+
+// สถานะ Lead time มีแค่ 2 สถานะ
+//   ถึงกำหนดยื่น  — ยังยื่นทันตามกำหนด
+//   เลยกำหนดยื่น  — เลยวันสุดท้ายที่ต้องยื่นแล้ว
+// (NO_DATE ไม่ใช่สถานะ Lead time แต่ใช้กรณีไม่มีวันที่ให้คำนวณ)
+// ค่าฟิลเตอร์พิเศษของตาราง Export License: "ถึงกำหนดยื่น" ที่เหลือเวลาไม่เกิน 7 วัน
+export const LEAD_FILTER_DUE_SOON = 'LEAD_DUE_SOON';
+
 export const LEAD_STATUS = {
   OVERDUE: 'LEAD_OVERDUE',
   DUE: 'LEAD_DUE',
-  OK: 'LEAD_OK',
   NO_DATE: 'LEAD_NO_DATE'
 };
 
 export const LEAD_STATUS_LABEL = {
   [LEAD_STATUS.OVERDUE]: 'เลยกำหนดยื่น',
-  [LEAD_STATUS.DUE]: 'ใกล้ถึงกำหนดยื่น',
-  [LEAD_STATUS.OK]: 'ถึงกำหนดยื่น',
+  [LEAD_STATUS.DUE]: 'ถึงกำหนดยื่น',
   [LEAD_STATUS.NO_DATE]: 'ยังไม่ระบุวันที่'
 };
 
 export const LEAD_BADGE_CLASS = {
   [LEAD_STATUS.OVERDUE]: 'il-badge il-badge-bad',
-  [LEAD_STATUS.DUE]: 'il-badge il-badge-warn',
-  [LEAD_STATUS.OK]: 'il-badge il-badge-ok',
+  [LEAD_STATUS.DUE]: 'il-badge il-badge-ok',
   [LEAD_STATUS.NO_DATE]: 'il-badge il-badge-muted'
 };
+
+// ป้ายสถานะ: "เลยกำหนดยื่น" = แดง, "ถึงกำหนดยื่น" = เขียว (ไม่มีสีส้ม)
+export function leadBadgeClass(info) {
+  if (!info || !info.hasDate) return LEAD_BADGE_CLASS[LEAD_STATUS.NO_DATE];
+  if (info.leadStatus === LEAD_STATUS.OVERDUE) return LEAD_BADGE_CLASS[LEAD_STATUS.OVERDUE];
+  return LEAD_BADGE_CLASS[LEAD_STATUS.DUE];
+}
 
 function atMidnight(d) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -79,11 +94,13 @@ const EMPTY = {
   status: EXPIRY_STATUS.NO_DATE,
   leadDate: null,
   leadDaysLeft: null,
-  leadStatus: LEAD_STATUS.NO_DATE
+  leadStatus: LEAD_STATUS.NO_DATE,
+  leadUrgent: false,
+  leadAlert: false
 };
 
 // คำนวณวันหมดอายุ + Lead time ของใบอนุญาตนำออกในครั้งเดียว
-export function computeExportLicenseDates(row, { withinDays = 7, leadWithinDays = 7 } = {}) {
+export function computeExportLicenseDates(row, { withinDays = 7, leadWarnDays = EXPORT_LICENSE_LEAD_WARN_DAYS } = {}) {
   const expiry = exportExpiryDate(row);
   if (!expiry) return { ...EMPTY };
 
@@ -99,10 +116,9 @@ export function computeExportLicenseDates(row, { withinDays = 7, leadWithinDays 
   else if (daysLeft <= withinDays) status = EXPIRY_STATUS.EXPIRING;
   else status = EXPIRY_STATUS.VALID;
 
-  let leadStatus;
-  if (leadDaysLeft < 0) leadStatus = LEAD_STATUS.OVERDUE;
-  else if (leadDaysLeft <= leadWithinDays) leadStatus = LEAD_STATUS.DUE;
-  else leadStatus = LEAD_STATUS.OK;
+  // 2 สถานะเท่านั้น
+  const leadStatus = leadDaysLeft < 0 ? LEAD_STATUS.OVERDUE : LEAD_STATUS.DUE;
+  const leadUrgent = leadStatus === LEAD_STATUS.DUE && leadDaysLeft <= leadWarnDays;
 
   return {
     hasDate: true,
@@ -112,7 +128,9 @@ export function computeExportLicenseDates(row, { withinDays = 7, leadWithinDays 
     status,
     leadDate: leadDay,
     leadDaysLeft,
-    leadStatus
+    leadStatus,
+    leadUrgent,
+    leadAlert: leadStatus === LEAD_STATUS.OVERDUE || leadUrgent
   };
 }
 

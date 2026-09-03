@@ -255,7 +255,7 @@
   margin-top: 3px;
   padding: 1px 9px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 100;
   color: var(--color-brand-700, #0f8580);
   background: var(--color-brand-50, #eafcfb);
   border: 1px solid var(--color-brand-200, #9deeea);
@@ -1118,7 +1118,7 @@
 }
 .il-expiry-days {
   font-size: 11px;
-  color: var(--text-muted);
+  color: #0f172a;
 }
 
 @media (max-width: 640px) {
@@ -1563,4 +1563,21 @@
   flex-direction: column;
   gap: 3px;
   align-items: flex-start;
+}
+
+/* บรรทัดนับวันใต้ป้าย — ใช้สีดำ ไม่ต้องเน้นสี (ตัวป้ายบอกสถานะเขียว/แดงอยู่แล้ว) */
+.il-lead-days-alert {
+  color: #0f172a;
+  font-weight: 100;
+}
+
+
+/* แถวกลุ่ม Lead time ในกระดิ่งแจ้งเตือน */
+.lab-list .lab-item-lead-row:hover {
+  background: #f5f9ff;
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.16),
+    inset 0 0 0 1.5px rgba(59, 130, 246, 0.45);
+}
+.lab-item-lead-row:hover .lab-item-license {
+  color: #1d4ed8;
 }

@@ -190,6 +190,9 @@ type exportLicenseRow struct {
 	LeadStatus   string     `json:"LeadStatus"`
 	LeadDaysLeft int        `json:"LeadDaysLeft"`
 	LeadDays     int        `json:"LeadDays"`
+	// LeadUrgent = ถึงกำหนดยื่นและเหลือเวลาไม่เกิน ExportLicenseLeadWarnDays วัน (ใช้เตือน ไม่ใช่สถานะ)
+	LeadUrgent   bool `json:"LeadUrgent"`
+	LeadWarnDays int  `json:"LeadWarnDays"`
 }
 
 func isControllerNo(s string) bool {
@@ -291,6 +294,8 @@ func resolveExportLinks(items []models.ExportLicenseItem) []exportLicenseRow {
 			LeadStatus:        leadStatus,
 			LeadDaysLeft:      leadDaysLeft,
 			LeadDays:          models.ExportLicenseLeadDays,
+			LeadUrgent:        leadStatus == models.ExportLeadDue && leadDaysLeft <= models.ExportLicenseLeadWarnDays,
+			LeadWarnDays:      models.ExportLicenseLeadWarnDays,
 		})
 	}
 	return out
@@ -361,6 +366,8 @@ func GetExportLicenseTrace(c *gin.Context) {
 			"leadStatus":   leadStatus,
 			"leadDaysLeft": leadDaysLeft,
 			"leadDays":     models.ExportLicenseLeadDays,
+			"leadUrgent":   leadStatus == models.ExportLeadDue && leadDaysLeft <= models.ExportLicenseLeadWarnDays,
+			"leadWarnDays": models.ExportLicenseLeadWarnDays,
 		},
 	}
 
@@ -745,12 +752,15 @@ func GetExportLicenseAlerts(c *gin.Context) {
 		LeadDaysLeft int        `json:"LeadDaysLeft"`
 		LeadStatus   string     `json:"LeadStatus"`
 		LeadDays     int        `json:"LeadDays"`
+		// LeadUrgent = ถึงกำหนดยื่นและเหลือไม่เกิน LeadWarnDays วัน (ใช้ตัดสินว่าจะเตือนหรือไม่)
+		LeadUrgent   bool `json:"LeadUrgent"`
+		LeadWarnDays int  `json:"LeadWarnDays"`
 	}
 
 	var (
-		out                                   = []alertRow{}
-		expiredCnt, soonCnt, validCnt, noDate int
-		leadOverdueCnt, leadDueCnt            int
+		out                                        = []alertRow{}
+		expiredCnt, soonCnt, validCnt, noDate      int
+		leadOverdueCnt, leadDueCnt, leadDueSoonCnt int
 	)
 
 	for _, key := range order {
@@ -760,6 +770,7 @@ func GetExportLicenseAlerts(c *gin.Context) {
 			Total:            g.Total,
 			IssueDate:        g.IssueDate,
 			LeadDays:         models.ExportLicenseLeadDays,
+			LeadWarnDays:     models.ExportLicenseLeadWarnDays,
 			LeadStatus:       models.ExportLeadNoDate,
 		}
 
@@ -779,15 +790,19 @@ func GetExportLicenseAlerts(c *gin.Context) {
 		leadDay := expDay.AddDate(0, 0, -models.ExportLicenseLeadDays)
 		row.LeadTimeDate = &leadDay
 		row.LeadDaysLeft = models.DaysBetween(today, leadDay)
-		switch {
-		case row.LeadDaysLeft < 0:
+
+		// สถานะ Lead time มีแค่ 2 แบบ: เลยกำหนดยื่น / ถึงกำหนดยื่น
+		// ส่วน "ใกล้ครบกำหนด" เป็นแค่ระดับความเร่งด่วน (LeadUrgent) ไม่ใช่สถานะ
+		if row.LeadDaysLeft < 0 {
 			row.LeadStatus = models.ExportLeadOverdue
 			leadOverdueCnt++
-		case row.LeadDaysLeft <= 7:
+		} else {
 			row.LeadStatus = models.ExportLeadDue
 			leadDueCnt++
-		default:
-			row.LeadStatus = models.ExportLeadOK
+			if row.LeadDaysLeft <= models.ExportLicenseLeadWarnDays {
+				row.LeadUrgent = true
+				leadDueSoonCnt++
+			}
 		}
 
 		switch {
@@ -802,8 +817,9 @@ func GetExportLicenseAlerts(c *gin.Context) {
 			validCnt++
 		}
 
-		// ยังไม่หมดอายุ แต่ถ้าเลย/ใกล้ถึงกำหนดยื่น กสทช. แล้ว ก็ยังต้องเตือน
-		if onlyAlert && row.Status == LicenseExpiryValid && row.LeadStatus == models.ExportLeadOK {
+		// ยังไม่หมดอายุ แต่ถ้าเลยกำหนดยื่น หรือใกล้ครบกำหนดยื่น กสทช. แล้ว ก็ยังต้องเตือน
+		leadNeedsAlert := row.LeadStatus == models.ExportLeadOverdue || row.LeadUrgent
+		if onlyAlert && row.Status == LicenseExpiryValid && !leadNeedsAlert {
 			continue
 		}
 		out = append(out, row)
@@ -829,17 +845,22 @@ func GetExportLicenseAlerts(c *gin.Context) {
 	})
 
 	c.JSON(200, gin.H{
-		"generatedAt": now,
-		"withinDays":  withinDays,
-		"leadDays":    models.ExportLicenseLeadDays,
+		"generatedAt":  now,
+		"withinDays":   withinDays,
+		"leadDays":     models.ExportLicenseLeadDays,
+		"leadWarnDays": models.ExportLicenseLeadWarnDays,
 		"counts": gin.H{
-			"expired":     expiredCnt,
-			"expiring":    soonCnt,
-			"valid":       validCnt,
-			"noDate":      noDate,
-			"alert":       expiredCnt + soonCnt,
+			"expired":  expiredCnt,
+			"expiring": soonCnt,
+			"valid":    validCnt,
+			"noDate":   noDate,
+			"alert":    expiredCnt + soonCnt,
+			// leadOverdue = เลยกำหนดยื่น, leadDue = ถึงกำหนดยื่นทั้งหมด,
+			// leadDueSoon = ถึงกำหนดยื่นและเหลือไม่เกิน leadWarnDays วัน
 			"leadOverdue": leadOverdueCnt,
 			"leadDue":     leadDueCnt,
+			"leadDueSoon": leadDueSoonCnt,
+			"leadAlert":   leadOverdueCnt + leadDueSoonCnt,
 		},
 		"items": out,
 	})

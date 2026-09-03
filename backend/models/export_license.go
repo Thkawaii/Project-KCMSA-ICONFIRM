@@ -52,11 +52,19 @@ const ExportLicenseValidityMonths = 1
 // Lead time: ต้องยื่นเรื่องให้ กสทช. ก่อนใบอนุญาตนำออกหมดอายุอย่างน้อย 15 วัน
 const ExportLicenseLeadDays = 15
 
-// สถานะ Lead time
+// ExportLicenseLeadWarnDays ช่วง "ใกล้ครบกำหนดยื่น" ใช้สำหรับการแจ้งเตือนเท่านั้น
+// ไม่ใช่สถานะใหม่ — สถานะ Lead time ยังมีแค่ 2 แบบตามด้านล่าง
+const ExportLicenseLeadWarnDays = 7
+
+// สถานะ Lead time มีแค่ 2 สถานะ
+//
+//	ExportLeadDue     — ถึงกำหนดยื่น (ยังยื่นทันตามกำหนด)
+//	ExportLeadOverdue — เลยกำหนดยื่น (เลยวันสุดท้ายที่ต้องยื่นแล้ว)
+//
+// ExportLeadNoDate ไม่ใช่สถานะ Lead time แต่ใช้กรณีไม่มีวันที่ให้คำนวณ
 const (
-	ExportLeadOverdue = "LEAD_OVERDUE" // เลยกำหนดยื่นแล้ว
-	ExportLeadDue     = "LEAD_DUE"     // ใกล้ถึงกำหนดยื่น
-	ExportLeadOK      = "LEAD_OK"      // ยังไม่ถึงกำหนดยื่น
+	ExportLeadOverdue = "LEAD_OVERDUE" // เลยกำหนดยื่น
+	ExportLeadDue     = "LEAD_DUE"     // ถึงกำหนดยื่น
 	ExportLeadNoDate  = "LEAD_NO_DATE" // ไม่มีวันที่ให้คำนวณ
 )
 
@@ -112,6 +120,7 @@ func DaysBetween(from, to time.Time) int {
 }
 
 // LeadStatusAt คืนสถานะ Lead time และจำนวนวันคงเหลือถึงวันที่ต้องยื่น
+// มีแค่ 2 สถานะ: เลยกำหนดยื่น (daysLeft < 0) และ ถึงกำหนดยื่น (daysLeft >= 0)
 func (m *ExportLicenseItem) LeadStatusAt(now time.Time) (status string, daysLeft int) {
 	lead := m.LeadTimeDate()
 	if lead == nil {
@@ -119,12 +128,15 @@ func (m *ExportLicenseItem) LeadStatusAt(now time.Time) (status string, daysLeft
 	}
 	daysLeft = DaysBetween(now, *lead)
 
-	switch {
-	case daysLeft < 0:
+	if daysLeft < 0 {
 		return ExportLeadOverdue, daysLeft
-	case daysLeft <= 7:
-		return ExportLeadDue, daysLeft
-	default:
-		return ExportLeadOK, daysLeft
 	}
+	return ExportLeadDue, daysLeft
+}
+
+// LeadUrgentAt บอกว่าใบนี้ "ใกล้ครบกำหนดยื่น" หรือยัง (เหลือไม่เกิน ExportLicenseLeadWarnDays วัน)
+// ใช้ตัดสินว่าจะเด้งแจ้งเตือนหรือไม่ — ไม่ใช่สถานะที่แสดงบนป้าย
+func (m *ExportLicenseItem) LeadUrgentAt(now time.Time) bool {
+	status, daysLeft := m.LeadStatusAt(now)
+	return status == ExportLeadDue && daysLeft <= ExportLicenseLeadWarnDays
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getExportLicenseAlerts } from '../api/exportLicense.js';
 import { useAppNavigate } from '../lib/nav.jsx';
 import { formatThaiDate, daysLeftLabel } from '../lib/licenseExpiry.js';
-import { leadDaysLabel, LEAD_STATUS, EXPORT_LICENSE_LEAD_DAYS } from '../lib/exportLicenseRules.js';
+import { leadDaysLabel, LEAD_STATUS, EXPORT_LICENSE_LEAD_DAYS, EXPORT_LICENSE_LEAD_WARN_DAYS } from '../lib/exportLicenseRules.js';
 import { addExportDismissed, clearExportDismissed, exportDismissKey, pruneExportDismissed, readExportDismissed, removeExportDismissed } from '../lib/exportLicenseDismiss.js';
 import { BellAlertIcon, XMarkIcon, ClockIcon, EyeSlashIcon, ArrowPathIcon, ArrowUpTrayIcon } from './icons.jsx';
 const POLL_MS = 60_000;
@@ -17,7 +17,7 @@ export default function ExportLicenseAlertBell() {
     expiring: 0,
     noDate: 0,
     leadOverdue: 0,
-    leadDue: 0
+    leadDueSoon: 0
   });
   const [loaded, setLoaded] = useState(false);
   const [hasNew, setHasNew] = useState(false);
@@ -38,7 +38,7 @@ export default function ExportLicenseAlertBell() {
         expiring: c.expiring || 0,
         noDate: c.noDate || 0,
         leadOverdue: c.leadOverdue || 0,
-        leadDue: c.leadDue || 0
+        leadDueSoon: c.leadDueSoon || 0
       });
       setDismissed(pruneExportDismissed(list));
       setLoaded(true);
@@ -68,8 +68,8 @@ export default function ExportLicenseAlertBell() {
     const hid = items.filter(isHidden);
     const expired = vis.filter(it => it.Status === 'EXPIRED');
     const expiring = vis.filter(it => it.Status === 'EXPIRING');
-    // ใบที่ยังไม่หมดอายุ แต่เลย/ใกล้ถึงกำหนดยื่นเรื่องให้ กสทช. แล้ว
-    const lead = vis.filter(it => it.Status !== 'EXPIRED' && it.Status !== 'EXPIRING' && (it.LeadStatus === LEAD_STATUS.OVERDUE || it.LeadStatus === LEAD_STATUS.DUE));
+    // ใบที่ยังไม่หมดอายุ แต่เลยกำหนดยื่น หรือใกล้ครบกำหนดยื่นเรื่องให้ กสทช. แล้ว
+    const lead = vis.filter(it => it.Status !== 'EXPIRED' && it.Status !== 'EXPIRING' && (it.LeadStatus === LEAD_STATUS.OVERDUE || it.LeadUrgent));
     return {
       hidden: hid,
       vExpired: expired,
@@ -167,7 +167,7 @@ export default function ExportLicenseAlertBell() {
             </div>
             <div className="lab-sum-chip lab-sum-lead">
               <span className="lab-sum-num">{vLead.length}</span>
-              <span className="lab-sum-lbl">ถึงกำหนดยื่น</span>
+              <span className="lab-sum-lbl">ต้องยื่น กสทช.</span>
             </div>
           </div>
 
@@ -196,7 +196,7 @@ export default function ExportLicenseAlertBell() {
 
             {vLead.length > 0 && <>
                 <div className="lab-group-label lab-group-lead">
-                  ถึงกำหนดยื่น กสทช. (ก่อนหมดอายุ {EXPORT_LICENSE_LEAD_DAYS} วัน)
+                  Lead time · ต้องยื่น กสทช. (ก่อนหมดอายุ {EXPORT_LICENSE_LEAD_DAYS} วัน · เตือนล่วงหน้า {EXPORT_LICENSE_LEAD_WARN_DAYS} วัน)
                 </div>
                 {vLead.map(it => <ExportAlertItem key={exportDismissKey(it)} item={it} onOpen={goToLicense} onDismiss={handleDismiss} />)}
               </>}
@@ -233,13 +233,13 @@ function ExportAlertItem({
   onRestore
 }) {
   const isExpired = item.Status === 'EXPIRED';
-  const isLeadOnly = !isExpired && item.Status !== 'EXPIRING' && (item.LeadStatus === LEAD_STATUS.OVERDUE || item.LeadStatus === LEAD_STATUS.DUE);
+  const isLeadOnly = !isExpired && item.Status !== 'EXPIRING' && (item.LeadStatus === LEAD_STATUS.OVERDUE || item.LeadUrgent);
   return <div className={'lab-item' + (hidden ? ' lab-item-hidden' : '')}>
       <button className="lab-item-main" onClick={() => onOpen?.(item)}>
         <span className={'lab-item-bar ' + (isExpired ? 'lab-bar-expired' : isLeadOnly ? 'lab-bar-lead' : 'lab-bar-expiring')} />
         <span className="lab-item-body">
           <span className="lab-item-top">
-            <span className="lab-item-license">{item.SerialNumber || '—'}</span>
+            <span className="lab-item-license">{item.ExceptionLicense || item.SerialNumber || '—'}</span>
             <span className={'lab-item-days ' + (isExpired ? 'lab-days-expired' : 'lab-days-expiring')}>
               {isLeadOnly ? leadDaysLabel(item.LeadDaysLeft) : daysLeftLabel(item.DaysLeft)}
             </span>
