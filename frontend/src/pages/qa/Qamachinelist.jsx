@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppShell from '../../components/AppShell.jsx';
 import SelectField from '../../components/Selectfield.jsx';
-import PartTag from '../../components/Parttag.jsx';
+import PartTag, { partTagLabel } from '../../components/Parttag.jsx';
 import PeriodRangePicker from '../../components/PeriodRangePicker.jsx';
 import { inPeriod, periodRangeLabel, periodFileTag } from '../../lib/dateRange.js';
 import { ArrowDownTrayIcon, CameraIcon, CheckCircleIcon, ClockIcon, DocumentTextIcon, QrCodeIcon, Squares2X2Icon, TagIcon, WrenchScrewdriverIcon, XMarkIcon } from '../../components/icons.jsx';
@@ -11,12 +11,14 @@ import { API_BASE_URL } from '../../api/client.js';
 import { jsPDF } from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { SARABUN_REGULAR_BASE64, SARABUN_BOLD_BASE64 } from '../../lib/sarabunFont.js';
-import { buildStyledXlsxBlob, downloadBlob } from '../../lib/xlsx.js';
+import { buildStyledXlsxWorkbookBlob, downloadBlob } from '../../lib/xlsx.js';
 const navItems = [{
   to: '/qa',
   label: 'ตรวจสอบ QA',
   icon: <CheckCircleIcon className="size-4" />
 }];
+// ลำดับชนิดพาร์ทมาตรฐาน ใช้จัดลำดับชีตใน Excel (แยกชีตตามชนิดพาร์ท)
+const COMPONENT_SHEET_ORDER = ['ITC', 'CV', 'SM', 'MP', 'PH', 'EN', 'CW'];
 function licenseMatchMeta(status) {
   switch (status) {
     case 'MATCH':
@@ -462,32 +464,65 @@ export default function QAMachineList() {
         type: 'center',
         width: 12
       }];
-      const rows = list.map((r, i) => ({
-        item: i + 1,
-        partName: dash(r.partName),
-        componentLabel: dash(r.componentLabel || r.component),
-        model: dash(r.model),
-        asmModel: dash(r.asmModel),
-        specCode: dash(r.specCode),
-        specDetail: dash(r.specDetail),
-        itDevice: dash(r.itDevice),
-        machineNo: dash(r.machineNo),
-        partNo: dash(r.partNo),
-        serialNo: dash(r.serialNo),
-        itControllerNo: dash(r.itControllerNo),
-        imei: dash(r.imei),
-        licenseNo: dash(r.licenseNo),
-        invoiceNo: dash(r.invoiceNo),
-        exportCountry: dash(r.exportCountry),
-        matchStatus: licenseMatchMeta(r.matchStatus).label,
-        confirmedAt: r.confirmedAt ? thaiDateLabel(toYMD(new Date(r.confirmedAt))) : '—',
-        photo: photos[i] || null,
-        status: dash(r.status)
-      }));
-      const blob = buildStyledXlsxBlob({
-        sheetName: 'QA Check Sheet',
-        columns,
-        rows
+      // จัดกลุ่มแถวตามชนิดพาร์ท (component) เพื่อแยกเป็นคนละชีตในไฟล์เดียวกัน
+      const groups = new Map();
+      list.forEach((r, i) => {
+        const code = String(r.component || '').trim().toUpperCase() || 'OTHER';
+        if (!groups.has(code)) groups.set(code, []);
+        groups.get(code).push({
+          r,
+          photo: photos[i] || null
+        });
+      });
+      const knownCodes = COMPONENT_SHEET_ORDER.filter(c => groups.has(c));
+      const otherCodes = [...groups.keys()].filter(c => !COMPONENT_SHEET_ORDER.includes(c)).sort();
+      const orderedCodes = [...knownCodes, ...otherCodes];
+      const usedSheetNames = new Set();
+      const sheets = orderedCodes.map(code => {
+        const entries = groups.get(code);
+        let sheetLabel = partTagLabel(code) || entries[0]?.r.componentLabel || entries[0]?.r.component || code || 'อื่นๆ';
+        sheetLabel = String(sheetLabel).slice(0, 31) || 'อื่นๆ';
+        // กันชื่อชีตซ้ำ (กรณีชนิดพาร์ทไม่รู้จักหลายแบบชื่อซ้ำกัน)
+        let uniqueLabel = sheetLabel;
+        let suffix = 2;
+        while (usedSheetNames.has(uniqueLabel)) {
+          uniqueLabel = `${sheetLabel.slice(0, 28)} ${suffix}`;
+          suffix += 1;
+        }
+        usedSheetNames.add(uniqueLabel);
+        const rows = entries.map(({
+          r,
+          photo
+        }, i) => ({
+          item: i + 1,
+          partName: dash(r.partName),
+          componentLabel: dash(r.componentLabel || r.component),
+          model: dash(r.model),
+          asmModel: dash(r.asmModel),
+          specCode: dash(r.specCode),
+          specDetail: dash(r.specDetail),
+          itDevice: dash(r.itDevice),
+          machineNo: dash(r.machineNo),
+          partNo: dash(r.partNo),
+          serialNo: dash(r.serialNo),
+          itControllerNo: dash(r.itControllerNo),
+          imei: dash(r.imei),
+          licenseNo: dash(r.licenseNo),
+          invoiceNo: dash(r.invoiceNo),
+          exportCountry: dash(r.exportCountry),
+          matchStatus: licenseMatchMeta(r.matchStatus).label,
+          confirmedAt: r.confirmedAt ? thaiDateLabel(toYMD(new Date(r.confirmedAt))) : '—',
+          photo: photo,
+          status: dash(r.status)
+        }));
+        return {
+          sheetName: uniqueLabel,
+          columns,
+          rows
+        };
+      });
+      const blob = buildStyledXlsxWorkbookBlob({
+        sheets
       });
       downloadBlob(blob, `QA-CheckSheet-${periodTag}.xlsx`);
     } catch (err) {
@@ -518,7 +553,7 @@ export default function QAMachineList() {
             <ArrowDownTrayIcon className="size-4" />
             {exportingPDF ? 'กำลังสร้าง PDF...' : 'Export PDF (Check Sheet)'}
           </button>
-          <button className="qa-download-btn qa-export-btn qa-export-btn-excel" onClick={handleExportExcel} disabled={loading || filtered.length === 0 || exportingExcel} title={filtered.length === 0 ? 'ไม่มีรายการให้ออก Excel' : `ดาวน์โหลด Excel — ช่วง ${periodLabel}`}>
+          <button className="qa-download-btn qa-export-btn qa-export-btn-excel" onClick={handleExportExcel} disabled={loading || filtered.length === 0 || exportingExcel} title={filtered.length === 0 ? 'ไม่มีรายการให้ออก Excel' : `ดาวน์โหลด Excel (แยกชีตตามชนิดพาร์ท) — ช่วง ${periodLabel}`}>
             <ArrowDownTrayIcon className="size-4" />
             {exportingExcel ? 'กำลังสร้าง Excel...' : 'Export Excel'}
           </button>
