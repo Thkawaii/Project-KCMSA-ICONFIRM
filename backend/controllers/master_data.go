@@ -45,12 +45,9 @@ func GetMasterData(c *gin.Context) {
 	if code != "" && len(masterData) == 0 {
 		if a := lookupCodeAlias(componentType, code); a != nil {
 			q2 := config.DB.Order("item_no asc").Order("id asc").
-				Where("serial_no = ?", a.ToSerialNo)
+				Where("serial_no = ?", a.ToOld)
 			if componentType != "" {
 				q2 = q2.Where("component_type = ?", componentType)
-			}
-			if strings.TrimSpace(a.ToPartNo) != "" {
-				q2 = q2.Where("part_no = ?", a.ToPartNo)
 			}
 			q2.Find(&masterData)
 		}

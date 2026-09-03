@@ -354,7 +354,7 @@ func resolveMachineNo(raw string) string {
 		return raw
 	}
 	if a := lookupCodeAliasKind("", "machine", raw); a != nil {
-		if v := strings.TrimSpace(a.ToSerialNo); v != "" {
+		if v := strings.TrimSpace(a.ToOld); v != "" {
 			return v
 		}
 	}

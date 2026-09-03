@@ -620,11 +620,11 @@ func matchImportLicense(code, invoiceNo, productionNo string) (string, string, *
 		First(&item).Error
 
 	if err != nil {
-		if alias := lookupCodeAlias("import_license", code); alias != nil && alias.ToSerialNo != "" {
+		if alias := lookupCodeAlias("import_license", code); alias != nil && alias.ToOld != "" {
 			if e2 := config.DB.
-				Where("machine_no = ? OR production_no = ?", alias.ToSerialNo, alias.ToSerialNo).
+				Where("machine_no = ? OR production_no = ?", alias.ToOld, alias.ToOld).
 				First(&item).Error; e2 == nil {
-				code = alias.ToSerialNo
+				code = alias.ToOld
 			} else {
 				return models.MatchStatusNotFound,
 					"ไม่พบ " + code + " ในบัญชีใบอนุญาตนำเข้า", nil

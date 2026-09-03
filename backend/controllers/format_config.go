@@ -310,20 +310,26 @@ func oldValueExistsInRegistry(kind, oldValue string) bool {
 	return buildRegistryIndex().hasOld(kind, oldValue)
 }
 
+// lookupCodeAlias หาแถว Change Format Part ที่ New (ค่าใหม่) ตรงกับ rawCode
+// ตรงกันแบบ normalize (ตัวพิมพ์ใหญ่/ตัวเลข/ตัวอักษรล้วน) ไม่สนตัวคั่นหรือช่องว่าง
+// ตารางนี้เป็นตารางตั้งค่าที่ดูแลโดยแอดมิน ขนาดเล็ก จึงสแกนเทียบในโค้ดได้โดยไม่ต้องพึ่ง index
 func lookupCodeAlias(componentType, rawCode string) *models.CodeAlias {
 	norm := NormalizeCodeValue(rawCode)
 	if norm == "" {
 		return nil
 	}
 
-	q := config.DB.Where("old = ?", norm)
+	q := config.DB.Order("id asc")
 	if strings.TrimSpace(componentType) != "" {
 		q = q.Where("component_type = ? OR component_type = ''", componentType)
 	}
 
-	var a models.CodeAlias
-	if err := q.First(&a).Error; err == nil {
-		return &a
+	var rows []models.CodeAlias
+	q.Find(&rows)
+	for i := range rows {
+		if NormalizeCodeValue(rows[i].FromCode) == norm {
+			return &rows[i]
+		}
 	}
 	return nil
 }
@@ -334,7 +340,7 @@ func lookupCodeAliasKind(componentType, kind, rawCode string) *models.CodeAlias 
 		return nil
 	}
 
-	q := config.DB.Where("old = ?", norm)
+	q := config.DB.Order("id asc")
 	if strings.TrimSpace(kind) != "" {
 		q = q.Where("kind = ?", kind)
 	}
@@ -342,9 +348,28 @@ func lookupCodeAliasKind(componentType, kind, rawCode string) *models.CodeAlias 
 		q = q.Where("component_type = ? OR component_type = ''", componentType)
 	}
 
-	var a models.CodeAlias
-	if err := q.First(&a).Error; err == nil {
-		return &a
+	var rows []models.CodeAlias
+	q.Find(&rows)
+	for i := range rows {
+		if NormalizeCodeValue(rows[i].FromCode) == norm {
+			return &rows[i]
+		}
+	}
+	return nil
+}
+
+// findCodeAliasByFromCode หาแถวเดิมที่ New (หลัง normalize) ตรงกัน ไม่จำกัดชนิด/กลุ่ม
+// ใช้ตอนอัปโหลดไฟล์เพื่อตรวจว่าเป็นการอัปเดตแถวเดิมหรือเพิ่มแถวใหม่
+func findCodeAliasByFromCode(norm string) *models.CodeAlias {
+	if norm == "" {
+		return nil
+	}
+	var rows []models.CodeAlias
+	config.DB.Order("id asc").Find(&rows)
+	for i := range rows {
+		if NormalizeCodeValue(rows[i].FromCode) == norm {
+			return &rows[i]
+		}
 	}
 	return nil
 }
@@ -357,7 +382,7 @@ func resolveByKind(kind, raw string) string {
 		return raw
 	}
 	if a := lookupCodeAliasKind("", kind, raw); a != nil {
-		if v := strings.TrimSpace(a.ToSerialNo); v != "" {
+		if v := strings.TrimSpace(a.ToOld); v != "" {
 			return v
 		}
 	}
@@ -456,8 +481,7 @@ func CreateCodeAlias(c *gin.Context) {
 	}
 
 	in.FromCode = strings.TrimSpace(in.FromCode)
-	in.ToSerialNo = strings.TrimSpace(in.ToSerialNo)
-	in.ToPartNo = strings.TrimSpace(in.ToPartNo)
+	in.ToOld = strings.TrimSpace(in.ToOld)
 	in.ComponentType = strings.TrimSpace(in.ComponentType)
 
 	rawKind := strings.TrimSpace(in.Kind)
@@ -470,14 +494,13 @@ func CreateCodeAlias(c *gin.Context) {
 		in.ComponentType = componentTypeOfKind(in.Kind)
 	}
 
-	if in.FromCode == "" || in.ToSerialNo == "" {
+	if in.FromCode == "" || in.ToOld == "" {
 		c.JSON(400, gin.H{"message": "ต้องระบุ New (ค่าใหม่) และ Old (ค่าเดิม) ให้ครบ"})
 		return
 	}
-	in.FromNorm = NormalizeCodeValue(in.FromCode)
 
-	if !oldValueExistsInRegistry(in.Kind, in.ToSerialNo) {
-		msg := "ไม่พบ Old (ค่าเดิม) \"" + in.ToSerialNo + "\" ในระบบ — ต้องมีค่าเดิมอยู่ในทะเบียนก่อนจึงจะเพิ่มได้"
+	if !oldValueExistsInRegistry(in.Kind, in.ToOld) {
+		msg := "ไม่พบ Old (ค่าเดิม) \"" + in.ToOld + "\" ในระบบ — ต้องมีค่าเดิมอยู่ในทะเบียนก่อนจึงจะเพิ่มได้"
 		if label := CodeKindLabel(in.Kind); label != "" {
 			msg += " (ชนิด " + label + ")"
 		}
@@ -494,7 +517,7 @@ func CreateCodeAlias(c *gin.Context) {
 		return
 	}
 
-	CreateAuditLog("FORMAT_CONFIG", in.ID, "code_alias_add", in.FromCode+"→"+in.ToSerialNo, userID, userName)
+	CreateAuditLog("FORMAT_CONFIG", in.ID, "code_alias_add", in.FromCode+"→"+in.ToOld, userID, userName)
 	c.JSON(201, in)
 }
 
@@ -520,13 +543,10 @@ var codeAliasFileColumns = map[string]func(*models.CodeAlias, string){
 	"oldcode":       func(a *models.CodeAlias, v string) { a.FromCode = v },
 	"newcode":       func(a *models.CodeAlias, v string) { a.FromCode = v },
 	"scancode":      func(a *models.CodeAlias, v string) { a.FromCode = v },
-	"toserialno":    func(a *models.CodeAlias, v string) { a.ToSerialNo = v },
-	"serialno":      func(a *models.CodeAlias, v string) { a.ToSerialNo = v },
-	"sn":            func(a *models.CodeAlias, v string) { a.ToSerialNo = v },
-	"old":           func(a *models.CodeAlias, v string) { a.ToSerialNo = v },
-	"topartno":      func(a *models.CodeAlias, v string) { a.ToPartNo = v },
-	"partno":        func(a *models.CodeAlias, v string) { a.ToPartNo = v },
-	"pn":            func(a *models.CodeAlias, v string) { a.ToPartNo = v },
+	"toserialno":    func(a *models.CodeAlias, v string) { a.ToOld = v },
+	"serialno":      func(a *models.CodeAlias, v string) { a.ToOld = v },
+	"sn":            func(a *models.CodeAlias, v string) { a.ToOld = v },
+	"old":           func(a *models.CodeAlias, v string) { a.ToOld = v },
 	"componenttype": func(a *models.CodeAlias, v string) { a.ComponentType = v },
 	"type":          func(a *models.CodeAlias, v string) { a.ComponentType = v },
 	"kind":          func(a *models.CodeAlias, v string) { a.Kind = v },
@@ -543,7 +563,7 @@ func codeAliasSetterFor(header string) func(*models.CodeAlias, string) {
 	case hdrChangeFormatNew:
 		return func(a *models.CodeAlias, v string) { a.FromCode = v }
 	case hdrChangeFormatOld:
-		return func(a *models.CodeAlias, v string) { a.ToSerialNo = v }
+		return func(a *models.CodeAlias, v string) { a.ToOld = v }
 	}
 	if s, ok := codeAliasFileColumns[header]; ok {
 		return s
@@ -618,12 +638,11 @@ func UploadCodeAliases(c *gin.Context) {
 		}
 
 		a.FromCode = strings.TrimSpace(a.FromCode)
-		a.ToSerialNo = strings.TrimSpace(a.ToSerialNo)
-		if a.FromCode == "" || a.ToSerialNo == "" {
+		a.ToOld = strings.TrimSpace(a.ToOld)
+		if a.FromCode == "" || a.ToOld == "" {
 			skipped++
 			continue
 		}
-		a.FromNorm = NormalizeCodeValue(a.FromCode)
 		rawKind := strings.TrimSpace(a.Kind)
 		a.Kind = NormalizeCodeKind(rawKind)
 		if rawKind != "" && a.Kind == "" {
@@ -644,8 +663,8 @@ func UploadCodeAliases(c *gin.Context) {
 		a.UserID = userID
 		a.UploadDate = now
 
-		if !registry.hasOld(a.Kind, a.ToSerialNo) {
-			msg := a.FromCode + ": ไม่พบ Old (ค่าเดิม) \"" + a.ToSerialNo + "\" ในระบบ"
+		if !registry.hasOld(a.Kind, a.ToOld) {
+			msg := a.FromCode + ": ไม่พบ Old (ค่าเดิม) \"" + a.ToOld + "\" ในระบบ"
 			if label := CodeKindLabel(a.Kind); label != "" {
 				msg += " (ชนิด " + label + ")"
 			}
@@ -654,15 +673,13 @@ func UploadCodeAliases(c *gin.Context) {
 			continue
 		}
 
-		var old models.CodeAlias
-		if err := config.DB.Where("old = ?", a.FromNorm).First(&old).Error; err == nil {
+		if old := findCodeAliasByFromCode(NormalizeCodeValue(a.FromCode)); old != nil {
 			if err := config.DB.Model(&models.CodeAlias{}).Where("id = ?", old.ID).
 				Updates(map[string]interface{}{
 					"component_type": a.ComponentType,
 					"kind":           a.Kind,
 					"new":            a.FromCode,
-					"to_serial_no":   a.ToSerialNo,
-					"to_part_no":     a.ToPartNo,
+					"old":            a.ToOld,
 					"note":           a.Note,
 					"upload_date":    now,
 					"user_id":        userID,
