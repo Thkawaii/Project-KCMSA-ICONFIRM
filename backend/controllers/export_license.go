@@ -374,6 +374,14 @@ func GetExportLicenseTrace(c *gin.Context) {
 		if err := config.DB.Where("no = ?", item.ITControllerNo).First(&mfg).Error; err == nil {
 			resp["mfgAssembly"] = mfg
 		}
+
+		// Serial Number ตัวจริงของชิ้นงานต้องดึงจาก Master Data (ที่อัปโหลดไว้ที่หน้า Master Data)
+		// โดยจับคู่ด้วย IT Controller No. — ห้ามใช้ SerialNumber ที่ติดมากับไฟล์ใบอนุญาตส่งออกเอง
+		// เพราะบางไฟล์ไม่มีคอลัมน์นี้จริง (ดู ExportLicenseItem.SerialNumber ที่เป็นแค่ key กันซ้ำตอนอัปโหลด)
+		var master models.MasterData
+		if err := config.DB.Where("it_controller_no = ?", item.ITControllerNo).First(&master).Error; err == nil {
+			resp["masterData"] = master
+		}
 	}
 
 	if item.MachineNo != "" {
@@ -456,16 +464,17 @@ func UploadExportLicense(c *gin.Context) {
 				row.ExtraJSON = string(b)
 			}
 		}
-		if row.SerialNumber == "" {
-			switch {
-			case row.MachineNo != "":
-				row.SerialNumber = row.MachineNo
-			case row.ITControllerNo != "":
-				row.SerialNumber = row.ITControllerNo
-			}
+		// ห้ามเอา Machine No มาแทน Serial Number เด็ดขาด — คนละค่ากัน (Machine No ไม่มี "-"
+		// ส่วน Serial Number ตัวจริงต้องมี "-") ถ้าไฟล์ไม่มี Serial Number จริง ใช้ IT Controller S/N
+		// แทนได้เท่านั้น ถ้าไม่มีทั้งคู่ ให้ข้ามแถวนั้นไปและแจ้งปัญหา แทนที่จะปลอมค่าขึ้นมา
+		if row.SerialNumber == "" && row.ITControllerNo != "" {
+			row.SerialNumber = row.ITControllerNo
 		}
 		if row.SerialNumber == "" {
 			skipped++
+			if row.MachineNo != "" {
+				problems = append(problems, "แถว "+strconv.Itoa(i+1)+": เครื่อง "+row.MachineNo+" ไม่มี Serial Number หรือ IT Controller S/N ในไฟล์ — ข้ามแถวนี้ (ไม่ใช้ Machine No แทน S/N เพราะเป็นคนละค่ากัน)")
+			}
 			continue
 		}
 		if seen[row.SerialNumber] {
@@ -569,13 +578,9 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 				setter(&it, val)
 			}
 		}
-		if it.SerialNumber == "" {
-			switch {
-			case it.MachineNo != "":
-				it.SerialNumber = it.MachineNo
-			case it.ITControllerNo != "":
-				it.SerialNumber = it.ITControllerNo
-			}
+		// เหมือนกับ UploadExportLicense — ห้ามใช้ Machine No แทน Serial Number
+		if it.SerialNumber == "" && it.ITControllerNo != "" {
+			it.SerialNumber = it.ITControllerNo
 		}
 		if it.SerialNumber == "" || seenSerial[it.SerialNumber] {
 			continue
