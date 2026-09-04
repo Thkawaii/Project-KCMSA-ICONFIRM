@@ -3,9 +3,10 @@ package models
 import "time"
 
 const (
-	MFGStatusMatched    = "MATCHED"
-	MFGStatusNotMatched = "NOT_MATCHED"
-	MFGStatusDuplicate  = "DUPLICATE"
+	MFGStatusMatched       = "MATCHED"
+	MFGStatusNotMatched    = "NOT_MATCHED"
+	MFGStatusDuplicate     = "DUPLICATE"
+	MFGStatusRetiredFormat = "RETIRED_FORMAT"
 )
 
 type MFGAssembly struct {
@@ -26,6 +27,9 @@ type MFGAssembly struct {
 	CheckDate *time.Time `gorm:"column:check_date"`
 
 	Status string `gorm:"column:status;size:20;index"`
+
+	// RetiredDetail เก็บรายละเอียด "ต้องใช้รหัสใหม่ตัวไหนแทน" ตอนสถานะเป็น RETIRED_FORMAT
+	RetiredDetail string `gorm:"column:retired_detail;size:255"`
 
 	WHMatched         bool       `gorm:"column:wh_matched;index"`
 	WHLicenseNo       string     `gorm:"column:wh_license_no;size:50"`
