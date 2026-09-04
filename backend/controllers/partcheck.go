@@ -38,8 +38,38 @@ func GetPartChecks(c *gin.Context) {
 	query.Find(&rows)
 
 	enrichPartChecksWithExpected(rows)
+	applyCurrentCodeFormat(rows)
 
 	c.JSON(200, rows)
+}
+
+// applyCurrentCodeFormat แสดงรหัสในตารางเป็น "รูปแบบที่ใช้อยู่ตอนนี้" เสมอ
+// แถวที่บันทึกไว้ก่อนตั้งค่า Change Format Part จึงถูกแสดงด้วยรูปแบบใหม่ตามไปด้วย
+// (แก้เฉพาะค่าที่ส่งออกไปแสดง ไม่แตะข้อมูลในฐานข้อมูล)
+func applyCurrentCodeFormat(rows []models.PartCheck) {
+	cache := map[string]string{}
+	current := func(v string) string {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			return v
+		}
+		if hit, ok := cache[v]; ok {
+			return hit
+		}
+		out := CurrentCodeOf(v)
+		cache[v] = out
+		return out
+	}
+
+	for i := range rows {
+		if rows[i].MatchStatus == models.MatchStatusRetiredFormat {
+			continue // แถวนี้ต้องคงรหัสเดิมที่สแกนไว้ เพื่อให้เห็นว่าสแกนอะไรผิดมา
+		}
+		rows[i].PN = current(rows[i].PN)
+		rows[i].SN = current(rows[i].SN)
+		rows[i].MachineNo = current(rows[i].MachineNo)
+		rows[i].ExpectedPN = current(rows[i].ExpectedPN)
+	}
 }
 
 func enrichPartChecksWithExpected(rows []models.PartCheck) {
@@ -276,6 +306,27 @@ func ScanPartCheck(c *gin.Context) {
 
 	var matchedItem *models.ImportLicenseItem
 
+	// รหัสที่ถูกแทนที่ด้วยรูปแบบใหม่ใน Change Format Part แล้ว ถือว่าเลิกใช้
+	// สแกนของเก่ามาต้องไม่ผ่าน ไม่งั้นหน้างานจะยังใช้บาร์โค้ดเดิมต่อไปได้เรื่อย ๆ
+	if msg, blocked := retiredScanMessage(check.PN, sn); blocked {
+		check.MatchStatus = models.MatchStatusRetiredFormat
+		check.MatchMessage = "รูปแบบเดิมถูกยกเลิกแล้ว"
+		check.MatchDetail = msg
+		if err := config.DB.Create(&check).Error; err != nil {
+			c.JSON(500, gin.H{"message": err.Error()})
+			return
+		}
+		CreateAuditLog("PART_CHECK", check.ID, "scan", check.SN+"/"+check.MatchStatus, userID, name)
+		c.JSON(201, gin.H{
+			"row":         check,
+			"matchStatus": check.MatchStatus,
+			"message":     check.MatchMessage,
+			"detail":      check.MatchDetail,
+			"matched":     false,
+		})
+		return
+	}
+
 	switch partType {
 	case ComponentEN:
 		checkEnginePart(&check)
@@ -303,6 +354,10 @@ func ScanPartCheck(c *gin.Context) {
 		check.SN = resolvedSN
 		sn = resolvedSN
 
+		// เก็บ "รูปแบบที่ใช้อยู่ตอนนี้" ลงตาราง เพื่อให้หน้า WH / MFG แสดงรหัสใหม่
+		// ส่วนการค้นทะเบียนด้านล่างยังใช้ค่าเดิม (resolvedPN / resolvedSN) เหมือนเดิม
+		displayPN, displaySN := CurrentCodeOf(resolvedPN), CurrentCodeOf(resolvedSN)
+
 		master := resolveITControllerMaster(resolvedPN, resolvedSN)
 
 		if master == nil {
@@ -314,8 +369,10 @@ func ScanPartCheck(c *gin.Context) {
 			check.MachineNo = derefStr(master.ITControllerNo)
 			check.MatchStatus = models.MatchStatusWrongPart
 			check.MatchMessage = "ข้อมูลไม่ตรง"
-			check.ExpectedPN = master.PartNo
-			check.MatchDetail = "S/N " + master.SerialNo + " คู่กับ P/N " + master.PartNo +
+			check.PN = displayPN
+			check.SN = displaySN
+			check.ExpectedPN = CurrentCodeOf(master.PartNo)
+			check.MatchDetail = "S/N " + master.SerialNo + " คู่กับ P/N " + check.ExpectedPN +
 				" แต่สแกนได้ " + rawPN
 		} else {
 			machineNo := derefStr(master.ITControllerNo)
@@ -325,11 +382,15 @@ func ScanPartCheck(c *gin.Context) {
 				check.ProductionNo = imei
 			}
 
-			if master.SerialNo != "" && !strings.EqualFold(sn, master.SerialNo) {
-				check.SN = master.SerialNo
+			if master.SerialNo != "" && !SameCode(sn, master.SerialNo) {
+				check.SN = CurrentCodeOf(master.SerialNo)
+			} else {
+				check.SN = displaySN
 			}
 			if master.PartNo != "" && check.PN == "" {
-				check.PN = master.PartNo
+				check.PN = CurrentCodeOf(master.PartNo)
+			} else {
+				check.PN = displayPN
 			}
 
 			if machineNo == "" {
@@ -396,20 +457,24 @@ func ScanPartCheck(c *gin.Context) {
 
 func checkEnginePart(check *models.PartCheck) {
 	// Engine สแกนคู่ P/N + S/N — แปลงตาม Change Format Part (ชนิด P/N และ S/N)
-	check.PN = ResolvePartNo(check.PN)
-	check.SN = ResolveComponentSerial(ComponentEN, check.SN)
+	// เทียบด้วยค่าเดิม แต่เก็บรูปแบบที่ใช้อยู่ตอนนี้ลงตาราง
+	oldPN := ResolvePartNo(check.PN)
+	oldSN := ResolveComponentSerial(ComponentEN, check.SN)
+	check.PN = CurrentCodeOf(oldPN)
+	check.SN = CurrentCodeOf(oldSN)
 
-	row, ok := engineRowFor(check.PN, check.SN)
+	row, ok := engineRowFor(oldPN, oldSN)
 	if !ok {
 
-		if other, found := engineRowByValue(check.SN); found {
+		if other, found := engineRowByValue(oldSN); found {
 			engine := strings.TrimSpace(pickField(other, "ENGINE", "Engine"))
 			history := strings.TrimSpace(pickField(other, "History", "Engine History"))
 
 			expected := engine
-			if strings.EqualFold(engine, check.SN) {
+			if SameCode(engine, oldSN) {
 				expected = history
 			}
+			expected = CurrentCodeOf(expected)
 
 			check.MachineNo = strings.TrimSpace(pickField(other, "Machine No", "Machine"))
 			check.MatchStatus = models.MatchStatusWrongPart
@@ -438,10 +503,11 @@ func checkPlanComponentPart(check *models.PartCheck, component string) {
 	label := ComponentLabel(component)
 
 	// แปลงรหัสรูปแบบใหม่ให้เป็นค่าเดิมในระบบ ตามที่ตั้งไว้ในหน้า Change Format Part
+	// ใช้ค่าเดิมในการเทียบแผน แต่เก็บ "รูปแบบที่ใช้อยู่ตอนนี้" ลงตารางเพื่อให้หน้าจอแสดงรหัสใหม่
 	if resolved := ResolveComponentSerial(component, scanned); !strings.EqualFold(resolved, scanned) {
 		scanned = resolved
-		check.SN = resolved
 	}
+	check.SN = CurrentCodeOf(scanned)
 
 	otherMachine := ""
 	otherComponent := ""

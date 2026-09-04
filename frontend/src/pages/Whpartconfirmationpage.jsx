@@ -90,6 +90,11 @@ const MATCH_LABELS = {
     text: 'ยืนยันซ้ำ',
     cls: 'il-badge-warn'
   },
+  RETIRED_FORMAT: {
+    Icon: XMarkIcon,
+    text: 'รูปแบบเดิมถูกยกเลิก',
+    cls: 'il-badge-bad'
+  },
   NOT_REQUIRED: {
     Icon: MinusIcon,
     text: 'ไม่ต้องเทียบ',
@@ -101,9 +106,10 @@ const NON_LICENSE_MATCH_TEXT = {
   NOT_FOUND: 'ข้อมูลไม่ถูกต้อง',
   WRONG_PART: 'ข้อมูลไม่ถูกต้อง',
   WRONG_INVOICE: 'ข้อมูลไม่ถูกต้อง',
-  WRONG_PRODNO: 'ข้อมูลไม่ถูกต้อง'
+  WRONG_PRODNO: 'ข้อมูลไม่ถูกต้อง',
+  RETIRED_FORMAT: 'รูปแบบเดิมถูกยกเลิก'
 };
-const INVALID_MATCH_STATUSES = ['NOT_FOUND', 'WRONG_PART', 'WRONG_INVOICE', 'WRONG_PRODNO'];
+const INVALID_MATCH_STATUSES = ['NOT_FOUND', 'WRONG_PART', 'WRONG_INVOICE', 'WRONG_PRODNO', 'RETIRED_FORMAT'];
 function matchBadge(status, partType) {
   const m = MATCH_LABELS[status] || MATCH_LABELS.NOT_REQUIRED;
   const code = String(partType || '').toUpperCase();
@@ -262,6 +268,11 @@ export default function WHPartConfirmationPage() {
         }
         if (res.matched) {
           successToast = isITC ? `ตรงกับบัญชี: ${sn}` : `บันทึกแล้ว: ${tagLabel(check.PartType)} — ${sn}`;
+        } else if (check.MatchStatus === 'RETIRED_FORMAT') {
+          // รหัสรูปแบบเก่าที่ถูกแทนที่ใน Change Format Part แล้ว
+          await scanErrorAlert(check.MatchMessage || 'รูปแบบเดิมถูกยกเลิกแล้ว', {
+            hint: res.detail || check.MatchDetail || 'กรุณาสแกนรหัสรูปแบบใหม่'
+          });
         } else if (isITC) {
           const errMsg = check.MatchMessage || res.message || 'ไม่ตรงกับบัญชีใบอนุญาตนำเข้า';
           const isMasterDataMiss = check.MatchStatus === 'NOT_FOUND' && errMsg.includes('ทะเบียนกลาง');
@@ -766,7 +777,7 @@ export default function WHPartConfirmationPage() {
                     <button className="tsf-action-btn" onClick={() => setDetailRow(r)}>
                       รายละเอียด
                     </button>
-                    {['NOT_FOUND', 'NOT_REQUIRED', 'DUPLICATE', 'WRONG_PART', 'WRONG_INVOICE', 'WRONG_PRODNO'].includes(r.MatchStatus) && <button className="tsf-action-btn tsf-action-btn-danger" onClick={() => handleDeleteCheck(r)}>
+                    {['NOT_FOUND', 'NOT_REQUIRED', 'DUPLICATE', 'WRONG_PART', 'WRONG_INVOICE', 'WRONG_PRODNO', 'RETIRED_FORMAT'].includes(r.MatchStatus) && <button className="tsf-action-btn tsf-action-btn-danger" onClick={() => handleDeleteCheck(r)}>
                         ลบ
                       </button>}
                   </td>

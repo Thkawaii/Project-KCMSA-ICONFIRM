@@ -57,13 +57,13 @@ func TestScanMFGWithChangedComponentFormat(t *testing.T) {
 				t.Fatalf("whMatched = %v, want true — MFG ต้องจับคู่กับผลสแกนของ WH ได้", resp["whMatched"])
 			}
 
-			// แถวที่บันทึกต้องเก็บค่าเดิม ไม่ใช่รหัสรูปแบบใหม่
+			// แถวที่บันทึกต้องเก็บ "รูปแบบที่ใช้อยู่ตอนนี้" เพื่อให้ตารางแสดงรหัสใหม่
 			var row models.MFGAssembly
 			if err := db.Where("machine_no = ?", "LX10400690").First(&row).Error; err != nil {
 				t.Fatalf("ไม่พบแถว MFG: %v", err)
 			}
-			if row.ITControllerNo != tc.oldCode {
-				t.Errorf("ITControllerNo = %q, want %q", row.ITControllerNo, tc.oldCode)
+			if row.ITControllerNo != tc.newCode {
+				t.Errorf("ITControllerNo = %q, want %q", row.ITControllerNo, tc.newCode)
 			}
 		})
 	}
@@ -116,8 +116,8 @@ func TestScanMFGITCChangedFormat(t *testing.T) {
 
 	var row models.MFGAssembly
 	db.Where("machine_no = ?", "LX10400690").First(&row)
-	if row.ITControllerNo != "878250022801" {
-		t.Errorf("ITControllerNo = %q, want 878250022801", row.ITControllerNo)
+	if row.ITControllerNo != "878-250-022-801-JCC" {
+		t.Errorf("ITControllerNo = %q, want 878-250-022-801-JCC (รูปแบบที่ใช้อยู่ตอนนี้)", row.ITControllerNo)
 	}
 }
 
@@ -143,8 +143,8 @@ func TestScanMFGChangedMachineNoFormat(t *testing.T) {
 
 	var row models.MFGAssembly
 	db.First(&row)
-	if row.MachineNo != "LX10400690" {
-		t.Errorf("MachineNo = %q, want LX10400690", row.MachineNo)
+	if row.MachineNo != "LX-10400690-JCC" {
+		t.Errorf("MachineNo = %q, want LX-10400690-JCC (รูปแบบที่ใช้อยู่ตอนนี้)", row.MachineNo)
 	}
 }
 

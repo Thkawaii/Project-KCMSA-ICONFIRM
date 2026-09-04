@@ -385,6 +385,99 @@ func findCodeAliasByFromCode(norm string) *models.CodeAlias {
 	return nil
 }
 
+// findCodeAliasByToOld หาแถว Change Format Part จาก Old (ค่าเดิม)
+// ถ้ามีหลายแถวชี้ค่าเดิมเดียวกัน จะเอาแถวล่าสุด (id มากสุด) เพราะถือเป็นรูปแบบที่ใช้อยู่ตอนนี้
+func findCodeAliasByToOld(norm string) *models.CodeAlias {
+	if norm == "" {
+		return nil
+	}
+	var rows []models.CodeAlias
+	config.DB.Order("id asc").Find(&rows)
+	var found *models.CodeAlias
+	for i := range rows {
+		if NormalizeCodeValue(rows[i].ToOld) == norm {
+			found = &rows[i]
+		}
+	}
+	return found
+}
+
+// CurrentCodeOf คืนรหัส "รูปแบบที่ใช้อยู่ตอนนี้" ของค่าที่รับมา
+//
+// ถ้าแอดมินตั้ง Change Format Part ว่า A (ใหม่) → B (เดิม) ไว้
+// ทั้ง A และ B จะคืนค่าเป็น A เพราะ B ถือว่าเลิกใช้แล้ว
+// ใช้ตอนบันทึกผลสแกน เพื่อให้ตาราง WH / MFG แสดงรูปแบบใหม่เสมอ
+func CurrentCodeOf(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return raw
+	}
+	old := resolveByKind("", raw)
+	if a := findCodeAliasByToOld(NormalizeCodeValue(old)); a != nil {
+		if v := strings.TrimSpace(a.FromCode); v != "" {
+			return v
+		}
+	}
+	return raw
+}
+
+// RetiredCodeReplacement บอกว่ารหัสที่สแกนมาเป็น "รูปแบบเก่าที่เลิกใช้แล้ว" หรือไม่
+// ถ้าใช่ จะคืนรูปแบบใหม่ที่ต้องใช้แทน พร้อม true
+//
+// ค่าที่ตัวมันเองเป็น New (ค่าใหม่) อยู่แล้วจะไม่ถือว่าเลิกใช้
+// (กันกรณีตั้งค่าต่อกันเป็นทอด ๆ เช่น C → B และ B → A)
+func RetiredCodeReplacement(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", false
+	}
+	norm := NormalizeCodeValue(raw)
+	if findCodeAliasByFromCode(norm) != nil {
+		return "", false
+	}
+	a := findCodeAliasByToOld(norm)
+	if a == nil {
+		return "", false
+	}
+	replacement := strings.TrimSpace(a.FromCode)
+	if replacement == "" || NormalizeCodeValue(replacement) == norm {
+		return "", false
+	}
+	return replacement, true
+}
+
+// retiredScanMessage ตรวจว่ารหัสที่สแกนมามีตัวไหนเป็นรูปแบบเก่าที่เลิกใช้แล้วบ้าง
+// คืนข้อความบอกว่าต้องใช้รหัสอะไรแทน
+func retiredScanMessage(codes ...string) (string, bool) {
+	var msgs []string
+	seen := map[string]bool{}
+	for _, raw := range codes {
+		raw = strings.TrimSpace(raw)
+		if raw == "" || seen[NormalizeCodeValue(raw)] {
+			continue
+		}
+		seen[NormalizeCodeValue(raw)] = true
+		if repl, ok := RetiredCodeReplacement(raw); ok {
+			msgs = append(msgs, raw+" เปลี่ยนเป็น "+repl+" แล้ว")
+		}
+	}
+	if len(msgs) == 0 {
+		return "", false
+	}
+	return "รหัสนี้ถูกเปลี่ยนรูปแบบใน Change Format Part แล้ว — " +
+		strings.Join(msgs, ", ") + " กรุณาสแกนรหัสรูปแบบใหม่", true
+}
+
+// CodeVariants คืนรหัสทุกรูปแบบของค่าเดียวกัน (รูปแบบใหม่ + ค่าเดิม + ค่าที่รับมา)
+// ใช้ตอนค้นหาข้อมูลเก่าที่อาจถูกบันทึกไว้ก่อนเปลี่ยนรูปแบบ
+func CodeVariants(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	return dedupeCodes(CurrentCodeOf(raw), resolveByKind("", raw), raw)
+}
+
 // resolveByKind แปลงรหัสที่สแกนมา (ค่าใหม่) ให้เป็นค่าเดิมที่มีอยู่ในระบบ
 // ตามที่ตั้งไว้ในหน้า Change Format Part ถ้าไม่มีการตั้งค่าไว้จะคืนค่าเดิมที่รับมา
 //
