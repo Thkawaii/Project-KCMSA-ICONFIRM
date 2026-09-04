@@ -93,6 +93,7 @@ func SetupRoutes(r *gin.Engine) {
 			manage.POST("/preview", controllers.PreviewImportLicenseMapping)
 			manage.POST("/verify", controllers.VerifyImportLicenseCode)
 			manage.POST("/renew", controllers.RenewImportLicense)
+			manage.POST("/complete", controllers.SetImportLicenseComplete)
 			manage.DELETE("/:id", controllers.DeleteImportLicenseItem)
 			manage.DELETE("", controllers.ClearImportLicenseItems)
 		}
@@ -107,6 +108,7 @@ func SetupRoutes(r *gin.Engine) {
 		exportLicense.POST("/upload", controllers.UploadExportLicense)
 		exportLicense.POST("/preview", controllers.PreviewExportLicenseMapping)
 		exportLicense.POST("/renew", controllers.RenewExportLicense)
+		exportLicense.POST("/complete", controllers.SetExportLicenseComplete)
 		exportLicense.DELETE("/:id", controllers.DeleteExportLicense)
 		exportLicense.DELETE("", controllers.ClearExportLicense)
 	}

@@ -273,6 +273,8 @@ func GetImportLicenseSummary(c *gin.Context) {
 		Model         string `json:"Model"`
 		Total         int    `json:"Total"`
 		Confirmed     int    `json:"Confirmed"`
+		// CompletedCount = จำนวนเครื่องในล็อตที่ทำเครื่องหมาย "เสร็จสิ้น" แล้ว
+		CompletedCount int `json:"CompletedCount"`
 	}
 
 	var rows []summaryRow
@@ -283,7 +285,8 @@ func GetImportLicenseSummary(c *gin.Context) {
 			max(declaration_no) as declaration_no,
 			max(model) as model,
 			count(*) as total,
-			count(*) filter (where confirm_status = 'CONFIRMED') as confirmed`).
+			count(*) filter (where confirm_status = 'CONFIRMED') as confirmed,
+			count(*) filter (where completed) as completed_count`).
 		Group("license_no, invoice_no").
 		Order("license_no asc").
 		Scan(&rows)
@@ -321,8 +324,11 @@ func GetImportLicenseAlerts(c *gin.Context) {
 		IssueDate     *time.Time
 	}
 
+	// ข้ามแถวที่ทำเครื่องหมาย "เสร็จสิ้น" แล้ว — ปิดงานไปแล้วจึงหยุดนับวันหมดอายุ
+	// ถ้าทุกแถวในใบนั้นเสร็จสิ้นหมด ใบนั้นจะหายไปจากรายการแจ้งเตือนทั้งใบ
 	var groups []groupRow
 	config.DB.Model(&models.ImportLicenseItem{}).
+		Where("completed IS NOT TRUE").
 		Select(`license_no,
 			invoice_no,
 			max(declaration_no) as declaration_no,

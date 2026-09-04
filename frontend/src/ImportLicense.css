@@ -1581,3 +1581,413 @@
 .lab-item-lead-row:hover .lab-item-license {
   color: #1d4ed8;
 }
+
+
+/* ==========================================================================
+   สถานะ "เสร็จสิ้น" ของใบอนุญาต (Import / Export License)
+   --------------------------------------------------------------------------
+   ผู้ใช้ติ๊กเลือกใบที่ทำงานเสร็จแล้ว (ใบเดียวหรือหลายใบก็ได้) แล้วกดยืนยัน
+   ใบที่เสร็จสิ้นจะขึ้นป้าย/ไอคอน และระบบจะหยุดนับวันหมดอายุของใบนั้น
+   ========================================================================== */
+
+/* ---------- ป้าย "เสร็จสิ้นแล้ว" ---------- */
+.il-badge-complete {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #d1fae5, #bbf7d0);
+  color: #15803d;
+  box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.25);
+}
+
+.il-badge-complete svg {
+  flex-shrink: 0;
+}
+
+.il-complete-cell {
+  gap: 4px;
+}
+
+/* วันสุดท้ายที่ค้างไว้ตอนปิดงาน — ต้องเห็นทั้งบนจอและตอน Export Excel */
+.il-complete-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: #15803d;
+}
+
+.il-complete-meta {
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* ไอคอนติ๊กเล็ก ๆ ที่ปักหน้าเลขใบอนุญาต ให้กวาดตาเห็นได้ทั้งตาราง */
+.il-license-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.il-complete-flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #16a34a;
+  flex-shrink: 0;
+}
+
+/* ตราประทับ "เสร็จสิ้น" บนแถบใบอนุญาตที่ปิดงานครบทั้งใบ
+   วางต่อจากกลุ่มข้อความ และจัดกึ่งกลางตามความสูงของทั้งกลุ่ม
+   (ไม่ห้อยอยู่แค่บรรทัดล่างสุด) */
+.il-lot-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.il-lot-info-text {
+  min-width: 0;
+}
+
+.il-complete-stamp {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  transform: rotate(-12deg);
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.2));
+}
+
+/* ---------- ช่องติ๊กเลือกแถว ---------- */
+.il-check-th,
+.il-check-td {
+  width: 44px;
+  padding-right: 0 !important;
+}
+
+.il-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.il-check input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.il-check-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 6px;
+  border: 1.5px solid #cbd5e1;
+  background: #fff;
+  color: transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.il-check:hover .il-check-box {
+  border-color: var(--brand-500, #00cec8);
+}
+
+.il-check input:checked + .il-check-box,
+.il-check input:indeterminate + .il-check-box {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+
+.il-check input:focus-visible + .il-check-box {
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.28);
+}
+
+.il-check-disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* ---------- แถวที่เลือก / แถวที่เสร็จสิ้นแล้ว ---------- */
+.il-table-selectable tbody tr.il-row-selected > td {
+  background: #f0fdf4;
+}
+
+.il-table-selectable tbody tr.il-row-complete > td {
+  background: #f8fbf9;
+  color: #475569;
+}
+
+.il-table-selectable tbody tr.il-row-complete.il-row-selected > td {
+  background: #ecfdf5;
+}
+
+.il-table-selectable tbody tr.il-row-complete .wh-cell-head strong {
+  color: #475569;
+}
+
+/* ---------- แถบเครื่องมือตอนติ๊กเลือก ---------- */
+.il-selection-bar {
+  position: sticky;
+  top: 8px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(22, 163, 74, 0.28);
+  background: linear-gradient(135deg, #f0fdf4, #ecfeff);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+  animation: il-selection-in 0.16s ease-out;
+}
+
+@keyframes il-selection-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.il-selection-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.il-selection-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #14532d;
+}
+
+.il-selection-hint {
+  font-size: 12.5px;
+  color: #47624f;
+}
+
+.il-selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ปุ่มปิดงาน (เขียว) / ยกเลิกสถานะ (ขาว-เทา) — ใช้ซ้ำได้ทั้งแถบเลือก
+   แถบใบอนุญาต และหน้ารายละเอียด */
+.il-complete-btn,
+.il-uncomplete-btn,
+.il-selection-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 15px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease,
+    transform 0.1s ease;
+}
+
+.il-complete-btn {
+  background: #16a34a;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.28);
+}
+
+.il-complete-btn:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.il-uncomplete-btn {
+  background: #fff;
+  color: #b45309;
+  border-color: #fcd34d;
+}
+
+.il-uncomplete-btn:hover:not(:disabled) {
+  background: #fffbeb;
+  border-color: #f59e0b;
+}
+
+.il-selection-clear {
+  background: transparent;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.il-selection-clear:hover:not(:disabled) {
+  background: #fff;
+  border-color: #94a3b8;
+}
+
+.il-complete-btn:active:not(:disabled),
+.il-uncomplete-btn:active:not(:disabled),
+.il-selection-clear:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.il-complete-btn:disabled,
+.il-uncomplete-btn:disabled,
+.il-selection-clear:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.il-complete-btn svg,
+.il-uncomplete-btn svg,
+.il-selection-clear svg {
+  flex-shrink: 0;
+}
+
+/* ปุ่มปิดงานบนแถบใบอนุญาตที่กำลังเลือก (พื้นหลังเข้ม) */
+.wh-so-active-bar .il-uncomplete-btn {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+/* ---------- การ์ดสถิติ "เสร็จสิ้นแล้ว" ---------- */
+.il-stat-complete .dash-stat-value {
+  color: #15803d;
+}
+
+/* ---------- ปุ่มในหน้ารายละเอียด ---------- */
+.il-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------- จอเล็ก ---------- */
+@media (max-width: 720px) {
+  .il-complete-stamp {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* ตารางกลายเป็นการ์ด — ช่องติ๊กจึงเป็นแถวแรกของการ์ด ให้เด่นหน่อย */
+  .wh-table tbody td.il-check-td {
+    width: auto;
+    justify-content: space-between;
+    background: #f8fafc;
+    padding: 10px 16px !important;
+  }
+
+  .il-selection-bar {
+    position: sticky;
+    top: 4px;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px 14px;
+  }
+
+  .il-selection-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .il-selection-actions .il-complete-btn {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
+
+  .il-selection-actions .il-uncomplete-btn,
+  .il-selection-actions .il-selection-clear {
+    justify-content: center;
+  }
+
+  .il-lot-actions {
+    flex-wrap: wrap;
+  }
+
+  .il-modal-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .il-modal-actions > button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+
+/* ==========================================================================
+   แถบใบอนุญาตที่กำลังเลือก (Import / Export License)
+   --------------------------------------------------------------------------
+   ใช้โทนเขียวมิ้นต์อ่อน แทนพื้นเข้มทึบ อ่านสบายตากว่าและกลมกลืนกับตารางด้านล่าง
+   จำกัดไว้เฉพาะสองหน้านี้ (.il-license-bar) หน้าอื่นที่ใช้ .wh-so-active-bar
+   เช่นหน้า Warehouse ยังคงหน้าตาเดิม
+   ========================================================================== */
+.wh-so-active-bar.il-license-bar {
+  background: #ffffff;
+  border: 1px solid #e6eaee;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  color: #1e293b;
+}
+
+.wh-so-active-bar.il-license-bar .wh-so-active-label {
+  color: var(--color-brand-700, #0f8580);
+  font-weight: 600;
+}
+
+.wh-so-active-bar.il-license-bar .wh-so-active-name {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.wh-so-active-bar.il-license-bar .wh-subtitle {
+  color: #64748b;
+  font-weight: 400;
+}
+
+/* ปุ่มในแถบ — ต้องเขียนทับสไตล์ "ปุ่มบนพื้นเข้ม" ของเดิมทั้งหมด */
+.wh-so-active-bar.il-license-bar .il-renew-btn {
+  background: var(--color-brand-600, #00a39d);
+  color: #ffffff;
+  border: 1px solid var(--color-brand-600, #00a39d);
+  font-weight: 600;
+}
+
+.wh-so-active-bar.il-license-bar .il-renew-btn:hover {
+  background: var(--color-brand-700, #0f8580);
+  border-color: var(--color-brand-700, #0f8580);
+}
+
+.wh-so-active-bar.il-license-bar .wh-modal-cancel {
+  background: #ffffff;
+  border-color: #d9dee3;
+  color: #475569;
+}
+
+.wh-so-active-bar.il-license-bar .wh-modal-cancel:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.wh-so-active-bar.il-license-bar .il-uncomplete-btn {
+  background: #ffffff;
+}
+

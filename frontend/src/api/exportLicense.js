@@ -24,6 +24,27 @@ export function deleteExportLicense(id) {
     method: 'DELETE'
   });
 }
+// ทำเครื่องหมาย "เสร็จสิ้น" ให้ใบอนุญาตส่งออก
+// เลือกทีละแถวด้วย ids (กี่แถวก็ได้) หรือเหมาทั้งใบด้วย exportLicenseNo
+// ส่ง completed = false เพื่อยกเลิกสถานะ
+export function setExportLicenseComplete({
+  ids = null,
+  exportLicenseNo = null,
+  completed = true
+} = {}) {
+  const body = {
+    completed
+  };
+  if (Array.isArray(ids) && ids.length > 0) {
+    body.ids = ids.map(Number);
+  } else {
+    body.exportLicenseNo = exportLicenseNo ?? '';
+  }
+  return apiFetch('/export-license/complete', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+}
 export function clearExportLicense(licenseNo = '', all = false) {
   const params = new URLSearchParams();
   if (all || !licenseNo) {
