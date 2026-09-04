@@ -109,7 +109,6 @@ const NON_LICENSE_MATCH_TEXT = {
   WRONG_PRODNO: 'ข้อมูลไม่ถูกต้อง',
   RETIRED_FORMAT: 'รูปแบบเดิมถูกยกเลิก'
 };
-const INVALID_MATCH_STATUSES = ['NOT_FOUND', 'WRONG_PART', 'WRONG_INVOICE', 'WRONG_PRODNO', 'RETIRED_FORMAT'];
 function matchBadge(status, partType) {
   const m = MATCH_LABELS[status] || MATCH_LABELS.NOT_REQUIRED;
   const code = String(partType || '').toUpperCase();
@@ -175,7 +174,6 @@ export default function WHPartConfirmationPage() {
   const [highlightId, setHighlightId] = useState(null);
   const [dateTab, setDateTab] = useState('all');
   const [search, setSearch] = useState('');
-  const [matchFilter, setMatchFilter] = useState('all');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const [detailRow, setDetailRow] = useState(null);
@@ -201,7 +199,7 @@ export default function WHPartConfirmationPage() {
   }, []);
   useEffect(() => {
     setPage(1);
-  }, [dateTab, search, matchFilter, pageSize]);
+  }, [dateTab, search, pageSize]);
   useEffect(() => {
     setLicensePage(1);
   }, [licenseTab, licenseModel, licenseNo, licensePageSize]);
@@ -442,24 +440,19 @@ export default function WHPartConfirmationPage() {
     };
   }, [licenseItems]);
   const filtered = useMemo(() => {
-    let list = rows;
+    // แสดงเฉพาะรายการที่ตรวจสอบแล้วว่า "ตรงกับใบอนุญาต" (MATCHED) เท่านั้น
+    // รายการที่ไม่ตรง (NOT_FOUND / WRONG_PART / ฯลฯ) ยังถูกบันทึกลงฐานข้อมูลตามปกติ
+    // เพียงแต่ไม่แสดงในตารางประวัติการสแกนนี้
+    let list = rows.filter(r => r.MatchStatus === 'MATCH');
     if (dateTab !== 'all') {
       list = list.filter(r => inDateTab(r.CheckedDatetime, dateTab));
-    }
-    if (matchFilter === 'VALID') {
-      list = list.filter(r => r.MatchStatus === 'MATCH');
-    } else if (matchFilter === 'INVALID') {
-      list = list.filter(r => INVALID_MATCH_STATUSES.includes(r.MatchStatus));
-    } else if (matchFilter !== 'all') {
-      list = list.filter(r => r.MatchStatus === matchFilter);
     }
     const term = search.trim().toLowerCase();
     if (term) {
       list = list.filter(r => (r.PN || '').toLowerCase().includes(term) || (r.SN || '').toLowerCase().includes(term) || (r.MachineNo || '').toLowerCase().includes(term) || (r.CheckedBy || '').toLowerCase().includes(term));
     }
     return list;
-  }, [rows, dateTab, search, matchFilter]);
-  const mismatchCount = useMemo(() => rows.filter(r => r.PartType === 'ITC' && r.MatchStatus && r.MatchStatus !== 'MATCH').length, [rows]);
+  }, [rows, dateTab, search]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
   function goToPage(p) {
@@ -660,12 +653,6 @@ export default function WHPartConfirmationPage() {
           }}>
             ประวัติการสแกน ({filtered.length})
           </h2>
-          {mismatchCount > 0 && <p className="wh-subtitle" style={{
-            color: '#b42318',
-            fontWeight: 600
-          }}>
-              มี {mismatchCount} รายการที่สแกนแล้วไม่ตรงกับบัญชีใบอนุญาต
-            </p>}
         </div>
         <div className="vr-tabs">
           {[{
@@ -705,25 +692,6 @@ export default function WHPartConfirmationPage() {
               }]} />
             </div>
             entries per page
-          </div>
-          <div className="wh-filter-field">
-            <span className="wh-filter-label">ผลการตรวจสอบ</span>
-            <SelectField value={matchFilter} onChange={setMatchFilter} options={[{
-              value: 'all',
-              label: 'ทั้งหมด'
-            }, {
-              value: 'VALID',
-              label: 'ข้อมูลถูกต้อง/ตรงกับใบอนุญาต'
-            }, {
-              value: 'INVALID',
-              label: 'ข้อมูลไม่ถูกต้อง/ไม่พบในใบอนุญาต'
-            }, {
-              value: 'NOT_REQUIRED',
-              label: 'ไม่ต้องเทียบ'
-            }, {
-              value: 'DUPLICATE',
-              label: 'ยืนยันซ้ำ'
-            }]} />
           </div>
         </div>
         <input className="wh-search" type="text" placeholder="ค้นหา Tag / P/N / หมายเลขเครื่อง / ผู้ตรวจสอบ" value={search} onChange={e => setSearch(e.target.value)} />

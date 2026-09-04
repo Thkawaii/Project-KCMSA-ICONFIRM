@@ -53,16 +53,6 @@ const STATUS_OPTIONS = [{
   value: 'DUPLICATE',
   label: 'DUPLICATE — ซ้ำ'
 }];
-const STATUS_FILTER_OPTIONS = [{
-  value: 'all',
-  label: 'ทุกสถานะ'
-}, {
-  value: 'MATCHED',
-  label: 'MATCHED — ตรงแผนและตรงใบอนุญาต'
-}, ...STATUS_OPTIONS, {
-  value: 'RETIRED_FORMAT',
-  label: 'RETIRED_FORMAT — สแกนรหัสรูปแบบเก่าที่ถูกยกเลิก'
-}];
 const EMPTY_FORM = {
   item: '',
   dateAssembly: '',
@@ -114,7 +104,6 @@ export default function MFGAssemblyPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [dateTab, setDateTab] = useState('all');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
@@ -174,7 +163,7 @@ export default function MFGAssemblyPage() {
   }
   useEffect(() => {
     setPage(1);
-  }, [search, pageSize, statusFilter, dateTab]);
+  }, [search, pageSize, dateTab]);
   useEffect(() => {
     let buffer = '';
     let flushTimer = null;
@@ -416,10 +405,10 @@ export default function MFGAssemblyPage() {
     }
   }
   const filtered = useMemo(() => {
-    let list = rows;
-    if (statusFilter !== 'all') {
-      list = list.filter(r => (r.Status || '') === statusFilter);
-    }
+    // แสดงเฉพาะรายการที่ประกอบถูกต้อง (MATCHED) เท่านั้น
+    // รายการที่ไม่ตรง (NOT_MATCHED / DUPLICATE / RETIRED_FORMAT ฯลฯ) ยังถูกบันทึกลงฐานข้อมูลตามปกติ
+    // เพียงแต่ไม่แสดงในตาราง Matching Assembly นี้
+    let list = rows.filter(r => (r.Status || '') === 'MATCHED');
     if (dateTab !== 'all') {
       list = list.filter(r => inDateTab(r.CheckDate, dateTab));
     }
@@ -432,7 +421,7 @@ export default function MFGAssemblyPage() {
       const tb = b.CheckDate ? new Date(b.CheckDate).getTime() : -Infinity;
       return tb - ta;
     });
-  }, [rows, search, statusFilter, dateTab]);
+  }, [rows, search, dateTab]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
   function goToPage(p) {
@@ -491,11 +480,6 @@ export default function MFGAssemblyPage() {
           entries per page
         </div>
         <div className="mfg-search-actions">
-          <div className="wh-pagesize-select" style={{
-          minWidth: 190
-        }}>
-            <SelectField value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} />
-          </div>
           <input className="wh-search" type="text" placeholder="ค้นหา Item / Machine No / IT Controller / Country / Status" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
