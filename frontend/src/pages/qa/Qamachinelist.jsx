@@ -205,19 +205,13 @@ export default function QAMachineList() {
   }
   const periodLabel = periodMode === 'all' ? 'ทั้งหมด' : periodRangeLabel(periodMode, periodAnchor);
   const periodTag = periodFileTag(periodMode, periodAnchor);
-  const stats = useMemo(() => {
-    const total = confirmedRows.length;
-    const withPhoto = confirmedRows.filter(r => r.photoURL).length;
-    const machines = new Set(confirmedRows.map(r => r.machineNo).filter(Boolean)).size;
-    return {
-      total,
-      withPhoto,
-      machines
-    };
-  }, [confirmedRows]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return confirmedRows.filter(r => {
+      // แสดงเฉพาะรายการที่ MATCHED ทั้งฝั่ง MFG (ประกอบตรงแผน) และฝั่งใบอนุญาต (WH สแกนตรงกับบัญชีนำเข้า)
+      // รายการที่ไม่ตรงยังถูกบันทึกลงฐานข้อมูลตามปกติ เพียงแต่ไม่แสดงในตารางนี้
+      if ((r.status || 'MATCHED') !== 'MATCHED') return false;
+      if (r.matchStatus !== 'MATCH') return false;
       if (q) {
         const matchesSearch = [r.partName, r.componentLabel, r.component, r.model, r.asmModel, r.specCode, r.specDetail, r.itDevice, r.machineNo, r.partNo, r.serialNo, r.itControllerNo, r.imei, r.licenseNo, r.invoiceNo].some(v => (v || '').toLowerCase().includes(q));
         if (!matchesSearch) return false;
@@ -229,6 +223,16 @@ export default function QAMachineList() {
       return true;
     });
   }, [confirmedRows, search, periodMode, periodAnchor]);
+  const stats = useMemo(() => {
+    const total = filtered.length;
+    const withPhoto = filtered.filter(r => r.photoURL).length;
+    const machines = new Set(filtered.map(r => r.machineNo).filter(Boolean)).size;
+    return {
+      total,
+      withPhoto,
+      machines
+    };
+  }, [filtered]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
   async function handleExportPDF() {
