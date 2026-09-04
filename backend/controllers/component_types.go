@@ -216,8 +216,8 @@ func engineRowFor(pn, sn string) (map[string]string, bool) {
 			continue
 		}
 
-		if (strings.EqualFold(engine, pn) && strings.EqualFold(history, sn)) ||
-			(strings.EqualFold(history, pn) && strings.EqualFold(engine, sn)) {
+		if (SameCode(engine, pn) && SameCode(history, sn)) ||
+			(SameCode(history, pn) && SameCode(engine, sn)) {
 			return row, true
 		}
 	}
@@ -233,7 +233,7 @@ func engineRowByValue(v string) (map[string]string, bool) {
 	for _, row := range loadUploadRows(models.DatasetEngine) {
 		engine := strings.TrimSpace(pickField(row, "ENGINE", "Engine"))
 		history := strings.TrimSpace(pickField(row, "History", "Engine History"))
-		if strings.EqualFold(engine, v) || strings.EqualFold(history, v) {
+		if SameCode(engine, v) || SameCode(history, v) {
 			return row, true
 		}
 	}

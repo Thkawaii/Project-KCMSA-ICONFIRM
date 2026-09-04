@@ -620,16 +620,28 @@ func matchImportLicense(code, invoiceNo, productionNo string) (string, string, *
 		First(&item).Error
 
 	if err != nil {
-		if alias := lookupCodeAlias("import_license", code); alias != nil && alias.ToOld != "" {
-			if e2 := config.DB.
-				Where("machine_no = ? OR production_no = ?", alias.ToOld, alias.ToOld).
-				First(&item).Error; e2 == nil {
-				code = alias.ToOld
-			} else {
-				return models.MatchStatusNotFound,
-					"ไม่พบ " + code + " ในบัญชีใบอนุญาตนำเข้า", nil
+		// หน้างานอาจเปลี่ยนรูปแบบหมายเลขเครื่อง — ลองแปลงตาม Change Format Part
+		// ทั้งแบบระบุชนิด machine และแบบผูกกลุ่ม import_license ของไฟล์รุ่นเก่า
+		candidates := []string{ResolveMachineNo(code)}
+		if alias := lookupCodeAlias("import_license", code); alias != nil {
+			candidates = append(candidates, alias.ToOld)
+		}
+
+		found := false
+		for _, alt := range dedupeCodes(candidates...) {
+			if strings.EqualFold(alt, code) {
+				continue
 			}
-		} else {
+			if e2 := config.DB.
+				Where("machine_no = ? OR production_no = ?", alt, alt).
+				First(&item).Error; e2 == nil {
+				code = alt
+				found = true
+				break
+			}
+		}
+
+		if !found {
 			return models.MatchStatusNotFound,
 				"ไม่พบ " + code + " ในบัญชีใบอนุญาตนำเข้า", nil
 		}

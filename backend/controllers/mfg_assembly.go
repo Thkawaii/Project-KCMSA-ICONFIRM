@@ -349,16 +349,7 @@ func (r MFGScanRequest) scannedSerial() string {
 }
 
 func resolveMachineNo(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return raw
-	}
-	if a := lookupCodeAliasKind("", "machine", raw); a != nil {
-		if v := strings.TrimSpace(a.ToOld); v != "" {
-			return v
-		}
-	}
-	return raw
+	return ResolveMachineNo(raw)
 }
 
 func ScanMFGAssembly(c *gin.Context) {
@@ -379,6 +370,12 @@ func ScanMFGAssembly(c *gin.Context) {
 
 	resolver := newMFGPlanResolver()
 	plan := resolver.evaluateComponent(machineNo, itcNo, req.PartType)
+
+	// ใช้รหัสที่แปลงตาม Change Format Part แล้วเป็นค่าที่บันทึกและใช้ค้นหาทั้งหมด
+	// ไม่งั้นแถว MFG จะเก็บรหัสรูปแบบใหม่ แต่ฝั่ง WH เก็บค่าเดิม → จับคู่กันไม่เจอ
+	if v := strings.TrimSpace(plan.ScannedITC); v != "" {
+		itcNo = v
+	}
 
 	userID, name := lookupUserName(c)
 	now := time.Now()
@@ -560,6 +557,11 @@ func CreateMFGAssembly(c *gin.Context) {
 	resolver := newMFGPlanResolver()
 	plan := resolver.evaluate(machineNo, itcNo)
 
+	// บันทึกค่าเดิมที่แปลงตาม Change Format Part แล้ว ให้ตรงกับที่ฝั่ง WH เก็บไว้
+	if v := strings.TrimSpace(plan.ScannedITC); v != "" {
+		itcNo = v
+	}
+
 	country := strings.TrimSpace(req.Country)
 	if country == "" {
 		country = mfgCountryFor(machineNo, itcNo, resolver.planOf(machineNo))
@@ -629,9 +631,14 @@ func UpdateMFGAssembly(c *gin.Context) {
 	}
 	row.UpdatedDatetime = time.Now()
 
+	row.MachineNo = resolveMachineNo(row.MachineNo)
+
 	resolver := newMFGPlanResolver()
 	plan := resolver.evaluateComponent(row.MachineNo, row.ITControllerNo, row.Component)
 	row.Component = plan.Component
+	if v := strings.TrimSpace(plan.ScannedITC); v != "" {
+		row.ITControllerNo = v
+	}
 
 	duplicate := itcUsedOnOtherMachine(row.MachineNo, row.ITControllerNo, row.ID)
 

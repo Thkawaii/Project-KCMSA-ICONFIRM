@@ -6,7 +6,7 @@
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(15, 42, 40, 0.28);
+  background: rgba(6, 49, 47, 0.32);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   animation: lwp-overlay-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
@@ -15,13 +15,17 @@
   animation: lwp-overlay-out 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* การ์ดแบ่ง 3 ส่วน: หัวสรุป (คงที่) / ลิสต์ (เลื่อนได้) / ท้ายการ์ด (คงที่)
+   ลิสต์เลื่อนในตัวเอง หัวกับปุ่มจึงไม่หนีไปไหนแม้มีเป็นร้อยรายการ */
 .lwp-card {
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  max-width: 420px;
+  max-width: 404px;
   max-height: calc(100vh - 40px);
-  overflow-y: auto;
-  border-radius: 28px;
+  overflow: hidden;
+  border-radius: 22px;
   background: #ffffff;
   box-shadow:
     0 2px 6px rgba(16, 24, 40, 0.06),
@@ -32,174 +36,305 @@
   animation: lwp-card-out 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* ── หัวสรุป ────────────────────────────────────────────── */
+
 .lwp-head {
   position: relative;
-  padding: 30px 26px 22px;
-  text-align: center;
-  border-radius: 28px 28px 0 0;
-  background:
-    radial-gradient(120% 80% at 50% -10%, rgba(6, 224, 212, 0.16) 0%, rgba(6, 224, 212, 0) 62%),
-    linear-gradient(180deg, #ecfbfa 0%, #f6fefd 55%, #ffffff 100%);
+  flex: 0 0 auto;
+  overflow: hidden;
+  padding: 15px 18px 14px;
+  /* โทนเดียวกับ .shell-topbar ที่ใช้ var(--brand-500) ไล่ลงไปหา brand-600 ให้มีมิติ */
+  background: linear-gradient(135deg, var(--brand-500, #06e0d4) 0%, var(--brand-600, #00a39d) 100%);
+}
+/* แสงฟุ้งมุมขวาบน ให้พื้นสีแบรนด์ไม่แบนราบ */
+.lwp-head::before {
+  content: '';
+  position: absolute;
+  top: -70px;
+  right: -40px;
+  width: 250px;
+  height: 250px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 68%);
+  pointer-events: none;
+}
+
+/* รถขุด KOBELCO — ลอยขึ้นลงเบา ๆ ให้การ์ดไม่นิ่งสนิท */
+.lwp-rig {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 104px;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 8px 14px rgba(4, 62, 60, 0.42));
+  animation: lwp-rig-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both,
+    lwp-rig-float 4.6s ease-in-out 0.7s infinite;
+}
+
+/* กันคอลัมน์ข้อความไว้ครึ่งซ้าย ตัวหนังสือจะได้ไม่ทับรูป */
+.lwp-head-body {
+  position: relative;
+  max-width: 68%;
 }
 
 .lwp-close {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   border: none;
   border-radius: 999px;
-  color: #5b6b69;
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08), 0 6px 16px -8px rgba(16, 24, 40, 0.28);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.26);
+  backdrop-filter: blur(4px);
   cursor: pointer;
-  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-    color 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease;
 }
 .lwp-close:hover {
-  transform: translateY(-1px) rotate(90deg);
-  color: #0f8580;
-  box-shadow: 0 2px 4px rgba(16, 24, 40, 0.1), 0 10px 22px -10px rgba(16, 24, 40, 0.32);
-}
-
-.lwp-badge-wrap {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 14px;
-}
-.lwp-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 64px;
-  height: 64px;
-  border-radius: 999px;
-  color: #0f8580;
-  background: linear-gradient(160deg, #ffffff 0%, #d8f6f3 100%);
-  box-shadow:
-    0 10px 24px -10px rgba(0, 163, 157, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  animation: lwp-float 3.4s ease-in-out infinite;
+  transform: rotate(90deg);
+  background: rgba(255, 255, 255, 0.42);
 }
 
 .lwp-eyebrow {
-  margin: 0 0 4px;
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.08em;
-  color: #12a89e;
-}
-.lwp-title {
-  margin: 0 0 8px;
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: #0f2a28;
-}
-.lwp-sub {
-  margin: 0 auto 18px;
-  max-width: 300px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #6b7c7a;
+  color: rgba(255, 255, 255, 0.95);
 }
 
-.lwp-chips {
+/* ยอดรวม — เลขใหญ่ คั่นเส้น แล้วค่อยเป็นคำอธิบาย 2 บรรทัด */
+.lwp-count {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 12px;
+}
+.lwp-count-num {
+  font-size: 46px;
+  font-weight: 800;
+  line-height: 0.85;
+  letter-spacing: -0.04em;
+  color: #ffffff;
+  text-shadow: 0 4px 14px rgba(4, 62, 60, 0.35);
+  font-variant-numeric: tabular-nums;
+}
+.lwp-count-lbl {
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.4);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #ffffff;
+}
+
+.lwp-week {
+  display: inline-block;
+  margin: 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.24);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+/* ── ชิปสรุป = ตัวกรองในตัว (อยู่บนพื้นขาว อ่านง่าย) ──── */
+
+.lwp-filters {
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 8px;
+  padding: 13px 18px 3px;
+  background: #ffffff;
 }
 .lwp-chip {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 14px 6px 12px;
-  border-radius: 18px;
+  padding: 9px 4px 8px;
+  border-radius: 14px;
   border: 1px solid transparent;
+  cursor: pointer;
+  animation: lwp-chip-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 0.24s ease, opacity 0.24s ease, box-shadow 0.24s ease;
+}
+.lwp-chip:nth-child(1) {
+  animation-delay: 0.16s;
+}
+.lwp-chip:nth-child(2) {
+  animation-delay: 0.23s;
+}
+.lwp-chip:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.lwp-chip:hover {
+  transform: translateY(-2px);
+}
+.lwp-chip.is-dim {
+  opacity: 0.4;
 }
 .lwp-chip-num {
-  font-size: 26px;
+  font-size: 21px;
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.1;
 }
 .lwp-chip-lbl {
-  font-size: 11.5px;
-  font-weight: 500;
+  font-size: 10.5px;
+  font-weight: 600;
 }
+
 .lwp-chip-expired {
   background: #fdecec;
-  border-color: #f8d7d7;
+  border-color: #f6d2d2;
 }
 .lwp-chip-expired .lwp-chip-num {
   color: #e5484d;
 }
 .lwp-chip-expired .lwp-chip-lbl {
-  color: #c0403f;
+  color: #b23a3e;
 }
+.lwp-chip-expired.is-active {
+  box-shadow: 0 0 0 2px #f0a5a7;
+}
+
 .lwp-chip-expiring {
-  background: #fff5e4;
-  border-color: #fbe7c1;
+  background: #fff4e0;
+  border-color: #fbe2b8;
 }
 .lwp-chip-expiring .lwp-chip-num {
-  color: #e8920a;
+  color: #e08600;
 }
 .lwp-chip-expiring .lwp-chip-lbl {
+  color: #a86c0c;
+}
+.lwp-chip-expiring.is-active {
+  box-shadow: 0 0 0 2px #f5cd8d;
+}
+
+/* Lead time ใช้โทนน้ำเงินชุดเดียวกับกระดิ่งแจ้งเตือน (.lab-*)
+   เพื่อไม่ให้ชนกับแดง = หมดอายุแล้ว และ ส้ม = ใกล้หมดอายุ */
+.lwp-chip-lead {
+  background: #eaf3ff;
+  border-color: #cfe1fd;
+}
+.lwp-chip-lead .lwp-chip-num {
+  color: #2563eb;
+}
+.lwp-chip-lead .lwp-chip-lbl {
+  color: #1d4ed8;
+}
+.lwp-chip-lead.is-active {
+  box-shadow: 0 0 0 2px #a9caf9;
+}
+
+/* ── ลิสต์ที่เลื่อนได้ ───────────────────────────────────── */
+
+.lwp-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 268px;
+  overflow-y: auto;
+  padding: 2px 18px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: #d6e2e0 transparent;
+}
+.lwp-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.lwp-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #d6e2e0;
+}
+/* เงาไล่สีท้ายลิสต์ บอกว่ายังเลื่อนดูต่อได้ */
+.lwp-scroll.has-fade {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
+}
+
+.lwp-section {
+  padding-top: 8px;
+}
+
+/* หัวข้อกลุ่มติดขอบบนตอนเลื่อน — รู้ตลอดว่ากำลังดูกลุ่มไหน */
+.lwp-group {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 0 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: linear-gradient(180deg, #ffffff 72%, rgba(255, 255, 255, 0));
+}
+.lwp-group-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+}
+.lwp-group-count {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9aa9a7;
+}
+.lwp-group-expired {
+  color: #c0403f;
+}
+.lwp-group-expired .lwp-group-dot {
+  background: #e5484d;
+}
+.lwp-group-expiring {
   color: #b9770f;
 }
-.lwp-chip-total {
-  background: #e6f7f4;
-  border-color: #c9efe9;
+.lwp-group-expiring .lwp-group-dot {
+  background: #f0a020;
 }
-.lwp-chip-total .lwp-chip-num {
-  color: #0fa89e;
+.lwp-group-lead {
+  color: #1d4ed8;
 }
-.lwp-chip-total .lwp-chip-lbl {
-  color: #178a82;
-}
-
-.lwp-body {
-  padding: 20px 22px 6px;
-}
-.lwp-section-label {
-  margin: 0 0 12px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: #8a9c99;
+.lwp-group-lead .lwp-group-dot {
+  background: #3b82f6;
 }
 
-.lwp-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
+/* ── แถวรายการ — 2 บรรทัด ───────────────────────────────── */
 
 .lwp-item {
   display: flex;
+  animation: lwp-item-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  padding: 12px 14px;
+  margin-bottom: 6px;
+  padding: 9px 11px;
   border: 1px solid #eef2f1;
-  border-radius: 18px;
+  border-radius: 13px;
   background: #f8fbfa;
   text-align: left;
   cursor: pointer;
-  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    background 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: background 0.24s ease, border-color 0.24s ease, transform 0.24s ease;
 }
 .lwp-item:hover {
-  transform: translateY(-3px);
+  transform: translateX(2px);
   background: #ffffff;
   border-color: #d7ede9;
-  box-shadow: 0 2px 4px rgba(16, 24, 40, 0.04), 0 16px 30px -18px rgba(9, 49, 47, 0.4);
+}
+.lwp-item.is-lead-row:hover {
+  border-color: #cfe1fd;
 }
 
 .lwp-item-icon {
@@ -207,9 +342,9 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
   color: #0f8580;
   background: #e6f7f4;
 }
@@ -217,40 +352,36 @@
   color: #b9770f;
   background: #fff5e4;
 }
+.lwp-item-icon-lead {
+  color: #2563eb;
+  background: #eff6ff;
+}
 
 .lwp-item-main {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
   flex: 1 1 auto;
 }
+
+.lwp-item-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
 .lwp-item-title {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #17302e;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.lwp-item-meta {
-  font-size: 11.5px;
-  color: #7c8c8a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.lwp-item-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  flex: 0 0 auto;
-  text-align: right;
-}
 .lwp-item-days {
-  font-size: 13px;
+  flex: 0 0 auto;
+  font-size: 12.5px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -260,70 +391,106 @@
 .lwp-item-days.is-expiring {
   color: #e8920a;
 }
-.lwp-item-exp {
+.lwp-item-days.is-lead {
+  color: #2563eb;
+}
+.lwp-item-days.is-lead-late {
+  color: #b42318;
+}
+
+.lwp-item-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lwp-item-meta {
   font-size: 11px;
-  color: #9aa9a7;
+  color: #7c8c8a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ใบที่หมดอายุ/ใกล้หมดอายุ แต่ยังค้างกำหนดยื่น กสทช. อยู่ */
+.lwp-item-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  padding: 1px 6px 1px 5px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #eff6ff;
   white-space: nowrap;
 }
-
-.lwp-more {
-  margin: 14px 0 0;
-  text-align: center;
-  font-size: 12px;
-  color: #9aa9a7;
+.lwp-item-lead.is-late {
+  color: #b42318;
+  background: #fdecec;
 }
+
+.lwp-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 28px 0;
+  font-size: 12.5px;
+  color: #8a9c99;
+}
+
+/* ── ท้ายการ์ด ──────────────────────────────────────────── */
 
 .lwp-foot {
-  padding: 18px 22px 24px;
+  flex: 0 0 auto;
+  padding: 13px 18px 17px;
+  border-top: 1px solid #eef4f3;
+  background: #ffffff;
 }
 .lwp-cta {
+  position: relative;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  padding: 14px 20px;
+  padding: 11px 18px;
   border: none;
-  border-radius: 16px;
-  font-size: 15px;
+  border-radius: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #ffffff;
   background: #00cec8;
-  box-shadow:
-    0 10px 22px -10px rgba(0, 206, 200, 0.7),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  box-shadow: 0 8px 18px -10px rgba(0, 206, 200, 0.7);
   cursor: pointer;
-  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1), filter 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: filter 0.24s ease, box-shadow 0.24s ease;
+}
+.lwp-cta::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.42), transparent);
+  animation: lwp-sheen 3.6s ease-in-out 1s infinite;
 }
 .lwp-cta:hover {
-  transform: translateY(-2px);
-  filter: brightness(1.03);
-  box-shadow:
-    0 16px 30px -12px rgba(0, 206, 200, 0.75),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-.lwp-cta:active {
-  transform: translateY(0);
+  filter: brightness(1.04);
+  box-shadow: 0 12px 24px -12px rgba(0, 206, 200, 0.75);
 }
 
-.lwp-brand {
-  margin: 14px 0 0;
+.lwp-rule {
+  margin: 9px 0 0;
   text-align: center;
-  font-size: 11px;
-  letter-spacing: 0.02em;
+  font-size: 10.5px;
+  line-height: 1.4;
   color: #a9b6b4;
 }
 
-@keyframes lwp-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
-}
 @keyframes lwp-overlay-in {
   from {
     opacity: 0;
@@ -343,7 +510,7 @@
 @keyframes lwp-card-in {
   from {
     opacity: 0;
-    transform: translateY(18px) scale(0.96);
+    transform: translateY(14px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -357,7 +524,56 @@
   }
   to {
     opacity: 0;
-    transform: translateY(12px) scale(0.97);
+    transform: translateY(10px) scale(0.97);
+  }
+}
+
+@keyframes lwp-rig-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+@keyframes lwp-rig-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+@keyframes lwp-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes lwp-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes lwp-sheen {
+  0% {
+    left: -60%;
+  }
+  45%,
+  100% {
+    left: 130%;
   }
 }
 
@@ -365,11 +581,19 @@
   .lwp-overlay,
   .lwp-overlay.is-closing,
   .lwp-card,
-  .lwp-card.is-closing,
-  .lwp-badge {
+  .lwp-card.is-closing {
     animation: none;
   }
+  .lwp-rig,
+  .lwp-chip,
+  .lwp-item {
+    animation: none;
+  }
+  .lwp-cta::after {
+    display: none;
+  }
   .lwp-item,
+  .lwp-chip,
   .lwp-cta,
   .lwp-close {
     transition: none;
@@ -377,13 +601,28 @@
 }
 
 @media (max-width: 380px) {
-  .lwp-title {
-    font-size: 20px;
+  .lwp-count-num {
+    font-size: 39px;
+  }
+  .lwp-rig {
+    width: 88px;
   }
   .lwp-chip-num {
-    font-size: 23px;
+    font-size: 19px;
   }
-  .lwp-item-meta {
-    max-width: 150px;
+  .lwp-chip-lbl {
+    font-size: 10px;
+  }
+  .lwp-chip-num {
+    font-size: 17px;
+  }
+  .lwp-chip-lbl {
+    font-size: 10px;
+  }
+  .lwp-scroll {
+    max-height: 250px;
+  }
+  .lwp-item-lead {
+    display: none;
   }
 }
