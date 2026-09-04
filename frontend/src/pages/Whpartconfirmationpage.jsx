@@ -270,9 +270,8 @@ export default function WHPartConfirmationPage() {
           successToast = isITC ? `ตรงกับบัญชี: ${sn}` : `บันทึกแล้ว: ${tagLabel(check.PartType)} — ${sn}`;
         } else if (check.MatchStatus === 'RETIRED_FORMAT') {
           // รหัสรูปแบบเก่าที่ถูกแทนที่ใน Change Format Part แล้ว
-          await scanErrorAlert(check.MatchMessage || 'รูปแบบเดิมถูกยกเลิกแล้ว', {
-            hint: res.detail || check.MatchDetail || 'กรุณาสแกนรหัสรูปแบบใหม่'
-          });
+          // ขึ้นแค่ข้อความสั้น ๆ ไม่ต้องบอกรายละเอียดว่าเปลี่ยนเป็นรหัสอะไร
+          await scanErrorAlert(check.MatchMessage || 'รูปแบบเดิมถูกยกเลิกแล้ว');
         } else if (isITC) {
           const errMsg = check.MatchMessage || res.message || 'ไม่ตรงกับบัญชีใบอนุญาตนำเข้า';
           const isMasterDataMiss = check.MatchStatus === 'NOT_FOUND' && errMsg.includes('ทะเบียนกลาง');
