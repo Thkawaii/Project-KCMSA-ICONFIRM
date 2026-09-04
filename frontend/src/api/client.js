@@ -21,8 +21,12 @@ export async function apiFetch(path, options = {}) {
     data = await res.json();
   } catch {}
   if (!res.ok) {
-    const message = data?.message || `Request failed (${res.status})`;
+    // ถ้า backend ส่งรายละเอียดมาด้วย ให้แสดงต่อท้ายข้อความหลัก
+    // (เช่น กรณีสแกนรหัสรูปแบบเก่าที่ถูกยกเลิกแล้ว ต้องบอกว่าให้ใช้รหัสใหม่ตัวไหน)
+    const base = data?.message || `Request failed (${res.status})`;
+    const message = data?.detail ? `${base}\n${data.detail}` : base;
     const error = new Error(message);
+    error.detail = data?.detail || '';
     error.status = res.status;
     error.data = data;
     throw error;

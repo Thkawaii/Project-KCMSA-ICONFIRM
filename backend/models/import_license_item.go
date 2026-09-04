@@ -15,6 +15,9 @@ const (
 	MatchStatusWrongProd   = "WRONG_PRODNO"
 	MatchStatusDuplicate   = "DUPLICATE"
 	MatchStatusNotRequired = "NOT_REQUIRED"
+
+	// MatchStatusRetiredFormat = สแกนด้วยรหัสรูปแบบเก่าที่ถูกแทนที่ใน Change Format Part แล้ว
+	MatchStatusRetiredFormat = "RETIRED_FORMAT"
 )
 
 type ImportLicenseItem struct {

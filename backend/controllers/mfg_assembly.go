@@ -23,6 +23,10 @@ func GetMFGAssemblies(c *gin.Context) {
 	for i := range rows {
 		rows[i].Item = strconv.Itoa(i + 1)
 
+		// แสดงรหัสเป็นรูปแบบที่ใช้อยู่ตอนนี้ (ไม่แตะข้อมูลในฐานข้อมูล)
+		rows[i].MachineNo = CurrentCodeOf(rows[i].MachineNo)
+		rows[i].ITControllerNo = CurrentCodeOf(rows[i].ITControllerNo)
+
 		plan := resolver.evaluateComponent(
 			rows[i].MachineNo, rows[i].ITControllerNo, rows[i].Component)
 
@@ -106,7 +110,7 @@ func itcUsedOnOtherMachine(machineNo, itcNo string, excludeID uint) bool {
 	}
 
 	q := config.DB.Model(&models.MFGAssembly{}).
-		Where("no = ? AND machine_no <> ?", itcNo, strings.TrimSpace(machineNo))
+		Where("no IN ? AND machine_no <> ?", CodeVariants(itcNo), strings.TrimSpace(machineNo))
 	if excludeID != 0 {
 		q = q.Where("id <> ?", excludeID)
 	}
@@ -126,8 +130,8 @@ func findMFGRowForPair(machineNo, itcNo string) *models.MFGAssembly {
 	// ข้ามแถวที่เป็น "log การสแกนซ้ำ" เพื่อให้การสแกนรอบถัดไป
 	// กลับไปแก้แถวประกอบจริงเสมอ ไม่ใช่ไปทับแถว DUPLICATE
 	var row models.MFGAssembly
-	err := config.DB.Where("machine_no = ? AND no = ? AND status <> ?",
-		machineNo, itcNo, models.MFGStatusDuplicate).
+	err := config.DB.Where("machine_no IN ? AND no IN ? AND status <> ?",
+		CodeVariants(machineNo), CodeVariants(itcNo), models.MFGStatusDuplicate).
 		Order("id desc").First(&row).Error
 	if err != nil {
 		return nil
@@ -219,9 +223,11 @@ func findWHPartCheck(component, serial string) *models.PartCheck {
 	}
 	component = strings.ToUpper(strings.TrimSpace(component))
 
+	// ค้นทุกรูปแบบของรหัสเดียวกัน เผื่อแถว WH ถูกบันทึกไว้ก่อนเปลี่ยน format
+	v := CodeVariants(serial)
 	q := config.DB.Model(&models.PartCheck{}).
 		Where("match_status = ?", models.MatchStatusMatch).
-		Where("(machine_no = ? OR sn = ? OR pn = ?)", serial, serial, serial)
+		Where("(machine_no IN ? OR sn IN ? OR pn IN ?)", v, v, v)
 
 	if component != "" {
 		q = q.Where("part_type = ?", component)
@@ -241,8 +247,9 @@ func latestWHPartCheckAnyStatus(component, serial string) *models.PartCheck {
 	}
 	component = strings.ToUpper(strings.TrimSpace(component))
 
+	v := CodeVariants(serial)
 	q := config.DB.Model(&models.PartCheck{}).
-		Where("(machine_no = ? OR sn = ? OR pn = ?)", serial, serial, serial)
+		Where("(machine_no IN ? OR sn IN ? OR pn IN ?)", v, v, v)
 	if component != "" {
 		q = q.Where("part_type = ?", component)
 	}
@@ -366,16 +373,28 @@ func ScanMFGAssembly(c *gin.Context) {
 		return
 	}
 
+	// รหัสที่ถูกแทนที่ด้วยรูปแบบใหม่ใน Change Format Part แล้ว ถือว่าเลิกใช้
+	if msg, blocked := retiredScanMessage(machineNo, itcNo); blocked {
+		c.JSON(409, gin.H{
+			"message":       "รูปแบบเดิมถูกยกเลิกแล้ว",
+			"detail":        msg,
+			"matched":       false,
+			"retiredFormat": true,
+		})
+		return
+	}
+
 	machineNo = resolveMachineNo(machineNo)
 
 	resolver := newMFGPlanResolver()
 	plan := resolver.evaluateComponent(machineNo, itcNo, req.PartType)
 
 	// ใช้รหัสที่แปลงตาม Change Format Part แล้วเป็นค่าที่บันทึกและใช้ค้นหาทั้งหมด
-	// ไม่งั้นแถว MFG จะเก็บรหัสรูปแบบใหม่ แต่ฝั่ง WH เก็บค่าเดิม → จับคู่กันไม่เจอ
+	// เก็บเป็น "รูปแบบที่ใช้อยู่ตอนนี้" ให้ตรงกับที่ฝั่ง WH เก็บ ตารางทั้งสองฝั่งจึงแสดงรหัสใหม่
 	if v := strings.TrimSpace(plan.ScannedITC); v != "" {
-		itcNo = v
+		itcNo = CurrentCodeOf(v)
 	}
+	machineNo = CurrentCodeOf(machineNo)
 
 	userID, name := lookupUserName(c)
 	now := time.Now()
