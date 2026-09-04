@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { computeExportLicenseDates, leadDaysLabel, LEAD_STATUS, EXPORT_LICENSE_LEAD_DAYS, EXPORT_LICENSE_LEAD_WARN_DAYS } from '../lib/exportLicenseRules.js';
-import { formatThaiDate } from '../lib/licenseExpiry.js';
+import { formatThaiDate, isLicenseCompleted } from '../lib/licenseExpiry.js';
 import { ExclamationTriangleIcon, ClockIcon, CheckCircleIcon, ChevronRightIcon, XMarkIcon } from './icons.jsx';
 
 // ค่าฟิลเตอร์พิเศษ: "ถึงกำหนดยื่น" ที่เหลือเวลาไม่เกิน 7 วัน
@@ -33,6 +33,8 @@ export default function ExportLeadTimeAlert({ rows = [], activeFilter = 'all', o
     // รวมเป็นรายใบอนุญาต ไม่ใช่รายเครื่อง — ใบเดียวมีหลายเครื่องจะได้ไม่ซ้ำเป็นสิบบรรทัด
     const groups = new Map();
     (rows || []).forEach(r => {
+      // ใบที่ทำเครื่องหมาย "เสร็จสิ้น" แล้วหยุดนับ Lead time — ไม่ต้องเตือนอีก
+      if (isLicenseCompleted(r)) return;
       const info = computeExportLicenseDates(r);
       if (!info.hasDate || !info.leadAlert) return;
       const key = String(r.ExportLicenseNo || r.ExceptionLicense || '').trim() || '(ไม่มีเลขใบอนุญาต)';

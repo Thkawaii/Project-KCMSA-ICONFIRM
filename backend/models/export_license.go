@@ -37,6 +37,13 @@ type ExportLicenseItem struct {
 
 	Remark string `gorm:"column:remark;size:255"`
 
+	// Completed = ปิดงานใบอนุญาตนี้แล้ว (ผู้ใช้กด "ทำเครื่องหมายเสร็จสิ้น" เอง)
+	// เมื่อเสร็จสิ้นแล้ว ระบบจะ "หยุดนับวันหมดอายุ" และหยุดนับ Lead time ของแถวนี้
+	// คือไม่คิดสถานะใกล้หมดอายุ/หมดอายุ/เลยกำหนดยื่น และไม่เด้งแจ้งเตือนอีกต่อไป
+	Completed   bool `gorm:"index;not null;default:false"`
+	CompletedBy string `gorm:"size:100"`
+	CompletedAt *time.Time
+
 	ExtraJSON string `gorm:"type:text" json:"extra_json"`
 
 	FileName   string `gorm:"size:255"`

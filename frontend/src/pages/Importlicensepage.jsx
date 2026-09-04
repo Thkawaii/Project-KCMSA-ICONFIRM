@@ -1,19 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
-import { getImportLicenseItems, getImportLicenseSummary, uploadImportLicense, previewImportLicense, deleteImportLicenseItem, clearImportLicense, renewImportLicense } from '../api/importLicense.js';
-import { getExportLicense, getExportLicenseTrace, uploadExportLicense, previewExportLicense, deleteExportLicense, clearExportLicense, renewExportLicense } from '../api/exportLicense.js';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { getImportLicenseItems, getImportLicenseSummary, uploadImportLicense, previewImportLicense, deleteImportLicenseItem, clearImportLicense, renewImportLicense, setImportLicenseComplete } from '../api/importLicense.js';
+import { getExportLicense, getExportLicenseTrace, uploadExportLicense, previewExportLicense, deleteExportLicense, clearExportLicense, renewExportLicense, setExportLicenseComplete } from '../api/exportLicense.js';
 import { PreviewResult, ChangePreview, ExtraColumnsCell } from '../components/FormatTools.jsx';
 import AppShell from '../components/AppShell.jsx';
 import FileDropZone from '../components/Filedropzone.jsx';
 import SelectField from '../components/Selectfield.jsx';
-import { confirmDelete, toastError, toastSuccess, promptRenewDays } from '../lib/toast.js';
-import { computeLicenseExpiry, formatThaiDate, daysLeftLabel, STATUS_LABEL, EXPIRY_STATUS } from '../lib/licenseExpiry.js';
+import { confirmDelete, confirmComplete, toastError, toastSuccess, promptRenewDays } from '../lib/toast.js';
+import { computeLicenseExpiry, formatThaiDate, daysLeftLabel, STATUS_LABEL, EXPIRY_STATUS, COMPLETED_FILTER, COMPLETED_LABEL, isLicenseCompleted } from '../lib/licenseExpiry.js';
 import { computeExportLicenseDates, exportLeadTimeDate, leadDaysLabel, leadBadgeClass, LEAD_STATUS, LEAD_STATUS_LABEL, LEAD_BADGE_CLASS, EXPORT_LICENSE_LEAD_DAYS } from '../lib/exportLicenseRules.js';
 import { useDailyTick } from '../lib/useDailyTick.js';
 import { useAppParams } from '../lib/nav.jsx';
 import { buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js';
 import PeriodRangePicker from '../components/PeriodRangePicker.jsx';
+import completeStampUrl from '../assets/complete-stamp.png';
 import { inPeriod, periodRangeLabel, periodFileTag } from '../lib/dateRange.js';
-import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardDocumentCheckIcon, ClockIcon, CubeIcon, DocumentTextIcon, RectangleStackIcon, ReceiptPercentIcon, ShieldCheckIcon, Squares2X2Icon, TagIcon, TruckIcon, WrenchScrewdriverIcon, XMarkIcon } from '../components/icons.jsx';
+import { ArrowPathIcon, CheckBadgeIcon, CheckCircleIcon, CheckIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardDocumentCheckIcon, ClockIcon, CubeIcon, DocumentTextIcon, MinusIcon, RectangleStackIcon, ReceiptPercentIcon, ShieldCheckIcon, Squares2X2Icon, TagIcon, TruckIcon, WrenchScrewdriverIcon, XCircleIcon, XMarkIcon } from '../components/icons.jsx';
 export const WH_NAV_ITEMS = [{
   to: '/warehouse',
   label: 'Import License',
@@ -39,11 +40,158 @@ const EXPIRY_BADGE_CLASS = {
   [EXPIRY_STATUS.VALID]: 'il-badge il-badge-ok',
   [EXPIRY_STATUS.NO_DATE]: 'il-badge il-badge-muted'
 };
+
+// ---------------------------------------------------------------------------
+// สถานะ "เสร็จสิ้น" ของใบอนุญาต
+//
+// ผู้ใช้ติ๊กเลือกใบที่ทำงานเสร็จแล้ว (ใบเดียวหรือหลายใบก็ได้) แล้วกดปุ่มยืนยัน
+// ใบที่เสร็จสิ้นแล้วจะ:
+//   1. ขึ้นไอคอน/ป้าย "เสร็จสิ้น" ที่หน้าใบนั้น
+//   2. หยุดนับวันหมดอายุ — ไม่ขึ้นใกล้หมดอายุ/หมดอายุ และไม่เด้งแจ้งเตือนอีก
+// ---------------------------------------------------------------------------
+
+// ป้าย "เสร็จสิ้นแล้ว" ที่ใช้แทนป้ายนับวันหมดอายุ
+//
+// ถึงจะหยุดนับวันแล้ว แต่ยังต้องโชว์ "วันสุดท้าย" ที่ค้างไว้เสมอ
+// เพราะเวลา Export Excel ต้องเห็นวันที่จริง ไม่ใช่ข้อความว่าหยุดนับ
+function CompleteBadge({
+  row,
+  date,
+  dateLabel = 'หมดอายุ'
+}) {
+  const by = row?.CompletedBy || '';
+  const at = row?.CompletedAt ? formatThaiDate(row.CompletedAt) : '';
+  return <div className="il-expiry-cell il-complete-cell">
+      <span className="il-badge il-badge-complete">
+        <CheckBadgeIcon className="size-3.5" />
+        {COMPLETED_LABEL}
+      </span>
+      {date && <span className="il-complete-date">
+          {dateLabel} {formatThaiDate(date)}
+        </span>}
+      {(by || at) && <span className="il-complete-meta">
+          {[by, at].filter(Boolean).join(' · ')}
+        </span>}
+    </div>;
+}
+
+// ไอคอนติ๊กเล็ก ๆ ที่ปักไว้หน้าเลขใบอนุญาต เพื่อให้กวาดตาเห็นได้ทั้งตาราง
+function CompleteFlag({
+  show
+}) {
+  if (!show) return null;
+  return <span className="il-complete-flag" title={COMPLETED_LABEL} aria-label={COMPLETED_LABEL}>
+      <CheckCircleIcon className="size-4" />
+    </span>;
+}
+
+// ช่องติ๊กเลือกแถว — ใช้ input จริงเพื่อให้กด/โฟกัส/อ่านหน้าจอได้ตามมาตรฐาน
+function SelectCheckbox({
+  checked,
+  indeterminate = false,
+  onChange,
+  label,
+  disabled = false
+}) {
+  return <label className={'il-check' + (disabled ? ' il-check-disabled' : '')} onClick={e => e.stopPropagation()}>
+      <input type="checkbox" checked={checked} disabled={disabled} ref={el => {
+      if (el) el.indeterminate = indeterminate && !checked;
+    }} onChange={e => onChange(e.target.checked)} aria-label={label} />
+      <span className="il-check-box" aria-hidden="true">
+        {indeterminate && !checked ? <MinusIcon className="size-3" /> : <CheckIcon className="size-3" />}
+      </span>
+    </label>;
+}
+
+// จัดการรายการที่ถูกติ๊กไว้ + ตัดรายการที่หลุดออกจากตารางไปแล้วทิ้งอัตโนมัติ
+// (เช่น เปลี่ยนตัวกรอง ค้นหาใหม่ หรือถูกลบ) จะได้ไม่มี id ค้างที่มองไม่เห็น
+function useRowSelection(visibleRows) {
+  const [selected, setSelected] = useState(() => new Set());
+  useEffect(() => {
+    setSelected(prev => {
+      if (prev.size === 0) return prev;
+      const alive = new Set(visibleRows.map(r => r.ID));
+      let changed = false;
+      const next = new Set();
+      prev.forEach(id => {
+        if (alive.has(id)) next.add(id);else changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, [visibleRows]);
+  const toggleOne = useCallback(id => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);else next.add(id);
+      return next;
+    });
+  }, []);
+  const setGroup = useCallback((ids, on) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => {
+        if (on) next.add(id);else next.delete(id);
+      });
+      return next;
+    });
+  }, []);
+  const clear = useCallback(() => setSelected(new Set()), []);
+  return {
+    selected,
+    toggleOne,
+    setGroup,
+    clear
+  };
+}
+
+// แถบเครื่องมือที่โผล่ขึ้นมาเมื่อมีการติ๊กเลือก
+// แสดงจำนวนที่เลือก และปุ่มปิดงาน/ยกเลิกสถานะ/ล้างการเลือก
+function SelectionBar({
+  selectedRows,
+  onComplete,
+  onUncomplete,
+  onClear,
+  busy
+}) {
+  const count = selectedRows.length;
+  if (count === 0) return null;
+  const doneCount = selectedRows.filter(isLicenseCompleted).length;
+  const openCount = count - doneCount;
+  return <div className="il-selection-bar" role="status">
+      <div className="il-selection-info">
+        <span className="il-selection-count">
+          <CheckBadgeIcon className="size-4" />
+          เลือกไว้ {count} รายการ
+        </span>
+        <span className="il-selection-hint">
+          {openCount > 0 ? `ยังไม่เสร็จสิ้น ${openCount} รายการ` : 'เสร็จสิ้นแล้วทั้งหมด'}
+          {doneCount > 0 && openCount > 0 ? ` · เสร็จสิ้นแล้ว ${doneCount} รายการ` : ''}
+        </span>
+      </div>
+      <div className="il-selection-actions">
+        <button type="button" className="il-complete-btn" onClick={onComplete} disabled={busy || openCount === 0}>
+          <CheckBadgeIcon className="size-4" />
+          ทำเครื่องหมายเสร็จสิ้น
+        </button>
+        <button type="button" className="il-uncomplete-btn" onClick={onUncomplete} disabled={busy || doneCount === 0}>
+          <ArrowPathIcon className="size-4" />
+          ยกเลิกสถานะ
+        </button>
+        <button type="button" className="il-selection-clear" onClick={onClear} disabled={busy}>
+          <XMarkIcon className="size-4" />
+          ล้างการเลือก
+        </button>
+      </div>
+    </div>;
+}
 function ExpiryCell({
+  row,
   issueDate,
   expireDate
 }) {
   const exp = expireDate ? computeExpireStatus(expireDate, 30) : computeLicenseExpiry(issueDate);
+  // ใบที่ทำเครื่องหมายเสร็จสิ้นแล้ว = ปิดงาน หยุดนับวัน แต่ยังโชว์วันหมดอายุสุดท้ายไว้
+  if (isLicenseCompleted(row)) return <CompleteBadge row={row} date={exp.expiryDate} />;
   return <div className="il-expiry-cell">
       <span className={EXPIRY_BADGE_CLASS[exp.status]}>{STATUS_LABEL[exp.status]}</span>
       {exp.hasDate && <>
@@ -71,6 +219,7 @@ export default function ImportLicensePage() {
   const [uploadMsg, setUploadMsg] = useState(null);
   const [previewData, setPreviewData] = useState(null);
   const [previewing, setPreviewing] = useState(false);
+  const [completing, setCompleting] = useState(false);
   async function handlePreview() {
     if (!file) {
       setUploadMsg({
@@ -237,8 +386,11 @@ export default function ImportLicensePage() {
     if (modelFilter !== 'all') {
       rows = rows.filter(r => (r.Model || '') === modelFilter);
     }
-    if (expiryFilter !== 'all') {
-      rows = rows.filter(r => computeLicenseExpiry(r.IssueDate).status === expiryFilter);
+    if (expiryFilter === COMPLETED_FILTER) {
+      rows = rows.filter(isLicenseCompleted);
+    } else if (expiryFilter !== 'all') {
+      // ใบที่เสร็จสิ้นแล้วหยุดนับวันหมดอายุ จึงไม่เข้าเกณฑ์สถานะอายุใด ๆ อีก
+      rows = rows.filter(r => !isLicenseCompleted(r) && computeLicenseExpiry(r.IssueDate).status === expiryFilter);
     }
     const term = search.trim().toLowerCase();
     if (term) {
@@ -279,6 +431,9 @@ export default function ImportLicensePage() {
   }, {
     value: EXPIRY_STATUS.VALID,
     label: STATUS_LABEL[EXPIRY_STATUS.VALID]
+  }, {
+    value: COMPLETED_FILTER,
+    label: COMPLETED_LABEL
   }], []);
   const lotOptions = useMemo(() => {
     const opts = [{
@@ -288,7 +443,7 @@ export default function ImportLicensePage() {
     summary.forEach(s => {
       opts.push({
         value: `${s.LicenseNo}|${s.InvoiceNo}`,
-        label: `${s.LicenseNo} · Invoice ${s.InvoiceNo} · ${s.Total} เครื่อง`
+        label: `${s.LicenseNo} · Invoice ${s.InvoiceNo} · ${s.Total} เครื่อง${s.CompletedCount > 0 ? ` · เสร็จสิ้น ${s.CompletedCount}/${s.Total}` : ''}`
       });
     });
     return opts;
@@ -297,7 +452,7 @@ export default function ImportLicensePage() {
     total: items.length,
     licenses: new Set(items.map(r => r.LicenseNo).filter(Boolean)).size,
     invoices: new Set(items.map(r => r.InvoiceNo).filter(Boolean)).size,
-    models: new Set(items.map(r => r.Model).filter(Boolean)).size
+    completed: items.filter(isLicenseCompleted).length
   }), [items]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -305,6 +460,90 @@ export default function ImportLicensePage() {
     setPage(Math.min(Math.max(1, p), totalPages));
   }
   const currentLot = summary.find(s => `${s.LicenseNo}|${s.InvoiceNo}` === selectedLot);
+
+  // ---- การเลือกแถวเพื่อทำเครื่องหมาย "เสร็จสิ้น" ----
+  const {
+    selected,
+    toggleOne,
+    setGroup,
+    clear: clearSelection
+  } = useRowSelection(filtered);
+  const selectedRows = useMemo(() => filtered.filter(r => selected.has(r.ID)), [filtered, selected]);
+  const pageIds = paged.map(r => r.ID);
+  const pageAllSelected = pageIds.length > 0 && pageIds.every(id => selected.has(id));
+  const pageSomeSelected = pageIds.some(id => selected.has(id));
+
+  // ทำเครื่องหมาย/ยกเลิก ตามรายการที่ติ๊กไว้ (ใบเดียวหรือหลายใบก็ได้)
+  async function applyComplete(completed) {
+    const targets = completed ? selectedRows.filter(r => !isLicenseCompleted(r)) : selectedRows.filter(isLicenseCompleted);
+    if (targets.length === 0) return;
+    const ok = await confirmComplete({
+      title: completed ? `ต้องการทำเครื่องหมายเสร็จสิ้น ${targets.length} รายการ` : `ต้องการยกเลิกสถานะเสร็จสิ้น ${targets.length} รายการ`,
+      danger: !completed
+    });
+    if (!ok) return;
+    setCompleting(true);
+    try {
+      await setImportLicenseComplete({
+        ids: targets.map(r => r.ID),
+        completed
+      });
+      clearSelection();
+      await loadAll();
+      toastSuccess(completed ? `ทำเครื่องหมายเสร็จสิ้น ${targets.length} รายการแล้ว — หยุดนับวันหมดอายุ` : `ยกเลิกสถานะเสร็จสิ้น ${targets.length} รายการแล้ว`);
+    } catch (err) {
+      toastError(err.message || 'อัปเดตสถานะไม่สำเร็จ');
+    } finally {
+      setCompleting(false);
+    }
+  }
+
+  // ปิดงาน/เปิดงานทั้งใบในครั้งเดียว จากแถบใบอนุญาตที่กำลังเลือกอยู่
+  async function handleCompleteLot(lot, completed) {
+    const licenseNo = lot?.LicenseNo ?? '';
+    const invoiceNo = lot?.InvoiceNo ?? '';
+    const label = licenseNo || (invoiceNo ? `Invoice ${invoiceNo}` : 'ล็อตนี้ (ไม่มีเลขใบอนุญาต)');
+    const ok = await confirmComplete({
+      title: completed ? `ต้องการทำเครื่องหมายเสร็จสิ้นทั้งใบ ${label}` : `ต้องการยกเลิกสถานะเสร็จสิ้นทั้งใบ ${label}`,
+      danger: !completed
+    });
+    if (!ok) return;
+    setCompleting(true);
+    try {
+      const res = await setImportLicenseComplete({
+        licenseNo,
+        invoiceNo,
+        completed
+      });
+      clearSelection();
+      await loadAll();
+      toastSuccess(completed ? `ปิดงาน ${label} แล้ว (${res?.updated ?? 0} เครื่อง) — หยุดนับวันหมดอายุ` : `ยกเลิกสถานะเสร็จสิ้น ${label} แล้ว (${res?.updated ?? 0} เครื่อง)`);
+    } catch (err) {
+      toastError(err.message || 'อัปเดตสถานะไม่สำเร็จ');
+    } finally {
+      setCompleting(false);
+    }
+  }
+
+  // ปุ่มสลับสถานะจากในหน้ารายละเอียด
+  async function handleToggleRowComplete(row) {
+    const completed = !isLicenseCompleted(row);
+    setCompleting(true);
+    try {
+      await setImportLicenseComplete({
+        ids: [row.ID],
+        completed
+      });
+      setDetailRow(null);
+      await loadAll();
+      toastSuccess(completed ? `${row.MachineNo || 'รายการนี้'} เสร็จสิ้นแล้ว — หยุดนับวันหมดอายุ` : `ยกเลิกสถานะเสร็จสิ้นของ ${row.MachineNo || 'รายการนี้'} แล้ว`);
+    } catch (err) {
+      toastError(err.message || 'อัปเดตสถานะไม่สำเร็จ');
+    } finally {
+      setCompleting(false);
+    }
+  }
+  const lotCompletedAll = currentLot ? currentLot.CompletedCount >= currentLot.Total && currentLot.Total > 0 : false;
   return <AppShell navItems={WH_NAV_ITEMS} roleLabel="Warehouse">
       <div className="wh-heading-row">
         <div>
@@ -368,14 +607,14 @@ export default function ImportLicensePage() {
           </div>
           <div className="dash-stat-value">{counts.invoices}</div>
         </div>
-        <div className="dash-stat-card">
+        <div className="dash-stat-card il-stat-complete">
           <div className="dash-stat-label">
-            <span>แบบ/รุ่น</span>
+            <span>เสร็จสิ้นแล้ว</span>
             <span className="dash-stat-icon dash-icon-green">
-              <CubeIcon className="size-4" />
+              <CheckBadgeIcon className="size-4" />
             </span>
           </div>
-          <div className="dash-stat-value">{counts.models}</div>
+          <div className="dash-stat-value">{counts.completed}</div>
         </div>
       </div>
 
@@ -386,16 +625,29 @@ export default function ImportLicensePage() {
           </div>
         </div>}
 
-      {currentLot && <div className="wh-so-active-bar">
-          <div>
-            <span className="wh-so-active-label">ใบอนุญาตนำเข้า</span>
-            <h3 className="wh-so-active-name">{currentLot.LicenseNo || '(ไม่มีเลขใบอนุญาต)'}</h3>
-            <span className="wh-subtitle">
-              Invoice {currentLot.InvoiceNo || '—'} · ใบขนสินค้า {currentLot.DeclarationNo || '—'} · รุ่น{' '}
-              {currentLot.Model || '—'} · {currentLot.Total} เครื่อง
-            </span>
+      {currentLot && <div className="wh-so-active-bar il-license-bar">
+          <div className="il-lot-info">
+            <div className="il-lot-info-text">
+              <span className="wh-so-active-label">ใบอนุญาตนำเข้า</span>
+              <h3 className="wh-so-active-name">{currentLot.LicenseNo || '(ไม่มีเลขใบอนุญาต)'}</h3>
+              <span className="wh-subtitle">
+                Invoice {currentLot.InvoiceNo || '—'} · ใบขนสินค้า {currentLot.DeclarationNo || '—'} · รุ่น{' '}
+                {currentLot.Model || '—'} · {currentLot.Total} เครื่อง
+                {currentLot.CompletedCount > 0 && <> · เสร็จสิ้นแล้ว {currentLot.CompletedCount}/{currentLot.Total}</>}
+              </span>
+            </div>
+            {lotCompletedAll && <img className="il-complete-stamp" src={completeStampUrl} alt="เสร็จสิ้นแล้ว" title="ปิดงานทั้งใบแล้ว" />}
           </div>
           <div className="il-lot-actions">
+            <button className={lotCompletedAll ? 'il-uncomplete-btn' : 'il-complete-btn'} onClick={() => handleCompleteLot(currentLot, !lotCompletedAll)} disabled={completing} title={lotCompletedAll ? 'กลับมานับวันหมดอายุและแจ้งเตือนใบนี้ตามปกติ' : 'ปิดงานทั้งใบ แล้วหยุดนับวันหมดอายุ'}>
+              {lotCompletedAll ? <>
+                  <ArrowPathIcon className="size-4" />
+                  ยกเลิกเสร็จสิ้นทั้งใบ
+                </> : <>
+                  <CheckBadgeIcon className="size-4" />
+                  ทำทั้งใบให้เสร็จสิ้น
+                </>}
+            </button>
             <button className="wh-issue-btn il-renew-btn" onClick={() => handleRenewLicense(currentLot)}>
               ต่ออายุ
             </button>
@@ -438,10 +690,15 @@ export default function ImportLicensePage() {
         </div>
       </div>
 
+      <SelectionBar selectedRows={selectedRows} busy={completing} onComplete={() => applyComplete(true)} onUncomplete={() => applyComplete(false)} onClear={clearSelection} />
+
       <div className="wh-table-card">
-        <table className="wh-table">
+        <table className="wh-table il-table-selectable">
           <thead>
             <tr>
+              <th className="il-check-th">
+                <SelectCheckbox checked={pageAllSelected} indeterminate={pageSomeSelected} onChange={on => setGroup(pageIds, on)} label="เลือกทุกรายการในหน้านี้" disabled={pageIds.length === 0} />
+              </th>
               <th>ลำดับ</th>
               <th>ตราอักษร</th>
               <th>แบบ/รุ่น</th>
@@ -461,20 +718,28 @@ export default function ImportLicensePage() {
           </thead>
           <tbody>
             {loading && <tr>
-                <td colSpan={15} className="wh-empty-cell">
+                <td colSpan={16} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
-            {!loading && paged.map((row, i) => <tr key={row.ID}>
+            {!loading && paged.map((row, i) => <tr key={row.ID} className={(isLicenseCompleted(row) ? 'il-row-complete' : '') + (selected.has(row.ID) ? ' il-row-selected' : '')}>
+                  <td className="il-check-td" data-label="เลือก">
+                    <SelectCheckbox checked={selected.has(row.ID)} onChange={() => toggleOne(row.ID)} label={`เลือก ${row.MachineNo || 'รายการนี้'}`} />
+                  </td>
                   <td className="wh-cell-head" data-label="ลำดับ">
                     {(page - 1) * pageSize + i + 1}
                   </td>
                   <td data-label="ตราอักษร">{row.Brand || '—'}</td>
                   <td data-label="แบบ/รุ่น">{row.Model || '—'}</td>
-                  <td data-label="เลขใบอนุญาตนำเข้า">{row.LicenseNo || '—'}</td>
+                  <td data-label="เลขใบอนุญาตนำเข้า">
+                    <span className="il-license-cell">
+                      <CompleteFlag show={isLicenseCompleted(row)} />
+                      {row.LicenseNo || '—'}
+                    </span>
+                  </td>
                   <td data-label="วันที่ออกใบอนุญาต">{formatThaiDate(row.IssueDate)}</td>
                   <td data-label="หมดอายุ (6 เดือน)">
-                    <ExpiryCell issueDate={row.IssueDate} expireDate={row.ExpireDate} />
+                    <ExpiryCell row={row} issueDate={row.IssueDate} expireDate={row.ExpireDate} />
                   </td>
                   <td data-label="เลขอินวอยซ์นำเข้า">{row.InvoiceNo || '—'}</td>
                   <td data-label="เลขใบขนสินค้าขาเข้า">{row.DeclarationNo || '—'}</td>
@@ -502,7 +767,7 @@ export default function ImportLicensePage() {
                   </td>
                 </tr>)}
             {!loading && paged.length === 0 && <tr>
-                <td colSpan={15} className="wh-empty-cell">
+                <td colSpan={16} className="wh-empty-cell">
                   ยังไม่มีข้อมูลในบัญชี — อัปโหลดไฟล์ Excel หรือ CSV ด้านบนก่อน
                 </td>
               </tr>}
@@ -536,13 +801,16 @@ export default function ImportLicensePage() {
           </div>
         </div>}
 
-      {detailRow && <ImportDetailModal row={detailRow} onClose={() => setDetailRow(null)} />}
+      {detailRow && <ImportDetailModal row={detailRow} busy={completing} onToggleComplete={handleToggleRowComplete} onClose={() => setDetailRow(null)} />}
     </AppShell>;
 }
 function ImportDetailModal({
   row,
-  onClose
+  onClose,
+  onToggleComplete,
+  busy = false
 }) {
+  const completed = isLicenseCompleted(row);
   const item = (label, value) => <div className="wh-detail-item">
       <span className="wh-detail-label">{label}</span>
       <span className="wh-detail-value">{value === 0 || value ? value : '—'}</span>
@@ -606,8 +874,16 @@ function ImportDetailModal({
             <div className="wh-detail-item">
               <span className="wh-detail-label">สถานะอายุ</span>
               <span className="wh-detail-value il-detail-status">
-                <span className={EXPIRY_BADGE_CLASS[exp.status]}>{STATUS_LABEL[exp.status]}</span>
-                {exp.hasDate && <span className="il-detail-days">{daysLeftLabel(exp.daysLeft)}</span>}
+                {completed ? <>
+                    <span className="il-badge il-badge-complete">
+                      <CheckBadgeIcon className="size-3.5" />
+                      {COMPLETED_LABEL}
+                    </span>
+                    {exp.hasDate && <span className="il-detail-days">หมดอายุ {formatThaiDate(exp.expiryDate)}</span>}
+                  </> : <>
+                    <span className={EXPIRY_BADGE_CLASS[exp.status]}>{STATUS_LABEL[exp.status]}</span>
+                    {exp.hasDate && <span className="il-detail-days">{daysLeftLabel(exp.daysLeft)}</span>}
+                  </>}
               </span>
             </div>
             {item('หมายเหตุ', row.Remark)}
@@ -624,6 +900,9 @@ function ImportDetailModal({
             {item('สถานะ', confirmLabel)}
             {item('ผู้ยืนยัน', row.ConfirmedBy)}
             {item('วันเวลาที่ยืนยัน', row.ConfirmedDatetime ? formatThaiDate(row.ConfirmedDatetime) : '')}
+            {item('สถานะปิดงาน', completed ? COMPLETED_LABEL : 'ยังไม่เสร็จสิ้น')}
+            {completed && item('ผู้กดเสร็จสิ้น', row.CompletedBy)}
+            {completed && item('วันที่กดเสร็จสิ้น', row.CompletedAt ? formatThaiDate(row.CompletedAt) : '')}
           </div>
         </div>
 
@@ -648,7 +927,16 @@ function ImportDetailModal({
           </span>
         </div>
 
-        <div className="wh-modal-actions">
+        <div className="wh-modal-actions il-modal-actions">
+          {onToggleComplete && <button type="button" className={completed ? 'il-uncomplete-btn' : 'il-complete-btn'} onClick={() => onToggleComplete(row)} disabled={busy}>
+              {completed ? <>
+                  <ArrowPathIcon className="size-4" />
+                  ยกเลิกสถานะเสร็จสิ้น
+                </> : <>
+                  <CheckBadgeIcon className="size-4" />
+                  ทำเครื่องหมายเสร็จสิ้น
+                </>}
+            </button>}
           <button className="wh-modal-cancel" onClick={onClose}>
             ปิด
           </button>
@@ -748,6 +1036,8 @@ function ExportOneMonthExpiryCell({
   row
 }) {
   const exp = computeExportExpiry(row);
+  // ปิดงานแล้ว = หยุดนับวัน แต่ยังโชว์วันหมดอายุสุดท้ายไว้ให้เห็นและ Export ออกได้
+  if (isLicenseCompleted(row)) return <CompleteBadge row={row} date={exp.expiryDate} />;
   return <div className="il-expiry-cell">
       <span className={EXPIRY_BADGE_CLASS[exp.status]}>{STATUS_LABEL[exp.status]}</span>
       {exp.hasDate && <>
@@ -763,6 +1053,8 @@ function ExportLeadTimeCell({
   row
 }) {
   const exp = computeExportExpiry(row);
+  // ปิดงานแล้ว = หยุดนับ Lead time แต่ยังโชว์วันครบกำหนดยื่นสุดท้ายไว้
+  if (isLicenseCompleted(row)) return <CompleteBadge row={row} date={exp.leadDate} dateLabel="ครบกำหนดยื่น" />;
   if (!exp.hasDate) {
     return <div className="il-expiry-cell">
         <span className={LEAD_BADGE_CLASS[LEAD_STATUS.NO_DATE]}>
@@ -781,8 +1073,11 @@ function ExportLeadTimeCell({
 function ExportTraceModal({
   row,
   country,
-  onClose
+  onClose,
+  onToggleComplete,
+  busy = false
 }) {
+  const completed = isLicenseCompleted(row);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
@@ -848,17 +1143,35 @@ function ExportTraceModal({
             <div className="wh-detail-item">
               <span className="wh-detail-label">หมดอายุ (1 เดือน)</span>
               <span className="wh-detail-value il-detail-status">
-                <span className={EXPIRY_BADGE_CLASS[expiryInfo.status]}>{STATUS_LABEL[expiryInfo.status]}</span>
-                {expiryInfo.hasDate && <span className="il-detail-days">{formatThaiDate(expiryInfo.expiryDate)} · {daysLeftLabel(expiryInfo.daysLeft)}</span>}
+                {completed ? <>
+                    <span className="il-badge il-badge-complete">
+                      <CheckBadgeIcon className="size-3.5" />
+                      {COMPLETED_LABEL}
+                    </span>
+                    {expiryInfo.hasDate && <span className="il-detail-days">หมดอายุ {formatThaiDate(expiryInfo.expiryDate)}</span>}
+                  </> : <>
+                    <span className={EXPIRY_BADGE_CLASS[expiryInfo.status]}>{STATUS_LABEL[expiryInfo.status]}</span>
+                    {expiryInfo.hasDate && <span className="il-detail-days">{formatThaiDate(expiryInfo.expiryDate)} · {daysLeftLabel(expiryInfo.daysLeft)}</span>}
+                  </>}
               </span>
             </div>
             <div className="wh-detail-item">
               <span className="wh-detail-label">{`Lead time (${EXPORT_LICENSE_LEAD_DAYS} วัน)`}</span>
               <span className="wh-detail-value il-detail-status">
-                <span className={leadBadgeClass(expiryInfo)}>{LEAD_STATUS_LABEL[expiryInfo.leadStatus]}</span>
-                {expiryInfo.hasDate && <span className="il-detail-days">{formatThaiDate(expiryInfo.leadDate)} · {leadDaysLabel(expiryInfo.leadDaysLeft)}</span>}
+                {completed ? <>
+                    <span className="il-badge il-badge-complete">
+                      <CheckBadgeIcon className="size-3.5" />
+                      {COMPLETED_LABEL}
+                    </span>
+                    {expiryInfo.hasDate && <span className="il-detail-days">ครบกำหนดยื่น {formatThaiDate(expiryInfo.leadDate)}</span>}
+                  </> : <>
+                    <span className={leadBadgeClass(expiryInfo)}>{LEAD_STATUS_LABEL[expiryInfo.leadStatus]}</span>
+                    {expiryInfo.hasDate && <span className="il-detail-days">{formatThaiDate(expiryInfo.leadDate)} · {leadDaysLabel(expiryInfo.leadDaysLeft)}</span>}
+                  </>}
               </span>
             </div>
+            {completed && item('ผู้กดเสร็จสิ้น', row.CompletedBy)}
+            {completed && item('วันที่กดเสร็จสิ้น', row.CompletedAt ? formatThaiDate(row.CompletedAt) : '')}
             {item("Date Ass'y", row.AssemblyDate ? formatThaiDate(row.AssemblyDate) : '')}
             {item('Remark', row.Remark)}
           </div>
@@ -904,7 +1217,16 @@ function ExportTraceModal({
               </>}
           </>}
 
-        <div className="wh-modal-actions">
+        <div className="wh-modal-actions il-modal-actions">
+          {onToggleComplete && <button type="button" className={completed ? 'il-uncomplete-btn' : 'il-complete-btn'} onClick={() => onToggleComplete(row)} disabled={busy}>
+              {completed ? <>
+                  <ArrowPathIcon className="size-4" />
+                  ยกเลิกสถานะเสร็จสิ้น
+                </> : <>
+                  <CheckBadgeIcon className="size-4" />
+                  ทำเครื่องหมายเสร็จสิ้น
+                </>}
+            </button>}
           <button className="wh-modal-cancel" onClick={onClose}>
             ปิด
           </button>
@@ -929,6 +1251,7 @@ export function WHExportLicensePanel() {
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(1);
   const [exportingXlsx, setExportingXlsx] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const [periodMode, setPeriodMode] = useState('all');
   const [periodAnchor, setPeriodAnchor] = useState('');
   const [countryByITC, setCountryByITC] = useState({});
@@ -1017,10 +1340,10 @@ export function WHExportLicensePanel() {
         type: 'center',
         width: 24
       }, {
-        key: 'leadStatus',
-        header: 'สถานะ Lead time',
+        key: 'completedDate',
+        header: 'วันที่เสร็จสิ้น',
         type: 'center',
-        width: 22
+        width: 18
       }, {
         key: 'machineNo',
         header: 'Machine No',
@@ -1087,14 +1410,16 @@ export function WHExportLicensePanel() {
           rows: list.map((r, i) => {
             const exp = computeExportExpiry(r);
             const extraValues = parseExtraJson(r.extra_json);
+            const done = isLicenseCompleted(r);
             const row = {
-              __danger: exp.status === EXPIRY_STATUS.EXPIRED || exp.leadStatus === LEAD_STATUS.OVERDUE,
+              // ใบที่ปิดงานแล้วไม่ต้องไฮไลต์แดง เพราะหยุดนับวันหมดอายุไปแล้ว
+              __danger: !done && (exp.status === EXPIRY_STATUS.EXPIRED || exp.leadStatus === LEAD_STATUS.OVERDUE),
               item: i + 1,
               assemblyDate: r.AssemblyDate ? formatThaiDate(r.AssemblyDate) : '—',
               issueDate: r.IssueDate ? formatThaiDate(r.IssueDate) : '—',
               expiryDate: exp.hasDate ? formatThaiDate(exp.expiryDate) : '—',
               leadTimeDate: exp.hasDate ? formatThaiDate(exp.leadDate) : '—',
-              leadStatus: exp.hasDate ? `${LEAD_STATUS_LABEL[exp.leadStatus]} (${leadDaysLabel(exp.leadDaysLeft)})` : '—',
+              completedDate: done && r.CompletedAt ? formatThaiDate(r.CompletedAt) : '—',
               machineNo: dash2(r.MachineNo),
               itControllerNo: dash2(r.ITControllerNo || r.SerialNumber),
               invoiceNo: dash2(r.InvoiceNo),
@@ -1283,8 +1608,12 @@ export function WHExportLicensePanel() {
     if (periodMode !== 'all') {
       list = list.filter(r => r.AssemblyDate && inPeriod(r.AssemblyDate, periodMode, periodAnchor));
     }
-    if (expiryFilter !== 'all') {
+    if (expiryFilter === COMPLETED_FILTER) {
+      list = list.filter(isLicenseCompleted);
+    } else if (expiryFilter !== 'all') {
+      // ใบที่เสร็จสิ้นแล้วหยุดนับทั้งวันหมดอายุและ Lead time จึงไม่เข้าสถานะใด ๆ อีก
       list = list.filter(r => {
+        if (isLicenseCompleted(r)) return false;
         const exp = computeExportExpiry(r);
         if (expiryFilter === LEAD_STATUS.OVERDUE || expiryFilter === LEAD_STATUS.DUE) {
           return exp.leadStatus === expiryFilter;
@@ -1352,6 +1681,9 @@ export function WHExportLicensePanel() {
   }, {
     value: EXPIRY_STATUS.VALID,
     label: STATUS_LABEL[EXPIRY_STATUS.VALID]
+  }, {
+    value: COMPLETED_FILTER,
+    label: COMPLETED_LABEL
   }], []);
   const currentLicenseRows = useMemo(() => {
     if (exceptionFilter === 'all') return [];
@@ -1363,6 +1695,96 @@ export function WHExportLicensePanel() {
   }, [currentLicenseRows]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  // ---- การเลือกแถวเพื่อทำเครื่องหมาย "เสร็จสิ้น" ----
+  const {
+    selected,
+    toggleOne,
+    setGroup,
+    clear: clearSelection
+  } = useRowSelection(filtered);
+  const selectedRows = useMemo(() => filtered.filter(r => selected.has(r.ID)), [filtered, selected]);
+  const pageIds = paged.map(r => r.ID);
+  const pageAllSelected = pageIds.length > 0 && pageIds.every(id => selected.has(id));
+  const pageSomeSelected = pageIds.some(id => selected.has(id));
+  const completedCount = useMemo(() => rows.filter(isLicenseCompleted).length, [rows]);
+
+  // สรุปตัวเลขหัวหน้าจอ — จัดชุดเดียวกับหน้า Import License
+  const exportCounts = useMemo(() => ({
+    total: rows.length,
+    licenses: new Set(rows.map(r => (r.ExportLicenseNo || r.ExceptionLicense || '').trim()).filter(Boolean)).size,
+    entries: new Set(rows.map(r => (r.ExportEntry || '').trim()).filter(Boolean)).size,
+    completed: completedCount
+  }), [rows, completedCount]);
+  const currentLicenseCompletedAll = currentLicenseRows.length > 0 && currentLicenseRows.every(isLicenseCompleted);
+
+  async function applyComplete(completed) {
+    const targets = completed ? selectedRows.filter(r => !isLicenseCompleted(r)) : selectedRows.filter(isLicenseCompleted);
+    if (targets.length === 0) return;
+    const ok = await confirmComplete({
+      title: completed ? `ต้องการทำเครื่องหมายเสร็จสิ้น ${targets.length} รายการ` : `ต้องการยกเลิกสถานะเสร็จสิ้น ${targets.length} รายการ`,
+      danger: !completed
+    });
+    if (!ok) return;
+    setCompleting(true);
+    try {
+      await setExportLicenseComplete({
+        ids: targets.map(r => r.ID),
+        completed
+      });
+      clearSelection();
+      await load();
+      toastSuccess(completed ? `ทำเครื่องหมายเสร็จสิ้น ${targets.length} รายการแล้ว — หยุดนับวันหมดอายุและ Lead time` : `ยกเลิกสถานะเสร็จสิ้น ${targets.length} รายการแล้ว`);
+    } catch (err) {
+      toastError(err.message || 'อัปเดตสถานะไม่สำเร็จ');
+    } finally {
+      setCompleting(false);
+    }
+  }
+
+  // ปิดงาน/เปิดงานทั้งใบจากแถบใบอนุญาตส่งออกที่กำลังเลือกอยู่
+  async function handleCompleteSelectedLicense(completed) {
+    const licenseNo = exceptionFilter;
+    if (!licenseNo || licenseNo === 'all') return;
+    const ok = await confirmComplete({
+      title: completed ? `ต้องการทำเครื่องหมายเสร็จสิ้นทั้งใบ ${licenseNo}` : `ต้องการยกเลิกสถานะเสร็จสิ้นทั้งใบ ${licenseNo}`,
+      danger: !completed
+    });
+    if (!ok) return;
+    setCompleting(true);
+    try {
+      const res = await setExportLicenseComplete({
+        exportLicenseNo: licenseNo,
+        completed
+      });
+      clearSelection();
+      await load();
+      toastSuccess(completed ? `ปิดงาน ${licenseNo} แล้ว (${res?.updated ?? 0} รายการ) — หยุดนับวันหมดอายุ` : `ยกเลิกสถานะเสร็จสิ้น ${licenseNo} แล้ว (${res?.updated ?? 0} รายการ)`);
+    } catch (err) {
+      toastError(err.message || 'อัปเดตสถานะไม่สำเร็จ');
+    } finally {
+      setCompleting(false);
+    }
+  }
+
+  async function handleToggleRowComplete(row) {
+    const completed = !isLicenseCompleted(row);
+    setCompleting(true);
+    try {
+      await setExportLicenseComplete({
+        ids: [row.ID],
+        completed
+      });
+      setTraceRow(null);
+      await load();
+      toastSuccess(completed ? `${row.MachineNo || row.SerialNumber || 'รายการนี้'} เสร็จสิ้นแล้ว — หยุดนับวันหมดอายุ` : `ยกเลิกสถานะเสร็จสิ้นของ ${row.MachineNo || row.SerialNumber || 'รายการนี้'} แล้ว`);
+    } catch (err) {
+      toastError(err.message || 'อัปเดตสถานะไม่สำเร็จ');
+    } finally {
+      setCompleting(false);
+    }
+  }
+
   return <>
       <div className="wh-upload-card">
         <div className="fdz-row">
@@ -1383,6 +1805,45 @@ export function WHExportLicensePanel() {
         {msg?.error && <p className="upload-card-msg upload-card-msg-err wh-upload-msg">{msg.error}</p>}
       </div>
 
+      <div className="dash-stats-row wh-stats-row">
+        <div className="dash-stat-card">
+          <div className="dash-stat-label">
+            <span>เครื่องในบัญชีทั้งหมด</span>
+            <span className="dash-stat-icon dash-icon-blue">
+              <Squares2X2Icon className="size-4" />
+            </span>
+          </div>
+          <div className="dash-stat-value">{exportCounts.total}</div>
+        </div>
+        <div className="dash-stat-card">
+          <div className="dash-stat-label">
+            <span>ใบอนุญาตนำออก</span>
+            <span className="dash-stat-icon dash-icon-red">
+              <DocumentTextIcon className="size-4" />
+            </span>
+          </div>
+          <div className="dash-stat-value">{exportCounts.licenses}</div>
+        </div>
+        <div className="dash-stat-card">
+          <div className="dash-stat-label">
+            <span>ใบขนสินค้าขาออก</span>
+            <span className="dash-stat-icon dash-icon-yellow">
+              <TruckIcon className="size-4" />
+            </span>
+          </div>
+          <div className="dash-stat-value">{exportCounts.entries}</div>
+        </div>
+        <div className="dash-stat-card il-stat-complete">
+          <div className="dash-stat-label">
+            <span>เสร็จสิ้นแล้ว</span>
+            <span className="dash-stat-icon dash-icon-green">
+              <CheckBadgeIcon className="size-4" />
+            </span>
+          </div>
+          <div className="dash-stat-value">{exportCounts.completed}</div>
+        </div>
+      </div>
+
       <div className="il-export-filter-card">
         <PeriodRangePicker mode={periodMode} onModeChange={handlePeriodModeChange} anchor={periodAnchor} onAnchorChange={setPeriodAnchor} min={asmDateBounds.min} max={asmDateBounds.max} label="เลือกช่วงวันที่สำหรับ Export แยกประเทศ" countLabel={`${filtered.length} รายการ`} />
         {periodMode !== 'all' && <button type="button" className="qa-clear-btn" onClick={() => {
@@ -1401,16 +1862,29 @@ export function WHExportLicensePanel() {
           </div>
         </div>}
 
-      {exceptionFilter !== 'all' && <div className="wh-so-active-bar">
-          <div>
-            <span className="wh-so-active-label">ใบอนุญาตส่งออก</span>
-            <h3 className="wh-so-active-name">{exceptionFilter || '(ไม่มีเลขใบอนุญาต)'}</h3>
-            <span className="wh-subtitle">
-              Invoice {currentLicenseInvoices.length > 0 ? currentLicenseInvoices.join(', ') : '—'} ·{' '}
-              {currentLicenseRows.length} เครื่อง
-            </span>
+      {exceptionFilter !== 'all' && <div className="wh-so-active-bar il-license-bar">
+          <div className="il-lot-info">
+            <div className="il-lot-info-text">
+              <span className="wh-so-active-label">ใบอนุญาตส่งออก</span>
+              <h3 className="wh-so-active-name">{exceptionFilter || '(ไม่มีเลขใบอนุญาต)'}</h3>
+              <span className="wh-subtitle">
+                Invoice {currentLicenseInvoices.length > 0 ? currentLicenseInvoices.join(', ') : '—'} ·{' '}
+                {currentLicenseRows.length} เครื่อง
+                {currentLicenseRows.filter(isLicenseCompleted).length > 0 && <> · เสร็จสิ้นแล้ว {currentLicenseRows.filter(isLicenseCompleted).length}/{currentLicenseRows.length}</>}
+              </span>
+            </div>
+            {currentLicenseCompletedAll && <img className="il-complete-stamp" src={completeStampUrl} alt="เสร็จสิ้นแล้ว" title="ปิดงานทั้งใบแล้ว" />}
           </div>
           <div className="il-lot-actions">
+            <button className={currentLicenseCompletedAll ? 'il-uncomplete-btn' : 'il-complete-btn'} onClick={() => handleCompleteSelectedLicense(!currentLicenseCompletedAll)} disabled={completing} title={currentLicenseCompletedAll ? 'กลับมานับวันหมดอายุและแจ้งเตือนใบนี้ตามปกติ' : 'ปิดงานทั้งใบ แล้วหยุดนับวันหมดอายุ'}>
+              {currentLicenseCompletedAll ? <>
+                  <ArrowPathIcon className="size-4" />
+                  ยกเลิกเสร็จสิ้นทั้งใบ
+                </> : <>
+                  <CheckBadgeIcon className="size-4" />
+                  ทำทั้งใบให้เสร็จสิ้น
+                </>}
+            </button>
             <button className="wh-issue-btn il-renew-btn" onClick={handleRenewSelectedExport}>
               ต่ออายุ
             </button>
@@ -1453,10 +1927,15 @@ export function WHExportLicensePanel() {
         </div>
       </div>
 
+      <SelectionBar selectedRows={selectedRows} busy={completing} onComplete={() => applyComplete(true)} onUncomplete={() => applyComplete(false)} onClear={clearSelection} />
+
       <div className="wh-table-card">
-        <table className="wh-table">
+        <table className="wh-table il-table-selectable">
           <thead>
             <tr>
+              <th className="il-check-th">
+                <SelectCheckbox checked={pageAllSelected} indeterminate={pageSomeSelected} onChange={on => setGroup(pageIds, on)} label="เลือกทุกรายการในหน้านี้" disabled={pageIds.length === 0} />
+              </th>
               <th>Item</th>
               <th>Date Ass'y</th>
               <th>Machine No</th>
@@ -1476,11 +1955,14 @@ export function WHExportLicensePanel() {
           </thead>
           <tbody>
             {loading && <tr>
-                <td colSpan={15} className="wh-empty-cell">
+                <td colSpan={16} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
-            {!loading && paged.map((row, i) => <tr key={row.ID}>
+            {!loading && paged.map((row, i) => <tr key={row.ID} className={(isLicenseCompleted(row) ? 'il-row-complete' : '') + (selected.has(row.ID) ? ' il-row-selected' : '')}>
+                  <td className="il-check-td" data-label="เลือก">
+                    <SelectCheckbox checked={selected.has(row.ID)} onChange={() => toggleOne(row.ID)} label={`เลือก ${row.MachineNo || row.SerialNumber || 'รายการนี้'}`} />
+                  </td>
                   <td className="wh-cell-head" data-label="Item">
                     {(page - 1) * pageSize + i + 1}
                   </td>
@@ -1505,7 +1987,10 @@ export function WHExportLicensePanel() {
                     {row.ImportLicenseNo || '—'}
                   </td>
                   <td className="il-mono" data-label="Export License">
-                    {row.ExportLicenseNo || row.ExceptionLicense || '—'}
+                    <span className="il-license-cell">
+                      <CompleteFlag show={isLicenseCompleted(row)} />
+                      {row.ExportLicenseNo || row.ExceptionLicense || '—'}
+                    </span>
                   </td>
                   <td data-label="วันที่นำออกใบอนุญาต">
                     {formatThaiDate(row.IssueDate)}
@@ -1532,7 +2017,7 @@ export function WHExportLicensePanel() {
                   </td>
                 </tr>)}
             {!loading && paged.length === 0 && <tr>
-                <td colSpan={15} className="wh-empty-cell">
+                <td colSpan={16} className="wh-empty-cell">
                   ยังไม่มีข้อมูลใบอนุญาตส่งออก — อัปโหลดไฟล์ Excel หรือ CSV ด้านบนก่อน
                 </td>
               </tr>}
@@ -1540,7 +2025,7 @@ export function WHExportLicensePanel() {
         </table>
       </div>
 
-      {traceRow && <ExportTraceModal row={traceRow} country={countryOf(traceRow)} onClose={() => setTraceRow(null)} />}
+      {traceRow && <ExportTraceModal row={traceRow} country={countryOf(traceRow)} busy={completing} onToggleComplete={handleToggleRowComplete} onClose={() => setTraceRow(null)} />}
 
       {!loading && filtered.length > pageSize && <div className="tsf-pagination">
           <span className="wh-subtitle" style={{

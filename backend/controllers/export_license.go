@@ -503,6 +503,30 @@ func UploadExportLicense(c *gin.Context) {
 	for _, r := range parsed {
 		serials = append(serials, r.SerialNumber)
 	}
+
+	// อัปโหลดซ้ำ Serial เดิม = ลบของเก่าแล้วเขียนใหม่
+	// ต้องยกสถานะ "เสร็จสิ้น" ของเดิมมาด้วย ไม่งั้นใบที่ปิดงานไปแล้วจะกลับมาเตือนใหม่
+	type completedMark struct {
+		completed   bool
+		completedBy string
+		completedAt *time.Time
+	}
+	prevCompleted := map[string]completedMark{}
+	var prevRows []models.ExportLicenseItem
+	config.DB.Where("serial_number IN ?", serials).Find(&prevRows)
+	for _, r := range prevRows {
+		if r.Completed {
+			prevCompleted[r.SerialNumber] = completedMark{true, r.CompletedBy, r.CompletedAt}
+		}
+	}
+	for i := range parsed {
+		if mark, ok := prevCompleted[parsed[i].SerialNumber]; ok {
+			parsed[i].Completed = mark.completed
+			parsed[i].CompletedBy = mark.completedBy
+			parsed[i].CompletedAt = mark.completedAt
+		}
+	}
+
 	config.DB.Where("serial_number IN ?", serials).Delete(&models.ExportLicenseItem{})
 
 	if err := config.DB.Create(&parsed).Error; err != nil {
@@ -698,8 +722,10 @@ func GetExportLicenseAlerts(c *gin.Context) {
 	}
 	onlyAlert := strings.EqualFold(strings.TrimSpace(c.Query("only")), "alert")
 
+	// ข้ามแถวที่ทำเครื่องหมาย "เสร็จสิ้น" แล้ว — ปิดงานไปแล้วจึงหยุดนับวันหมดอายุและ Lead time
+	// ถ้าทุกแถวในใบนั้นเสร็จสิ้นหมด ใบนั้นจะหายไปจากรายการแจ้งเตือนทั้งใบ
 	var rows []models.ExportLicenseItem
-	config.DB.Order("id asc").Find(&rows)
+	config.DB.Where("completed IS NOT TRUE").Order("id asc").Find(&rows)
 
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
@@ -904,7 +930,8 @@ func ClearExportLicense(c *gin.Context) {
 		return
 	}
 
-	res := config.DB.Where("exception_license = ?", licenseNo).Delete(&models.ExportLicenseItem{})
+	res := config.DB.Where("exception_license = ? OR export_license_no = ?", licenseNo, licenseNo).
+		Delete(&models.ExportLicenseItem{})
 	if res.Error != nil {
 		c.JSON(500, gin.H{"message": res.Error.Error()})
 		return
@@ -941,7 +968,11 @@ func RenewExportLicense(c *gin.Context) {
 
 	q := config.DB.Model(&models.ExportLicenseItem{})
 	if exportLicenseNo != "" {
-		q = q.Where("export_license_no = ?", exportLicenseNo)
+		// ไฟล์บางชุดเก็บเลขใบไว้ที่ exception_license บางชุดเก็บที่ export_license_no
+		// ต้องจับคู่ทั้งสองคอลัมน์ ให้ตรงกับตัวกรอง "ใบอนุญาตส่งออก" บนหน้าจอและปุ่มลบทั้งใบ
+		// (ถ้าดูแค่ export_license_no ข้อมูลที่มาจากคอลัมน์ Exception License จะหาไม่เจอ
+		//  แล้วตีกลับเป็น "ไม่พบล็อตใบอนุญาตส่งออกนี้" ทั้งที่มีข้อมูลอยู่)
+		q = q.Where("exception_license = ? OR export_license_no = ?", exportLicenseNo, exportLicenseNo)
 	}
 	if invoiceNo != "" {
 		q = q.Where("invoice_no = ?", invoiceNo)

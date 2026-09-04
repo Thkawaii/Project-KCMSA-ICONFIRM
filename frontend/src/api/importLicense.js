@@ -55,6 +55,29 @@ export function renewImportLicense(licenseNo = '', invoiceNo = '', days = 0) {
     })
   });
 }
+// ทำเครื่องหมาย "เสร็จสิ้น" ให้ใบอนุญาตนำเข้า
+// เลือกทีละแถวด้วย ids (กี่แถวก็ได้) หรือเหมาทั้งใบด้วย licenseNo + invoiceNo
+// ส่ง completed = false เพื่อยกเลิกสถานะ
+export function setImportLicenseComplete({
+  ids = null,
+  licenseNo = null,
+  invoiceNo = null,
+  completed = true
+} = {}) {
+  const body = {
+    completed
+  };
+  if (Array.isArray(ids) && ids.length > 0) {
+    body.ids = ids.map(Number);
+  } else {
+    body.licenseNo = licenseNo ?? '';
+    body.invoiceNo = invoiceNo ?? '';
+  }
+  return apiFetch('/import-license/complete', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+}
 export function clearImportLicense(licenseNo = '', invoiceNo = '', all = false) {
   const params = new URLSearchParams();
   if (all) {

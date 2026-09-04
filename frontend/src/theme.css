@@ -964,6 +964,18 @@
   background-color: var(--color-bad-700) !important;
 }
 
+/* ปุ่มยืนยัน "ทำเครื่องหมายเสร็จสิ้น" — เขียวเข้ม สื่อว่าปิดงานเรียบร้อย */
+.swal2-popup .swal2-styled.swal2-confirm.swal2-confirm-complete {
+  background-color: #16a34a !important;
+  color: #fff !important;
+}
+.swal2-popup .swal2-styled.swal2-confirm.swal2-confirm-complete:hover {
+  background-color: #15803d !important;
+}
+.swal2-popup .swal2-styled.swal2-confirm.swal2-confirm-complete:focus-visible {
+  box-shadow: 0 0 0 4px rgb(22 163 74 / 0.3) !important;
+}
+
 .swal2-popup .swal2-styled.swal2-cancel {
   background-color: #fff !important;
   color: #334155 !important;
