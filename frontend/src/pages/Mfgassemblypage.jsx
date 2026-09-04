@@ -29,6 +29,10 @@ const STATUS_META = {
     label: 'DUPLICATE',
     cls: 'il-badge il-badge-warn'
   },
+  RETIRED_FORMAT: {
+    label: 'รูปแบบเดิมถูกยกเลิก',
+    cls: 'il-badge il-badge-bad'
+  },
   OK: {
     label: 'ตรงกัน',
     cls: 'il-badge il-badge-ok'
@@ -55,7 +59,10 @@ const STATUS_FILTER_OPTIONS = [{
 }, {
   value: 'MATCHED',
   label: 'MATCHED — ตรงแผนและตรงใบอนุญาต'
-}, ...STATUS_OPTIONS];
+}, ...STATUS_OPTIONS, {
+  value: 'RETIRED_FORMAT',
+  label: 'RETIRED_FORMAT — สแกนรหัสรูปแบบเก่าที่ถูกยกเลิก'
+}];
 const EMPTY_FORM = {
   item: '',
   dateAssembly: '',
@@ -254,7 +261,10 @@ export default function MFGAssemblyPage() {
       const msg = res?.message || 'บันทึกแล้ว';
       const ok = res?.matched || res?.status === 'MATCHED';
       const isDuplicate = res?.duplicate || res?.status === 'DUPLICATE';
-      if (row?.ID && !isDuplicate) {
+      // สแกนด้วยรหัสรูปแบบเก่าที่ถูกยกเลิกแล้ว: ระบบบันทึกแถว log ไว้ในตารางแล้ว
+      // แต่เป็นแถว "สแกนผิด" ไม่ใช่การประกอบจริง จึงไม่ต้องให้ถ่ายรูปป้ายเครื่องซ้ำ
+      const isRetired = res?.retiredFormat || res?.status === 'RETIRED_FORMAT';
+      if (row?.ID && !isDuplicate && !isRetired) {
         await scanCloseWait();
         const photoBlob = await scanPhotoCapture({
           title: 'ถ่ายรูปป้ายเครื่อง',
@@ -273,7 +283,7 @@ export default function MFGAssemblyPage() {
       scanClose();
       if (ok) {
         successMsg = msg;
-      } else if (res?.whMissing) {
+      } else if (isRetired || res?.whMissing) {
         await scanErrorAlert(msg);
       } else {
         toastError(msg);
@@ -556,7 +566,7 @@ export default function MFGAssemblyPage() {
                         </button> : <span className="il-badge il-badge-muted">ไม่มีรูป</span>}
                     </td>
                     <td data-label="Status">
-                      <span className={meta.cls} title={a.PlanDetail || a.PlanMessage || ''}>
+                      <span className={meta.cls} title={a.RetiredDetail || a.PlanDetail || a.PlanMessage || ''}>
                         {meta.label}
                       </span>
                     </td>

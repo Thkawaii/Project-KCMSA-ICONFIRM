@@ -23,6 +23,13 @@ func GetMFGAssemblies(c *gin.Context) {
 	for i := range rows {
 		rows[i].Item = strconv.Itoa(i + 1)
 
+		// แถวที่สแกนด้วยรหัสรูปแบบเก่าที่ถูกยกเลิกแล้ว: คงรหัสเดิมที่สแกนไว้ไม่แปลงเป็นรูปแบบใหม่
+		// (เพื่อให้เห็นว่าสแกนอะไรผิดมา) เหมือนฝั่ง WH และไม่นำไปคำนวณแผน/ตรวจซ้ำร่วมกับแถวประกอบจริง
+		if strings.EqualFold(strings.TrimSpace(rows[i].Status), models.MFGStatusRetiredFormat) {
+			rows[i].Status = models.MFGStatusRetiredFormat
+			continue
+		}
+
 		// แสดงรหัสเป็นรูปแบบที่ใช้อยู่ตอนนี้ (ไม่แตะข้อมูลในฐานข้อมูล)
 		rows[i].MachineNo = CurrentCodeOf(rows[i].MachineNo)
 		rows[i].ITControllerNo = CurrentCodeOf(rows[i].ITControllerNo)
@@ -110,7 +117,8 @@ func itcUsedOnOtherMachine(machineNo, itcNo string, excludeID uint) bool {
 	}
 
 	q := config.DB.Model(&models.MFGAssembly{}).
-		Where("no IN ? AND machine_no <> ?", CodeVariants(itcNo), strings.TrimSpace(machineNo))
+		Where("no IN ? AND machine_no <> ? AND status <> ?",
+			CodeVariants(itcNo), strings.TrimSpace(machineNo), models.MFGStatusRetiredFormat)
 	if excludeID != 0 {
 		q = q.Where("id <> ?", excludeID)
 	}
@@ -127,11 +135,12 @@ func findMFGRowForPair(machineNo, itcNo string) *models.MFGAssembly {
 		return nil
 	}
 
-	// ข้ามแถวที่เป็น "log การสแกนซ้ำ" เพื่อให้การสแกนรอบถัดไป
-	// กลับไปแก้แถวประกอบจริงเสมอ ไม่ใช่ไปทับแถว DUPLICATE
+	// ข้ามแถวที่เป็น "log การสแกนซ้ำ" หรือ "log รหัสรูปแบบเก่าที่ถูกยกเลิก"
+	// เพื่อให้การสแกนรอบถัดไปกลับไปแก้แถวประกอบจริงเสมอ ไม่ใช่ไปทับแถว log พวกนี้
 	var row models.MFGAssembly
-	err := config.DB.Where("machine_no IN ? AND no IN ? AND status <> ?",
-		CodeVariants(machineNo), CodeVariants(itcNo), models.MFGStatusDuplicate).
+	err := config.DB.Where("machine_no IN ? AND no IN ? AND status NOT IN ?",
+		CodeVariants(machineNo), CodeVariants(itcNo),
+		[]string{models.MFGStatusDuplicate, models.MFGStatusRetiredFormat}).
 		Order("id desc").First(&row).Error
 	if err != nil {
 		return nil
@@ -374,12 +383,42 @@ func ScanMFGAssembly(c *gin.Context) {
 	}
 
 	// รหัสที่ถูกแทนที่ด้วยรูปแบบใหม่ใน Change Format Part แล้ว ถือว่าเลิกใช้
+	// ต้องบันทึกเป็นแถว log ไว้ด้วย (เหมือนฝั่ง WH) ไม่งั้นตาราง Matching Assembly
+	// จะไม่มีประวัติการสแกนครั้งนี้เลยแม้จะแจ้ง error ไปแล้วก็ตาม
 	if msg, blocked := retiredScanMessage(machineNo, itcNo); blocked {
-		c.JSON(409, gin.H{
-			"message":       "รูปแบบเดิมถูกยกเลิกแล้ว",
-			"detail":        msg,
+		userID, name := lookupUserName(c)
+		now := time.Now()
+
+		row := models.MFGAssembly{
+			DateAssembly:    &now,
+			MachineNo:       machineNo,
+			ITControllerNo:  itcNo,
+			Status:          models.MFGStatusRetiredFormat,
+			RetiredDetail:   msg,
+			CheckDate:       &now,
+			CreatedBy:       name,
+			CreatedDatetime: now,
+			UpdatedDatetime: now,
+			UserID:          userID,
+		}
+
+		if err := config.DB.Create(&row).Error; err != nil {
+			c.JSON(500, gin.H{"message": err.Error()})
+			return
+		}
+		row.Item = strconv.FormatUint(uint64(row.ID), 10)
+		config.DB.Model(&row).Update("item", row.Item)
+
+		CreateAuditLog("MFG_ASSEMBLY", row.ID, "scan_retired_format",
+			machineNo+"/"+models.MFGStatusRetiredFormat, userID, name)
+
+		c.JSON(201, gin.H{
+			"row":           row,
+			"status":        models.MFGStatusRetiredFormat,
 			"matched":       false,
 			"retiredFormat": true,
+			"message":       "รูปแบบเดิมถูกยกเลิกแล้ว",
+			"detail":        msg,
 		})
 		return
 	}

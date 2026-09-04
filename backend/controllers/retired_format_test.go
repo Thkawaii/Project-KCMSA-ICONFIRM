@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"testing"
 
 	"iconfirm/models"
@@ -54,6 +55,8 @@ func TestWHRejectsRetiredFormat(t *testing.T) {
 }
 
 // เปลี่ยนรูปแบบแล้ว รหัสเดิมต้องใช้ไม่ได้อีก — ฝั่ง MFG
+// ต้องบันทึกเป็นแถว log ไว้ด้วย (สถานะ RETIRED_FORMAT) เหมือนฝั่ง WH
+// ไม่ใช่แค่โยน error กลับไปเฉย ๆ แล้วไม่มีอะไรขึ้นในตาราง Matching Assembly เลย
 func TestMFGRejectsRetiredFormat(t *testing.T) {
 	cases := []struct {
 		name string
@@ -76,13 +79,46 @@ func TestMFGRejectsRetiredFormat(t *testing.T) {
 
 			c, rec := newContext("POST", tc.body, u.ID, u.Username)
 			ScanMFGAssembly(c)
-			mustStatus(t, rec, 409)
+			mustStatus(t, rec, 201)
 
 			resp := decodeJSON(t, rec)
 			if resp["retiredFormat"] != true {
 				t.Fatalf("retiredFormat = %v, want true (%v)", resp["retiredFormat"], resp["message"])
 			}
+			if resp["status"] != models.MFGStatusRetiredFormat {
+				t.Fatalf("status = %v, want RETIRED_FORMAT", resp["status"])
+			}
 			t.Log(resp["detail"])
+
+			// ต้องมีแถวถูกบันทึกลงตารางจริง ไม่งั้นตาราง Matching Assembly ฝั่ง MFG จะไม่ขึ้นเลย
+			var row models.MFGAssembly
+			if err := db.Order("id desc").First(&row).Error; err != nil {
+				t.Fatalf("ไม่พบแถวที่บันทึกไว้: %v", err)
+			}
+			if row.Status != models.MFGStatusRetiredFormat {
+				t.Fatalf("แถวที่บันทึก Status = %q, ต้องเป็น RETIRED_FORMAT", row.Status)
+			}
+			if row.RetiredDetail == "" {
+				t.Error("RetiredDetail ต้องไม่ว่างเปล่า ต้องบอกว่าให้ใช้รหัสใหม่ตัวไหนแทน")
+			}
+
+			// ตารางต้องยังแสดง RETIRED_FORMAT อยู่หลังรีเฟรช ไม่ถูกคำนวณทับเป็น MATCHED/NOT_MATCHED
+			c, rec = newContext("GET", "", u.ID, u.Username)
+			GetMFGAssemblies(c)
+			mustStatus(t, rec, 200)
+			var rows []map[string]interface{}
+			if err := json.Unmarshal(rec.Body.Bytes(), &rows); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			found := false
+			for _, r := range rows {
+				if r["Status"] == models.MFGStatusRetiredFormat {
+					found = true
+				}
+			}
+			if !found {
+				t.Error("ตาราง MFG Assembly ต้องมีแถว RETIRED_FORMAT อยู่หลังรีเฟรช")
+			}
 		})
 	}
 }
