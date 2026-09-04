@@ -125,6 +125,19 @@ func (r *mfgPlanResolver) planOf(machineNo string) map[string]string {
 	if plan, ok := r.planByMachine[machineNo]; ok {
 		return plan
 	}
+
+	// หมายเลขเครื่องที่ส่งเข้ามาอาจเป็นรูปแบบใหม่ตาม Change Format Part
+	// (แถวที่บันทึกไว้เก็บรูปแบบใหม่) ส่วนคีย์ของแผนเป็นค่าเดิมจากไฟล์ Planning
+	// จึงต้องแปลงกลับก่อน ไม่งั้นจะหาแผนไม่เจอแล้วขึ้น NO_PLAN → NOT_MATCHED
+	if old := ResolveMachineNo(machineNo); old != machineNo {
+		if plan, ok := r.planByMachine[old]; ok {
+			return plan
+		}
+		if key, ok := r.machineByCode[NormalizeCodeValue(old)]; ok {
+			return r.planByMachine[key]
+		}
+	}
+
 	// เผื่อหมายเลขเครื่องที่สแกนมาใช้ตัวคั่นคนละแบบกับในแผน
 	if key, ok := r.machineByCode[NormalizeCodeValue(machineNo)]; ok {
 		return r.planByMachine[key]
