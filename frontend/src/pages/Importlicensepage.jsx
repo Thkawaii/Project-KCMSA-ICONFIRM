@@ -645,7 +645,7 @@ export default function ImportLicensePage() {
                   ยกเลิกเสร็จสิ้นทั้งใบ
                 </> : <>
                   <CheckBadgeIcon className="size-4" />
-                  ทำทั้งใบให้เสร็จสิ้น
+                  ยืนยันเสร็จสิ้น
                 </>}
             </button>
             <button className="wh-issue-btn il-renew-btn" onClick={() => handleRenewLicense(currentLot)}>
@@ -1882,7 +1882,7 @@ export function WHExportLicensePanel() {
                   ยกเลิกเสร็จสิ้นทั้งใบ
                 </> : <>
                   <CheckBadgeIcon className="size-4" />
-                  ทำทั้งใบให้เสร็จสิ้น
+                  ยืนยันเสร็จสิ้น
                 </>}
             </button>
             <button className="wh-issue-btn il-renew-btn" onClick={handleRenewSelectedExport}>

@@ -1816,10 +1816,6 @@
   box-shadow: 0 2px 8px rgba(22, 163, 74, 0.28);
 }
 
-.il-complete-btn:hover:not(:disabled) {
-  background: #15803d;
-}
-
 .il-uncomplete-btn {
   background: #fff;
   color: #b45309;
@@ -1963,17 +1959,17 @@
   font-weight: 400;
 }
 
-/* ปุ่มในแถบ — ต้องเขียนทับสไตล์ "ปุ่มบนพื้นเข้ม" ของเดิมทั้งหมด */
+/* ปุ่มในแถบ — ใช้สีเดียวกับปุ่ม Export Excel (.wh-issue-btn) */
 .wh-so-active-bar.il-license-bar .il-renew-btn {
-  background: var(--color-brand-600, #00a39d);
-  color: #ffffff;
-  border: 1px solid var(--color-brand-600, #00a39d);
+  background: var(--color-brand-500);
+  color: var(--color-brand-ink);
+  border: 1px solid transparent;
   font-weight: 600;
 }
 
 .wh-so-active-bar.il-license-bar .il-renew-btn:hover {
-  background: var(--color-brand-700, #0f8580);
-  border-color: var(--color-brand-700, #0f8580);
+  background: var(--color-brand-400);
+  border-color: transparent;
 }
 
 .wh-so-active-bar.il-license-bar .wh-modal-cancel {
@@ -1990,4 +1986,3 @@
 .wh-so-active-bar.il-license-bar .il-uncomplete-btn {
   background: #ffffff;
 }
-
