@@ -7,7 +7,7 @@ import FileDropZone from '../components/Filedropzone.jsx';
 import SelectField from '../components/Selectfield.jsx';
 import { confirmDelete, toastError, toastSuccess, promptRenewDays } from '../lib/toast.js';
 import { computeLicenseExpiry, formatThaiDate, daysLeftLabel, STATUS_LABEL, EXPIRY_STATUS } from '../lib/licenseExpiry.js';
-import { computeExportLicenseDates, exportLeadTimeDate, leadDaysLabel, leadBadgeClass, LEAD_STATUS, LEAD_STATUS_LABEL, LEAD_BADGE_CLASS, LEAD_FILTER_DUE_SOON, EXPORT_LICENSE_LEAD_DAYS, EXPORT_LICENSE_LEAD_WARN_DAYS } from '../lib/exportLicenseRules.js';
+import { computeExportLicenseDates, exportLeadTimeDate, leadDaysLabel, leadBadgeClass, LEAD_STATUS, LEAD_STATUS_LABEL, LEAD_BADGE_CLASS, EXPORT_LICENSE_LEAD_DAYS } from '../lib/exportLicenseRules.js';
 import { useDailyTick } from '../lib/useDailyTick.js';
 import { useAppParams } from '../lib/nav.jsx';
 import { buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js';
@@ -1286,7 +1286,6 @@ export function WHExportLicensePanel() {
     if (expiryFilter !== 'all') {
       list = list.filter(r => {
         const exp = computeExportExpiry(r);
-        if (expiryFilter === LEAD_FILTER_DUE_SOON) return exp.hasDate && exp.leadUrgent;
         if (expiryFilter === LEAD_STATUS.OVERDUE || expiryFilter === LEAD_STATUS.DUE) {
           return exp.leadStatus === expiryFilter;
         }
@@ -1338,9 +1337,6 @@ export function WHExportLicensePanel() {
   }, {
     value: LEAD_STATUS.OVERDUE,
     label: `Lead time · ${LEAD_STATUS_LABEL[LEAD_STATUS.OVERDUE]}`
-  }, {
-    value: LEAD_FILTER_DUE_SOON,
-    label: `Lead time · ใกล้ครบกำหนด (≤ ${EXPORT_LICENSE_LEAD_WARN_DAYS} วัน)`
   }, {
     value: LEAD_STATUS.DUE,
     label: `Lead time · ${LEAD_STATUS_LABEL[LEAD_STATUS.DUE]}`
