@@ -170,3 +170,37 @@ func TestChainedAliasDoesNotRetireMiddleCode(t *testing.T) {
 		t.Errorf("CV-A ควรถูกแทนที่ด้วย CV-B, ได้ %q retired=%v", repl, retired)
 	}
 }
+
+// รายละเอียด "ต้องใช้รหัสใหม่ตัวไหน" ไม่ได้เก็บลงฐานข้อมูล (MatchDetail เป็น gorm:"-")
+// จึงต้องคำนวณใหม่ตอนดึงตาราง ไม่งั้นพอรีเฟรชหน้าจะหายไป
+func TestRetiredFormatDetailSurvivesReload(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
+
+	seedComponentPlan(t, db, "LX10400690", map[string]string{
+		"Control Valve No": "CV2411001",
+	})
+	seedCodeAlias(t, CodeKindSN, "CV2411001-jcc", "CV2411001")
+
+	c, rec := newContext("POST", `{"partType":"CV","sn":"CV2411001"}`, u.ID, u.Username)
+	ScanPartCheck(c)
+	mustStatus(t, rec, 201)
+
+	var rows []models.PartCheck
+	db.Find(&rows)
+	applyCurrentCodeFormat(rows)
+
+	if len(rows) != 1 {
+		t.Fatalf("ได้ %d แถว ต้องได้ 1 แถว", len(rows))
+	}
+	if rows[0].MatchStatus != models.MatchStatusRetiredFormat {
+		t.Fatalf("matchStatus = %q", rows[0].MatchStatus)
+	}
+	if rows[0].SN != "CV2411001" {
+		t.Errorf("SN = %q ต้องคงรหัสเดิมที่สแกนไว้", rows[0].SN)
+	}
+	if rows[0].MatchDetail == "" {
+		t.Error("MatchDetail ต้องถูกคำนวณใหม่ตอนดึงตาราง ไม่ใช่ว่างเปล่า")
+	}
+	t.Log(rows[0].MatchDetail)
+}

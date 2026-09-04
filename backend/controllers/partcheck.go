@@ -63,7 +63,13 @@ func applyCurrentCodeFormat(rows []models.PartCheck) {
 
 	for i := range rows {
 		if rows[i].MatchStatus == models.MatchStatusRetiredFormat {
-			continue // แถวนี้ต้องคงรหัสเดิมที่สแกนไว้ เพื่อให้เห็นว่าสแกนอะไรผิดมา
+			// คงรหัสเดิมที่สแกนไว้ เพื่อให้เห็นว่าสแกนอะไรผิดมา
+			// แต่คำนวณรายละเอียดใหม่ทุกครั้ง เพราะ MatchDetail ไม่ได้เก็บลงฐานข้อมูล
+			// (และถ้าแอดมินแก้ Change Format Part ทีหลัง ข้อความจะอัปเดตตามเอง)
+			if msg, blocked := retiredScanMessage(rows[i].PN, rows[i].SN); blocked {
+				rows[i].MatchDetail = msg
+			}
+			continue
 		}
 		rows[i].PN = current(rows[i].PN)
 		rows[i].SN = current(rows[i].SN)
