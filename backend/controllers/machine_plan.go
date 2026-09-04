@@ -72,21 +72,33 @@ func (r MFGPlanResult) OK() bool { return r.State == PlanStateMatch }
 
 type mfgPlanResolver struct {
 	planByMachine map[string]map[string]string
-	itcOwner      map[string]string
-	masterITC     map[string]bool
+
+	// machineByCode แปลงหมายเลขเครื่องแบบ normalize (ตัดตัวคั่น/ตัวพิมพ์) กลับเป็นคีย์จริงของแผน
+	machineByCode map[string]string
+
+	// itcOwner / masterITC ใช้คีย์แบบ normalize เพื่อให้รูปแบบตัวคั่นที่ต่างกันยังจับคู่ได้
+	itcOwner  map[string]string
+	masterITC map[string]bool
 }
 
 func newMFGPlanResolver() *mfgPlanResolver {
 	r := &mfgPlanResolver{
 		planByMachine: loadMachinePlans(),
+		machineByCode: map[string]string{},
 		itcOwner:      map[string]string{},
 		masterITC:     map[string]bool{},
 	}
 
 	for mc, plan := range r.planByMachine {
+		if key := NormalizeCodeValue(mc); key != "" {
+			if _, ok := r.machineByCode[key]; !ok {
+				r.machineByCode[key] = mc
+			}
+		}
 		if itc := PlannedITCOf(plan); itc != "" {
-			if _, ok := r.itcOwner[itc]; !ok {
-				r.itcOwner[itc] = mc
+			key := NormalizeCodeValue(itc)
+			if _, ok := r.itcOwner[key]; !ok {
+				r.itcOwner[key] = mc
 			}
 		}
 	}
@@ -97,7 +109,7 @@ func newMFGPlanResolver() *mfgPlanResolver {
 		if m.ITControllerNo == nil {
 			continue
 		}
-		if v := strings.TrimSpace(*m.ITControllerNo); v != "" {
+		if v := NormalizeCodeValue(*m.ITControllerNo); v != "" {
 			r.masterITC[v] = true
 		}
 	}
@@ -106,7 +118,18 @@ func newMFGPlanResolver() *mfgPlanResolver {
 }
 
 func (r *mfgPlanResolver) planOf(machineNo string) map[string]string {
-	return r.planByMachine[strings.TrimSpace(machineNo)]
+	machineNo = strings.TrimSpace(machineNo)
+	if machineNo == "" {
+		return nil
+	}
+	if plan, ok := r.planByMachine[machineNo]; ok {
+		return plan
+	}
+	// เผื่อหมายเลขเครื่องที่สแกนมาใช้ตัวคั่นคนละแบบกับในแผน
+	if key, ok := r.machineByCode[NormalizeCodeValue(machineNo)]; ok {
+		return r.planByMachine[key]
+	}
+	return nil
 }
 
 func (r *mfgPlanResolver) evaluate(machineNo, scanned string) MFGPlanResult {
@@ -117,13 +140,17 @@ func (r *mfgPlanResolver) evaluateComponent(machineNo, scanned, component string
 	machineNo = strings.TrimSpace(machineNo)
 	scanned = strings.TrimSpace(scanned)
 
-	plan := r.planByMachine[machineNo]
+	plan := r.planOf(machineNo)
 
 	component = strings.ToUpper(strings.TrimSpace(component))
 
-	// ถ้ารู้ชนิดชิ้นส่วนอยู่แล้ว ให้แปลงรหัสที่สแกนตาม Change Format Part ก่อนเทียบแผน
+	// แปลงรหัสที่สแกนตาม Change Format Part ก่อนทุกอย่าง
+	// ถ้ายังไม่รู้ชนิดชิ้นส่วน ต้องแปลงแบบไม่จำกัดชนิดไปก่อน มิฉะนั้นรูปแบบใหม่
+	// จะทำให้จับชนิดจากแผนหรือจากคำนำหน้าไม่ได้เลย
 	if component != "" {
 		scanned = ResolveComponentSerial(component, scanned)
+	} else {
+		scanned = ResolveScannedCode(scanned)
 	}
 
 	if component == "" {
@@ -157,7 +184,7 @@ func (r *mfgPlanResolver) evaluateComponent(machineNo, scanned, component string
 
 		res.State = PlanStateNotInMaster
 
-	case component == ComponentITC && !r.masterITC[scanned]:
+	case component == ComponentITC && !r.masterITC[NormalizeCodeValue(scanned)]:
 		res.State = PlanStateNotInMaster
 
 	case plan == nil:
@@ -166,7 +193,7 @@ func (r *mfgPlanResolver) evaluateComponent(machineNo, scanned, component string
 	case res.PlannedITC == "":
 		res.State = PlanStateNoITC
 
-	case !strings.EqualFold(scanned, res.PlannedITC):
+	case !SameCode(scanned, res.PlannedITC):
 		res.State = PlanStateMismatch
 		res.OwnerMachine = r.ownerOf(component, scanned)
 
@@ -181,12 +208,12 @@ func (r *mfgPlanResolver) evaluateComponent(machineNo, scanned, component string
 
 func (r *mfgPlanResolver) ownerOf(component, serial string) string {
 	if component == ComponentITC {
-		if mc, ok := r.itcOwner[serial]; ok {
+		if mc, ok := r.itcOwner[NormalizeCodeValue(serial)]; ok {
 			return mc
 		}
 	}
 	for mc, plan := range r.planByMachine {
-		if v := PlannedNoOf(plan, component); v != "" && strings.EqualFold(v, serial) {
+		if v := PlannedNoOf(plan, component); v != "" && SameCode(v, serial) {
 			return mc
 		}
 	}

@@ -118,6 +118,38 @@ func DeletePartCheck(c *gin.Context) {
 	c.JSON(200, gin.H{"deleted": true})
 }
 
+// dedupeCodes รวมรหัสหลายค่าให้เหลือเฉพาะค่าที่ไม่ว่างและไม่ซ้ำกัน (ไม่สนตัวคั่น/ตัวพิมพ์)
+func dedupeCodes(values ...string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		key := NormalizeCodeValue(v)
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, v)
+	}
+	return out
+}
+
+func findMasterBy(query string, args ...interface{}) *models.MasterData {
+	var m models.MasterData
+	if err := config.DB.Where(query, args...).First(&m).Error; err != nil {
+		return nil
+	}
+	return &m
+}
+
+// resolveITControllerMaster หาแถวทะเบียนกลางของ IT Controller จาก P/N + S/N ที่สแกนมา
+//
+// หน้างานอาจเปลี่ยนรูปแบบรหัส (Change Format Part) ทุกชั้นของการค้นจึงต้องลอง
+// ทั้งค่าที่สแกนมาดิบ ๆ และค่าเดิมที่แปลงแล้ว ไม่งั้นการเปลี่ยนรูปแบบ P/N
+// จะทำให้หา master ไม่เจอ/เจอผิดแถว แล้วถูกตีเป็น "ข้อมูลไม่ตรง"
 func resolveITControllerMaster(pn, sn string) *models.MasterData {
 	sn = strings.TrimSpace(sn)
 	if sn == "" {
@@ -125,35 +157,53 @@ func resolveITControllerMaster(pn, sn string) *models.MasterData {
 	}
 	pn = strings.TrimSpace(pn)
 
-	var m models.MasterData
+	// ค่าที่สแกนเข้าช่อง S/N อาจเป็น S/N, หมายเลขเครื่อง หรือ IMEI
+	// จึงแปลงเผื่อไว้ทั้งชนิด sn และ machine
+	snCandidates := dedupeCodes(
+		ResolveComponentSerial(ComponentITC, sn),
+		ResolveMachineNo(sn),
+		sn,
+	)
+	pnCandidates := dedupeCodes(ResolvePartNo(pn), pn)
 
-	if pn != "" {
-		if err := config.DB.
-			Where("part_no = ? AND serial_no = ?", pn, sn).
-			First(&m).Error; err == nil {
-			return &m
+	// 1) P/N + S/N ตรงกันทั้งคู่ — แม่นที่สุด
+	for _, p := range pnCandidates {
+		for _, s := range snCandidates {
+			if m := findMasterBy("part_no = ? AND serial_no = ?", p, s); m != nil {
+				return m
+			}
 		}
 	}
 
-	if err := config.DB.Where("serial_no = ?", sn).First(&m).Error; err == nil {
-		return &m
+	// 2) S/N อย่างเดียว
+	for _, s := range snCandidates {
+		if m := findMasterBy("serial_no = ?", s); m != nil {
+			return m
+		}
 	}
 
-	if err := config.DB.
-		Where("it_controller_no = ? OR imei = ?", sn, sn).
-		First(&m).Error; err == nil {
-		return &m
+	// 3) หมายเลขเครื่อง / IMEI ที่ยิงเข้าช่อง S/N
+	for _, s := range snCandidates {
+		if m := findMasterBy("it_controller_no = ? OR imei = ?", s, s); m != nil {
+			return m
+		}
 	}
 
-	for _, raw := range []string{sn, pn} {
-		if strings.TrimSpace(raw) == "" {
+	// 4) ชั้นสุดท้าย — alias แบบผูกกลุ่ม it_controller ของไฟล์รุ่นเก่า
+	for _, raw := range dedupeCodes(sn, pn) {
+		a := lookupCodeAlias("it_controller", raw)
+		if a == nil {
 			continue
 		}
-		if a := lookupCodeAlias("it_controller", raw); a != nil && strings.TrimSpace(a.ToOld) != "" {
-			q := config.DB.Where("serial_no = ?", strings.TrimSpace(a.ToOld))
-			if err := q.First(&m).Error; err == nil {
-				return &m
-			}
+		old := strings.TrimSpace(a.ToOld)
+		if old == "" {
+			continue
+		}
+		if m := findMasterBy(
+			"serial_no = ? OR it_controller_no = ? OR imei = ?",
+			old, old, old,
+		); m != nil {
+			return m
 		}
 	}
 
@@ -233,21 +283,40 @@ func ScanPartCheck(c *gin.Context) {
 		checkPlanComponentPart(&check, partType)
 	}
 
-	if partType == "ITC" {
-		master := resolveITControllerMaster(check.PN, sn)
+	if partType == ComponentITC {
+		// หน้างานอาจเปลี่ยนรูปแบบรหัส — แปลงกลับเป็นค่าเดิมตาม Change Format Part
+		// ก่อนนำไปเทียบทะเบียนกลาง มิฉะนั้น P/N รูปแบบใหม่จะถูกตีเป็น "ข้อมูลไม่ตรง"
+		rawPN, rawSN := strings.TrimSpace(check.PN), sn
+
+		resolvedPN := ResolvePartNo(rawPN)
+		resolvedSN := ResolveComponentSerial(ComponentITC, rawSN)
+
+		var formatNotes []string
+		if rawPN != "" && !strings.EqualFold(resolvedPN, rawPN) {
+			formatNotes = append(formatNotes, "P/N "+rawPN+" → "+resolvedPN)
+		}
+		if !strings.EqualFold(resolvedSN, rawSN) {
+			formatNotes = append(formatNotes, "S/N "+rawSN+" → "+resolvedSN)
+		}
+
+		check.PN = resolvedPN
+		check.SN = resolvedSN
+		sn = resolvedSN
+
+		master := resolveITControllerMaster(resolvedPN, resolvedSN)
 
 		if master == nil {
 			check.MatchStatus = models.MatchStatusNotFound
 			check.MatchMessage = "ไม่พบข้อมูลในระบบ กรุณาติดต่อ ADMIN"
-		} else if scannedPN := strings.TrimSpace(check.PN); scannedPN != "" &&
-			master.PartNo != "" && !strings.EqualFold(scannedPN, master.PartNo) {
+		} else if scannedPN := resolvedPN; scannedPN != "" &&
+			master.PartNo != "" && !SameCode(scannedPN, master.PartNo) {
 
 			check.MachineNo = derefStr(master.ITControllerNo)
 			check.MatchStatus = models.MatchStatusWrongPart
 			check.MatchMessage = "ข้อมูลไม่ตรง"
 			check.ExpectedPN = master.PartNo
 			check.MatchDetail = "S/N " + master.SerialNo + " คู่กับ P/N " + master.PartNo +
-				" แต่สแกนได้ " + scannedPN
+				" แต่สแกนได้ " + rawPN
 		} else {
 			machineNo := derefStr(master.ITControllerNo)
 			imei := derefStr(master.IMEI)
@@ -258,6 +327,9 @@ func ScanPartCheck(c *gin.Context) {
 
 			if master.SerialNo != "" && !strings.EqualFold(sn, master.SerialNo) {
 				check.SN = master.SerialNo
+			}
+			if master.PartNo != "" && check.PN == "" {
+				check.PN = master.PartNo
 			}
 
 			if machineNo == "" {
@@ -277,6 +349,16 @@ func ScanPartCheck(c *gin.Context) {
 					}
 					matchedItem = item
 				}
+			}
+		}
+
+		// บอกหน้างานให้ชัดว่ารหัสถูกแปลงตามที่แอดมินตั้งค่าไว้
+		if len(formatNotes) > 0 {
+			note := "แปลงรูปแบบตาม Change Format Part: " + strings.Join(formatNotes, ", ")
+			if check.MatchDetail == "" {
+				check.MatchDetail = note
+			} else {
+				check.MatchDetail += " (" + note + ")"
 			}
 		}
 	}
@@ -367,7 +449,7 @@ func checkPlanComponentPart(check *models.PartCheck, component string) {
 	for machineNo, plan := range loadMachinePlans() {
 
 		if planned := PlannedNoOf(plan, component); planned != "" &&
-			strings.EqualFold(planned, scanned) {
+			SameCode(planned, scanned) {
 			check.MachineNo = machineNo
 			check.MatchStatus = models.MatchStatusMatch
 			check.MatchMessage = "ข้อมูลถูกต้อง"
@@ -382,7 +464,7 @@ func checkPlanComponentPart(check *models.PartCheck, component string) {
 			if spec.Code == component {
 				continue
 			}
-			if v := PlannedNoOf(plan, spec.Code); v != "" && strings.EqualFold(v, scanned) {
+			if v := PlannedNoOf(plan, spec.Code); v != "" && SameCode(v, scanned) {
 				otherMachine = machineNo
 				otherComponent = spec.Code
 				break

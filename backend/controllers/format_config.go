@@ -293,17 +293,28 @@ func (idx *registryIndex) hasOld(kind, oldValue string) bool {
 	}
 	switch NormalizeCodeKind(kind) {
 	case CodeKindMachine:
-		return idx.machine[norm]
+		if idx.machine[norm] {
+			return true
+		}
 	case CodeKindSN:
-		return idx.sn[norm]
+		if idx.sn[norm] {
+			return true
+		}
 	case CodeKindPN:
-		return idx.pn[norm]
+		if idx.pn[norm] {
+			return true
+		}
 	case CodeKindCW:
-		return idx.cw[norm]
-	default:
-		// ไม่ได้ระบุชนิด — ยอมรับถ้าเจอค่าเดิมอยู่ที่ใดที่หนึ่งในระบบ
-		return idx.machine[norm] || idx.sn[norm] || idx.pn[norm] || idx.cw[norm]
+		if idx.cw[norm] {
+			return true
+		}
 	}
+
+	// ค่าเดิมอาจถูกเก็บคนละช่องกับชนิดที่แอดมินเลือก
+	// (เช่น CW No. ที่เลือกชนิดเป็น S/N หรือ P/N ของ Engine ที่อยู่ในช่อง S/N)
+	// ตอนสแกนระบบก็แปลงข้ามชนิดให้อยู่แล้ว ตรงนี้จึงยอมรับได้
+	// ยังกันคำที่พิมพ์ผิดอยู่ เพราะต้องมีค่าเดิมอยู่ในทะเบียนที่ใดที่หนึ่งจริง ๆ
+	return idx.machine[norm] || idx.sn[norm] || idx.pn[norm] || idx.cw[norm]
 }
 
 func oldValueExistsInRegistry(kind, oldValue string) bool {
@@ -376,16 +387,34 @@ func findCodeAliasByFromCode(norm string) *models.CodeAlias {
 
 // resolveByKind แปลงรหัสที่สแกนมา (ค่าใหม่) ให้เป็นค่าเดิมที่มีอยู่ในระบบ
 // ตามที่ตั้งไว้ในหน้า Change Format Part ถ้าไม่มีการตั้งค่าไว้จะคืนค่าเดิมที่รับมา
+//
+// ลำดับการค้นหา
+//  1. แถวที่ระบุชนิดตรงกัน (เช่น ค้น P/N ก็เอาแถวชนิด pn ก่อน)
+//  2. แถวไหนก็ได้ที่ New (ค่าใหม่) ตรงกัน — รองรับกรณีที่แอดมินไม่ได้เลือกชนิด
+//     หรือเลือกชนิดคนละช่องกับที่หน้างานสแกนจริง (เช่น CW No. ที่บันทึกเป็นชนิด S/N)
+//
+// ค่า New (ค่าใหม่) ถูกบังคับให้ไม่ซ้ำกันทั้งตารางอยู่แล้วตอนอัปโหลด/บันทึก
+// การถอยไปหาแบบไม่จำกัดชนิดจึงไม่ทำให้แปลงข้ามช่องผิดตัว
 func resolveByKind(kind, raw string) string {
 	raw = strings.TrimSpace(raw)
-	if raw == "" || kind == "" {
+	if raw == "" {
 		return raw
 	}
-	if a := lookupCodeAliasKind("", kind, raw); a != nil {
+
+	if kind != "" {
+		if a := lookupCodeAliasKind("", kind, raw); a != nil {
+			if v := strings.TrimSpace(a.ToOld); v != "" {
+				return v
+			}
+		}
+	}
+
+	if a := findCodeAliasByFromCode(NormalizeCodeValue(raw)); a != nil {
 		if v := strings.TrimSpace(a.ToOld); v != "" {
 			return v
 		}
 	}
+
 	return raw
 }
 
@@ -398,9 +427,35 @@ func ResolveComponentSerial(component, raw string) string {
 	return resolveByKind(CodeKindSN, raw)
 }
 
-// ResolvePartNo แปลง P/N ที่สแกนมา (ใช้กับ Engine ที่สแกนคู่ P/N + S/N)
+// ResolvePartNo แปลง P/N ที่สแกนมา (ใช้กับ IT Controller และ Engine ที่สแกนคู่ P/N + S/N)
 func ResolvePartNo(raw string) string {
 	return resolveByKind(CodeKindPN, raw)
+}
+
+// ResolveMachineNo แปลงหมายเลขเครื่องที่สแกนมาให้เป็นค่าเดิมในระบบ
+func ResolveMachineNo(raw string) string {
+	return resolveByKind(CodeKindMachine, raw)
+}
+
+// ResolveScannedCode แปลงรหัสที่สแกนมาโดยยังไม่รู้ว่าเป็นช่องไหน
+// ใช้ตอนที่ยังจับชนิดชิ้นส่วนไม่ได้ (เช่น MFG สแกนโดยไม่ได้เลือกชนิดพาร์ทไว้ก่อน)
+// เพราะถ้าไม่แปลงก่อน รูปแบบใหม่จะทำให้จับชนิดจากคำนำหน้าหรือจากแผนไม่ได้เลย
+func ResolveScannedCode(raw string) string {
+	return resolveByKind("", raw)
+}
+
+// SameCode เทียบรหัสสองค่าแบบไม่สนตัวพิมพ์ใหญ่เล็กและตัวคั่น (เว้นวรรค, ขีด ฯลฯ)
+// ใช้ตอนเทียบผลสแกนกับทะเบียน เพราะบาร์โค้ดหน้างานมักพิมพ์ตัวคั่นไม่เหมือนไฟล์ต้นทาง
+func SameCode(a, b string) bool {
+	a, b = strings.TrimSpace(a), strings.TrimSpace(b)
+	if a == "" || b == "" {
+		return a == b
+	}
+	if strings.EqualFold(a, b) {
+		return true
+	}
+	na, nb := NormalizeCodeValue(a), NormalizeCodeValue(b)
+	return na != "" && na == nb
 }
 
 func GetColumnAliases(c *gin.Context) {
