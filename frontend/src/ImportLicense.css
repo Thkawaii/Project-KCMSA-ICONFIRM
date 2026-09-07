@@ -1868,6 +1868,58 @@
   color: #15803d;
 }
 
+/* ---------- การ์ดสถิติอายุใบอนุญาต ---------- */
+/* รวม "ใกล้หมดอายุ" กับ "หมดอายุแล้ว" ไว้ในการ์ดเดียว
+   จะได้อ่านคู่กันได้ทันที และแถวสถิติยังอยู่บรรทัดเดียว */
+.il-stat-expiry-split {
+  display: flex;
+  align-items: flex-start;
+}
+
+.il-stat-expiry-part {
+  flex: 1;
+  min-width: 0;
+}
+
+.il-stat-expiry-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 12px;
+  background: #e2e8f0;
+}
+
+/* ใช้สีเดียวกับป้ายสถานะในตาราง จะได้โยงกันได้ทันทีว่าตัวเลขนี้มาจากแถวไหน */
+.il-stat-expiring .dash-stat-value {
+  color: #c2410c;
+}
+
+.il-stat-expired .dash-stat-value {
+  color: #b91c1c;
+}
+
+/* ตัวเลขคู่ในการ์ดเดียวต้องเล็กลงหน่อย ไม่งั้นล้นการ์ดตอนจอแคบ */
+.il-stat-expiry .dash-stat-value {
+  font-size: 24px;
+}
+
+/* แถวสถิติที่มี 5 การ์ด — ใส่คลาสนี้เฉพาะหน้า Import/Export License
+   หน้าอื่นที่มี 4 การ์ดยังใช้ 4 คอลัมน์เหมือนเดิม */
+.wh-stats-row.il-stats-row-5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+@media (max-width: 1180px) {
+  .wh-stats-row.il-stats-row-5 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .wh-stats-row.il-stats-row-5 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 /* ---------- ปุ่มในหน้ารายละเอียด ---------- */
 .il-modal-actions {
   display: flex;

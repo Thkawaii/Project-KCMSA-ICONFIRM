@@ -849,6 +849,18 @@
   color: #b45309;
 }
 
+.dash-icon-orange {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+/* บรรทัดหน่วยใต้ตัวเลข เช่น "ใบอนุญาต" — บอกว่าตัวเลขนับอะไรอยู่ */
+.dash-stat-note {
+  margin-top: 2px;
+  color: #94a3b8;
+  font-size: 11.5px;
+}
+
 .dash-stat-value {
   font-size: 28px;
   font-weight: 100;
