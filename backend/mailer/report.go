@@ -66,7 +66,7 @@ func (c Counts) Total() int {
 type WeeklyReport struct {
 	GeneratedAt time.Time `json:"generatedAt"`
 
-	WeekKey     string    `json:"weekKey"`     // เช่น 2026-W36 ใช้กันส่งซ้ำในสัปดาห์เดียวกัน
+	WeekKey     string    `json:"weekKey"`     // วันจันทร์ของสัปดาห์ แบบ 2026-09-07 ใช้กันส่งซ้ำและตั้งชื่อไฟล์แนบ
 	WeekNo      int       `json:"weekNo"`      // เลขสัปดาห์ตามมาตรฐาน ISO-8601
 	WeekYear    int       `json:"weekYear"`    //
 	PeriodStart time.Time `json:"periodStart"` // วันจันทร์ของสัปดาห์
@@ -136,11 +136,6 @@ func (r WeeklyReport) MonthYear() int {
 	return displayYear(r.anchorDay().Year(), r.BuddhistEra)
 }
 
-// RefNo เลขที่หนังสือ อ้างอิงตามเดือนและลำดับสัปดาห์ เช่น IC-2569/09-2
-func (r WeeklyReport) RefNo() string {
-	return fmt.Sprintf("IC-%d/%02d-%d", r.MonthYear(), int(r.anchorDay().Month()), r.WeekOfMonth())
-}
-
 // TotalActions จำนวนรายการที่ต้องดำเนินการรวมทั้งฉบับ
 func (r WeeklyReport) TotalActions() int {
 	return r.ImportCounts.Total() + r.ExportCounts.Total()
@@ -154,10 +149,15 @@ func (r WeeklyReport) Urgent() int {
 	return r.ImportCounts.Expired + r.ExportCounts.Expired + r.ExportCounts.LeadOverdue
 }
 
-// ISOWeekKey คีย์สัปดาห์แบบ ISO-8601 เช่น 2026-W36
+// ISOWeekKey คีย์ประจำสัปดาห์ เขียนเป็นวันที่ของ "วันจันทร์" ในสัปดาห์นั้น เช่น 2026-09-07
+//
+// ใช้รูปแบบ YYYY-MM-DD มาตรฐาน แทนที่จะเป็นเลขสัปดาห์แบบ 2026-W37
+// เพราะเลขสัปดาห์อ่านแล้วนึกภาพไม่ออกว่าเป็นช่วงไหนของปี ทั้งบนชื่อไฟล์แนบและในฐานข้อมูล
+//
+// ยังกันส่งซ้ำได้เหมือนเดิม เพราะทุกวันในสัปดาห์เดียวกันจะได้วันจันทร์ตัวเดียวกันเสมอ
 func ISOWeekKey(t time.Time) string {
-	year, week := t.ISOWeek()
-	return fmt.Sprintf("%d-W%02d", year, week)
+	monday, _ := WeekBounds(t)
+	return monday.Format("2006-01-02")
 }
 
 // WeekBounds วันจันทร์ 00:00 และวันอาทิตย์ของสัปดาห์ที่ t อยู่
