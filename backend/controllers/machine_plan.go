@@ -320,11 +320,7 @@ func mfgFinalMessage(status string, res MFGPlanResult, licenseNo string) string 
 
 	default:
 		if res.State == PlanStateMatch {
-			base := "ข้อมูลตรง แต่ฝั่ง WH ยังไม่ได้สแกนยืนยัน"
-			if label := strings.TrimSpace(res.Label); label != "" {
-				return base + " " + label + " — ต้องให้ WH สแกนรับเข้าคลังก่อน จึงจะประกอบได้"
-			}
-			return base
+			return "ข้อมูลตรง แต่ต้องให้ WH สแกนก่อนจึงจะประกอบได้"
 		}
 		return res.Message
 	}

@@ -626,7 +626,7 @@ func TestMFGFinalMessages(t *testing.T) {
 	if got := mfgFinalMessage(models.MFGStatusDuplicate, matched, ""); got != "รายการนี้เคยบันทึกไปแล้ว" {
 		t.Errorf("DUPLICATE message = %q", got)
 	}
-	if got := mfgFinalMessage(models.MFGStatusNotMatched, matched, ""); got != "ข้อมูลตรง แต่ฝั่ง WH ยังไม่ได้สแกนยืนยัน" {
+	if got := mfgFinalMessage(models.MFGStatusNotMatched, matched, ""); got != "ข้อมูลตรง แต่ต้องให้ WH สแกนก่อนจึงจะประกอบได้" {
 		t.Errorf("WH pending message = %q", got)
 	}
 }

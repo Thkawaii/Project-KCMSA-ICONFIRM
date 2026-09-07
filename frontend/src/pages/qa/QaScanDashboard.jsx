@@ -241,8 +241,6 @@ function DetailModal({
                     {u.assembledInPeriod ? <span className="text-slate-600">
                         {fmtTime(u.assembledAt)}
                         {u.assembledBy ? <span className="ml-1 text-slate-400">· {u.assembledBy}</span> : null}
-                      </span> : u.assembleAttempted ? <span className="font-semibold text-amber-600" title="MFG บันทึกไว้แล้ว แต่สถานะยังไม่ผ่าน">
-                        บันทึกแล้ว · รอ WH
                       </span> : <span className="text-slate-400">ยังไม่ประกอบ</span>}
                   </td>
                 </tr>)}
