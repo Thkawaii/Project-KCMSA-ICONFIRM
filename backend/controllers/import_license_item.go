@@ -979,13 +979,24 @@ func RenewImportLicense(c *gin.Context) {
 			base = *rows[i].IssueDate
 		}
 		newIssue := base.AddDate(0, 0, req.Days)
-		rows[i].IssueDate = &newIssue
+		newExpire := newIssue.AddDate(0, LicenseValidityMonths, 0)
+
+		// ต้องเขียน expire_date ด้วย ไม่ใช่แค่ issue_date
+		//
+		// ตารางบนหน้าเว็บอ่านคอลัมน์ ExpireDate เป็นหลัก (ดู ExpiryCell ใน Importlicensepage.jsx)
+		// ถ้าเลื่อนแต่ issue_date วันหมดอายุบนหน้าจอจะไม่ขยับเลย ทั้งที่ฐานข้อมูลเปลี่ยนแล้ว
+		// ผู้ใช้จึงเห็นเป็น "กดต่ออายุแล้วไม่มีอะไรเกิดขึ้น"
 		if err := config.DB.Model(&models.ImportLicenseItem{}).
 			Where("id = ?", rows[i].ID).
-			Update("issue_date", newIssue).Error; err != nil {
+			Updates(map[string]interface{}{
+				"issue_date":  newIssue,
+				"expire_date": newExpire,
+			}).Error; err != nil {
 			c.JSON(500, gin.H{"message": err.Error()})
 			return
 		}
+		rows[i].IssueDate = &newIssue
+		rows[i].ExpireDate = &newExpire
 		updated++
 	}
 

@@ -64,6 +64,8 @@ func ConnectDB() {
 
 		&models.ColumnAlias{},
 		&models.CodeAlias{},
+
+		&models.WeeklyAlertLog{},
 	)
 
 	DropLegacyAssemblyDataset()

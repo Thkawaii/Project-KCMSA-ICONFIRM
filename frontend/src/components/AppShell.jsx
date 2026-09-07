@@ -1,7 +1,6 @@
 import { useAppNavigate, useAppView } from '../lib/nav.jsx';
 import { logout } from '../api/auth.js';
 import { ArrowRightStartOnRectangleIcon } from './icons.jsx';
-import WHAlertBell from './WHAlertBell.jsx';
 import kobelcoLogo from '../assets/brand/kobelco-logo-white.png';
 const ROLE_LABELS = {
   ADMIN: 'Admin',
@@ -25,7 +24,6 @@ export default function AppShell({
   const personName = (localStorage.getItem('iconfirm_name') || '').trim();
   const displayName = personName || shownLabel;
   const initial = (displayName || 'U').trim().charAt(0).toUpperCase() || 'U';
-  const showLicenseBell = role === 'LOG';
   function handleLogout() {
     logout();
     navigate('/login');
@@ -39,7 +37,6 @@ export default function AppShell({
         </div>
 
         <div className="shell-topbar-right">
-          {showLicenseBell && <WHAlertBell />}
           <div className="shell-user" title={shownLabel}>
             <span className="shell-avatar">{initial}</span>
             <span className="shell-user-info">

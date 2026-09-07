@@ -972,7 +972,10 @@ func RenewExportLicense(c *gin.Context) {
 		// ต้องจับคู่ทั้งสองคอลัมน์ ให้ตรงกับตัวกรอง "ใบอนุญาตส่งออก" บนหน้าจอและปุ่มลบทั้งใบ
 		// (ถ้าดูแค่ export_license_no ข้อมูลที่มาจากคอลัมน์ Exception License จะหาไม่เจอ
 		//  แล้วตีกลับเป็น "ไม่พบล็อตใบอนุญาตส่งออกนี้" ทั้งที่มีข้อมูลอยู่)
-		q = q.Where("exception_license = ? OR export_license_no = ?", exportLicenseNo, exportLicenseNo)
+		//
+		// ต้องครอบวงเล็บเองด้วย ไม่งั้นเมื่อมีเงื่อนไข invoice_no ต่อท้าย
+		// เงื่อนไขจะกลายเป็น A OR (B AND C) ซึ่งกวาดเอาใบอื่นมาต่ออายุด้วย
+		q = q.Where("(exception_license = ? OR export_license_no = ?)", exportLicenseNo, exportLicenseNo)
 	}
 	if invoiceNo != "" {
 		q = q.Where("invoice_no = ?", invoiceNo)
@@ -1000,18 +1003,22 @@ func RenewExportLicense(c *gin.Context) {
 		}
 		newDate := base.AddDate(0, 0, req.Days)
 		newExp := models.AddMonthsClamped(newDate, ExportLicenseValidityMonths)
+		newLead := newExp.AddDate(0, 0, -models.ExportLicenseLeadDays)
 
+		// เขียน lead_time ใหม่ด้วย ไม่งั้นวันครบกำหนดยื่น กสทช. ที่เก็บไว้จะค้างอยู่ที่รอบเดิม
 		if err := config.DB.Model(&models.ExportLicenseItem{}).
 			Where("id = ?", rows[i].ID).
 			Updates(map[string]interface{}{
 				"issue_date":  newDate,
 				"expire_date": newExp,
+				"lead_time":   newLead,
 			}).Error; err != nil {
 			c.JSON(500, gin.H{"message": err.Error()})
 			return
 		}
 		rows[i].IssueDate = &newDate
 		rows[i].ExpireDate = &newExp
+		rows[i].LeadTime = &newLead
 		updated++
 	}
 

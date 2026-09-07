@@ -9,16 +9,6 @@ export function getExportLicense(q = '', link = '') {
 export function getExportLicenseTrace(id) {
   return apiFetch(`/export-license/${id}/trace`);
 }
-export function getExportLicenseAlerts({
-  withinDays,
-  onlyAlert
-} = {}) {
-  const params = new URLSearchParams();
-  if (withinDays) params.set('within_days', String(withinDays));
-  if (onlyAlert) params.set('only', 'alert');
-  const qs = params.toString();
-  return apiFetch(`/export-license/alerts${qs ? `?${qs}` : ''}`);
-}
 export function deleteExportLicense(id) {
   return apiFetch(`/export-license/${id}`, {
     method: 'DELETE'

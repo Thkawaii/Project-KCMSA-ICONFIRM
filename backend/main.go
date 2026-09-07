@@ -4,8 +4,10 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"iconfirm/config"
+	"iconfirm/jobs"
 	"iconfirm/middleware"
 	"iconfirm/routes"
 
@@ -19,6 +21,9 @@ func main() {
 
 	config.ConnectDB()
 	config.MigratePlaintextPasswords()
+
+	// อีเมลแจ้งเตือนใบอนุญาตรายสัปดาห์ — ทำงานเบื้องหลัง ไม่บล็อกการเปิดเซิร์ฟเวอร์
+	jobs.StartWeeklyAlertScheduler()
 
 	r := gin.Default()
 
@@ -58,5 +63,30 @@ func main() {
 		port = "8080"
 	}
 
-	r.Run(":" + port)
+	// เปิด HTTPS ได้โดยตั้งค่าที่อยู่ไฟล์ใบรับรองใน .env
+	//
+	//	TLS_CERT_FILE=certs/iconfirm.crt
+	//	TLS_KEY_FILE=certs/iconfirm.key
+	//
+	// ถ้าไม่ตั้ง จะเสิร์ฟเป็น HTTP เหมือนเดิม
+	// กรณีมี reverse proxy (nginx/Caddy/F5) ทำ TLS ให้อยู่แล้ว ก็ไม่ต้องตั้งค่าตรงนี้
+	certFile := strings.TrimSpace(os.Getenv("TLS_CERT_FILE"))
+	keyFile := strings.TrimSpace(os.Getenv("TLS_KEY_FILE"))
+
+	if certFile != "" && keyFile != "" {
+		log.Printf("[server] เปิด HTTPS ที่พอร์ต %s (ใบรับรอง: %s)", port, certFile)
+		if err := r.RunTLS(":"+port, certFile, keyFile); err != nil {
+			log.Fatalf("[server] เปิด HTTPS ไม่สำเร็จ: %v", err)
+		}
+		return
+	}
+
+	if certFile != "" || keyFile != "" {
+		log.Println("[server] ⚠️  ต้องตั้งทั้ง TLS_CERT_FILE และ TLS_KEY_FILE คู่กัน — ตอนนี้จะเสิร์ฟเป็น HTTP ไปก่อน")
+	}
+
+	log.Printf("[server] เปิด HTTP ที่พอร์ต %s (ยังไม่ได้เข้ารหัส — ดูวิธีเปิด HTTPS ใน .env.example)", port)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatalf("[server] เปิดเซิร์ฟเวอร์ไม่สำเร็จ: %v", err)
+	}
 }
