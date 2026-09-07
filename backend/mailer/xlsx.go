@@ -46,22 +46,37 @@ type xlsxColumn struct {
 	Center bool
 }
 
-var weeklyColumns = []xlsxColumn{
-	{Title: "ประเภท", Width: 18},
-	{Title: "เลขที่ใบอนุญาต", Width: 20},
-	{Title: "Invoice", Width: 14},
-	{Title: "ใบขนสินค้า", Width: 16},
-	{Title: "ยี่ห้อ", Width: 12},
-	{Title: "รุ่น", Width: 14},
-	{Title: "จำนวนเครื่อง", Width: 12, Center: true},
-	{Title: "ยืนยันแล้ว", Width: 11, Center: true},
-	{Title: "วันที่ออก/นำออก", Width: 16, Center: true},
+// importColumns คอลัมน์ของชีต "Import License"
+var importColumns = []xlsxColumn{
+	{Title: "ลำดับ", Width: 8, Center: true},
+	{Title: "เลขที่ใบอนุญาต", Width: 22},
+	{Title: "Invoice", Width: 18},
+	{Title: "ใบขนสินค้า", Width: 18},
+	{Title: "ยี่ห้อ", Width: 14},
+	{Title: "รุ่น", Width: 16},
+	{Title: "จำนวนเครื่อง", Width: 13, Center: true},
+	{Title: "ยืนยันแล้ว", Width: 12, Center: true},
+	{Title: "วันที่ออกใบอนุญาต", Width: 18, Center: true},
 	{Title: "วันหมดอายุ", Width: 16, Center: true},
-	{Title: "วันคงเหลือ", Width: 11, Center: true},
-	{Title: "สถานะอายุใบอนุญาต", Width: 18, Center: true},
-	{Title: "กำหนดยื่น กสทช.", Width: 16, Center: true},
-	{Title: "วันคงเหลือถึงกำหนดยื่น", Width: 14, Center: true},
-	{Title: "สถานะการยื่น", Width: 20, Center: true},
+	{Title: "วันคงเหลือ", Width: 14, Center: true},
+	{Title: "สถานะ", Width: 16, Center: true},
+}
+
+// exportColumns คอลัมน์ของชีต "Export License"
+//
+// ไม่มีคอลัมน์ Invoice / ยี่ห้อ / รุ่น เพราะข้อมูลฝั่งนำออกไม่มีค่าพวกนี้
+// เดิมรวมสองฝั่งไว้ชีตเดียว เลยมีคอลัมน์ว่างเปล่าคาอยู่ครึ่งตาราง
+var exportColumns = []xlsxColumn{
+	{Title: "ลำดับ", Width: 8, Center: true},
+	{Title: "Exception License", Width: 24},
+	{Title: "จำนวนเครื่อง", Width: 13, Center: true},
+	{Title: "วันที่นำออก", Width: 18, Center: true},
+	{Title: "วันหมดอายุ", Width: 16, Center: true},
+	{Title: "วันคงเหลือ", Width: 14, Center: true},
+	{Title: "สถานะ", Width: 16, Center: true},
+	{Title: "กำหนดยื่น กสทช.", Width: 18, Center: true},
+	{Title: "วันคงเหลือถึงกำหนดยื่น", Width: 20, Center: true},
+	{Title: "สถานะการยื่น", Width: 22, Center: true},
 }
 
 // xlsxRow ข้อมูล 1 แถว พร้อมบอกว่าเป็นแถวที่หมดอายุแล้วหรือไม่
@@ -70,10 +85,10 @@ type xlsxRow struct {
 	Expired bool
 }
 
-// BuildXLSX สร้างไฟล์ Excel รายการทั้งหมดของรายงาน หัวคอลัมน์พื้นเขียวอมฟ้าตัวอักษรขาว
+// BuildXLSX สร้างไฟล์ Excel แยกเป็น 2 ชีต — Import License และ Export License
+//
+// หัวคอลัมน์พื้นเขียวอมฟ้าตัวอักษรขาว แถบสลับสี แถวที่หมดอายุแล้วไฮไลต์ชมพู
 func BuildXLSX(r WeeklyReport) Attachment {
-	rows := weeklyRows(r)
-
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 
@@ -86,7 +101,8 @@ func BuildXLSX(r WeeklyReport) Attachment {
 		{"xl/workbook.xml", xlWorkbook},
 		{"xl/_rels/workbook.xml.rels", xlWorkbookRels},
 		{"xl/styles.xml", xlStyles()},
-		{"xl/worksheets/sheet1.xml", xlSheet(rows)},
+		{"xl/worksheets/sheet1.xml", xlSheet(importColumns, importRows(r))},
+		{"xl/worksheets/sheet2.xml", xlSheet(exportColumns, exportRows(r))},
 	}
 
 	for _, f := range files {
@@ -110,16 +126,16 @@ func BuildXLSX(r WeeklyReport) Attachment {
 	}
 }
 
-// weeklyRows แปลงรายงานเป็นแถวของตาราง (ลำดับคอลัมน์ตาม weeklyColumns)
-func weeklyRows(r WeeklyReport) []xlsxRow {
+// importRows แถวของชีต Import License (ลำดับคอลัมน์ตาม importColumns)
+func importRows(r WeeklyReport) []xlsxRow {
 	num := func(n int) string { return fmt.Sprintf("%d", n) }
-	rows := make([]xlsxRow, 0, len(r.Import)+len(r.Export))
+	rows := make([]xlsxRow, 0, len(r.Import))
 
-	for _, row := range r.Import {
+	for i, row := range r.Import {
 		rows = append(rows, xlsxRow{
 			Expired: row.Status == StatusExpired,
 			Cells: []string{
-				"ใบอนุญาตนำเข้า",
+				num(i + 1),
 				row.LicenseNo,
 				row.InvoiceNo,
 				row.DeclarationNo,
@@ -131,20 +147,24 @@ func weeklyRows(r WeeklyReport) []xlsxRow {
 				ThaiDate(row.ExpiryDate, r.BuddhistEra),
 				DaysCountLabel(row.DaysLeft),
 				StatusLabel(row.Status),
-				"", "", "",
 			},
 		})
 	}
+	return rows
+}
 
-	for _, row := range r.Export {
+// exportRows แถวของชีต Export License (ลำดับคอลัมน์ตาม exportColumns)
+func exportRows(r WeeklyReport) []xlsxRow {
+	num := func(n int) string { return fmt.Sprintf("%d", n) }
+	rows := make([]xlsxRow, 0, len(r.Export))
+
+	for i, row := range r.Export {
 		rows = append(rows, xlsxRow{
 			Expired: row.Status == StatusExpired,
 			Cells: []string{
-				"ใบอนุญาตนำออก",
+				num(i + 1),
 				row.ExceptionLicense,
-				"", "", "", "",
 				num(row.Machines),
-				"",
 				ThaiDate(row.IssueDate, r.BuddhistEra),
 				ThaiDate(row.ExpiryDate, r.BuddhistEra),
 				DaysCountLabel(row.DaysLeft),
@@ -155,7 +175,6 @@ func weeklyRows(r WeeklyReport) []xlsxRow {
 			},
 		})
 	}
-
 	return rows
 }
 
@@ -192,7 +211,7 @@ func xlCell(col, row, style int, text string) string {
 		ref, style, xlEsc(text))
 }
 
-func xlSheet(rows []xlsxRow) string {
+func xlSheet(columns []xlsxColumn, rows []xlsxRow) string {
 	var b strings.Builder
 
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`)
@@ -208,7 +227,7 @@ func xlSheet(rows []xlsxRow) string {
 
 	// ความกว้างคอลัมน์
 	b.WriteString(`<cols>`)
-	for i, c := range weeklyColumns {
+	for i, c := range columns {
 		b.WriteString(fmt.Sprintf(`<col min="%d" max="%d" width="%.1f" customWidth="1"/>`, i+1, i+1, c.Width))
 	}
 	b.WriteString(`</cols>`)
@@ -217,7 +236,7 @@ func xlSheet(rows []xlsxRow) string {
 
 	// แถวหัวตาราง
 	b.WriteString(`<row r="1" ht="26" customHeight="1">`)
-	for i, c := range weeklyColumns {
+	for i, c := range columns {
 		b.WriteString(xlCell(i+1, 1, styHeader, c.Title))
 	}
 	b.WriteString(`</row>`)
@@ -228,7 +247,7 @@ func xlSheet(rows []xlsxRow) string {
 		band := i%2 == 1
 
 		b.WriteString(fmt.Sprintf(`<row r="%d" ht="20" customHeight="1">`, rowNo))
-		for col, c := range weeklyColumns {
+		for col, c := range columns {
 			text := ""
 			if col < len(row.Cells) {
 				text = row.Cells[col]
@@ -326,6 +345,7 @@ const xlContentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
 	`<Default Extension="xml" ContentType="application/xml"/>` +
 	`<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
 	`<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>` +
+	`<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>` +
 	`<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>` +
 	`</Types>`
 
@@ -337,11 +357,15 @@ const xlRootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
 const xlWorkbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
 	`<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ` +
 	`xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
-	`<sheets><sheet name="Weekly Alert" sheetId="1" r:id="rId1"/></sheets>` +
+	`<sheets>` +
+	`<sheet name="Import License" sheetId="1" r:id="rId1"/>` +
+	`<sheet name="Export License" sheetId="2" r:id="rId2"/>` +
+	`</sheets>` +
 	`</workbook>`
 
 const xlWorkbookRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
 	`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
 	`<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>` +
-	`<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
+	`<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>` +
+	`<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
 	`</Relationships>`

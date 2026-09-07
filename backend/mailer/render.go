@@ -396,13 +396,15 @@ func renderBreakdown(r WeeklyReport) string {
 			top = "0"
 		}
 		b.WriteString(fmt.Sprintf(`
-            <tr><td colspan="2" style="padding-top:%s;font-weight:600;">%s</td></tr>`,
+            <tr><td colspan="3" style="padding-top:%s;font-weight:600;">%s</td></tr>`,
 			top, esc(g.Name)))
 
 		for _, it := range g.Items {
+			// ขีดนำหน้าอยู่คนละช่องกับข้อความ ข้อความทุกบรรทัดจะได้เริ่มตรงกัน
 			b.WriteString(fmt.Sprintf(`
             <tr>
-              <td width="190" style="padding-left:2.2em;white-space:nowrap;">%s</td>
+              <td width="18" style="padding-left:2.2em;">-</td>
+              <td width="190" style="white-space:nowrap;">%s</td>
               <td width="110" align="right" style="white-space:nowrap;">%d รายการ</td>
             </tr>`, esc(it.Label), it.Count))
 		}
@@ -431,7 +433,7 @@ func renderBreakdownText(r WeeklyReport) string {
 			if padding < 1 {
 				padding = 1
 			}
-			b.WriteString(fmt.Sprintf("               %s%s%d รายการ\n",
+			b.WriteString(fmt.Sprintf("             - %s%s%d รายการ\n",
 				it.Label, strings.Repeat(" ", padding), it.Count))
 		}
 	}
