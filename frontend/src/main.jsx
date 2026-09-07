@@ -12,7 +12,6 @@ import AdminDashboardPage from './pages/AdminDashboardpage.jsx';
 import QAMachineList from './pages/qa/Qamachinelist.jsx';
 import QAMachineDetail from './pages/qa/Qamachinedetail.jsx';
 import UiKitPage from './pages/UiKitPage.jsx';
-import LicenseWeeklyPopup from './components/LicenseWeeklyPopup.jsx';
 import { NavProvider, useAppNavigate, useAppView } from './lib/nav.jsx';
 import { getToken } from './api/client.js';
 import { homeRouteForRole } from './lib/roleRoutes.js';
@@ -105,13 +104,7 @@ function AppScreen() {
   }, [effectiveView, requestedView, navigate]);
   const entry = ROUTE_CONFIG[effectiveView] || ROUTE_CONFIG['/login'];
   const Component = entry.component;
-  const token = getToken();
-  const role = (localStorage.getItem('iconfirm_role') || '').toUpperCase();
-  const showWeeklyPopup = Boolean(token) && role === 'LOG' && effectiveView !== '/login';
-  return <>
-      <Component />
-      {showWeeklyPopup && <LicenseWeeklyPopup />}
-    </>;
+  return <Component />;
 }
 ['dragover', 'drop'].forEach(type => {
   window.addEventListener(type, e => {

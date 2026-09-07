@@ -16,16 +16,6 @@ export function getImportLicenseItems({
 export function getImportLicenseSummary() {
   return apiFetch('/import-license/summary');
 }
-export function getImportLicenseAlerts({
-  withinDays,
-  onlyAlert
-} = {}) {
-  const params = new URLSearchParams();
-  if (withinDays) params.set('within_days', String(withinDays));
-  if (onlyAlert) params.set('only', 'alert');
-  const qs = params.toString();
-  return apiFetch(`/import-license/alerts${qs ? `?${qs}` : ''}`);
-}
 export function verifyImportLicenseCode({
   code,
   invoiceNo = '',
