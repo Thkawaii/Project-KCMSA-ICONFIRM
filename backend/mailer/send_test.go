@@ -152,6 +152,7 @@ func TestBuildXLSXIsValidWorkbook(t *testing.T) {
 		"xl/workbook.xml",
 		"xl/styles.xml",
 		"xl/worksheets/sheet1.xml",
+		"xl/worksheets/sheet2.xml",
 	} {
 		if _, ok := parts[want]; !ok {
 			t.Fatalf("ไฟล์ %s หายไปจากแพ็กเกจ", want)
@@ -162,9 +163,28 @@ func TestBuildXLSXIsValidWorkbook(t *testing.T) {
 		t.Fatal("ไม่พบสีพื้นหัวคอลัมน์ในไฟล์สไตล์")
 	}
 
+	// ชื่อชีตทั้งสองต้องอยู่ในสมุดงาน
+	book := parts["xl/workbook.xml"]
+	for _, name := range []string{"Import License", "Export License"} {
+		if !strings.Contains(book, name) {
+			t.Fatalf("ไม่พบชีต %q ในสมุดงาน", name)
+		}
+	}
+
 	sheet := parts["xl/worksheets/sheet1.xml"]
 	if !strings.Contains(sheet, "เลขที่ใบอนุญาต") || !strings.Contains(sheet, "IL-2026-0148") {
-		t.Fatal("ตารางต้องมีทั้งหัวคอลัมน์และข้อมูลจริง")
+		t.Fatal("ชีต Import ต้องมีทั้งหัวคอลัมน์และข้อมูลจริง")
+	}
+	if strings.Contains(sheet, "EX-2026-0091") {
+		t.Fatal("ชีต Import ไม่ควรมีรายการฝั่งนำออกปนมา")
+	}
+
+	sheet2 := parts["xl/worksheets/sheet2.xml"]
+	if !strings.Contains(sheet2, "Exception License") || !strings.Contains(sheet2, "EX-2026-0091") {
+		t.Fatal("ชีต Export ต้องมีทั้งหัวคอลัมน์และข้อมูลจริง")
+	}
+	if strings.Contains(sheet2, "IL-2026-0148") {
+		t.Fatal("ชีต Export ไม่ควรมีรายการฝั่งนำเข้าปนมา")
 	}
 
 	// ลำดับแท็กต้องเป็น sheetViews → cols → sheetData ไม่งั้น Excel เปิดไม่ขึ้น
