@@ -14,7 +14,7 @@ import { buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js';
 import PeriodRangePicker from '../components/PeriodRangePicker.jsx';
 import completeStampUrl from '../assets/complete-stamp.png';
 import { inPeriod, periodRangeLabel, periodFileTag } from '../lib/dateRange.js';
-import { ArrowPathIcon, CheckBadgeIcon, CheckCircleIcon, CheckIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardDocumentCheckIcon, ClockIcon, CubeIcon, DocumentTextIcon, MinusIcon, RectangleStackIcon, ReceiptPercentIcon, ShieldCheckIcon, Squares2X2Icon, TagIcon, TruckIcon, WrenchScrewdriverIcon, XCircleIcon, XMarkIcon } from '../components/icons.jsx';
+import { ArrowPathIcon, CheckBadgeIcon, CheckCircleIcon, CheckIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardDocumentCheckIcon, ClockIcon, CubeIcon, DocumentTextIcon, MinusIcon, RectangleStackIcon, ReceiptPercentIcon, ShieldCheckIcon, Squares2X2Icon, TagIcon, TruckIcon, WrenchScrewdriverIcon, XMarkIcon } from '../components/icons.jsx';
 export const WH_NAV_ITEMS = [{
   to: '/warehouse',
   label: 'Import License',
@@ -454,6 +454,31 @@ export default function ImportLicensePage() {
     invoices: new Set(items.map(r => r.InvoiceNo).filter(Boolean)).size,
     completed: items.filter(isLicenseCompleted).length
   }), [items]);
+
+  // นับเป็น "จำนวนใบอนุญาต" ไม่ใช่จำนวนเครื่อง
+  // ใบเดียวมีหลายเครื่อง ถ้ามีเครื่องไหนหมดอายุแล้ว ทั้งใบนับเป็นหมดอายุ
+  // ใบที่กดเสร็จสิ้นแล้วหยุดนับวัน จึงไม่นับรวม
+  const expiryCounts = useMemo(() => {
+    const worst = new Map();
+    for (const row of items) {
+      if (isLicenseCompleted(row)) continue;
+      const key = (row.LicenseNo || '').trim();
+      if (!key) continue;
+      const exp = row.ExpireDate ? computeExpireStatus(row.ExpireDate, 30) : computeLicenseExpiry(row.IssueDate);
+      if (exp.status !== EXPIRY_STATUS.EXPIRED && exp.status !== EXPIRY_STATUS.EXPIRING) continue;
+      if (worst.get(key) === EXPIRY_STATUS.EXPIRED) continue;
+      worst.set(key, exp.status);
+    }
+    let expiring = 0;
+    let expired = 0;
+    for (const status of worst.values()) {
+      if (status === EXPIRY_STATUS.EXPIRED) expired++;else expiring++;
+    }
+    return {
+      expiring,
+      expired
+    };
+  }, [items, today]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
   function goToPage(p) {
@@ -579,7 +604,7 @@ export default function ImportLicensePage() {
           </ul>}
       </div>
 
-      <div className="dash-stats-row wh-stats-row">
+      <div className="dash-stats-row wh-stats-row il-stats-row-5">
         <div className="dash-stat-card">
           <div className="dash-stat-label">
             <span>เครื่องในบัญชีทั้งหมด</span>
@@ -606,6 +631,25 @@ export default function ImportLicensePage() {
             </span>
           </div>
           <div className="dash-stat-value">{counts.invoices}</div>
+        </div>
+        <div className="dash-stat-card il-stat-expiry">
+          <div className="dash-stat-label">
+            <span>อายุใบอนุญาต</span>
+            <span className="dash-stat-icon dash-icon-orange">
+              <ClockIcon className="size-4" />
+            </span>
+          </div>
+          <div className="il-stat-expiry-split">
+            <div className="il-stat-expiry-part il-stat-expiring">
+              <div className="dash-stat-value">{expiryCounts.expiring}</div>
+              <div className="dash-stat-note">ใกล้หมดอายุ</div>
+            </div>
+            <span className="il-stat-expiry-divider" aria-hidden="true" />
+            <div className="il-stat-expiry-part il-stat-expired">
+              <div className="dash-stat-value">{expiryCounts.expired}</div>
+              <div className="dash-stat-note">หมดอายุแล้ว</div>
+            </div>
+          </div>
         </div>
         <div className="dash-stat-card il-stat-complete">
           <div className="dash-stat-label">
@@ -1716,6 +1760,31 @@ export function WHExportLicensePanel() {
     entries: new Set(rows.map(r => (r.ExportEntry || '').trim()).filter(Boolean)).size,
     completed: completedCount
   }), [rows, completedCount]);
+
+  // นับเป็น "จำนวนใบอนุญาตส่งออก" ไม่ใช่จำนวนเครื่อง
+  // ใบเดียวมีหลายเครื่อง ถ้ามีเครื่องไหนหมดอายุแล้ว ทั้งใบนับเป็นหมดอายุ
+  // ใบที่กดเสร็จสิ้นแล้วหยุดนับวัน จึงไม่นับรวม
+  const exportExpiryCounts = useMemo(() => {
+    const worst = new Map();
+    for (const row of rows) {
+      if (isLicenseCompleted(row)) continue;
+      const key = (row.ExportLicenseNo || row.ExceptionLicense || '').trim();
+      if (!key) continue;
+      const exp = computeExportLicenseDates(row);
+      if (exp.status !== EXPIRY_STATUS.EXPIRED && exp.status !== EXPIRY_STATUS.EXPIRING) continue;
+      if (worst.get(key) === EXPIRY_STATUS.EXPIRED) continue;
+      worst.set(key, exp.status);
+    }
+    let expiring = 0;
+    let expired = 0;
+    for (const status of worst.values()) {
+      if (status === EXPIRY_STATUS.EXPIRED) expired++;else expiring++;
+    }
+    return {
+      expiring,
+      expired
+    };
+  }, [rows]);
   const currentLicenseCompletedAll = currentLicenseRows.length > 0 && currentLicenseRows.every(isLicenseCompleted);
 
   async function applyComplete(completed) {
@@ -1805,7 +1874,7 @@ export function WHExportLicensePanel() {
         {msg?.error && <p className="upload-card-msg upload-card-msg-err wh-upload-msg">{msg.error}</p>}
       </div>
 
-      <div className="dash-stats-row wh-stats-row">
+      <div className="dash-stats-row wh-stats-row il-stats-row-5">
         <div className="dash-stat-card">
           <div className="dash-stat-label">
             <span>เครื่องในบัญชีทั้งหมด</span>
@@ -1832,6 +1901,25 @@ export function WHExportLicensePanel() {
             </span>
           </div>
           <div className="dash-stat-value">{exportCounts.entries}</div>
+        </div>
+        <div className="dash-stat-card il-stat-expiry">
+          <div className="dash-stat-label">
+            <span>อายุใบอนุญาต</span>
+            <span className="dash-stat-icon dash-icon-orange">
+              <ClockIcon className="size-4" />
+            </span>
+          </div>
+          <div className="il-stat-expiry-split">
+            <div className="il-stat-expiry-part il-stat-expiring">
+              <div className="dash-stat-value">{exportExpiryCounts.expiring}</div>
+              <div className="dash-stat-note">ใกล้หมดอายุ</div>
+            </div>
+            <span className="il-stat-expiry-divider" aria-hidden="true" />
+            <div className="il-stat-expiry-part il-stat-expired">
+              <div className="dash-stat-value">{exportExpiryCounts.expired}</div>
+              <div className="dash-stat-note">หมดอายุแล้ว</div>
+            </div>
+          </div>
         </div>
         <div className="dash-stat-card il-stat-complete">
           <div className="dash-stat-label">
