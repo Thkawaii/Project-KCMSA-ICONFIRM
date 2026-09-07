@@ -252,3 +252,65 @@ func TestGetMFGAssembliesReportsWHGate(t *testing.T) {
 		t.Errorf("ComponentLabel = %q", rows[0].ComponentLabel)
 	}
 }
+
+// บัค: MFG สแกนตอน WH ยังไม่รับเข้าคลัง (NOT_MATCHED)
+// พอ WH มาสแกนทีหลัง ตาราง MFG เด้งเป็น MATCHED เอง
+// ที่ถูกคือต้องคง NOT_MATCHED จนกว่า MFG จะสแกนยืนยันอีกครั้ง
+func TestMFGListDoesNotAutoMatchAfterWHScans(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
+
+	seedComponentPlan(t, db, "MC-002", map[string]string{"Swing Motor No": "SM-0002"})
+
+	body := `{"machineNo":"MC-002","serialNo":"SM-0002","partType":"SM"}`
+
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c)
+	mustStatus(t, rec, 201)
+	if got := decodeJSON(t, rec)["status"]; got != models.MFGStatusNotMatched {
+		t.Fatalf("ตอนสแกน: status = %v, want NOT_MATCHED", got)
+	}
+
+	// WH เพิ่งมาสแกนรับเข้าคลังทีหลัง — MFG ยังไม่ได้สแกนซ้ำ
+	seedWHCheck(t, db, ComponentSM, "", "SM-0002", "")
+
+	c2, rec2 := newContext("GET", "", u.ID, u.Username)
+	GetMFGAssemblies(c2)
+	mustStatus(t, rec2, 200)
+
+	var rows []models.MFGAssembly
+	if err := json.Unmarshal(rec2.Body.Bytes(), &rows); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	if rows[0].Status != models.MFGStatusNotMatched {
+		t.Fatalf("หลัง WH สแกน แต่ MFG ยังไม่สแกนซ้ำ: status = %q, want NOT_MATCHED",
+			rows[0].Status)
+	}
+	if !rows[0].WHMatched {
+		t.Error("WHMatched = false, want true (ต้องบอกได้ว่า WH รับเข้าคลังแล้ว)")
+	}
+
+	// MFG สแกนยืนยันอีกครั้ง จึงจะเป็น MATCHED
+	c3, rec3 := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c3)
+	mustStatus(t, rec3, 201)
+	if got := decodeJSON(t, rec3)["status"]; got != models.MFGStatusMatched {
+		t.Fatalf("MFG สแกนซ้ำ: status = %v, want MATCHED", got)
+	}
+
+	c4, rec4 := newContext("GET", "", u.ID, u.Username)
+	GetMFGAssemblies(c4)
+	mustStatus(t, rec4, 200)
+
+	rows = nil
+	if err := json.Unmarshal(rec4.Body.Bytes(), &rows); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Status != models.MFGStatusMatched {
+		t.Fatalf("หลัง MFG สแกนซ้ำ: rows = %d status = %q, want 1 / MATCHED",
+			len(rows), rows[0].Status)
+	}
+}

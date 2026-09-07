@@ -310,6 +310,25 @@ func mfgStatusFor(component string, duplicate bool, planState string, whMatched 
 	}
 }
 
+// mfgDisplayStatus ใช้ตอนดึงตาราง MFG เท่านั้น
+//
+// saved    = สถานะที่บันทึกไว้ตอน MFG สแกนจริง
+// computed = สถานะที่คำนวณใหม่จากแผน/WH ณ ตอนนี้
+//
+// ลดสถานะได้ (เช่น เคยผ่านแล้วภายหลังแผนหรือฝั่ง WH เปลี่ยน → NOT_MATCHED)
+// แต่ห้ามอัปเกรดให้เอง: แถวที่ตอนสแกนติดเงื่อนไข "ต้องให้ WH สแกนก่อน"
+// แล้ว WH เพิ่งมาสแกนทีหลัง ต้องคงเป็น NOT_MATCHED
+// จนกว่า MFG จะสแกนยืนยันการประกอบอีกครั้ง
+func mfgDisplayStatus(saved, computed string) string {
+	if computed != models.MFGStatusMatched {
+		return computed
+	}
+	if strings.EqualFold(strings.TrimSpace(saved), models.MFGStatusMatched) {
+		return models.MFGStatusMatched
+	}
+	return models.MFGStatusNotMatched
+}
+
 func mfgFinalMessage(status string, res MFGPlanResult, licenseNo string) string {
 	switch status {
 	case models.MFGStatusDuplicate:

@@ -68,7 +68,10 @@ func GetMFGAssemblies(c *gin.Context) {
 			continue
 		}
 
-		rows[i].Status = mfgStatusFor(plan.Component, duplicate, plan.State, rows[i].WHMatched)
+		rows[i].Status = mfgDisplayStatus(
+			rows[i].Status,
+			mfgStatusFor(plan.Component, duplicate, plan.State, rows[i].WHMatched),
+		)
 	}
 
 	c.JSON(200, rows)

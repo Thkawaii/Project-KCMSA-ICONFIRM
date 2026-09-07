@@ -532,6 +532,9 @@ export default function MFGAssemblyPage() {
                       {a.PlanState === 'MATCH' && a.WHRequired && !a.WHMatched && <span className="mfg-plan-hint" title={`ต้องให้ WH สแกนรับ ${a.ComponentLabel || 'พาร์ทนี้'} เข้าคลังก่อน จึงจะประกอบได้`}>
                           รอ WH สแกน
                         </span>}
+                      {a.PlanState === 'MATCH' && a.WHRequired && a.WHMatched && a.Status === 'NOT_MATCHED' && <span className="mfg-plan-hint" title="WH สแกนรับเข้าคลังแล้ว — MFG ต้องสแกนยืนยันการประกอบอีกครั้ง จึงจะเป็น MATCHED">
+                          รอ MFG สแกนยืนยัน
+                        </span>}
                     </td>
                     <td data-label="Model" title={asmTitle}>
                       {asm && asm.model ? <button type="button" className="mfg-model-link mfg-model-link-btn" onClick={() => setDetailRow({
