@@ -624,6 +624,35 @@
   width: 360px;
   max-width: 100%;
 }
+/* ทุกช่องในแถบตัวกรองต้องสูงเท่ากัน
+   เดิมช่องค้นหา ดรอปดาวน์ และปุ่ม ตั้ง padding กับขนาดตัวอักษรคนละค่า
+   (ปุ่ม 8px/13px, ปุ่มลบ 9px/14px, ช่องค้นหา 10px/14px) พอมาอยู่บรรทัดเดียวเลยสูงไม่เท่ากัน
+   จึงล็อกความสูงไว้ค่าเดียว แล้วจัดเนื้อหาให้อยู่กึ่งกลางแทนการพึ่ง padding */
+.il-filter-search-group .wh-search,
+.il-filter-search-group .sf-trigger,
+.il-filter-search-group .wh-issue-btn,
+.il-filter-search-group .wh-btn-danger {
+  height: 42px;
+  min-height: 42px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.il-filter-search-group .wh-issue-btn,
+.il-filter-search-group .wh-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding-left: 18px;
+  padding-right: 18px;
+  white-space: nowrap;
+}
+
 @media (max-width: 640px) {
   .il-filter-search-group {
     flex-direction: column;
@@ -631,7 +660,9 @@
     width: 100%;
   }
   .il-filter-search-group .il-model-filter,
-  .il-filter-search-group .wh-search {
+  .il-filter-search-group .wh-search,
+  .il-filter-search-group .wh-issue-btn,
+  .il-filter-search-group .wh-btn-danger {
     width: 100%;
     min-width: 0;
   }

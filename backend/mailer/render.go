@@ -113,7 +113,7 @@ func tableOpen() string {
 // RenderHTML ประกอบอีเมลทั้งฉบับ
 //
 // วางรูปแบบตามหนังสือราชการ/หนังสือบริษัทของไทย คือ
-// หัวจดหมาย → เลขที่หนังสือและวันที่ → เรื่อง / เรียน
+// หัวจดหมาย → วันที่ → เรื่อง / เรียน
 // → เนื้อความย่อหน้าเว้นวรรคหน้า → ข้อ 1, 2 พร้อมตาราง → คำลงท้าย → ลงชื่อ
 // ---------------------------------------------------------------------------
 
@@ -184,15 +184,15 @@ func RenderHTML(r WeeklyReport) string {
         <div style="border-bottom:1px solid %s;margin:2px 0 20px;"></div>
 `, logoCell, esc(r.Org), colNote, esc(r.Dept), colBody, colBody))
 
-	// ---- เลขที่หนังสือ และวันที่ ----
+	// ---- วันที่ ----
+	// ไม่มีเลขที่หนังสือแล้ว เหลือวันที่ชิดขวาอย่างเดียว
 	b.WriteString(fmt.Sprintf(`
         <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;">
           <tr>
-            <td align="left" style="`+layoutFont+`font-size:13px;color:%s;">ที่ %s</td>
             <td align="right" style="`+layoutFont+`font-size:13px;color:%s;">%s</td>
           </tr>
         </table>
-`, colBody, esc(r.RefNo()), colBody, esc(ThaiDateFull(r.GeneratedAt, r.BuddhistEra))))
+`, colBody, esc(ThaiDateFull(r.GeneratedAt, r.BuddhistEra))))
 
 	// ---- เรื่อง / เรียน ----
 	b.WriteString(headerField("เรื่อง", esc(r.Title())))
@@ -541,10 +541,7 @@ func RenderText(r WeeklyReport) string {
 	b.WriteString(center(r.Dept) + "\n")
 	b.WriteString(strings.Repeat("=", 68) + "\n\n")
 
-	b.WriteString(fmt.Sprintf("ที่ %s%s%s\n\n",
-		r.RefNo(),
-		strings.Repeat(" ", 20),
-		ThaiDateFull(r.GeneratedAt, r.BuddhistEra)))
+	b.WriteString(right(ThaiDateFull(r.GeneratedAt, r.BuddhistEra)) + "\n\n")
 
 	b.WriteString("เรื่อง   " + r.Title() + "\n")
 	b.WriteString("เรียน   " + recipientName(r) + "\n")
@@ -614,6 +611,16 @@ func RenderText(r WeeklyReport) string {
 }
 
 // center จัดข้อความให้อยู่กลางหน้ากระดาษกว้าง 68 ตัวอักษร
+// right ดันข้อความไปชิดขวาของหน้ากระดาษกว้าง 68 ตัวอักษร
+func right(text string) string {
+	width := 68
+	n := len([]rune(text))
+	if n >= width {
+		return text
+	}
+	return strings.Repeat(" ", width-n) + text
+}
+
 func center(text string) string {
 	width := 68
 	n := len([]rune(text))

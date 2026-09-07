@@ -27,7 +27,8 @@ const (
 type WeeklyAlertLog struct {
 	ID uint `gorm:"primaryKey"`
 
-	// WeekKey สัปดาห์ตามมาตรฐาน ISO-8601 เช่น 2026-W36
+	// WeekKey วันจันทร์ของสัปดาห์ที่ส่ง เขียนแบบ YYYY-MM-DD เช่น 2026-09-07
+	// ทุกวันในสัปดาห์เดียวกันได้ค่าเดียวกัน จึงใช้กันส่งซ้ำได้
 	WeekKey string `gorm:"size:16;index"`
 
 	// Mode AUTO หรือ MANUAL

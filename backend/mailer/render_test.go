@@ -1,6 +1,7 @@
 package mailer
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -84,9 +85,22 @@ func TestWeekBoundsStartsOnMonday(t *testing.T) {
 }
 
 func TestISOWeekKeyFormat(t *testing.T) {
-	got := ISOWeekKey(time.Date(2026, 1, 5, 0, 0, 0, 0, testLoc))
-	if got != "2026-W02" {
+	// 5 ม.ค. 2026 เป็นวันจันทร์อยู่แล้ว จึงได้วันเดิม
+	if got := ISOWeekKey(time.Date(2026, 1, 5, 0, 0, 0, 0, testLoc)); got != "2026-01-05" {
 		t.Fatalf("คีย์สัปดาห์ผิด: %s", got)
+	}
+
+	// ทุกวันในสัปดาห์เดียวกันต้องได้คีย์ตัวเดียวกัน ไม่งั้นตัวกันส่งซ้ำจะพัง
+	monday := ISOWeekKey(time.Date(2026, 9, 7, 9, 0, 0, 0, testLoc))
+	for _, day := range []int{8, 9, 10, 11, 12, 13} {
+		if got := ISOWeekKey(time.Date(2026, 9, day, 23, 30, 0, 0, testLoc)); got != monday {
+			t.Fatalf("วันที่ %d ก.ย. ควรได้คีย์ %s แต่ได้ %s", day, monday, got)
+		}
+	}
+
+	// ข้ามไปวันจันทร์ถัดไปต้องเป็นคีย์ใหม่
+	if got := ISOWeekKey(time.Date(2026, 9, 14, 0, 0, 0, 0, testLoc)); got == monday {
+		t.Fatal("สัปดาห์ถัดไปต้องได้คีย์คนละตัว")
 	}
 }
 
@@ -149,7 +163,6 @@ func TestRenderHTMLContainsKeyContent(t *testing.T) {
 	must := []string{
 		"คุณธีปรัชญ์ เมธีภูริวัจน์",
 		"Kobelco Construction Machinery Southeast Asia Co., Ltd.",
-		"ที่ IC-",
 		"เรื่อง",
 		"เรียน",
 		"ด้วยระบบ I-CONFIRMATION ได้ตรวจสอบ",
@@ -171,8 +184,8 @@ func TestRenderHTMLContainsKeyContent(t *testing.T) {
 		}
 	}
 
-	// คำลงท้ายถูกตัดออกแล้ว ต้องไม่กลับมาโผล่ในอีเมลอีก
-	for _, banned := range []string{"ขอแสดงความนับถือ", "ระบบ I-CONFIRMATION<br>"} {
+	// คำลงท้ายกับเลขที่หนังสือถูกตัดออกแล้ว ต้องไม่กลับมาโผล่ในอีเมลอีก
+	for _, banned := range []string{"ขอแสดงความนับถือ", "ระบบ I-CONFIRMATION<br>", "ที่ IC-"} {
 		if strings.Contains(html, banned) {
 			t.Fatalf("อีเมล HTML ไม่ควรมีคำลงท้าย %q", banned)
 		}
@@ -252,8 +265,9 @@ func TestBuildCSVHasBOMAndAllRows(t *testing.T) {
 	if len(lines) != 5 { // 1 หัวตาราง + 2 นำเข้า + 2 นำออก
 		t.Fatalf("จำนวนบรรทัดใน CSV ผิด: %d", len(lines))
 	}
-	if !strings.Contains(att.FileName, "2026-W37") {
-		t.Fatalf("ชื่อไฟล์แนบไม่มีเลขสัปดาห์: %s", att.FileName)
+	// ชื่อไฟล์ต้องลงท้ายด้วยวันที่แบบ YYYY-MM-DD ไม่ใช่เลขสัปดาห์
+	if !regexp.MustCompile(`^license-weekly-alert-\d{4}-\d{2}-\d{2}\.csv$`).MatchString(att.FileName) {
+		t.Fatalf("รูปแบบชื่อไฟล์แนบผิด: %s", att.FileName)
 	}
 }
 
@@ -307,7 +321,7 @@ func TestRecipientNameStripsRedundantPrefix(t *testing.T) {
 	}
 }
 
-func TestWeekOfMonthLabelAndRefNo(t *testing.T) {
+func TestWeekOfMonthAndLabel(t *testing.T) {
 	r := sampleReport()
 	r.BuddhistEra = true
 
@@ -317,9 +331,6 @@ func TestWeekOfMonthLabelAndRefNo(t *testing.T) {
 	}
 	if got := r.WeekLabel(); got != "สัปดาห์ที่ 2 ของเดือนกันยายน 2569" {
 		t.Fatalf("ข้อความสัปดาห์ผิด: %s", got)
-	}
-	if got := r.RefNo(); got != "IC-2569/09-2" {
-		t.Fatalf("เลขที่หนังสือผิด: %s", got)
 	}
 	if !strings.Contains(r.Title(), "ประจำสัปดาห์ที่ 2 ของเดือนกันยายน 2569") {
 		t.Fatalf("ชื่อเรื่องผิด: %s", r.Title())
