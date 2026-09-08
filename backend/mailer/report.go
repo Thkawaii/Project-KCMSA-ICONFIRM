@@ -66,7 +66,7 @@ func (c Counts) Total() int {
 type WeeklyReport struct {
 	GeneratedAt time.Time `json:"generatedAt"`
 
-	WeekKey     string    `json:"weekKey"`     // วันจันทร์ของสัปดาห์ แบบ 2026-09-07 ใช้กันส่งซ้ำและตั้งชื่อไฟล์แนบ
+	WeekKey     string    `json:"weekKey"`     // วันจันทร์ของสัปดาห์ แบบ 2026-09-07 ใช้กันส่งซ้ำอย่างเดียว (ชื่อไฟล์แนบใช้ FileDateKey)
 	WeekNo      int       `json:"weekNo"`      // เลขสัปดาห์ตามมาตรฐาน ISO-8601
 	WeekYear    int       `json:"weekYear"`    //
 	PeriodStart time.Time `json:"periodStart"` // วันจันทร์ของสัปดาห์
@@ -158,6 +158,23 @@ func (r WeeklyReport) Urgent() int {
 func ISOWeekKey(t time.Time) string {
 	monday, _ := WeekBounds(t)
 	return monday.Format("2006-01-02")
+}
+
+// FileDateKey วันที่สำหรับตั้งชื่อไฟล์แนบ เขียนแบบ YYYY-MM-DD เช่น 2026-09-08
+//
+// ใช้ "วันที่ส่งจริง" (GeneratedAt) ไม่ใช่วันจันทร์ของสัปดาห์
+// เพราะถ้าส่งวันอังคารที่ 8 แต่ชื่อไฟล์ขึ้น 2026-09-07 คนรับจะงงว่าไฟล์เก่าหรือเปล่า
+//
+// ถ้า GeneratedAt ยังไม่ได้ตั้งค่า (zero) จะถอยไปใช้เวลาปัจจุบัน
+// และถ้ายังไม่ได้อีกก็ใช้ WeekKey เป็นตัวสำรองสุดท้าย
+func (r WeeklyReport) FileDateKey() string {
+	if !r.GeneratedAt.IsZero() {
+		return r.GeneratedAt.Format("2006-01-02")
+	}
+	if r.WeekKey != "" {
+		return r.WeekKey
+	}
+	return time.Now().Format("2006-01-02")
 }
 
 // WeekBounds วันจันทร์ 00:00 และวันอาทิตย์ของสัปดาห์ที่ t อยู่

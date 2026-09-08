@@ -120,7 +120,7 @@ func BuildXLSX(r WeeklyReport) Attachment {
 	}
 
 	return Attachment{
-		FileName:    fmt.Sprintf("license-weekly-alert-%s.xlsx", r.WeekKey),
+		FileName:    fmt.Sprintf("license-weekly-alert-%s.xlsx", r.FileDateKey()),
 		ContentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 		Data:        buf.Bytes(),
 	}

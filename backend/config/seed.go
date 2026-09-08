@@ -65,6 +65,8 @@ func SeedOrgUsers() {
 	list := []orgUser{
 		{"ADMIN", "admin", "iconfirm", "Administrator"},
 		{"LOG", "log@kobelco.com", "log.kobelco", "LOG User"},
+		{"LOG", "log@kobelco.com", "log01.kobelco", "Panpaporn Prommapong"},
+		{"LOG", "log@kobelco.com", "log02.kobelco", "Sarai Promden"},
 
 		{"WH", "wh@kobelco.com", "wh01.kobelco", "นายวสันต์ มีฤทธิ์"},
 		{"WH", "wh@kobelco.com", "wh02.kobelco", "นายอัมรินทร์ สุขแสวง"},
