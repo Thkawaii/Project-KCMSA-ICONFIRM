@@ -1681,12 +1681,30 @@
   min-width: 0;
 }
 
+/* ป้าย "เสร็จสิ้นแล้ว" — ใช้ไอคอน Heroicons (Tailwind) แทนรูป PNG เดิม
+   ทำให้คมชัดทุกความละเอียด ปรับสี/ขนาดได้จาก CSS และโหลดเร็วกว่า */
 .il-complete-stamp {
-  width: 46px;
-  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
-  transform: rotate(-12deg);
-  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.2));
+  padding: 6px 12px 6px 9px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.il-complete-stamp-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: #10b981;
 }
 
 /* ---------- ช่องติ๊กเลือกแถว ---------- */
@@ -1962,8 +1980,13 @@
 /* ---------- จอเล็ก ---------- */
 @media (max-width: 720px) {
   .il-complete-stamp {
-    width: 40px;
-    height: 40px;
+    padding: 5px 10px 5px 8px;
+    font-size: 12px;
+  }
+
+  .il-complete-stamp-icon {
+    width: 16px;
+    height: 16px;
   }
 
   /* ตารางกลายเป็นการ์ด — ช่องติ๊กจึงเป็นแถวแรกของการ์ด ให้เด่นหน่อย */

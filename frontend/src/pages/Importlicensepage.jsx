@@ -12,9 +12,8 @@ import { useDailyTick } from '../lib/useDailyTick.js';
 import { useAppParams } from '../lib/nav.jsx';
 import { buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js';
 import PeriodRangePicker from '../components/PeriodRangePicker.jsx';
-import completeStampUrl from '../assets/complete-stamp.png';
 import { inPeriod, periodRangeLabel, periodFileTag } from '../lib/dateRange.js';
-import { ArrowPathIcon, CheckBadgeIcon, CheckCircleIcon, CheckIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardDocumentCheckIcon, ClockIcon, CubeIcon, DocumentTextIcon, MinusIcon, RectangleStackIcon, ReceiptPercentIcon, ShieldCheckIcon, Squares2X2Icon, TagIcon, TruckIcon, WrenchScrewdriverIcon, XMarkIcon } from '../components/icons.jsx';
+import { ArrowPathIcon, CheckBadgeIcon, CheckBadgeSolidIcon, CheckCircleIcon, CheckIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardDocumentCheckIcon, ClockIcon, CubeIcon, DocumentTextIcon, MinusIcon, RectangleStackIcon, ReceiptPercentIcon, ShieldCheckIcon, Squares2X2Icon, TagIcon, TruckIcon, WrenchScrewdriverIcon, XMarkIcon } from '../components/icons.jsx';
 export const WH_NAV_ITEMS = [{
   to: '/warehouse',
   label: 'Import License',
@@ -680,7 +679,10 @@ export default function ImportLicensePage() {
                 {currentLot.CompletedCount > 0 && <> · เสร็จสิ้นแล้ว {currentLot.CompletedCount}/{currentLot.Total}</>}
               </span>
             </div>
-            {lotCompletedAll && <img className="il-complete-stamp" src={completeStampUrl} alt="เสร็จสิ้นแล้ว" title="ปิดงานทั้งใบแล้ว" />}
+            {lotCompletedAll && <span className="il-complete-stamp" title="ปิดงานทั้งใบแล้ว">
+                <CheckBadgeSolidIcon className="il-complete-stamp-icon" aria-hidden="true" />
+                เสร็จสิ้นแล้ว
+              </span>}
           </div>
           <div className="il-lot-actions">
             <button className={lotCompletedAll ? 'il-uncomplete-btn' : 'il-complete-btn'} onClick={() => handleCompleteLot(currentLot, !lotCompletedAll)} disabled={completing} title={lotCompletedAll ? 'กลับมานับวันหมดอายุและแจ้งเตือนใบนี้ตามปกติ' : 'ปิดงานทั้งใบ แล้วหยุดนับวันหมดอายุ'}>
@@ -1961,7 +1963,10 @@ export function WHExportLicensePanel() {
                 {currentLicenseRows.filter(isLicenseCompleted).length > 0 && <> · เสร็จสิ้นแล้ว {currentLicenseRows.filter(isLicenseCompleted).length}/{currentLicenseRows.length}</>}
               </span>
             </div>
-            {currentLicenseCompletedAll && <img className="il-complete-stamp" src={completeStampUrl} alt="เสร็จสิ้นแล้ว" title="ปิดงานทั้งใบแล้ว" />}
+            {currentLicenseCompletedAll && <span className="il-complete-stamp" title="ปิดงานทั้งใบแล้ว">
+                <CheckBadgeSolidIcon className="il-complete-stamp-icon" aria-hidden="true" />
+                เสร็จสิ้นแล้ว
+              </span>}
           </div>
           <div className="il-lot-actions">
             <button className={currentLicenseCompletedAll ? 'il-uncomplete-btn' : 'il-complete-btn'} onClick={() => handleCompleteSelectedLicense(!currentLicenseCompletedAll)} disabled={completing} title={currentLicenseCompletedAll ? 'กลับมานับวันหมดอายุและแจ้งเตือนใบนี้ตามปกติ' : 'ปิดงานทั้งใบ แล้วหยุดนับวันหมดอายุ'}>
