@@ -123,7 +123,7 @@ func BuildCSV(r WeeklyReport) Attachment {
 	w.Flush()
 
 	return Attachment{
-		FileName:    fmt.Sprintf("license-weekly-alert-%s.csv", r.WeekKey),
+		FileName:    fmt.Sprintf("license-weekly-alert-%s.csv", r.FileDateKey()),
 		ContentType: "text/csv; charset=utf-8",
 		Data:        buf.Bytes(),
 	}
