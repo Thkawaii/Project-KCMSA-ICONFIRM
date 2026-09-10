@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { getImportLicenseItems, getImportLicenseSummary, uploadImportLicense, previewImportLicense, deleteImportLicenseItem, clearImportLicense, renewImportLicense, setImportLicenseComplete } from '../api/importLicense.js';
 import { getExportLicense, getExportLicenseTrace, uploadExportLicense, previewExportLicense, deleteExportLicense, clearExportLicense, renewExportLicense, setExportLicenseComplete } from '../api/exportLicense.js';
 import { PreviewResult, ChangePreview, ExtraColumnsCell } from '../components/FormatTools.jsx';
@@ -53,6 +53,19 @@ const EXPIRY_BADGE_CLASS = {
 //
 // ถึงจะหยุดนับวันแล้ว แต่ยังต้องโชว์ "วันสุดท้าย" ที่ค้างไว้เสมอ
 // เพราะเวลา Export Excel ต้องเห็นวันที่จริง ไม่ใช่ข้อความว่าหยุดนับ
+// ป้ายบนการ์ดสถิติ — แบ่งข้อความเป็นก้อนคำที่ห้ามตัดกลางคำ
+// จอแคบ (iPad / Surface) ป้ายจะขึ้นบรรทัดใหม่ตรงรอยต่อที่กำหนดเท่านั้น
+// เช่น "ใบอนุญาต | นำเข้า" แทนที่เบราว์เซอร์จะตัดเป็น "ใบอนุญาตนำ | เข้า"
+function StatLabel({
+  parts
+}) {
+  return <span className="il-stat-label-text">
+      {parts.map((part, i) => <Fragment key={i}>
+          {i > 0 && <wbr />}
+          <span className="il-nobr">{part}</span>
+        </Fragment>)}
+    </span>;
+}
 function CompleteBadge({
   row,
   date,
@@ -606,7 +619,7 @@ export default function ImportLicensePage() {
       <div className="dash-stats-row wh-stats-row il-stats-row-5">
         <div className="dash-stat-card">
           <div className="dash-stat-label">
-            <span>เครื่องในบัญชีทั้งหมด</span>
+            <StatLabel parts={['เครื่องในบัญชี', 'ทั้งหมด']} />
             <span className="dash-stat-icon dash-icon-blue">
               <Squares2X2Icon className="size-4" />
             </span>
@@ -615,7 +628,7 @@ export default function ImportLicensePage() {
         </div>
         <div className="dash-stat-card">
           <div className="dash-stat-label">
-            <span>ใบอนุญาตนำเข้า</span>
+            <StatLabel parts={['ใบอนุญาต', 'นำเข้า']} />
             <span className="dash-stat-icon dash-icon-red">
               <DocumentTextIcon className="size-4" />
             </span>
@@ -624,7 +637,7 @@ export default function ImportLicensePage() {
         </div>
         <div className="dash-stat-card">
           <div className="dash-stat-label">
-            <span>อินวอยซ์นำเข้า</span>
+            <StatLabel parts={['อินวอยซ์', 'นำเข้า']} />
             <span className="dash-stat-icon dash-icon-yellow">
               <ReceiptPercentIcon className="size-4" />
             </span>
@@ -633,7 +646,7 @@ export default function ImportLicensePage() {
         </div>
         <div className="dash-stat-card il-stat-expiry">
           <div className="dash-stat-label">
-            <span>อายุใบอนุญาต</span>
+            <StatLabel parts={['อายุ', 'ใบอนุญาต']} />
             <span className="dash-stat-icon dash-icon-orange">
               <ClockIcon className="size-4" />
             </span>
@@ -652,7 +665,7 @@ export default function ImportLicensePage() {
         </div>
         <div className="dash-stat-card il-stat-complete">
           <div className="dash-stat-label">
-            <span>เสร็จสิ้นแล้ว</span>
+            <StatLabel parts={['เสร็จสิ้นแล้ว']} />
             <span className="dash-stat-icon dash-icon-green">
               <CheckBadgeIcon className="size-4" />
             </span>
@@ -1879,7 +1892,7 @@ export function WHExportLicensePanel() {
       <div className="dash-stats-row wh-stats-row il-stats-row-5">
         <div className="dash-stat-card">
           <div className="dash-stat-label">
-            <span>เครื่องในบัญชีทั้งหมด</span>
+            <StatLabel parts={['เครื่องในบัญชี', 'ทั้งหมด']} />
             <span className="dash-stat-icon dash-icon-blue">
               <Squares2X2Icon className="size-4" />
             </span>
@@ -1888,7 +1901,7 @@ export function WHExportLicensePanel() {
         </div>
         <div className="dash-stat-card">
           <div className="dash-stat-label">
-            <span>ใบอนุญาตนำออก</span>
+            <StatLabel parts={['ใบอนุญาต', 'นำออก']} />
             <span className="dash-stat-icon dash-icon-red">
               <DocumentTextIcon className="size-4" />
             </span>
@@ -1897,7 +1910,7 @@ export function WHExportLicensePanel() {
         </div>
         <div className="dash-stat-card">
           <div className="dash-stat-label">
-            <span>ใบขนสินค้าขาออก</span>
+            <StatLabel parts={['ใบขนสินค้า', 'ขาออก']} />
             <span className="dash-stat-icon dash-icon-yellow">
               <TruckIcon className="size-4" />
             </span>
@@ -1906,7 +1919,7 @@ export function WHExportLicensePanel() {
         </div>
         <div className="dash-stat-card il-stat-expiry">
           <div className="dash-stat-label">
-            <span>อายุใบอนุญาต</span>
+            <StatLabel parts={['อายุ', 'ใบอนุญาต']} />
             <span className="dash-stat-icon dash-icon-orange">
               <ClockIcon className="size-4" />
             </span>
@@ -1925,7 +1938,7 @@ export function WHExportLicensePanel() {
         </div>
         <div className="dash-stat-card il-stat-complete">
           <div className="dash-stat-label">
-            <span>เสร็จสิ้นแล้ว</span>
+            <StatLabel parts={['เสร็จสิ้นแล้ว']} />
             <span className="dash-stat-icon dash-icon-green">
               <CheckBadgeIcon className="size-4" />
             </span>
