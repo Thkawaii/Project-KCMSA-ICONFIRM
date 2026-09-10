@@ -469,6 +469,79 @@ func SendWeeklyAlert(ctx context.Context, mode, triggeredBy string, overrideTo [
 	return entry, nil
 }
 
+// SendWeeklyAlertToNewRecipient ส่งรายงานแจ้งเตือนฉบับล่าสุดให้ผู้รับที่เพิ่งเพิ่มจากหน้า Admin ทันที
+//
+//   - ส่งถึงอีเมลนี้คนเดียวในช่อง To ไม่ใส่ CC/BCC ผู้รับคนอื่นจึงไม่ได้อีเมลซ้ำ
+//   - บันทึกเป็นโหมด MANUAL ซึ่งไม่นับเป็นรอบประจำสัปดาห์ (WeeklyAlertSentThisWeek นับเฉพาะ AUTO)
+//     รอบวันจันทร์ถัดไปจึงยังส่งให้ทุกคน รวมถึงคนนี้ ตามปกติ
+//   - ใช้ชื่อที่กรอกตอนเพิ่มประกอบคำ "เรียน คุณ..." ได้ทุกประเภท (TO/CC/BCC)
+//     ถ้าไม่ได้กรอกชื่อ จะใช้คำเรียกกลาง (WEEKLY_ALERT_GREETING) แทน
+//   - ถ้าสัปดาห์นี้ไม่มีรายการต้องแจ้ง และตั้ง WEEKLY_ALERT_SEND_WHEN_EMPTY=false จะข้ามเหมือนรอบอัตโนมัติ
+func SendWeeklyAlertToNewRecipient(ctx context.Context, email, name, triggeredBy string) (*models.WeeklyAlertLog, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return nil, fmt.Errorf("ไม่ได้ระบุอีเมลผู้รับ")
+	}
+
+	w := mailer.LoadWeeklyConfig()
+	cfg := LoadEffectiveMailConfig()
+
+	// ส่งถึงคนนี้คนเดียว — ต้องล้าง CC/BCC ใน cfg ด้วย ไม่ใช่แค่ในตัวจดหมาย
+	// เพราะ mailer.Send จะเติม CC/BCC จาก cfg ให้เองถ้าจดหมายไม่ได้ระบุไว้
+	cfg.To = []string{email}
+	cfg.CC = nil
+	cfg.BCC = nil
+
+	report := BuildWeeklyReport(w, time.Now())
+	report.Recipients = cfg.To
+
+	entry := &models.WeeklyAlertLog{
+		WeekKey:     report.WeekKey,
+		Mode:        models.WeeklyAlertManual,
+		Subject:     report.Subject(),
+		Recipients:  email,
+		ItemCount:   report.TotalActions(),
+		ExpiredCnt:  report.ImportCounts.Expired + report.ExportCounts.Expired,
+		ExpiringCnt: report.ImportCounts.Expiring + report.ExportCounts.Expiring,
+		LeadCnt:     report.ExportCounts.LeadOverdue + report.ExportCounts.LeadDueSoon,
+		Provider:    cfg.Provider,
+		TriggeredBy: triggeredBy,
+		SentAt:      time.Now(),
+	}
+
+	if report.IsEmpty() && !w.SendWhenEmpty {
+		entry.Status = models.WeeklyAlertSkipped
+		saveWeeklyAlertLog(entry)
+		return entry, nil
+	}
+
+	names := map[string]string{}
+	if n := strings.TrimSpace(name); n != "" {
+		names[email] = n
+	}
+
+	msgs := BuildWeeklyMessages(report, w, cfg, names)
+	if len(msgs) == 0 {
+		entry.Status = models.WeeklyAlertFailed
+		entry.Error = "สร้างอีเมลไม่สำเร็จ"
+		saveWeeklyAlertLog(entry)
+		return entry, fmt.Errorf("%s", entry.Error)
+	}
+
+	for _, msg := range msgs {
+		if err := mailer.Send(ctx, cfg, msg); err != nil {
+			entry.Status = models.WeeklyAlertFailed
+			entry.Error = truncate(err.Error(), 990)
+			saveWeeklyAlertLog(entry)
+			return entry, err
+		}
+	}
+
+	entry.Status = models.WeeklyAlertSent
+	saveWeeklyAlertLog(entry)
+	return entry, nil
+}
+
 func saveWeeklyAlertLog(entry *models.WeeklyAlertLog) {
 	if config.DB == nil || entry == nil {
 		return

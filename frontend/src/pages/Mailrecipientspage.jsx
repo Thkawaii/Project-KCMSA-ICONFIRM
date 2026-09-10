@@ -333,13 +333,17 @@ function AddRecipientModal({
     }
     setSaving(true);
     try {
-      await createMailRecipient({
+      const res = await createMailRecipient({
         email,
         kind: form.kind,
         name: form.name.trim(),
         note: form.note.trim()
       });
-      toastSuccess('เพิ่มผู้รับแล้ว');
+      if (res?.welcome_mail === 'queued') {
+        toastSuccess(`เพิ่มผู้รับแล้ว — กำลังส่งอีเมลแจ้งเตือนฉบับล่าสุดให้ ${email}`);
+      } else {
+        toastSuccess('เพิ่มผู้รับแล้ว');
+      }
       onSaved();
     } catch (err) {
       toastError(err.message || 'บันทึกไม่สำเร็จ');
