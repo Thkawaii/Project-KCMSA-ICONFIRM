@@ -10,7 +10,11 @@ package controllers
 // สำหรับตรรกะที่รวมค่าจากตารางนี้เข้ากับค่าเดิมใน .env
 
 import (
+	"context"
+	"log"
 	"strings"
+	"sync"
+	"time"
 
 	"iconfirm/config"
 	"iconfirm/mailer"
@@ -165,7 +169,71 @@ func CreateMailRecipient(c *gin.Context) {
 	adminID, adminName := lookupUserName(c)
 	CreateAuditLog("MAIL_RECIPIENT", row.ID, "create", row.Email, adminID, adminName)
 
-	c.JSON(201, toMailRecipientView(row))
+	// ส่งรายงานฉบับล่าสุดให้คนที่เพิ่งเพิ่มทันที (เฉพาะคนนี้คนเดียว) ไม่ต้องรอถึงวันจันทร์
+	welcome := welcomeMailInactive
+	if row.Active {
+		w := mailer.LoadWeeklyConfig()
+		if w.Enabled && w.SendOnAdd {
+			go sendWeeklyAlertOnAdd(row.Email, row.Name, adminName)
+			welcome = welcomeMailQueued
+		} else {
+			welcome = welcomeMailDisabled
+		}
+	}
+
+	c.JSON(201, createMailRecipientResponse{
+		MailRecipientView: toMailRecipientView(row),
+		WelcomeMail:       welcome,
+	})
+}
+
+// ค่า welcome_mail ที่ตอบกลับไปกับ CreateMailRecipient ให้หน้าเว็บรู้ว่าสั่งส่งอีเมลให้คนใหม่หรือไม่
+const (
+	welcomeMailQueued   = "queued"   // สั่งส่งแล้ว กำลังส่งอยู่เบื้องหลัง
+	welcomeMailInactive = "inactive" // เพิ่มแบบปิดใช้งานไว้ จึงไม่ส่ง
+	welcomeMailDisabled = "disabled" // ปิดไว้ใน .env (WEEKLY_ALERT_ENABLED หรือ WEEKLY_ALERT_SEND_ON_ADD)
+)
+
+type createMailRecipientResponse struct {
+	MailRecipientView
+	WelcomeMail string `json:"welcome_mail"`
+}
+
+// welcomeMailMu ให้ส่งอีเมลผู้รับใหม่ทีละฉบับ ถ้า ADMIN เพิ่มหลายคนติด ๆ กัน
+// (สำคัญกับ MAIL_PROVIDER=outlook ที่สั่ง Outlook ผ่าน PowerShell ทีละโปรเซส)
+var welcomeMailMu sync.Mutex
+
+// sendWeeklyAlertOnAdd ส่งอีเมลให้ผู้รับที่เพิ่งเพิ่ม ทำงานเบื้องหลัง
+//
+// แยกเป็น goroutine เพราะการส่ง (โดยเฉพาะผ่าน Outlook) อาจใช้เวลาหลายวินาที หน้าเว็บจะได้ไม่ต้องรอ
+// ผลการส่งดูได้จาก log ของ backend และตาราง weekly_alert_logs (Mode = MANUAL)
+func sendWeeklyAlertOnAdd(email, name, triggeredBy string) {
+	defer func() {
+		// panic ใน goroutine จะทำให้ทั้งเซิร์ฟเวอร์ล่ม (gin กันให้เฉพาะใน handler) จึงต้องกันเอง
+		if r := recover(); r != nil {
+			log.Printf("[weekly-alert] ❌ ส่งอีเมลให้ผู้รับใหม่ %s ล้มเหลว (panic): %v", email, r)
+		}
+	}()
+
+	welcomeMailMu.Lock()
+	defer welcomeMailMu.Unlock()
+
+	// เริ่มนับเวลาหลังได้คิวแล้ว คนที่รอคิวอยู่จะได้ไม่หมดเวลาก่อนเริ่มส่ง
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	log.Printf("[weekly-alert] เพิ่มผู้รับใหม่ %s — กำลังส่งรายงานฉบับล่าสุดให้ทันที", email)
+
+	entry, err := SendWeeklyAlertToNewRecipient(ctx, email, name, triggeredBy)
+	if err != nil {
+		log.Printf("[weekly-alert] ❌ ส่งอีเมลให้ผู้รับใหม่ %s ไม่สำเร็จ: %v", email, err)
+		return
+	}
+	if entry != nil && entry.Status == models.WeeklyAlertSkipped {
+		log.Printf("[weekly-alert] ไม่มีรายการต้องแจ้งเตือน — ข้ามการส่งให้ผู้รับใหม่ %s ตามค่าที่ตั้งไว้", email)
+		return
+	}
+	log.Printf("[weekly-alert] ✅ ส่งอีเมลให้ผู้รับใหม่ %s เรียบร้อย — วันจันทร์ถัดไปจะได้รับพร้อมทุกคนตามปกติ", email)
 }
 
 type updateMailRecipientRequest struct {

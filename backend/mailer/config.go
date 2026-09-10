@@ -99,6 +99,11 @@ type WeeklyConfig struct {
 	// อย่าเปิดค้างไว้ตอนใช้งานจริง เพราะรีสตาร์ททีก็ส่งที
 	ForceSendOnStart bool
 
+	// SendOnAdd ส่งรายงานฉบับล่าสุดให้ผู้รับที่เพิ่มใหม่จากหน้า Admin ทันที
+	// ส่งถึงคนนั้นคนเดียว (ไม่มี CC/BCC) และไม่นับเป็นรอบประจำสัปดาห์
+	// ดู controllers.SendWeeklyAlertToNewRecipient
+	SendOnAdd bool
+
 	// MaxRows จำนวนแถวสูงสุดต่อ 1 ตารางในอีเมล ส่วนที่เกินให้ดูในไฟล์แนบ
 	MaxRows int
 
@@ -356,6 +361,7 @@ func LoadWeeklyConfig() WeeklyConfig {
 		CatchUp:          envBool("WEEKLY_ALERT_CATCH_UP", true),
 		SendOnStart:      envBool("WEEKLY_ALERT_SEND_ON_START", true),
 		ForceSendOnStart: envBool("WEEKLY_ALERT_FORCE_SEND_ON_START", false),
+		SendOnAdd:        envBool("WEEKLY_ALERT_SEND_ON_ADD", true),
 		MaxRows:          envInt("WEEKLY_ALERT_MAX_ROWS", 25),
 		BuddhistEra:      envBool("WEEKLY_ALERT_BUDDHIST_YEAR", true),
 		AppURL:           strings.TrimRight(env("APP_BASE_URL", ""), "/"),
