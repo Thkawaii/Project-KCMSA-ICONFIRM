@@ -2012,7 +2012,7 @@ export function WHExportLicensePanel() {
           </div>
           <input className="wh-search" type="text" placeholder="ค้นหา Machine No / IT Controller / Invoice / License / ประเทศ" value={search} onChange={e => setSearch(e.target.value)} />
           <button className="wh-issue-btn" onClick={handleExportByCountry} disabled={exportingXlsx || rows.length === 0} title={`ดาวน์โหลด Excel แยกชีตตามประเทศปลายทาง — ช่วง ${periodLabel}`}>
-            {exportingXlsx ? 'กำลัง Export...' : 'Export Excel (แยกประเทศ)'}
+            {exportingXlsx ? 'กำลัง Export...' : 'Export Excel'}
           </button>
           {rows.length > 0 && <button className="wh-btn-danger" onClick={handleClearAll}>
               ลบทุกใบอนุญาต

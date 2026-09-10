@@ -36,7 +36,7 @@ func sampleReport() WeeklyReport {
 		Recipients:       []string{"theeparat.metheepooriwat@kobelco.com"},
 		Greeting:         "คุณธีปรัชญ์ เมธีภูริวัจน์",
 		Org:              "Kobelco Construction Machinery Southeast Asia Co., Ltd.",
-		Dept:             "แผนกคลังสินค้าและใบอนุญาต",
+		Dept:             "แผนกโลจิสติกส์",
 		AppURL:           "http://iconfirm.local",
 		Import: []ImportRow{
 			{
