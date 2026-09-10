@@ -2200,3 +2200,86 @@
 .wh-so-active-bar.il-license-bar .il-uncomplete-btn {
   background: #ffffff;
 }
+
+
+/* ==========================================================================
+   หน้ารายละเอียดใบอนุญาตนำเข้า / ส่งออก — หน้าตาเดิม (กว้าง 420px, 2 คอลัมน์)
+   --------------------------------------------------------------------------
+   - ป๊อปอัปสูงไม่เกินจอที่มองเห็นจริง (เดิม 88vh บน Safari ของ iPad รวมใต้แถบเครื่องมือ จึงล้นจอ)
+   - หัวข้อ + ปุ่ม X อยู่ด้านบน ปุ่มอยู่ด้านล่างเสมอ เลื่อนเฉพาะเนื้อหาตรงกลาง
+   - เงาจาง ๆ ขอบบน/ล่างของเนื้อหาจะขึ้นเฉพาะตอนที่ยังมีข้อมูลให้เลื่อน
+   - ปัดนิ้วบนพื้นหลังก็เลื่อนเนื้อหาได้ (useDetailSheet ใน Importlicensepage.jsx)
+   ใช้คลาสนี้เฉพาะสองหน้านี้ หน้าอื่นที่ใช้ .wh-detail-modal ยังเหมือนเดิม
+   ========================================================================== */
+.wh-modal-overlay.il-detail-overlay {
+  padding: 16px;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  overscroll-behavior: contain;
+}
+
+/* overlay เป็น position: fixed เต็มจอ — max-height: 100% จึงเท่ากับจอที่มองเห็นจริง */
+.wh-modal.wh-detail-modal.il-detail-sheet {
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  overflow: hidden;
+  padding: 22px 0 20px;
+}
+
+.il-detail-sheet .wh-detail-header {
+  flex: none;
+  margin: 0 22px 14px;
+}
+
+.il-detail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 22px;
+  /* เงาบอกว่ายังเลื่อนต่อได้: ชั้น local (สีขาว) เลื่อนตามเนื้อหาไปบังเงาเมื่อถึงสุดขอบ */
+  background:
+    linear-gradient(#ffffff 30%, rgba(255, 255, 255, 0)) center top / 100% 28px no-repeat local,
+    linear-gradient(rgba(255, 255, 255, 0), #ffffff 70%) center bottom / 100% 28px no-repeat local,
+    linear-gradient(rgba(15, 23, 42, 0.12), rgba(15, 23, 42, 0)) center top / 100% 10px no-repeat scroll,
+    linear-gradient(rgba(15, 23, 42, 0), rgba(15, 23, 42, 0.12)) center bottom / 100% 10px no-repeat scroll;
+  background-color: #ffffff;
+}
+
+/* ระยะห่างใต้หัวข้อให้เท่าเดิม */
+.il-detail-scroll > .wh-detail-section:first-child {
+  padding-top: 18px;
+}
+
+.il-detail-sheet > .il-modal-actions {
+  flex: none;
+  margin: 0 22px;
+  padding-top: 16px;
+}
+
+@media (max-width: 480px) {
+  .wh-modal-overlay.il-detail-overlay {
+    padding: 10px;
+    padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+      max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  }
+
+  .wh-modal.wh-detail-modal.il-detail-sheet {
+    padding: 18px 0 16px;
+  }
+
+  .il-detail-sheet .wh-detail-header {
+    margin: 0 18px 12px;
+  }
+
+  .il-detail-scroll {
+    padding: 0 18px;
+  }
+
+  .il-detail-sheet > .il-modal-actions {
+    margin: 0 18px;
+    padding-top: 12px;
+  }
+}

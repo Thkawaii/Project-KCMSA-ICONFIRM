@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getImportLicenseItems, getImportLicenseSummary, uploadImportLicense, previewImportLicense, deleteImportLicenseItem, clearImportLicense, renewImportLicense, setImportLicenseComplete } from '../api/importLicense.js';
 import { getExportLicense, getExportLicenseTrace, uploadExportLicense, previewExportLicense, deleteExportLicense, clearExportLicense, renewExportLicense, setExportLicenseComplete } from '../api/exportLicense.js';
 import { PreviewResult, ChangePreview, ExtraColumnsCell } from '../components/FormatTools.jsx';
@@ -863,6 +863,74 @@ export default function ImportLicensePage() {
       {detailRow && <ImportDetailModal row={detailRow} busy={completing} onToggleComplete={handleToggleRowComplete} onClose={() => setDetailRow(null)} />}
     </AppShell>;
 }
+// ใช้ร่วมกันในหน้ารายละเอียดใบอนุญาตนำเข้า / ส่งออก
+// - ป๊อปอัปสูงไม่เกินจอ: หัว + ปุ่มล่างอยู่กับที่ เนื้อหาตรงกลางเลื่อนได้ (ดู .il-detail-sheet ใน ImportLicense.css)
+// - ปัดนิ้ว / หมุนล้อเมาส์ตรงไหนของจอก็เลื่อนเนื้อหาได้ ไม่ต้องเล็งในกล่อง
+// - ล็อกหน้าหลักไม่ให้เลื่อนตาม และกด Esc เพื่อปิด (Surface / iPad ที่ต่อคีย์บอร์ด)
+// คืน ref ไว้ผูกกับ <div className="il-detail-scroll">
+function useDetailSheet(onClose) {
+  // onClose ที่ส่งมามักเป็น arrow function ใหม่ทุกครั้งที่ render — เก็บใน ref จะได้ไม่ผูก/ถอด listener ซ้ำ
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = e => {
+      if (e.key === 'Escape') onCloseRef.current?.();
+    };
+    window.addEventListener('keydown', onKey);
+
+    // เลื่อนจากนอกพื้นที่เนื้อหา (พื้นหลัง / หัว / แถบปุ่ม) → ส่งต่อไปเลื่อนเนื้อหา
+    const scroller = scrollRef.current;
+    const overlay = scroller?.closest('.il-detail-overlay');
+    const fromOutside = e => scroller && !scroller.contains(e.target);
+    const onWheel = e => {
+      if (!fromOutside(e)) return;
+      e.preventDefault();
+      scroller.scrollTop += e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    };
+    let lastY = null;
+    const onTouchStart = e => {
+      lastY = fromOutside(e) && e.touches.length === 1 ? e.touches[0].clientY : null;
+    };
+    const onTouchMove = e => {
+      if (lastY === null) return;
+      const y = e.touches[0].clientY;
+      scroller.scrollTop += lastY - y;
+      lastY = y;
+      e.preventDefault();
+    };
+    const onTouchEnd = () => {
+      lastY = null;
+    };
+    if (overlay) {
+      overlay.addEventListener('wheel', onWheel, {
+        passive: false
+      });
+      overlay.addEventListener('touchstart', onTouchStart, {
+        passive: true
+      });
+      overlay.addEventListener('touchmove', onTouchMove, {
+        passive: false
+      });
+      overlay.addEventListener('touchend', onTouchEnd);
+      overlay.addEventListener('touchcancel', onTouchEnd);
+    }
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey);
+      if (overlay) {
+        overlay.removeEventListener('wheel', onWheel);
+        overlay.removeEventListener('touchstart', onTouchStart);
+        overlay.removeEventListener('touchmove', onTouchMove);
+        overlay.removeEventListener('touchend', onTouchEnd);
+        overlay.removeEventListener('touchcancel', onTouchEnd);
+      }
+    };
+  }, []);
+  return scrollRef;
+}
 function ImportDetailModal({
   row,
   onClose,
@@ -870,6 +938,7 @@ function ImportDetailModal({
   busy = false
 }) {
   const completed = isLicenseCompleted(row);
+  const scrollRef = useDetailSheet(onClose);
   const item = (label, value) => <div className="wh-detail-item">
       <span className="wh-detail-label">{label}</span>
       <span className="wh-detail-value">{value === 0 || value ? value : '—'}</span>
@@ -888,8 +957,8 @@ function ImportDetailModal({
   } catch {
     extraEntries = [];
   }
-  return <div className="wh-modal-overlay" onClick={onClose}>
-      <div className="wh-modal wh-detail-modal" onClick={e => e.stopPropagation()}>
+  return <div className="wh-modal-overlay il-detail-overlay" onClick={onClose}>
+      <div className="wh-modal wh-detail-modal il-detail-sheet" role="dialog" aria-modal="true" aria-labelledby="il-import-detail-title" onClick={e => e.stopPropagation()}>
         <button type="button" className="wh-detail-close" onClick={onClose} aria-label="ปิด">
           <XMarkIcon className="size-4" />
         </button>
@@ -899,10 +968,12 @@ function ImportDetailModal({
             <DocumentTextIcon className="size-5" />
           </span>
           <div>
-            <h3 className="wh-modal-title">รายละเอียดใบอนุญาตนำเข้า</h3>
+            <h3 className="wh-modal-title" id="il-import-detail-title">รายละเอียดใบอนุญาตนำเข้า</h3>
             <span className="wh-detail-header-sub">{row.Model || row.Brand || '—'}</span>
           </div>
         </div>
+
+        <div className="il-detail-scroll" ref={scrollRef}>
 
         <div className="wh-detail-section">
           <span className="wh-detail-section-title">
@@ -984,6 +1055,8 @@ function ImportDetailModal({
           <span>
             <ClockIcon className="size-3.5" /> อัปโหลดเมื่อ {row.UploadDate ? formatThaiDate(row.UploadDate) : '—'}
           </span>
+        </div>
+
         </div>
 
         <div className="wh-modal-actions il-modal-actions">
@@ -1137,6 +1210,7 @@ function ExportTraceModal({
   busy = false
 }) {
   const completed = isLicenseCompleted(row);
+  const scrollRef = useDetailSheet(onClose);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
@@ -1158,8 +1232,8 @@ function ExportTraceModal({
       <span className="wh-detail-label">{label}</span>
       <span className="wh-detail-value">{value || '—'}</span>
     </div>;
-  return <div className="wh-modal-overlay" onClick={onClose}>
-      <div className="wh-modal wh-detail-modal" onClick={e => e.stopPropagation()}>
+  return <div className="wh-modal-overlay il-detail-overlay" onClick={onClose}>
+      <div className="wh-modal wh-detail-modal il-detail-sheet" role="dialog" aria-modal="true" aria-labelledby="il-export-detail-title" onClick={e => e.stopPropagation()}>
         <button type="button" className="wh-detail-close" onClick={onClose} aria-label="ปิด">
           <XMarkIcon className="size-4" />
         </button>
@@ -1169,10 +1243,12 @@ function ExportTraceModal({
             <TruckIcon className="size-5" />
           </span>
           <div>
-            <h3 className="wh-modal-title">รายละเอียดใบอนุญาตส่งออก</h3>
+            <h3 className="wh-modal-title" id="il-export-detail-title">รายละเอียดใบอนุญาตส่งออก</h3>
             <span className="wh-detail-header-sub">{row.MachineNo || row.SerialNumber || '—'}</span>
           </div>
         </div>
+
+        <div className="il-detail-scroll" ref={scrollRef}>
 
         <div className="wh-detail-section">
           <span className="wh-detail-section-title">
@@ -1275,6 +1351,8 @@ function ExportTraceModal({
                 </div>
               </>}
           </>}
+
+        </div>
 
         <div className="wh-modal-actions il-modal-actions">
           {onToggleComplete && <button type="button" className={completed ? 'il-uncomplete-btn' : 'il-complete-btn'} onClick={() => onToggleComplete(row)} disabled={busy}>
