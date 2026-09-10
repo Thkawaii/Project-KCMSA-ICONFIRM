@@ -1952,20 +1952,128 @@
 }
 
 /* แถวสถิติที่มี 5 การ์ด — ใส่คลาสนี้เฉพาะหน้า Import/Export License
-   หน้าอื่นที่มี 4 การ์ดยังใช้ 4 คอลัมน์เหมือนเดิม */
+   หน้าอื่นที่มี 4 การ์ดยังใช้ 4 คอลัมน์เหมือนเดิม
+
+   ตั้งแต่ iPad แนวตั้ง / Surface ขึ้นไป (> 720px) ให้ 5 การ์ดอยู่บรรทัดเดียวเสมอ
+   จอแคบลงจะย่อ padding / ตัวอักษรแทนการตกบรรทัด
+   - minmax(0, …) กันข้อความยาวดันการ์ดให้กว้างเกินคอลัมน์
+   - การ์ดอายุใบอนุญาต (ใบที่ 4) มีตัวเลข 2 ชุด จึงให้กว้างกว่าใบอื่นเล็กน้อย */
 .wh-stats-row.il-stats-row-5 {
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.35fr) minmax(0, 1fr);
 }
 
-@media (max-width: 1180px) {
+.wh-stats-row.il-stats-row-5 .dash-stat-card {
+  min-width: 0;
+}
+
+.wh-stats-row.il-stats-row-5 .dash-stat-label {
+  gap: 8px;
+}
+
+.il-stat-label-text {
+  min-width: 0;
+  line-height: 1.35;
+}
+
+/* ก้อนคำที่ห้ามตัดกลางคำ (ดู StatLabel ใน Importlicensepage.jsx) */
+.il-nobr {
+  white-space: nowrap;
+}
+
+.wh-stats-row.il-stats-row-5 .dash-stat-icon {
+  flex-shrink: 0;
+}
+
+/* ---- แท็บเล็ต: iPad / iPad Pro / Surface ทั้งแนวตั้งและแนวนอน (721px – 1199px) ----
+   (≥ 1200px เนื้อหาถูกจำกัดกว้างสุด 1200px ป้ายยาวสุดยังพอบรรทัดเดียว) */
+@media (max-width: 1199px) {
   .wh-stats-row.il-stats-row-5 {
-    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .wh-stats-row.il-stats-row-5 .dash-stat-card {
+    padding: 12px;
+  }
+
+  /* ป้ายยาวอาจขึ้น 2 บรรทัด — ล็อกความสูงไว้ 2 บรรทัดทุกใบ
+     ตัวเลขของทั้ง 5 การ์ดจะได้อยู่ระดับเดียวกัน */
+  .wh-stats-row.il-stats-row-5 .dash-stat-label {
+    align-items: flex-start;
+    min-height: 2.7em;
+    margin-bottom: 6px;
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .wh-stats-row.il-stats-row-5 .dash-stat-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+  }
+
+  .wh-stats-row.il-stats-row-5 .dash-stat-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .wh-stats-row.il-stats-row-5 .dash-stat-value {
+    font-size: 24px;
+    line-height: 1.2;
+  }
+
+  .wh-stats-row.il-stats-row-5 .il-stat-expiry .dash-stat-value {
+    font-size: 22px;
+  }
+
+  .wh-stats-row.il-stats-row-5 .il-stat-expiry-divider {
+    margin: 2px 8px;
+  }
+
+  .wh-stats-row.il-stats-row-5 .dash-stat-note {
+    font-size: 11px;
+    line-height: 1.3;
   }
 }
 
-@media (max-width: 760px) {
+/* ---- iPad mini / iPad / iPad Air แนวตั้ง (721px – 800px) ----
+   การ์ดแคบจนไอคอนเบียดป้าย ซ่อนไอคอน (เป็นแค่ของตกแต่ง) ให้ป้ายได้เต็มความกว้าง */
+@media (min-width: 721px) and (max-width: 800px) {
+  .wh-stats-row.il-stats-row-5 .dash-stat-icon {
+    display: none;
+  }
+}
+
+/* ---- มือถือ / iPad แบบ Split View (≤ 720px) ----
+   5 การ์ดในบรรทัดเดียวจะเล็กจนอ่านไม่ออก จึงใช้ 2 คอลัมน์
+   การ์ดอายุใบอนุญาตกินเต็มแถวไว้ล่างสุด (dense ดึงการ์ด "เสร็จสิ้นแล้ว" ขึ้นมาเติมช่องว่าง) */
+@media (max-width: 720px) {
   .wh-stats-row.il-stats-row-5 {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: row dense;
+  }
+
+  .wh-stats-row.il-stats-row-5 .il-stat-expiry {
+    grid-column: 1 / -1;
+  }
+
+  /* ป้ายบางใบขึ้น 2 บรรทัดบนมือถือจอเล็ก — ดันตัวเลขลงล่างสุด
+     การ์ดคู่เดียวกันในแถวจะได้ตัวเลขระดับเดียวกัน */
+  .wh-stats-row.il-stats-row-5 .dash-stat-card {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .wh-stats-row.il-stats-row-5 .dash-stat-label {
+    min-height: 0;
+    align-items: center;
+  }
+
+  .wh-stats-row.il-stats-row-5 .dash-stat-card > .dash-stat-value {
+    margin-top: auto;
+  }
+
+  .wh-stats-row.il-stats-row-5 .il-stat-expiry .dash-stat-value {
+    font-size: 24px;
   }
 }
 
