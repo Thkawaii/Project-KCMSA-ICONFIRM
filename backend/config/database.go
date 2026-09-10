@@ -66,6 +66,8 @@ func ConnectDB() {
 		&models.CodeAlias{},
 
 		&models.WeeklyAlertLog{},
+
+		&models.MailRecipient{},
 	)
 
 	DropLegacyAssemblyDataset()
@@ -75,6 +77,8 @@ func ConnectDB() {
 	SeedData()
 
 	SeedOrgUsers()
+
+	SeedMailRecipients()
 
 	MigratePlaintextPasswords()
 
