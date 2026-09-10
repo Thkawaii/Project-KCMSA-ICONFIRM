@@ -9,6 +9,7 @@ import MasterDataPage from './pages/MasterDataPage.jsx';
 import MFGAssemblyPage from './pages/Mfgassemblypage.jsx';
 import FormatSettingsPage from './pages/Formatsettingspage.jsx';
 import AdminDashboardPage from './pages/AdminDashboardpage.jsx';
+import MailRecipientsPage from './pages/Mailrecipientspage.jsx';
 import QAMachineList from './pages/qa/Qamachinelist.jsx';
 import QAMachineDetail from './pages/qa/Qamachinedetail.jsx';
 import UiKitPage from './pages/UiKitPage.jsx';
@@ -60,6 +61,10 @@ const ROUTE_CONFIG = {
   },
   '/admin/master-data': {
     component: MasterDataPage,
+    roles: ['ADMIN']
+  },
+  '/admin/mail-recipients': {
+    component: MailRecipientsPage,
     roles: ['ADMIN']
   },
   '/dashboard': {

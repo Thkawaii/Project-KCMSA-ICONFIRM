@@ -12,6 +12,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sort"
 	"strings"
@@ -324,38 +325,62 @@ func loadWeeklyLogo(w mailer.WeeklyConfig) (mailer.Attachment, bool) {
 	return logo, true
 }
 
-// BuildWeeklyMessage ประกอบอีเมล 1 ฉบับจากรายงาน
-func BuildWeeklyMessage(report mailer.WeeklyReport, w mailer.WeeklyConfig, cfg mailer.Config) mailer.Message {
-	// โลโก้ต้องแนบไปกับจดหมายแล้วอ้างด้วย cid: — Outlook บนเดสก์ท็อปไม่รองรับรูปแบบ data:base64
-	var inline []mailer.Attachment
+// personalGreeting คำ "เรียน" เฉพาะบุคคล ประกอบจากชื่อที่ตั้งไว้ในหน้า Admin (ผู้รับอีเมลแจ้งเตือน)
+//
+// names คือผลลัพธ์จาก ActiveMailRecipientNames(models.MailRecipientTo) — กุญแจเป็นอีเมลตัวพิมพ์เล็ก
+// ถ้าอีเมลนี้ไม่มีชื่อตั้งไว้ (หรือเป็นอีเมลที่มาจาก WEEKLY_ALERT_TO ใน .env ไม่ได้มาจากหน้า Admin)
+// จะถอยไปใช้คำเรียกกลางเดิม (fallback ซึ่งก็คือ w.Greeting)
+func personalGreeting(email string, names map[string]string, fallback string) string {
+	name := strings.TrimSpace(names[strings.ToLower(strings.TrimSpace(email))])
+	if name == "" {
+		return fallback
+	}
+	// ไม่เว้นวรรคระหว่าง "คุณ" กับชื่อ ตามธรรมเนียมการขึ้นต้นชื่อแบบไทย
+	// เช่น Name = "Sarai Promden" จะได้ "คุณSarai Promden"
+	return "คุณ" + name
+}
+
+// BuildWeeklyMessages ประกอบอีเมล แยกทีละฉบับ 1 ฉบับต่อผู้รับ TO 1 คน เพื่อใส่ชื่อเฉพาะบุคคล
+// ในบรรทัด "เรียน" ให้ตรงคน (ดู personalGreeting) — CC/BCC ได้รับสำเนาเหมือนเดิมทุกฉบับ
+// (ไม่มีชื่อเฉพาะบุคคล เพราะคนละบทบาทกับผู้รับหลัก)
+//
+// names คือผลลัพธ์จาก ActiveMailRecipientNames(models.MailRecipientTo)
+func BuildWeeklyMessages(report mailer.WeeklyReport, w mailer.WeeklyConfig, cfg mailer.Config, names map[string]string) []mailer.Message {
+	// โลโก้และไฟล์แนบตารางเหมือนกันทุกฉบับ จึงสร้างครั้งเดียวแล้วใช้ซ้ำในทุกอีเมล
+	var shared []mailer.Attachment
 	if logo, ok := loadWeeklyLogo(w); ok {
 		report.LogoSrc = "cid:" + logo.ContentID
-		inline = append(inline, logo)
+		shared = append(shared, logo)
 	}
-
-	msg := mailer.Message{
-		FromEmail: cfg.FromEmail,
-		FromName:  cfg.FromName,
-		To:        report.Recipients,
-		CC:        cfg.CC,
-		BCC:       cfg.BCC,
-		Subject:   report.Subject(),
-		HTML:      mailer.RenderHTML(report),
-		Text:      mailer.RenderText(report),
-	}
-
-	msg.Attachments = append(msg.Attachments, inline...)
-
-	// แนบไฟล์ตารางเฉพาะตอนที่มีรายการจริง ไม่งั้นจะได้ไฟล์เปล่า
 	if w.AttachCSV && !report.IsEmpty() {
 		if strings.EqualFold(w.AttachFormat, "csv") {
-			msg.Attachments = append(msg.Attachments, mailer.BuildCSV(report))
+			shared = append(shared, mailer.BuildCSV(report))
 		} else {
-			msg.Attachments = append(msg.Attachments, mailer.BuildXLSX(report))
+			shared = append(shared, mailer.BuildXLSX(report))
 		}
 	}
 
-	return msg
+	msgs := make([]mailer.Message, 0, len(report.Recipients))
+	for _, to := range report.Recipients {
+		// สำเนารายงานแยกต่อฉบับ เพราะแต่ละฉบับมี Greeting (และ Subject/HTML/Text ที่ผูกกับ Greeting) ไม่เหมือนกัน
+		r := report
+		r.Greeting = personalGreeting(to, names, w.Greeting)
+
+		msg := mailer.Message{
+			FromEmail: cfg.FromEmail,
+			FromName:  cfg.FromName,
+			To:        []string{to},
+			CC:        cfg.CC,
+			BCC:       cfg.BCC,
+			Subject:   r.Subject(),
+			HTML:      mailer.RenderHTML(r),
+			Text:      mailer.RenderText(r),
+		}
+		msg.Attachments = append(msg.Attachments, shared...)
+		msgs = append(msgs, msg)
+	}
+
+	return msgs
 }
 
 // SendWeeklyAlert สร้างรายงานแล้วส่งอีเมล พร้อมบันทึกผลลงตาราง weekly_alert_logs
@@ -365,7 +390,9 @@ func BuildWeeklyMessage(report mailer.WeeklyReport, w mailer.WeeklyConfig, cfg m
 // overrideTo  — ผู้รับเฉพาะครั้งนี้ (ใช้ตอนส่งทดสอบ) ถ้าเว้นว่างจะใช้ WEEKLY_ALERT_TO
 func SendWeeklyAlert(ctx context.Context, mode, triggeredBy string, overrideTo []string) (*models.WeeklyAlertLog, error) {
 	w := mailer.LoadWeeklyConfig()
-	cfg := mailer.LoadConfig()
+	// ใช้ LoadEffectiveMailConfig แทน mailer.LoadConfig ตรง ๆ เพื่อให้รายชื่อผู้รับที่ตั้งไว้
+	// จากหน้า Admin (ตาราง mail_recipients) มีผลด้วย ไม่ใช่แค่ WEEKLY_ALERT_TO ใน .env
+	cfg := LoadEffectiveMailConfig()
 
 	if len(overrideTo) > 0 {
 		cfg.To = overrideTo
@@ -394,18 +421,50 @@ func SendWeeklyAlert(ctx context.Context, mode, triggeredBy string, overrideTo [
 		return entry, nil
 	}
 
-	msg := BuildWeeklyMessage(report, w, cfg)
+	// ชื่อนามสกุลผู้รับ TO ที่ตั้งไว้จากหน้า Admin — ใช้ประกอบ "เรียน คุณ..." เฉพาะบุคคล
+	// (ผู้รับที่มาจาก .env ล้วน ๆ หรือไม่ได้ตั้งชื่อไว้ จะถอยไปใช้คำเรียกกลางเดิมอัตโนมัติ)
+	names := ActiveMailRecipientNames(models.MailRecipientTo)
+	msgs := BuildWeeklyMessages(report, w, cfg, names)
 
-	if err := mailer.Send(ctx, cfg, msg); err != nil {
+	if len(msgs) == 0 {
 		entry.Status = models.WeeklyAlertFailed
-		entry.Error = truncate(err.Error(), 990)
+		entry.Error = "ยังไม่ได้ตั้งผู้รับอีเมล — ตั้ง WEEKLY_ALERT_TO ในไฟล์ .env หรือเพิ่มผู้รับจากหน้า Admin"
 		entry.TriggeredBy = triggeredBy
 		saveWeeklyAlertLog(entry)
-		return entry, err
+		return entry, fmt.Errorf("%s", entry.Error)
 	}
 
-	entry.Status = models.WeeklyAlertSent
+	// ส่งแยกทีละฉบับต่อผู้รับ TO 1 คน (คนละ Greeting กัน) — เก็บรายชื่อที่ส่งไม่สำเร็จไว้ต่างหาก
+	// เพื่อให้คนอื่นที่ส่งสำเร็จยังได้รับอีเมลตามปกติ ไม่ล้มทั้งรอบเพราะที่อยู่เดียวมีปัญหา
+	var failed []string
+	var lastErr error
+	for _, msg := range msgs {
+		if err := mailer.Send(ctx, cfg, msg); err != nil {
+			to := "?"
+			if len(msg.To) > 0 {
+				to = msg.To[0]
+			}
+			failed = append(failed, fmt.Sprintf("%s: %v", to, err))
+			lastErr = err
+		}
+	}
+
 	entry.TriggeredBy = triggeredBy
+
+	// ส่งไม่สำเร็จเลยสักฉบับ ถือว่าทั้งรอบล้มเหลว
+	if len(failed) == len(msgs) {
+		entry.Status = models.WeeklyAlertFailed
+		entry.Error = truncate(strings.Join(failed, "; "), 990)
+		saveWeeklyAlertLog(entry)
+		return entry, lastErr
+	}
+
+	// สำเร็จทั้งหมด หรือสำเร็จบางส่วน — นับเป็น "ส่งแล้ว" กันรอบอัตโนมัติส่งซ้ำ
+	// แต่ถ้ามีบางฉบับพลาด จะบันทึกรายชื่อที่พลาดไว้ในช่อง Error ให้ตรวจสอบภายหลัง
+	entry.Status = models.WeeklyAlertSent
+	if len(failed) > 0 {
+		entry.Error = truncate("ส่งไม่สำเร็จบางส่วน: "+strings.Join(failed, "; "), 990)
+	}
 	saveWeeklyAlertLog(entry)
 	return entry, nil
 }

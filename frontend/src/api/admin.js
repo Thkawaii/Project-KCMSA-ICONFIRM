@@ -38,3 +38,40 @@ export function deleteAdminUser(id) {
     method: 'DELETE'
   });
 }
+export function getMailRecipients({
+  kind = ''
+} = {}) {
+  const params = new URLSearchParams();
+  if (kind) params.set('kind', kind);
+  const qs = params.toString();
+  return apiFetch(`/admin/mail-recipients${qs ? `?${qs}` : ''}`);
+}
+export function createMailRecipient({
+  email,
+  kind = 'TO',
+  note = '',
+  name = '',
+  active = true
+}) {
+  return apiFetch('/admin/mail-recipients', {
+    method: 'POST',
+    body: JSON.stringify({
+      email,
+      kind,
+      note,
+      name,
+      active
+    })
+  });
+}
+export function updateMailRecipient(id, patch) {
+  return apiFetch(`/admin/mail-recipients/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch)
+  });
+}
+export function deleteMailRecipient(id) {
+  return apiFetch(`/admin/mail-recipients/${id}`, {
+    method: 'DELETE'
+  });
+}

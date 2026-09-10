@@ -25,7 +25,9 @@ const checkInterval = time.Minute
 // กี่รอบในสัปดาห์เดียวกัน อีเมลรอบอัตโนมัติก็จะออกแค่ฉบับเดียว
 func StartWeeklyAlertScheduler() {
 	w := mailer.LoadWeeklyConfig()
-	cfg := mailer.LoadConfig()
+	// ใช้ LoadEffectiveMailConfig แทน mailer.LoadConfig ตรง ๆ เพื่อให้ log ตอนเปิดเซิร์ฟเวอร์
+	// แสดงผู้รับจริงที่จะใช้ส่ง (รวมรายชื่อที่ตั้งไว้จากหน้า Admin ด้วย)
+	cfg := controllers.LoadEffectiveMailConfig()
 
 	if !w.Enabled {
 		log.Println("[weekly-alert] ปิดการแจ้งเตือนรายสัปดาห์อยู่ (ตั้ง WEEKLY_ALERT_ENABLED=true เพื่อเปิด)")
@@ -92,7 +94,7 @@ func sendNowIfNotSentThisWeek(w mailer.WeeklyConfig) {
 		log.Printf("[weekly-alert] รอบ %s ส่งไปแล้ว แต่ WEEKLY_ALERT_FORCE_SEND_ON_START=true — จะส่งซ้ำอีกฉบับ", weekKey)
 	}
 
-	cfg := mailer.LoadConfig()
+	cfg := controllers.LoadEffectiveMailConfig()
 	log.Printf("[weekly-alert] รอบ %s ยังไม่ได้ส่ง — กำลังเขียนและส่งอีเมลถึง %s",
 		weekKey, strings.Join(cfg.To, ", "))
 

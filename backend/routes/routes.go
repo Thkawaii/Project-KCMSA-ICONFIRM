@@ -126,6 +126,17 @@ func SetupRoutes(r *gin.Engine) {
 		admin.DELETE("/:id", controllers.DeleteUser)
 	}
 
+	// ผู้รับอีเมลแจ้งเตือนใบอนุญาตรายสัปดาห์ — เพิ่ม/ลบคนได้จากหน้า Admin
+	// โดยไม่ต้องแก้ .env หรือแก้โค้ดแล้ว deploy ใหม่ (ดู controllers/mail_recipients.go)
+	adminMail := auth.Group("/admin/mail-recipients")
+	adminMail.Use(middleware.RoleMiddleware("ADMIN"))
+	{
+		adminMail.GET("", controllers.GetMailRecipients)
+		adminMail.POST("", controllers.CreateMailRecipient)
+		adminMail.PATCH("/:id", controllers.UpdateMailRecipient)
+		adminMail.DELETE("/:id", controllers.DeleteMailRecipient)
+	}
+
 	mfgAssembly := auth.Group("/mfg-assembly")
 	mfgAssembly.Use(middleware.RoleMiddleware("MFG"))
 	{

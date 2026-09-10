@@ -3,7 +3,7 @@ import AppShell from '../components/AppShell.jsx';
 import SelectField from '../components/Selectfield.jsx';
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js';
 import { getAdminUsers, createAdminUser, updateAdminUser, deleteAdminUser } from '../api/admin.js';
-import { Squares2X2Icon, RectangleStackIcon, CpuChipIcon, ShieldCheckIcon, CubeIcon, PencilSquareIcon, XMarkIcon, FunnelIcon } from '../components/icons.jsx';
+import { Squares2X2Icon, RectangleStackIcon, CpuChipIcon, ShieldCheckIcon, CubeIcon, PencilSquareIcon, XMarkIcon, FunnelIcon, EnvelopeIcon } from '../components/icons.jsx';
 export const ADMIN_NAV_ITEMS = [{
   to: '/admin',
   label: 'User Management',
@@ -12,6 +12,10 @@ export const ADMIN_NAV_ITEMS = [{
   to: '/admin/master-data',
   label: 'Upload Master Data',
   icon: <CubeIcon className="size-4" />
+}, {
+  to: '/admin/mail-recipients',
+  label: 'ผู้รับอีเมลแจ้งเตือน',
+  icon: <EnvelopeIcon className="size-4" />
 }, {
   to: '/format-settings',
   label: 'Setting',
