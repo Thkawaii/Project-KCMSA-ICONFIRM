@@ -361,7 +361,7 @@ func LoadWeeklyConfig() WeeklyConfig {
 		AppURL:           strings.TrimRight(env("APP_BASE_URL", ""), "/"),
 		Greeting:         env("WEEKLY_ALERT_GREETING", "ผู้เกี่ยวข้อง"),
 		Org:              env("WEEKLY_ALERT_ORG", "Kobelco Construction Machinery Southeast Asia Co., Ltd."),
-		Dept:             env("WEEKLY_ALERT_DEPT", "แผนกคลังสินค้าและใบอนุญาต"),
+		Dept:             env("WEEKLY_ALERT_DEPT", "แผนกโลจิสติกส์"),
 		LogoPath:         env("WEEKLY_ALERT_LOGO", "assets/kobelco-logo.png"),
 		LogoWidth:        envInt("WEEKLY_ALERT_LOGO_WIDTH", 190),
 		AttachCSV:        envBool("WEEKLY_ALERT_ATTACH_CSV", true),
