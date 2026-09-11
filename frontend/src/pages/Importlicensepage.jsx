@@ -2161,14 +2161,10 @@ export function WHExportLicensePanel() {
       </div>
 
       <div className="il-export-filter-card">
-        <PeriodRangePicker mode={periodMode} onModeChange={handlePeriodModeChange} anchor={periodAnchor} onAnchorChange={setPeriodAnchor} min={asmDateBounds.min} max={asmDateBounds.max} label="เลือกช่วงวันที่สำหรับ Export แยกประเทศ" countLabel={`${filtered.length} รายการ`} />
-        {periodMode !== 'all' && <button type="button" className="qa-clear-btn" onClick={() => {
+        <PeriodRangePicker mode={periodMode} onModeChange={handlePeriodModeChange} anchor={periodAnchor} onAnchorChange={setPeriodAnchor} min={asmDateBounds.min} max={asmDateBounds.max} label="เลือกช่วงวันที่สำหรับ Export แยกประเทศ" countLabel={`${filtered.length} รายการ`} onClear={() => {
         setPeriodMode('all');
         setPeriodAnchor('');
-      }}>
-            <XMarkIcon className="size-4" />
-            ล้างช่วง
-          </button>}
+      }} />
       </div>
 
       {rows.length > 0 && <div className="il-lot-filter">

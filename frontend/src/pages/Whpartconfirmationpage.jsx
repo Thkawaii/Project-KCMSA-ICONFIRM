@@ -4,7 +4,8 @@ import { getImportLicenseItems } from '../api/importLicense.js';
 import { API_BASE_URL } from '../api/client.js';
 import { scanStep, scanSelect, scanLoading, scanSuccessToast, scanErrorAlert, scanClose } from '../lib/scanPopup.js';
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js';
-import { inDateTab } from '../lib/dateRange.js';
+import { inPeriod } from '../lib/dateRange.js';
+import PeriodRangePicker from '../components/PeriodRangePicker.jsx';
 import { CheckIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, DocumentTextIcon, ExclamationTriangleIcon, MinusIcon, PART_ICONS_BY_CODE, ShieldCheckIcon, TagIcon, XMarkIcon } from '../components/icons.jsx';
 import AppShell from '../components/AppShell.jsx';
 import SelectField from '../components/Selectfield.jsx';
@@ -160,6 +161,11 @@ const BARCODE_CARDS = [{
   img: bcCounterWeight,
   kind: 'CounterWeight No.'
 }];
+// วันนี้ในรูปแบบ YYYY-MM-DD (เวลาเครื่อง)
+function todayYMD() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 export default function WHPartConfirmationPage() {
   const isManager = (localStorage.getItem('iconfirm_role') || '').toUpperCase() === 'LOG';
   const [rows, setRows] = useState([]);
@@ -172,7 +178,18 @@ export default function WHPartConfirmationPage() {
   const [licensePageSize, setLicensePageSize] = useState(10);
   const [licensePage, setLicensePage] = useState(1);
   const [highlightId, setHighlightId] = useState(null);
-  const [dateTab, setDateTab] = useState('all');
+  // ---- ตัวกรองช่วงวันที่ (เหมือนหน้า QA): ทั้งหมด / รายวัน / รายสัปดาห์ / รายเดือน / รายปี + เลือกวันจากปฏิทิน ----
+  // เลือกโหมดครั้งแรกโดยยังไม่ได้เลือกวัน = นับจาก "วันนี้" (ความหมายเดิมของแท็บ รายวัน/รายสัปดาห์/รายเดือน)
+  const [periodMode, setPeriodMode] = useState('all');
+  const [periodAnchor, setPeriodAnchor] = useState('');
+  function handlePeriodModeChange(next) {
+    setPeriodMode(next);
+    if (next !== 'all' && !periodAnchor) setPeriodAnchor(todayYMD());
+  }
+  function clearPeriod() {
+    setPeriodMode('all');
+    setPeriodAnchor('');
+  }
   const [search, setSearch] = useState('');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
@@ -199,7 +216,7 @@ export default function WHPartConfirmationPage() {
   }, []);
   useEffect(() => {
     setPage(1);
-  }, [dateTab, search, pageSize]);
+  }, [periodMode, periodAnchor, search, pageSize]);
   useEffect(() => {
     setLicensePage(1);
   }, [licenseTab, licenseModel, licenseNo, licensePageSize]);
@@ -346,7 +363,15 @@ export default function WHPartConfirmationPage() {
       if (busyRef.current) return;
       if (clean && code.length >= 2) fireRef.current(code);
     }
+    // ช่องที่ผู้ใช้พิมพ์เอง (เช่นช่องวันที่ในตัวกรองช่วงวันที่) ไม่ใช่เครื่องยิงบาร์โค้ด
+    // ถ้าไม่ข้าม พิมพ์เร็ว ๆ หรือวางข้อความ "15/07/2569" จะถูกตีความเป็นการสแกนและเด้งหน้าต่างสแกนขึ้นมา
+    const isScanIgnored = target => !!(target && typeof target.closest === 'function' && target.closest('[data-scan-ignore]'));
     function onKeydown(e) {
+      if (isScanIgnored(e.target)) {
+        buffer = '';
+        startedClean = false;
+        return;
+      }
       if (busyRef.current) {
         lastTime = Date.now();
         buffer = '';
@@ -379,6 +404,7 @@ export default function WHPartConfirmationPage() {
     }
     function onGlobalInput(e) {
       if (busyRef.current) return;
+      if (isScanIgnored(e.target)) return;
       const inserted = typeof e.data === 'string' ? e.data : '';
       const code = inserted.trim();
       if (code.length < 2) return;
@@ -444,15 +470,15 @@ export default function WHPartConfirmationPage() {
     // รายการที่ไม่ตรง (NOT_FOUND / WRONG_PART / ฯลฯ) ยังถูกบันทึกลงฐานข้อมูลตามปกติ
     // เพียงแต่ไม่แสดงในตารางประวัติการสแกนนี้
     let list = rows.filter(r => r.MatchStatus === 'MATCH');
-    if (dateTab !== 'all') {
-      list = list.filter(r => inDateTab(r.CheckedDatetime, dateTab));
+    if (periodMode !== 'all') {
+      list = list.filter(r => r.CheckedDatetime && inPeriod(r.CheckedDatetime, periodMode, periodAnchor));
     }
     const term = search.trim().toLowerCase();
     if (term) {
       list = list.filter(r => (r.PN || '').toLowerCase().includes(term) || (r.SN || '').toLowerCase().includes(term) || (r.MachineNo || '').toLowerCase().includes(term) || (r.CheckedBy || '').toLowerCase().includes(term));
     }
     return list;
-  }, [rows, dateTab, search]);
+  }, [rows, periodMode, periodAnchor, search]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
   function goToPage(p) {
@@ -654,23 +680,10 @@ export default function WHPartConfirmationPage() {
             ประวัติการสแกน ({filtered.length})
           </h2>
         </div>
-        <div className="vr-tabs">
-          {[{
-            key: 'all',
-            label: 'ทั้งหมด'
-          }, {
-            key: 'day',
-            label: 'รายวัน'
-          }, {
-            key: 'week',
-            label: 'รายสัปดาห์'
-          }, {
-            key: 'month',
-            label: 'รายเดือน'
-          }].map(tab => <button key={tab.key} className={'vr-tab' + (dateTab === tab.key ? ' vr-tab-active' : '')} onClick={() => setDateTab(tab.key)}>
-              {tab.label}
-            </button>)}
-        </div>
+      </div>
+
+      <div className="prp-card">
+        <PeriodRangePicker mode={periodMode} onModeChange={handlePeriodModeChange} anchor={periodAnchor} onAnchorChange={setPeriodAnchor} label="ช่วงวันที่สแกน" countLabel={`${filtered.length} รายการ`} onClear={clearPeriod} />
       </div>
 
       <div className="tsf-history-toolbar">
