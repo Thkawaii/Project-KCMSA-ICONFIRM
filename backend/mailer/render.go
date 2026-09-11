@@ -207,13 +207,13 @@ func RenderHTML(r WeeklyReport) string {
 	b.WriteString(renderBreakdown(r))
 
 	if r.IsEmpty() {
-		b.WriteString(indentPara("รายละเอียดของแต่ละประเภทใบอนุญาต ปรากฏตามข้อ ๑ และข้อ ๒ ดังนี้"))
+		b.WriteString(indentPara("รายละเอียดของแต่ละประเภทใบอนุญาต ปรากฏตามข้อ 1 และข้อ 2 ดังนี้"))
 	} else {
 		b.WriteString(indentPara("จึงขอเรียนรายละเอียดของแต่ละประเภทใบอนุญาต เพื่อโปรดพิจารณาดำเนินการ ดังนี้"))
 	}
 
-	// ---- ข้อ ๑ ใบอนุญาตนำเข้า ----
-	b.WriteString(clauseHeading("๑.", "ใบอนุญาตนำเข้า (Import License)"))
+	// ---- ข้อ 1 ใบอนุญาตนำเข้า ----
+	b.WriteString(clauseHeading("1.", "ใบอนุญาตนำเข้า (Import License)"))
 	if len(r.Import) == 0 {
 		b.WriteString(clausePara("ไม่มีใบอนุญาตนำเข้าที่หมดอายุหรือใกล้หมดอายุในสัปดาห์นี้"))
 	} else {
@@ -223,8 +223,8 @@ func RenderHTML(r WeeklyReport) string {
 		}
 	}
 
-	// ---- ข้อ ๒ ใบอนุญาตนำออก ----
-	b.WriteString(clauseHeading("๒.", "ใบอนุญาตนำออก (Export License)"))
+	// ---- ข้อ 2 ใบอนุญาตนำออก ----
+	b.WriteString(clauseHeading("2.", "ใบอนุญาตนำออก (Export License)"))
 	if len(r.Export) == 0 {
 		b.WriteString(clausePara("ไม่มีใบอนุญาตนำออกที่ต้องดำเนินการในสัปดาห์นี้"))
 	} else {
@@ -253,9 +253,9 @@ func RenderHTML(r WeeklyReport) string {
 	b.WriteString(fmt.Sprintf(`
         <div style="border-top:1px solid %s;margin:26px 0 0;padding-top:12px;font-size:11.5px;line-height:18px;color:%s;">
           <div style="font-weight:600;color:%s;margin-bottom:2px;">หมายเหตุ</div>
-          ๑. ใบอนุญาตที่ทำเครื่องหมาย “เสร็จสิ้น” แล้ว จะหยุดนับอายุและไม่ปรากฏในรายงานฉบับนี้<br>
-          ๒. วันหมดอายุคำนวณจากวันที่ออกใบอนุญาตเป็นหลัก และรายการจัดกลุ่มตามเลขที่ใบอนุญาต<br>
-          ๓. หนังสือฉบับนี้จัดทำและจัดส่งโดยระบบอัตโนมัติ จึงมิได้ลงลายมือชื่อ และขอความกรุณามิให้ตอบกลับ<br>
+          1. ใบอนุญาตที่ทำเครื่องหมาย “เสร็จสิ้น” แล้ว จะหยุดนับอายุและไม่ปรากฏในรายงานฉบับนี้<br>
+          2. วันหมดอายุคำนวณจากวันที่ออกใบอนุญาตเป็นหลัก และรายการจัดกลุ่มตามเลขที่ใบอนุญาต<br>
+          3. หนังสือฉบับนี้จัดทำและจัดส่งโดยระบบอัตโนมัติ จึงมิได้ลงลายมือชื่อ และขอความกรุณามิให้ตอบกลับ<br>
           &nbsp;&nbsp;&nbsp;&nbsp;หากประสงค์จะแก้ไขรอบการแจ้งเตือนหรือรายชื่อผู้รับ โปรดติดต่อผู้ดูแลระบบ
         </div>
       </div>
@@ -265,7 +265,7 @@ func RenderHTML(r WeeklyReport) string {
 </body>
 </html>`, colBorder, colNote, colBody))
 
-	return b.String()
+	return ArabicDigits(b.String())
 }
 
 // recipientName ชื่อผู้รับที่พิมพ์หลังคำว่า "เรียน"
@@ -296,7 +296,7 @@ func indentPara(inner string) string {
 	return fmt.Sprintf(`<p class="kc-indent" style="margin:0 0 14px;text-indent:3.2em;text-align:justify;">%s</p>`, inner)
 }
 
-// clauseHeading หัวข้อ "๑." "๒." พร้อมชื่อหมวด
+// clauseHeading หัวข้อ "1." "2." พร้อมชื่อหมวด
 func clauseHeading(no, title string) string {
 	return fmt.Sprintf(
 		`<p style="margin:0 0 4px;padding-left:3.2em;font-weight:600;">%s %s</p>`,
@@ -555,12 +555,12 @@ func RenderText(r WeeklyReport) string {
 	b.WriteString("\n")
 
 	if r.IsEmpty() {
-		b.WriteString(pad + "รายละเอียดของแต่ละประเภทใบอนุญาต ปรากฏตามข้อ ๑ และข้อ ๒ ดังนี้\n\n")
+		b.WriteString(pad + "รายละเอียดของแต่ละประเภทใบอนุญาต ปรากฏตามข้อ 1 และข้อ 2 ดังนี้\n\n")
 	} else {
 		b.WriteString(pad + "จึงขอเรียนรายละเอียดของแต่ละประเภทใบอนุญาต เพื่อโปรดพิจารณาดำเนินการ ดังนี้\n\n")
 	}
 
-	b.WriteString(pad + "๑. ใบอนุญาตนำเข้า (Import License)\n")
+	b.WriteString(pad + "1. ใบอนุญาตนำเข้า (Import License)\n")
 	if len(r.Import) == 0 {
 		b.WriteString("           ไม่มีใบอนุญาตนำเข้าที่หมดอายุหรือใกล้หมดอายุในสัปดาห์นี้\n")
 	} else {
@@ -575,7 +575,7 @@ func RenderText(r WeeklyReport) string {
 	}
 	b.WriteString("\n")
 
-	b.WriteString(pad + "๒. ใบอนุญาตนำออก (Export License)\n")
+	b.WriteString(pad + "2. ใบอนุญาตนำออก (Export License)\n")
 	if len(r.Export) == 0 {
 		b.WriteString("           ไม่มีใบอนุญาตนำออกที่ต้องดำเนินการในสัปดาห์นี้\n")
 	} else {
@@ -604,12 +604,12 @@ func RenderText(r WeeklyReport) string {
 
 	b.WriteString(strings.Repeat("-", 68) + "\n")
 	b.WriteString("หมายเหตุ\n")
-	b.WriteString("๑. ใบอนุญาตที่ทำเครื่องหมาย \"เสร็จสิ้น\" แล้ว จะหยุดนับอายุและไม่ปรากฏในรายงานฉบับนี้\n")
-	b.WriteString("๒. วันหมดอายุคำนวณจากวันที่ออกใบอนุญาตเป็นหลัก และรายการจัดกลุ่มตามเลขที่ใบอนุญาต\n")
-	b.WriteString("๓. หนังสือฉบับนี้จัดทำและจัดส่งโดยระบบอัตโนมัติ จึงมิได้ลงลายมือชื่อ\n")
+	b.WriteString("1. ใบอนุญาตที่ทำเครื่องหมาย \"เสร็จสิ้น\" แล้ว จะหยุดนับอายุและไม่ปรากฏในรายงานฉบับนี้\n")
+	b.WriteString("2. วันหมดอายุคำนวณจากวันที่ออกใบอนุญาตเป็นหลัก และรายการจัดกลุ่มตามเลขที่ใบอนุญาต\n")
+	b.WriteString("3. หนังสือฉบับนี้จัดทำและจัดส่งโดยระบบอัตโนมัติ จึงมิได้ลงลายมือชื่อ\n")
 	b.WriteString("   และขอความกรุณามิให้ตอบกลับ\n")
 
-	return b.String()
+	return ArabicDigits(b.String())
 }
 
 // center จัดข้อความให้อยู่กลางหน้ากระดาษกว้าง 68 ตัวอักษร

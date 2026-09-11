@@ -97,6 +97,28 @@ function CompleteFlag({
     </span>;
 }
 
+// ข้อความตัวเลือกใบอนุญาตใน dropdown เช่น "IL-2026-0181 · 2 เครื่อง · เสร็จสิ้น 2/2"
+//   - ยังไม่มีเครื่องไหนเสร็จสิ้น → ไม่ต่อท้ายส่วน "เสร็จสิ้น"
+//   - extra = ข้อความเสริมหลังเลขใบ (ใช้แยกใบที่เลขซ้ำกัน เช่น Invoice)
+function licenseOptionLabel(licenseNo, total, done, extra = '') {
+  // ใช้ช่องว่างไม่ตัดบรรทัด (\u00A0) ภายในแต่ละก้อน จอแคบจะตัดบรรทัดเฉพาะตรง " · "
+  // เช่น ไม่ให้ "2" อยู่บรรทัดหนึ่งแล้ว "เครื่อง" ไปอยู่อีกบรรทัด
+  const nb = text => text.replace(/ /g, '\u00A0');
+  const parts = [licenseNo || '(ไม่มีเลขใบอนุญาต)'];
+  if (extra) parts.push(nb(extra));
+  parts.push(nb(`${total} เครื่อง`));
+  if (done > 0) parts.push(nb(`เสร็จสิ้น ${done}/${total}`));
+  return parts.join(' · ');
+}
+
+// ไอคอนต่อท้ายชื่อใบอนุญาตในตัวเลือก dropdown — ขึ้นเฉพาะใบที่ปิดงานครบทุกเครื่องแล้ว
+// ใช้ไอคอนเดียวกับตราประทับ "เสร็จสิ้นแล้ว" บนแถบใบอนุญาต ผู้ใช้จึงจำได้ว่าเป็นสถานะเดียวกัน
+function CompletedOptionIcon() {
+  return <span className="il-option-complete" role="img" title="เสร็จสิ้นแล้ว" aria-label="เสร็จสิ้นแล้ว">
+      <CheckBadgeSolidIcon className="il-option-complete-icon" aria-hidden="true" />
+    </span>;
+}
+
 // ช่องติ๊กเลือกแถว — ใช้ input จริงเพื่อให้กด/โฟกัส/อ่านหน้าจอได้ตามมาตรฐาน
 function SelectCheckbox({
   checked,
@@ -452,10 +474,18 @@ export default function ImportLicensePage() {
       value: '',
       label: 'ทุกใบอนุญาต'
     }];
+    // บัญชีแยกกลุ่มตาม "เลขใบอนุญาต + Invoice"
+    // ใบที่มีหลาย Invoice จึงต่อท้าย Invoice ให้ เพื่อไม่ให้มีตัวเลือกหน้าตาซ้ำกัน
+    const lotsPerLicense = new Map();
+    summary.forEach(s => lotsPerLicense.set(s.LicenseNo, (lotsPerLicense.get(s.LicenseNo) || 0) + 1));
     summary.forEach(s => {
+      // เกณฑ์เดียวกับตราประทับ "เสร็จสิ้นแล้ว" ของใบนี้ (ปิดงานครบทุกเครื่อง)
+      const completedAll = s.Total > 0 && s.CompletedCount >= s.Total;
+      const extra = lotsPerLicense.get(s.LicenseNo) > 1 ? `Invoice ${s.InvoiceNo || '—'}` : '';
       opts.push({
         value: `${s.LicenseNo}|${s.InvoiceNo}`,
-        label: `${s.LicenseNo} · Invoice ${s.InvoiceNo} · ${s.Total} เครื่อง${s.CompletedCount > 0 ? ` · เสร็จสิ้น ${s.CompletedCount}/${s.Total}` : ''}`
+        label: licenseOptionLabel(s.LicenseNo, s.Total, s.CompletedCount, extra),
+        suffix: completedAll ? <CompletedOptionIcon /> : null
       });
     });
     return opts;
@@ -1787,15 +1817,31 @@ export function WHExportLicensePanel() {
   const periodLabel = periodMode === 'all' ? 'ทั้งหมด' : periodRangeLabel(periodMode, periodAnchor);
   const periodTag = periodFileTag(periodMode, periodAnchor);
   const exceptionOptions = useMemo(() => {
-    const set = new Set(rows.map(r => r.ExceptionLicense).filter(Boolean));
-    const list = Array.from(set).sort((a, b) => a.localeCompare(b));
+    // นับทีละใบ: ใบที่ทุกเครื่องเสร็จสิ้นแล้ว (เกณฑ์เดียวกับปุ่ม "ยกเลิกเสร็จสิ้นทั้งใบ")
+    const stat = new Map();
+    rows.forEach(r => {
+      const key = r.ExceptionLicense;
+      if (!key) return;
+      const cur = stat.get(key) || {
+        total: 0,
+        done: 0
+      };
+      cur.total += 1;
+      if (isLicenseCompleted(r)) cur.done += 1;
+      stat.set(key, cur);
+    });
+    const list = Array.from(stat.keys()).sort((a, b) => a.localeCompare(b));
     return [{
       value: 'all',
-      label: 'Export License(ทุกใบ)'
-    }, ...list.map(m => ({
-      value: m,
-      label: m
-    }))];
+      label: 'ทุกใบอนุญาต'
+    }, ...list.map(m => {
+      const st = stat.get(m);
+      return {
+        value: m,
+        label: licenseOptionLabel(m, st.total, st.done),
+        suffix: st.total > 0 && st.done >= st.total ? <CompletedOptionIcon /> : null
+      };
+    })];
   }, [rows]);
   const expiryOptions = useMemo(() => [{
     value: 'all',

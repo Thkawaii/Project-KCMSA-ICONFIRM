@@ -38,6 +38,27 @@
   cursor: not-allowed;
 }
 
+/* ข้อความ + ไอคอนต่อท้าย: ข้อความยาวจะถูกตัด ... แต่ไอคอนต้องมองเห็นเสมอ */
+.sf-value-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sf-suffix {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+/* ในรายการ ข้อความตัดบรรทัดได้ ไอคอนจึงวางต่อท้ายคำสุดท้ายแบบ inline */
+.sf-option-suffix {
+  margin-left: 6px;
+  vertical-align: -3px;
+}
+
 .sf-value {
   overflow: hidden;
   text-overflow: ellipsis;

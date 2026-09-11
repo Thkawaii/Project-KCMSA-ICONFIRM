@@ -174,8 +174,8 @@ func TestRenderHTMLContainsKeyContent(t *testing.T) {
 		"EX-2026-0091",
 		"หมดอายุแล้ว",
 		"เลยกำหนดยื่น",
-		"๑. ใบอนุญาตนำเข้า (Import License)",
-		"๒. ใบอนุญาตนำออก (Export License)",
+		"1. ใบอนุญาตนำเข้า (Import License)",
+		"2. ใบอนุญาตนำออก (Export License)",
 		"จึงขอแจ้งมาเพื่อโปรดพิจารณา",
 	}
 	for _, want := range must {
@@ -239,7 +239,7 @@ func TestRenderHTMLEscapesUserData(t *testing.T) {
 func TestRenderTextIncludesBothSections(t *testing.T) {
 	text := RenderText(sampleReport())
 
-	if !strings.Contains(text, "๑. ใบอนุญาตนำเข้า") || !strings.Contains(text, "๒. ใบอนุญาตนำออก") {
+	if !strings.Contains(text, "1. ใบอนุญาตนำเข้า") || !strings.Contains(text, "2. ใบอนุญาตนำออก") {
 		t.Fatal("ฉบับข้อความล้วนต้องมีทั้งสองหมวด")
 	}
 	if !strings.Contains(text, "ต้องดำเนินการรวมทั้งสิ้น 6 รายการ จำแนกเป็น") {
@@ -640,5 +640,70 @@ func TestThaiDateHandlesNil(t *testing.T) {
 	}
 	if got := ThaiDate(&d, true); got != "4 ก.ย. 2569" {
 		t.Fatalf("รูปแบบวันที่ พ.ศ. ผิด: %s", got)
+	}
+}
+
+// ตัวเลขทุกตัวในอีเมลต้องเป็นเลขอารบิก — ทั้งหัวข้อ เนื้อหา HTML ฉบับข้อความล้วน และตารางแนบท้าย
+// รวมถึงข้อมูลที่ผู้ใช้กรอกมาเป็นเลขไทย
+func TestEmailUsesArabicDigitsOnly(t *testing.T) {
+	thaiDigits := regexp.MustCompile("[\u0E50-\u0E59]")
+
+	r := sampleReport()
+	r.BuddhistEra = true
+	r.Greeting = "คุณสมชาย แผนก ๒"
+	r.Dept = "แผนกโลจิสติกส์ ๑"
+	r.Import[0].LicenseNo = "IL-๒๕๖๙-๐๑๔๘"
+
+	parts := map[string]string{
+		"หัวข้ออีเมล":     r.Subject(),
+		"เนื้อหา HTML":    RenderHTML(r),
+		"ฉบับข้อความล้วน": RenderText(r),
+	}
+	for name, content := range parts {
+		if loc := thaiDigits.FindStringIndex(content); loc != nil {
+			from := loc[0] - 60
+			if from < 0 {
+				from = 0
+			}
+			t.Errorf("%s ยังมีเลขไทย: ...%s...", name, content[from:loc[1]])
+		}
+	}
+
+	html := RenderHTML(r)
+	for _, want := range []string{
+		"1. ใบอนุญาตนำเข้า (Import License)",
+		"2. ใบอนุญาตนำออก (Export License)",
+		"IL-2569-0148",
+		"คุณสมชาย แผนก 2",
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("อีเมล HTML ไม่มีข้อความ %q", want)
+		}
+	}
+}
+
+// ฉบับที่ไม่มีรายการต้องดำเนินการ มีประโยคอ้างถึง "ข้อ 1 และข้อ 2" ต้องเป็นเลขอารบิกเช่นกัน
+func TestEmptyEmailUsesArabicDigits(t *testing.T) {
+	r := sampleReport()
+	r.Import = nil
+	r.Export = nil
+	r.ImportCounts = Counts{}
+	r.ExportCounts = Counts{}
+
+	html := RenderHTML(r)
+	if !strings.Contains(html, "ปรากฏตามข้อ 1 และข้อ 2") {
+		t.Fatal("ฉบับไม่มีรายการต้องอ้างถึงข้อ 1 และข้อ 2 ด้วยเลขอารบิก")
+	}
+	if regexp.MustCompile("[\u0E50-\u0E59]").MatchString(html + RenderText(r) + r.Subject()) {
+		t.Fatal("ฉบับไม่มีรายการยังมีเลขไทย")
+	}
+}
+
+func TestArabicDigits(t *testing.T) {
+	if got := ArabicDigits("ข้อ ๑ ๒ ๓ ๔ ๕ ๖ ๗ ๘ ๙ ๐ / 2569"); got != "ข้อ 1 2 3 4 5 6 7 8 9 0 / 2569" {
+		t.Fatalf("แปลงเลขไทยผิด: %q", got)
+	}
+	if got := ArabicDigits("ไม่มีเลขไทย 123"); got != "ไม่มีเลขไทย 123" {
+		t.Fatalf("ข้อความที่ไม่มีเลขไทยต้องไม่เปลี่ยน: %q", got)
 	}
 }
