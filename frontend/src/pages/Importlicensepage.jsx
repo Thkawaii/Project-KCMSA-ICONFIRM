@@ -119,6 +119,37 @@ function CompletedOptionIcon() {
     </span>;
 }
 
+// ---------------------------------------------------------------------------
+// ตัวกรอง "ประเทศ" (ใช้ร่วมกันทั้งหน้า Import License และ Export License)
+//
+// ไฟล์จริงสะกดชื่อประเทศไม่เหมือนกัน เช่น "Indonesia" กับ "INDONESIA" หรือมีช่องว่างเกิน
+// จึงแปลงเป็นคีย์เดียวกันก่อน (ตัดช่องว่าง + ตัวพิมพ์ใหญ่) ไม่งั้นประเทศเดียวจะโผล่เป็นหลายตัวเลือก
+// ---------------------------------------------------------------------------
+const ALL_COUNTRIES = 'all';
+const NO_COUNTRY = '__no_country__';
+function countryKey(value) {
+  const key = String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
+  return key || NO_COUNTRY;
+}
+// "INDONESIA" -> "Indonesia", "SOUTH AFRICA" -> "South Africa"
+function countryLabel(key) {
+  if (key === NO_COUNTRY) return 'ไม่ระบุประเทศ';
+  return key.toLowerCase().replace(/(^|[\s-])(\S)/g, (_, sep, ch) => sep + ch.toUpperCase());
+}
+function buildCountryOptions(values) {
+  const keys = new Set(values.map(countryKey));
+  const list = Array.from(keys).filter(k => k !== NO_COUNTRY).sort((a, b) => a.localeCompare(b));
+  // "ไม่ระบุประเทศ" ไว้ท้ายสุดเสมอ และขึ้นเฉพาะเมื่อมีแถวที่ไม่มีประเทศจริง
+  if (keys.has(NO_COUNTRY)) list.push(NO_COUNTRY);
+  return [{
+    value: ALL_COUNTRIES,
+    label: 'ทุกประเทศ'
+  }, ...list.map(k => ({
+    value: k,
+    label: countryLabel(k)
+  }))];
+}
+
 // ช่องติ๊กเลือกแถว — ใช้ input จริงเพื่อให้กด/โฟกัส/อ่านหน้าจอได้ตามมาตรฐาน
 function SelectCheckbox({
   checked,
@@ -243,7 +274,7 @@ export default function ImportLicensePage() {
   const [loadError, setLoadError] = useState('');
   const [selectedLot, setSelectedLot] = useState('');
   const [search, setSearch] = useState('');
-  const [modelFilter, setModelFilter] = useState('all');
+  const [countryFilter, setCountryFilter] = useState(ALL_COUNTRIES);
   const [expiryFilter, setExpiryFilter] = useState('all');
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(1);
@@ -292,11 +323,11 @@ export default function ImportLicensePage() {
   }, []);
   useEffect(() => {
     setPage(1);
-  }, [selectedLot, search, modelFilter, expiryFilter, pageSize]);
+  }, [selectedLot, search, countryFilter, expiryFilter, pageSize]);
   useEffect(() => {
     const lic = (params?.focusLicense || '').trim();
     if (!lic) return;
-    setModelFilter('all');
+    setCountryFilter(ALL_COUNTRIES);
     setExpiryFilter('all');
     setSelectedLot('');
     setSearch(lic);
@@ -417,8 +448,8 @@ export default function ImportLicensePage() {
       const [licenseNo, invoiceNo] = selectedLot.split('|');
       rows = rows.filter(r => r.LicenseNo === licenseNo && r.InvoiceNo === invoiceNo);
     }
-    if (modelFilter !== 'all') {
-      rows = rows.filter(r => (r.Model || '') === modelFilter);
+    if (countryFilter !== ALL_COUNTRIES) {
+      rows = rows.filter(r => countryKey(r.ExportCountry) === countryFilter);
     }
     if (expiryFilter === COMPLETED_FILTER) {
       rows = rows.filter(isLicenseCompleted);
@@ -438,18 +469,15 @@ export default function ImportLicensePage() {
       return vb - va;
     });
     return rows;
-  }, [items, selectedLot, modelFilter, expiryFilter, search, today]);
-  const modelOptions = useMemo(() => {
-    const set = new Set(items.map(r => r.Model).filter(Boolean));
-    const list = Array.from(set).sort((a, b) => a.localeCompare(b));
-    return [{
-      value: 'all',
-      label: 'ทุกแบบ/รุ่น'
-    }, ...list.map(m => ({
-      value: m,
-      label: m
-    }))];
-  }, [items]);
+  }, [items, selectedLot, countryFilter, expiryFilter, search, today]);
+  const countryOptions = useMemo(() => buildCountryOptions(items.map(r => r.ExportCountry)), [items]);
+
+  // ข้อมูลเปลี่ยน (อัปโหลดใหม่/ลบ) จนประเทศที่เลือกไว้ไม่เหลือแล้ว — กลับไป "ทุกประเทศ" ไม่ให้ตารางว่างค้าง
+  useEffect(() => {
+    if (countryFilter !== ALL_COUNTRIES && !countryOptions.some(o => o.value === countryFilter)) {
+      setCountryFilter(ALL_COUNTRIES);
+    }
+  }, [countryOptions, countryFilter]);
   const expiryOptions = useMemo(() => [{
     value: 'all',
     label: 'ทุกสถานะวันหมดอายุ'
@@ -765,7 +793,7 @@ export default function ImportLicensePage() {
         </div>
         <div className="il-filter-search-group">
           <div className="wh-pagesize-select il-model-filter">
-            <SelectField value={modelFilter} onChange={setModelFilter} options={modelOptions} />
+            <SelectField value={countryFilter} onChange={setCountryFilter} options={countryOptions} />
           </div>
           <div className="wh-pagesize-select il-model-filter">
             <SelectField value={expiryFilter} onChange={setExpiryFilter} options={expiryOptions} />
@@ -1406,6 +1434,7 @@ export function WHExportLicensePanel() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [exceptionFilter, setExceptionFilter] = useState('all');
+  const [countryFilter, setCountryFilter] = useState(ALL_COUNTRIES);
   const [expiryFilter, setExpiryFilter] = useState('all');
   const [traceRow, setTraceRow] = useState(null);
   const [file, setFile] = useState(null);
@@ -1673,12 +1702,13 @@ export function WHExportLicensePanel() {
   }
   useEffect(() => {
     setPage(1);
-  }, [search, exceptionFilter, expiryFilter, pageSize, periodMode, periodAnchor]);
+  }, [search, exceptionFilter, countryFilter, expiryFilter, pageSize, periodMode, periodAnchor]);
   useEffect(() => {
     const exc = (params?.focusException || '').trim();
     const sn = (params?.focusSerial || '').trim();
     if (!exc && !sn) return;
     setExpiryFilter('all');
+    setCountryFilter(ALL_COUNTRIES);
     setPeriodMode('all');
     setPeriodAnchor('');
     setExceptionFilter('all');
@@ -1766,6 +1796,10 @@ export function WHExportLicensePanel() {
     if (exceptionFilter !== 'all') {
       list = list.filter(r => (r.ExceptionLicense || '') === exceptionFilter);
     }
+    if (countryFilter !== ALL_COUNTRIES) {
+      // ใช้ countryOf ตัวเดียวกับคอลัมน์ Country และปุ่ม Export แยกประเทศ ผลกรองจึงตรงกับที่เห็นในตาราง
+      list = list.filter(r => countryKey(countryOf(r)) === countryFilter);
+    }
     const term = search.trim().toLowerCase();
     if (term) {
       list = list.filter(r => [r.SerialNumber, r.ExceptionLicense, r.MachineNo, r.ITControllerNo, r.InvoiceNo, r.ExportEntry, r.ImportLicenseNo, r.ExportLicenseNo, countryOf(r)].filter(Boolean).some(v => String(v).toLowerCase().includes(term)));
@@ -1787,7 +1821,13 @@ export function WHExportLicensePanel() {
       });
     }
     return list;
-  }, [rows, exceptionFilter, expiryFilter, search, countryByITC, periodMode, periodAnchor]);
+  }, [rows, exceptionFilter, countryFilter, expiryFilter, search, countryByITC, periodMode, periodAnchor]);
+  const countryOptions = useMemo(() => buildCountryOptions(rows.map(countryOf)), [rows, countryByITC]);
+  useEffect(() => {
+    if (countryFilter !== ALL_COUNTRIES && !countryOptions.some(o => o.value === countryFilter)) {
+      setCountryFilter(ALL_COUNTRIES);
+    }
+  }, [countryOptions, countryFilter]);
   const asmDateBounds = useMemo(() => {
     let min = null;
     let max = null;
@@ -2145,7 +2185,10 @@ export function WHExportLicensePanel() {
           </div>
           entries per page
         </div>
-        <div className="il-filter-search-group">
+        <div className="il-filter-search-group il-filter-search-group-compact">
+          <div className="wh-pagesize-select il-model-filter">
+            <SelectField value={countryFilter} onChange={setCountryFilter} options={countryOptions} />
+          </div>
           <div className="wh-pagesize-select il-model-filter">
             <SelectField value={expiryFilter} onChange={setExpiryFilter} options={expiryOptions} />
           </div>
@@ -2267,14 +2310,20 @@ export function WHExportLicensePanel() {
             {filtered.length} entries
           </span>
           <div className="tsf-pagination-buttons">
-            <button className="wh-modal-cancel" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}>
+            <button className="wh-modal-cancel" onClick={() => setPage(1)} disabled={page === 1} title="หน้าแรก" aria-label="หน้าแรก">
+              <ChevronDoubleLeftIcon className="size-4" />
+            </button>
+            <button className="wh-modal-cancel" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} title="หน้าก่อนหน้า" aria-label="หน้าก่อนหน้า">
               <ChevronLeftIcon className="size-4" />
             </button>
             <span className="tsf-pagination-current">
               {page} / {totalPages}
             </span>
-            <button className="wh-modal-cancel" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages}>
+            <button className="wh-modal-cancel" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} title="หน้าถัดไป" aria-label="หน้าถัดไป">
               <ChevronRightIcon className="size-4" />
+            </button>
+            <button className="wh-modal-cancel" onClick={() => setPage(totalPages)} disabled={page === totalPages} title="หน้าสุดท้าย" aria-label="หน้าสุดท้าย">
+              <ChevronDoubleRightIcon className="size-4" />
             </button>
           </div>
         </div>}

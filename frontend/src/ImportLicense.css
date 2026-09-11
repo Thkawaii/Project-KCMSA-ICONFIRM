@@ -614,6 +614,15 @@
   gap: 10px;
   flex: 0 1 auto;
   min-width: 0;
+  /* หน้า Export มีตัวกรองประเทศ + สถานะ + ค้นหา + 2 ปุ่ม — จอกลาง (iPad/แล็ปท็อปเล็ก)
+     ให้ขึ้นบรรทัดใหม่ชิดขวาแทนการล้นออกนอกการ์ด */
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+/* หน้า Export มีตัวกรองมากกว่า — ย่อช่องค้นหาลงเพื่อให้ยังอยู่บรรทัดเดียวกับ "entries per page" บนจอปกติ */
+.il-filter-search-group.il-filter-search-group-compact .wh-search {
+  width: 260px;
 }
 .il-filter-search-group .il-model-filter {
   flex: 0 0 auto;

@@ -35,7 +35,9 @@ type ExportLicenseItem struct {
 
 	LeadTime *time.Time `gorm:"index"`
 
-	Remark string `gorm:"column:remark;size:255"`
+	// Remark เป็น text (ไม่จำกัดความยาว) — ไฟล์จริงมีหมายเหตุยาวหลายร้อยตัวอักษร
+	// เดิม varchar(255) ทำให้อัปโหลดทั้งไฟล์ล้มด้วย "value too long for type character varying(255)"
+	Remark string `gorm:"column:remark;type:text"`
 
 	// Completed = ปิดงานใบอนุญาตนี้แล้ว (ผู้ใช้กด "ทำเครื่องหมายเสร็จสิ้น" เอง)
 	// เมื่อเสร็จสิ้นแล้ว ระบบจะ "หยุดนับวันหมดอายุ" และหยุดนับ Lead time ของแถวนี้

@@ -402,7 +402,7 @@ func readExcelRows(r io.Reader) ([][]string, error) {
 	defer xl.Close()
 
 	sheet := xl.GetSheetName(0)
-	rows, err := xl.GetRows(sheet)
+	rows, err := readSheetAllRows(xl, sheet)
 	if err != nil {
 		return nil, errors.New("อ่านไฟล์ Excel ไม่สำเร็จ")
 	}
