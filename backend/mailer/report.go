@@ -111,27 +111,59 @@ type WeeklyReport struct {
 // LogoContentID รหัสอ้างอิงรูปโลโก้ภายในจดหมาย
 const LogoContentID = "iconfirm-logo"
 
-// anchorDay วันพฤหัสบดีของสัปดาห์ ใช้เป็นตัวตัดสินว่าสัปดาห์นี้นับเป็นของเดือนไหน
+// anchorDay วันที่ใช้ตัดสินว่ารายงานฉบับนี้เป็น "สัปดาห์ที่เท่าไรของเดือนไหน ปีไหน"
 //
-// สัปดาห์ที่คร่อม 2 เดือน (เช่น 31 ส.ค. – 6 ก.ย.) จะถูกนับเป็นของเดือนที่มีวันมากกว่า
-// ซึ่งก็คือเดือนที่วันพฤหัสบดีตกอยู่ เป็นวิธีเดียวกับที่มาตรฐาน ISO-8601 ใช้
+// ยึดตาม "วันที่ส่งจริง" (GeneratedAt) ตามปฏิทิน
+// เช่น ส่งวันจันทร์ที่ 28 ก.ย. ก็เป็นของเดือนกันยายน แม้สัปดาห์นั้นจะไปจบในเดือนตุลาคม
+//
+// แปลงเป็นโซนเวลาเดียวกับช่วงสัปดาห์ก่อนเสมอ กันวันที่เพี้ยนเมื่อเซิร์ฟเวอร์ตั้งเวลาเป็น UTC
+// ถ้าไม่มีวันที่ส่ง หรือวันที่ส่งอยู่นอกช่วงสัปดาห์ของรายงาน จะถอยไปใช้วันจันทร์ต้นสัปดาห์แทน
 func (r WeeklyReport) anchorDay() time.Time {
-	return r.PeriodStart.AddDate(0, 0, 3)
+	if r.GeneratedAt.IsZero() {
+		return r.PeriodStart
+	}
+	if r.PeriodStart.IsZero() {
+		return r.GeneratedAt
+	}
+
+	sent := r.GeneratedAt.In(r.PeriodStart.Location())
+	day := time.Date(sent.Year(), sent.Month(), sent.Day(), 0, 0, 0, 0, sent.Location())
+	if day.Before(r.PeriodStart) || day.After(r.PeriodStart.AddDate(0, 0, 6)) {
+		return r.PeriodStart
+	}
+	return day
 }
 
-// WeekOfMonth ลำดับสัปดาห์ภายในเดือน เริ่มนับที่ 1
+// WeekOfMonth ลำดับสัปดาห์ของวันที่ส่งภายในเดือน ตามแถวของปฏิทินที่เริ่มสัปดาห์วันจันทร์ เริ่มนับที่ 1
 //
-// เช่น สัปดาห์ 7–13 ก.ย. มีวันพฤหัสบดีตรงกับวันที่ 10 จึงเป็นสัปดาห์ที่ 2 ของเดือนกันยายน
+// สัปดาห์ที่ 1 คือแถวที่มีวันที่ 1 ของเดือน (แม้จะมีไม่ครบ 7 วัน)
+// เช่น กันยายน 2569 วันที่ 1 ตรงกับวันอังคาร
+//
+//	สัปดาห์ที่ 1 = 1–6 ก.ย.   สัปดาห์ที่ 2 = 7–13 ก.ย.   ...   สัปดาห์ที่ 5 = 28–30 ก.ย.
+//
+// เดือนหนึ่งมีได้สูงสุด 5 สัปดาห์
+// เดือนที่วันที่ 1 ตรงกับเสาร์หรืออาทิตย์ ปฏิทินจะมี 6 แถว แถวสุดท้ายจึงนับรวมเป็นสัปดาห์ที่ 5
+// เช่น พฤศจิกายน 2569 ส่งวันที่ 30 พ.ย. ก็ยังเป็นสัปดาห์ที่ 5
 func (r WeeklyReport) WeekOfMonth() int {
-	return (r.anchorDay().Day()-1)/7 + 1
+	d := r.anchorDay()
+	first := time.Date(d.Year(), d.Month(), 1, 0, 0, 0, 0, d.Location())
+	offset := (int(first.Weekday()) + 6) % 7 // จันทร์ = 0
+	week := (d.Day()-1+offset)/7 + 1
+	if week > maxWeeksInMonth {
+		week = maxWeeksInMonth
+	}
+	return week
 }
 
-// MonthName ชื่อเดือนของสัปดาห์ที่รายงาน
+// maxWeeksInMonth สัปดาห์สุดท้ายของเดือน
+const maxWeeksInMonth = 5
+
+// MonthName ชื่อเดือนของวันที่ส่ง
 func (r WeeklyReport) MonthName() string {
 	return thaiMonthsFull[int(r.anchorDay().Month())-1]
 }
 
-// MonthYear ปีของสัปดาห์ที่รายงาน ตามรูปแบบปีที่ตั้งไว้ (พ.ศ. หรือ ค.ศ.)
+// MonthYear ปีของวันที่ส่ง ตามรูปแบบปีที่ตั้งไว้ (พ.ศ. หรือ ค.ศ.)
 func (r WeeklyReport) MonthYear() int {
 	return displayYear(r.anchorDay().Year(), r.BuddhistEra)
 }
@@ -160,16 +192,23 @@ func ISOWeekKey(t time.Time) string {
 	return monday.Format("2006-01-02")
 }
 
-// FileDateKey วันที่สำหรับตั้งชื่อไฟล์แนบ เขียนแบบ YYYY-MM-DD เช่น 2026-09-08
+// FileDateKey วันที่สำหรับตั้งชื่อไฟล์แนบ เขียนแบบ YYYY-MM-DD (ปี ค.ศ.) เช่น 2026-09-08
 //
 // ใช้ "วันที่ส่งจริง" (GeneratedAt) ไม่ใช่วันจันทร์ของสัปดาห์
 // เพราะถ้าส่งวันอังคารที่ 8 แต่ชื่อไฟล์ขึ้น 2026-09-07 คนรับจะงงว่าไฟล์เก่าหรือเปล่า
 //
-// ถ้า GeneratedAt ยังไม่ได้ตั้งค่า (zero) จะถอยไปใช้เวลาปัจจุบัน
-// และถ้ายังไม่ได้อีกก็ใช้ WeekKey เป็นตัวสำรองสุดท้าย
+// แปลงเป็นโซนเวลาเดียวกับช่วงสัปดาห์ของรายงานก่อนเสมอ (เหมือนหัวอีเมล)
+// ชื่อไฟล์กับหัวอีเมลจึงได้วันที่เดียวกันเสมอ แม้เวลาส่งจะถูกเก็บเป็น UTC
+//
+// ถ้า GeneratedAt ยังไม่ได้ตั้งค่า (zero) จะถอยไปใช้ WeekKey
+// และถ้ายังไม่มีอีกก็ใช้เวลาปัจจุบันเป็นตัวสำรองสุดท้าย
 func (r WeeklyReport) FileDateKey() string {
 	if !r.GeneratedAt.IsZero() {
-		return r.GeneratedAt.Format("2006-01-02")
+		sent := r.GeneratedAt
+		if !r.PeriodStart.IsZero() {
+			sent = sent.In(r.PeriodStart.Location())
+		}
+		return sent.Format("2006-01-02")
 	}
 	if r.WeekKey != "" {
 		return r.WeekKey
