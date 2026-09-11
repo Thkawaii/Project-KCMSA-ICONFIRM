@@ -545,11 +545,7 @@ export default function QAMachineList() {
 
       <div className="qa-filter-card">
         <div className="qa-filter-top">
-          <PeriodRangePicker mode={periodMode} onModeChange={handlePeriodModeChange} anchor={periodAnchor} onAnchorChange={setPeriodAnchor} min={dateBounds.min} max={dateBounds.max} label="ช่วงวันที่ยืนยัน (สำหรับ Check Sheet)" countLabel={`${filtered.length} รายการ`} />
-          {periodMode !== 'all' && <button type="button" className="qa-clear-btn" onClick={clearDateFilter}>
-              <XMarkIcon className="size-4" />
-              ล้างช่วง
-            </button>}
+          <PeriodRangePicker mode={periodMode} onModeChange={handlePeriodModeChange} anchor={periodAnchor} onAnchorChange={setPeriodAnchor} min={dateBounds.min} max={dateBounds.max} label="ช่วงวันที่ยืนยัน (สำหรับ Check Sheet)" countLabel={`${filtered.length} รายการ`} onClear={clearDateFilter} />
         </div>
 
         <div className="qa-export-actions">

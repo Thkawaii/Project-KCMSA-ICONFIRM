@@ -1,44 +1,111 @@
+/* ==========================================================================
+   ตัวเลือกช่วงวันที่ (QA / Export License)
+   --------------------------------------------------------------------------
+   --prp-h = ความสูงเดียวกันของ ปุ่มโหมด / ช่องวันที่ / ป้ายช่วง / ปุ่มล้างช่วง
+   ทุกช่องสูงเท่ากัน + หัวข้อสูงเท่ากัน + จัดชิดล่าง → หัวข้อและปุ่มเรียงตรงกันทั้งแถว
+   จอสัมผัส (iPad / Surface) ใช้ 44px ตามขนาดปุ่มกดด้วยนิ้วที่แนะนำ
+   ========================================================================== */
 .prp {
+  --prp-h: 42px;
   display: flex;
   align-items: flex-end;
-  gap: 14px 18px;
+  gap: 12px 16px;
   flex-wrap: wrap;
+  min-width: 0;
+}
+
+@media (pointer: coarse) {
+  .prp {
+    --prp-h: 44px;
+  }
+}
+
+/* การ์ดครอบตัวเลือกช่วงวันที่ — ใช้ในหน้า WH (ประวัติการสแกน) และ MFG (Matching Assembly)
+   หน้าตาเดียวกับการ์ดตัวกรองของหน้า QA / Export License */
+.prp-card {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--card-border, #e2e8f0);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+@media (max-width: 640px) {
+  .prp-card {
+    padding: 16px;
+  }
 }
 
 .prp-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .prp-label {
+  display: block;
   font-size: 12px;
   font-weight: 600;
+  line-height: 16px;
+  height: 16px;
   color: var(--text-secondary, #5b6b82);
   letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.prp-modes {
+/* .vr-tabs ใน AppShell.css มี margin-bottom: 20px และโหลดทีหลัง
+   ต้องเพิ่ม specificity ไม่งั้นแถบโหมดลอยสูงกว่าช่องวันที่ 20px (หัวข้อจึงไม่ตรงกัน) */
+.prp .prp-modes {
+  display: inline-flex;
+  align-items: stretch;
+  height: var(--prp-h);
+  box-sizing: border-box;
   margin-bottom: 0;
-  flex-wrap: wrap;
+  padding: 4px;
+  flex-wrap: nowrap;
+  max-width: 100%;
 }
 
-.prp-mode {
-  padding: 7px 14px;
+.prp .prp-mode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
   font-size: 13px;
+  line-height: 1;
   white-space: nowrap;
 }
 
 .prp-anchor .dpf {
-  min-width: 190px;
+  width: 228px;
+  min-width: 0;
+}
+
+.prp .dpf-trigger {
+  height: var(--prp-h);
+}
+
+/* ป้ายช่วง + ปุ่มล้างช่วง — ไปด้วยกันเสมอ ถ้าขึ้นแถวใหม่ ป้ายชิดซ้าย ปุ่มชิดขวา */
+.prp-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  flex: 1 1 300px;
+  min-width: 0;
 }
 
 .prp-chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  align-self: flex-end;
-  padding: 8px 14px;
+  height: var(--prp-h);
+  box-sizing: border-box;
+  padding: 0 14px;
   border-radius: 999px;
   background: var(--brand-50, #eafcfb);
   border: 1px solid var(--brand-200, #9deeea);
@@ -46,6 +113,7 @@
   font-size: 13px;
   font-weight: 600;
   line-height: 1.2;
+  min-width: 0;
   max-width: 100%;
 }
 
@@ -58,37 +126,69 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .prp-chip-count {
+  flex: 0 0 auto;
   padding-left: 10px;
   margin-left: 2px;
   border-left: 1px solid var(--brand-200, #9deeea);
   color: var(--brand-700, #0f8580);
   font-weight: 700;
+  white-space: nowrap;
 }
 
+.prp-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: var(--prp-h);
+  box-sizing: border-box;
+  padding: 0 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #475569;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.prp-clear:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.prp-clear:focus-visible {
+  outline: 2px solid var(--brand-500, #06e0d4);
+  outline-offset: 2px;
+}
+
+/* มือถือ / จอแคบมาก: เรียงลงทีละช่องเต็มความกว้าง */
 @media (max-width: 640px) {
   .prp {
     align-items: stretch;
     gap: 12px;
   }
-  .prp-field {
-    width: 100%;
-  }
-  .prp-modes {
-    width: 100%;
-  }
-  .prp-mode {
-    flex: 1 1 auto;
-    text-align: center;
-  }
+  .prp-field,
   .prp-anchor .dpf {
     width: 100%;
-    min-width: 0;
   }
-  .prp-chip {
-    align-self: stretch;
-    justify-content: center;
+  .prp .prp-modes {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .prp .prp-mode {
+    flex: 1 0 auto;
+  }
+  .prp-summary {
+    flex-basis: 100%;
   }
 }

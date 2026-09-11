@@ -3,7 +3,8 @@ import { getMFGAssemblies, scanMFGAssembly, createMFGAssembly, updateMFGAssembly
 import { API_BASE_URL } from '../api/client.js';
 import { getMachinePlans, indexMachinePlans, lookupMachinePlan } from '../api/machinePlans.js';
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js';
-import { inDateTab, DATE_TAB_OPTIONS } from '../lib/dateRange.js';
+import { inPeriod } from '../lib/dateRange.js';
+import PeriodRangePicker from '../components/PeriodRangePicker.jsx';
 import { scanStep, scanLoading, scanClose, scanCloseWait, scanSuccessToast, scanErrorAlert, scanPhotoCapture } from '../lib/scanPopup.js';
 import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, QrCodeIcon, CameraIcon, ArrowUpTrayIcon, ArrowsRightLeftIcon, XMarkIcon, DocumentTextIcon, CubeIcon, ClockIcon, TagIcon, WrenchScrewdriverIcon } from '../components/icons.jsx';
 import AppShell from '../components/AppShell.jsx';
@@ -99,12 +100,28 @@ function parseAssemblyCode(raw) {
     itControllerNo: tokens[1] || ''
   };
 }
+// วันนี้ในรูปแบบ YYYY-MM-DD (เวลาเครื่อง)
+function todayYMD() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 export default function MFGAssemblyPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
-  const [dateTab, setDateTab] = useState('all');
+  // ---- ตัวกรองช่วงวันที่ (เหมือนหน้า QA): ทั้งหมด / รายวัน / รายสัปดาห์ / รายเดือน / รายปี + เลือกวันจากปฏิทิน ----
+  // เลือกโหมดครั้งแรกโดยยังไม่ได้เลือกวัน = นับจาก "วันนี้" (ความหมายเดิมของแท็บ รายวัน/รายสัปดาห์/รายเดือน)
+  const [periodMode, setPeriodMode] = useState('all');
+  const [periodAnchor, setPeriodAnchor] = useState('');
+  function handlePeriodModeChange(next) {
+    setPeriodMode(next);
+    if (next !== 'all' && !periodAnchor) setPeriodAnchor(todayYMD());
+  }
+  function clearPeriod() {
+    setPeriodMode('all');
+    setPeriodAnchor('');
+  }
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
@@ -163,7 +180,7 @@ export default function MFGAssemblyPage() {
   }
   useEffect(() => {
     setPage(1);
-  }, [search, pageSize, dateTab]);
+  }, [search, pageSize, periodMode, periodAnchor]);
   useEffect(() => {
     let buffer = '';
     let flushTimer = null;
@@ -176,6 +193,8 @@ export default function MFGAssemblyPage() {
       if (busyRef.current) return;
       const tag = (e.target?.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      // ปุ่มในปฏิทินเลือกวันที่ (ไม่ใช่ input) ก็ไม่ใช่การยิงบาร์โค้ด
+      if (e.target?.closest?.('[data-scan-ignore]')) return;
       if (e.key === 'Enter') {
         if (flushTimer) clearTimeout(flushTimer);
         fireBuffered();
@@ -409,8 +428,8 @@ export default function MFGAssemblyPage() {
     // รายการที่ไม่ตรง (NOT_MATCHED / DUPLICATE / RETIRED_FORMAT ฯลฯ) ยังถูกบันทึกลงฐานข้อมูลตามปกติ
     // เพียงแต่ไม่แสดงในตาราง Matching Assembly นี้
     let list = rows.filter(r => (r.Status || '') === 'MATCHED');
-    if (dateTab !== 'all') {
-      list = list.filter(r => inDateTab(r.CheckDate, dateTab));
+    if (periodMode !== 'all') {
+      list = list.filter(r => r.CheckDate && inPeriod(r.CheckDate, periodMode, periodAnchor));
     }
     const term = search.trim().toLowerCase();
     if (term) {
@@ -421,7 +440,7 @@ export default function MFGAssemblyPage() {
       const tb = b.CheckDate ? new Date(b.CheckDate).getTime() : -Infinity;
       return tb - ta;
     });
-  }, [rows, search, dateTab]);
+  }, [rows, search, periodMode, periodAnchor]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
   function goToPage(p) {
@@ -431,11 +450,6 @@ export default function MFGAssemblyPage() {
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">Matching Assembly</h2>
-        </div>
-        <div className="vr-tabs">
-          {DATE_TAB_OPTIONS.map(tab => <button key={tab.key} className={'vr-tab' + (dateTab === tab.key ? ' vr-tab-active' : '')} onClick={() => setDateTab(tab.key)}>
-              {tab.label}
-            </button>)}
         </div>
       </div>
 
@@ -454,6 +468,10 @@ export default function MFGAssemblyPage() {
             <img className="pc-barcode-img" src={bcMachine} alt="บาร์โค้ด Machine" />
           </div>
         </div>
+      </div>
+
+      <div className="prp-card">
+        <PeriodRangePicker mode={periodMode} onModeChange={handlePeriodModeChange} anchor={periodAnchor} onAnchorChange={setPeriodAnchor} label="ช่วงวันที่ตรวจสอบ (Check Date)" countLabel={`${filtered.length} รายการ`} onClear={clearPeriod} />
       </div>
 
       {loadError && <p className="form-error" role="alert">
