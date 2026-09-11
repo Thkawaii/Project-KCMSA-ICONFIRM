@@ -13,7 +13,7 @@ import { useAppParams } from '../lib/nav.jsx';
 import { buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js';
 import PeriodRangePicker from '../components/PeriodRangePicker.jsx';
 import { inPeriod, periodRangeLabel, periodFileTag } from '../lib/dateRange.js';
-import { ArrowPathIcon, CheckBadgeIcon, CheckBadgeSolidIcon, CheckCircleIcon, CheckIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardDocumentCheckIcon, ClockIcon, CubeIcon, DocumentTextIcon, MinusIcon, RectangleStackIcon, ReceiptPercentIcon, ShieldCheckIcon, Squares2X2Icon, TagIcon, TruckIcon, WrenchScrewdriverIcon, XMarkIcon } from '../components/icons.jsx';
+import { ArrowPathIcon, CheckBadgeIcon, CheckBadgeSolidIcon, CheckCircleIcon, CheckIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardDocumentCheckIcon, ClockIcon, CubeIcon, DocumentTextIcon, MinusIcon, RectangleStackIcon, ReceiptPercentIcon, ShieldCheckIcon, Squares2X2Icon, TagIcon, TruckIcon, WrenchScrewdriverIcon, XMarkIcon } from '../components/icons.jsx';
 export const WH_NAV_ITEMS = [{
   to: '/warehouse',
   label: 'Import License',
@@ -127,13 +127,15 @@ function CompletedOptionIcon() {
 // ---------------------------------------------------------------------------
 const ALL_COUNTRIES = 'all';
 const NO_COUNTRY = '__no_country__';
+// ข้อความเดียวกันทุกที่ที่ไม่มีประเทศ: ตัวกรอง / ตาราง / ป๊อปอัปรายละเอียด / ชื่อชีตใน Excel
+const NO_COUNTRY_LABEL = 'ไม่ระบุประเทศ';
 function countryKey(value) {
   const key = String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
   return key || NO_COUNTRY;
 }
 // "INDONESIA" -> "Indonesia", "SOUTH AFRICA" -> "South Africa"
 function countryLabel(key) {
-  if (key === NO_COUNTRY) return 'ไม่ระบุประเทศ';
+  if (key === NO_COUNTRY) return NO_COUNTRY_LABEL;
   return key.toLowerCase().replace(/(^|[\s-])(\S)/g, (_, sep, ch) => sep + ch.toUpperCase());
 }
 function buildCountryOptions(values) {
@@ -148,6 +150,39 @@ function buildCountryOptions(values) {
     value: k,
     label: countryLabel(k)
   }))];
+}
+
+// ---------------------------------------------------------------------------
+// เลข Invoice / ใบขนสินค้าขาออก บนแถบใบอนุญาตส่งออก
+//
+// ใบเดียวอาจมีหลายสิบ Invoice — เดิมเรียงต่อกันยาวจนล้นหลายบรรทัดและดันปุ่มตกลงไปอีกแถว
+// ตอนนี้ย่อเหลือบรรทัดเดียว: โชว์เลขแรก + "+N" ที่เหลือ แล้วกด "ดูทั้งหมด" เพื่อกางรายการเต็ม
+// (เอาเมาส์ชี้ค้างที่บรรทัดก็เห็นรายการเต็มได้เหมือนกัน)
+// ---------------------------------------------------------------------------
+function LicenseRefSummary({
+  label,
+  values
+}) {
+  return <span className="il-ref-seg">
+      {label} <span className="il-ref-first">{values[0] || '—'}</span>
+      {values.length > 1 && <span className="il-ref-more">+{values.length - 1}</span>}
+    </span>;
+}
+function LicenseRefList({
+  label,
+  values
+}) {
+  if (values.length === 0) return null;
+  return <div className="il-ref-list">
+      <span className="il-ref-list-label">
+        {label} <span className="il-ref-list-count">{values.length}</span>
+      </span>
+      <div className="il-ref-chips">
+        {values.map(v => <span key={v} className="il-ref-chip il-mono">
+            {v}
+          </span>)}
+      </div>
+    </div>;
 }
 
 // ช่องติ๊กเลือกแถว — ใช้ input จริงเพื่อให้กด/โฟกัส/อ่านหน้าจอได้ตามมาตรฐาน
@@ -866,7 +901,9 @@ export default function ImportLicensePage() {
                     {row.ProductionNo || '—'}
                   </td>
                   <td data-label="หมายเหตุ">{row.Remark || '—'}</td>
-                  <td data-label="ส่งออกไปประเทศ">{row.ExportCountry || '—'}</td>
+                  <td data-label="ส่งออกไปประเทศ">
+                    {row.ExportCountry || <span className="il-no-country">{NO_COUNTRY_LABEL}</span>}
+                  </td>
                   <td data-label="คอลัมน์เพิ่ม">
                     <ExtraColumnsCell json={row.extra_json} />
                   </td>
@@ -1041,7 +1078,7 @@ function ImportDetailModal({
             {item('ตราอักษร', row.Brand)}
             {item('แบบ/รุ่น', row.Model)}
             {item('จำนวน (เครื่อง)', row.Qty)}
-            {item('ส่งออกไปประเทศ', row.ExportCountry)}
+            {item('ส่งออกไปประเทศ', row.ExportCountry || NO_COUNTRY_LABEL)}
           </div>
         </div>
 
@@ -1314,7 +1351,7 @@ function ExportTraceModal({
             {item('Machine No', row.MachineNo)}
             {item('IT Controller S/N', row.ITControllerNo || row.SerialNumber)}
             {itemAlways('Serial Number', data?.masterData?.SerialNo)}
-            {item('ประเทศปลายทาง', country)}
+            {item('ประเทศปลายทาง', country || NO_COUNTRY_LABEL)}
           </div>
         </div>
 
@@ -1496,16 +1533,18 @@ export function WHExportLicensePanel() {
         toastError('ไม่มีรายการให้ Export');
         return;
       }
-      const UNKNOWN = 'ไม่ระบุประเทศ';
+      // จัดกลุ่มด้วย countryKey (ไม่สนตัวพิมพ์เล็ก/ใหญ่) ไม่ใช่ชื่อดิบจากไฟล์
+      // เดิม "Indonesia" กับ "INDONESIA" ถูกแยกเป็น 2 ชีต แต่ Excel ถือว่าชื่อชีตซ้ำกัน (ไม่แยกตัวพิมพ์)
+      // พอเปิดไฟล์ Excel จึงเด้งให้ซ่อมไฟล์ แล้วเปลี่ยนชื่อชีตที่ซ้ำเป็น "Recovered_Sheet1", "Recovered_Sheet2"
       const groups = new Map();
       list.forEach(r => {
-        const key = countryOf(r) || UNKNOWN;
+        const key = countryKey(countryOf(r));
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(r);
       });
       const countryNames = Array.from(groups.keys()).sort((a, b) => {
-        if (a === UNKNOWN) return 1;
-        if (b === UNKNOWN) return -1;
+        if (a === NO_COUNTRY) return 1;
+        if (b === NO_COUNTRY) return -1;
         return a.localeCompare(b);
       });
       const baseColumns = [{
@@ -1599,7 +1638,7 @@ export function WHExportLicensePanel() {
           });
         }
         return {
-          sheetName: country,
+          sheetName: countryLabel(country),
           columns: [...baseColumns, ...extraColumns],
           rows: list.map((r, i) => {
             const exp = computeExportExpiry(r);
@@ -1621,7 +1660,7 @@ export function WHExportLicensePanel() {
               exportEntry: dash2(r.ExportEntry),
               importLicenseNo: dash2(r.ImportLicenseNo),
               exportLicenseNo: dash2(r.ExportLicenseNo || r.ExceptionLicense),
-              country: country === UNKNOWN ? '—' : country,
+              country: countryLabel(country),
               remark: dash2(r.Remark)
             };
             extra.spread.forEach((label, idx) => {
@@ -1968,6 +2007,13 @@ export function WHExportLicensePanel() {
     };
   }, [rows]);
   const currentLicenseCompletedAll = currentLicenseRows.length > 0 && currentLicenseRows.every(isLicenseCompleted);
+  // กางรายการ Invoice / ใบขนสินค้าขาออกทั้งหมดของใบที่เลือก — เปลี่ยนใบแล้วย่อกลับอัตโนมัติ
+  const [refsOpen, setRefsOpen] = useState(false);
+  useEffect(() => {
+    setRefsOpen(false);
+  }, [exceptionFilter]);
+  const hasMoreRefs = currentLicenseInvoices.length > 1 || currentLicenseEntries.length > 1;
+  const refsTitle = [`Invoice (${currentLicenseInvoices.length}): ${currentLicenseInvoices.join(', ') || '—'}`, `ใบขนสินค้าขาออก (${currentLicenseEntries.length}): ${currentLicenseEntries.join(', ') || '—'}`].join('\n');
 
   async function applyComplete(completed) {
     const targets = completed ? selectedRows.filter(r => !isLicenseCompleted(r)) : selectedRows.filter(isLicenseCompleted);
@@ -2132,15 +2178,31 @@ export function WHExportLicensePanel() {
           </div>
         </div>}
 
-      {exceptionFilter !== 'all' && <div className="wh-so-active-bar il-license-bar">
+      {exceptionFilter !== 'all' && <div className={'wh-so-active-bar il-license-bar' + (refsOpen ? ' il-license-bar-open' : '')}>
           <div className="il-lot-info">
             <div className="il-lot-info-text">
               <span className="wh-so-active-label">ใบอนุญาตส่งออก</span>
               <h3 className="wh-so-active-name">{exceptionFilter || '(ไม่มีเลขใบอนุญาต)'}</h3>
-              <span className="wh-subtitle">
-                Invoice {currentLicenseInvoices.length > 0 ? currentLicenseInvoices.join(', ') : '—'} · ใบขนสินค้าขาออก{' '}
-                {currentLicenseEntries.length > 0 ? currentLicenseEntries.join(', ') : '—'} · {currentLicenseRows.length} เครื่อง
-              </span>
+              <div className="wh-subtitle il-lot-refs">
+                <span className="il-lot-refs-text" title={refsTitle}>
+                  <LicenseRefSummary label="Invoice" values={currentLicenseInvoices} />
+                  <span className="il-ref-sep" aria-hidden="true">·</span>
+                  <LicenseRefSummary label="ใบขนสินค้าขาออก" values={currentLicenseEntries} />
+                </span>
+                {/* จำนวนเครื่องอยู่นอกส่วนที่ถูกตัด … จอแคบจะตัดเลขใบขนแทน แต่ยังเห็นจำนวนเครื่องเสมอ */}
+                <span className="il-ref-count">
+                  <span className="il-ref-sep" aria-hidden="true">·</span>
+                  {currentLicenseRows.length} เครื่อง
+                </span>
+                {hasMoreRefs && <button type="button" className={'il-ref-toggle' + (refsOpen ? ' il-ref-toggle-open' : '')} onClick={() => setRefsOpen(v => !v)} aria-expanded={refsOpen}>
+                    {refsOpen ? 'ย่อ' : 'ดูทั้งหมด'}
+                    <ChevronDownIcon className="il-ref-toggle-icon" aria-hidden="true" />
+                  </button>}
+              </div>
+              {refsOpen && <div className="il-lot-refs-detail">
+                  <LicenseRefList label="Invoice" values={currentLicenseInvoices} />
+                  <LicenseRefList label="ใบขนสินค้าขาออก" values={currentLicenseEntries} />
+                </div>}
             </div>
             {currentLicenseCompletedAll && <span className="il-complete-stamp" title="ปิดงานทั้งใบแล้ว">
                 <CheckBadgeSolidIcon className="il-complete-stamp-icon" aria-hidden="true" />
@@ -2248,7 +2310,9 @@ export function WHExportLicensePanel() {
                   <td className="il-mono" data-label="IT Controller S/N">
                     {row.ITControllerNo || row.SerialNumber || '—'}
                   </td>
-                  <td data-label="Country">{countryOf(row) || '—'}</td>
+                  <td data-label="Country">
+                    {countryOf(row) || <span className="il-no-country">{NO_COUNTRY_LABEL}</span>}
+                  </td>
                   <td data-label="Invoice">
                     <div className="il-mono">{row.InvoiceNo || '—'}</div>
                     {row.InvoiceDate && <div className="il-invoice-date">
