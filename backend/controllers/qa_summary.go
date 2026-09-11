@@ -40,6 +40,10 @@ type QAConfirmedRow struct {
 	SpecCode   string `json:"specCode"`
 	SpecDetail string `json:"specDetail"`
 	ITDevice   string `json:"itDevice"`
+
+	// FormerCodes = รหัสรูปแบบเดิมของแถวนี้ (ก่อนเปลี่ยนใน Change Format Part)
+	// ใช้ให้ค้นหาด้วยรหัสเก่าในหน้า QA ได้ ส่วนคอลัมน์ในตารางแสดงรูปแบบปัจจุบันเสมอ
+	FormerCodes []string `json:"formerCodes,omitempty"`
 }
 
 // qaAssemblyIndexes สร้างดัชนีข้อมูลเครื่อง (รวมจาก ALL PART / Planning / WH1 / WH2 / Engine)
@@ -70,8 +74,48 @@ func GetQAConfirmedTable(c *gin.Context) {
 	plans := loadMachinePlans()
 	asmByMachine, asmByITC := qaAssemblyIndexes()
 
+	// Change Format Part: แผน / ทะเบียน / บัญชีใบอนุญาต เก็บ "ค่าเดิม"
+	// แต่แถว MFG / WH ที่สแกนหลังเปลี่ยนรูปแบบ เก็บ "รูปแบบใหม่"
+	// ทุกการค้นข้ามตารางจึงต้องลองทุกรูปแบบ และทุกค่าที่แสดงต้องเป็นรูปแบบปัจจุบัน
+	fmtIdx := loadCodeFormatIndex()
+
+	planByCode := map[string]string{}
+	for mc := range plans {
+		if k := NormalizeCodeValue(mc); k != "" {
+			if _, ok := planByCode[k]; !ok {
+				planByCode[k] = mc
+			}
+		}
+	}
+	planOf := func(machineNo string) map[string]string {
+		for _, v := range fmtIdx.variants(machineNo) {
+			if p, ok := plans[v]; ok {
+				return p
+			}
+			if key, ok := planByCode[NormalizeCodeValue(v)]; ok {
+				return plans[key]
+			}
+		}
+		return nil
+	}
+	asmOf := func(machineNo, itc string) map[string]string {
+		for _, v := range fmtIdx.variants(machineNo) {
+			if a, ok := asmByMachine[v]; ok {
+				return a
+			}
+		}
+		for _, v := range fmtIdx.variants(itc) {
+			if a, ok := asmByITC[v]; ok {
+				return a
+			}
+		}
+		return nil
+	}
+
 	out := make([]QAConfirmedRow, 0, len(mfgRows))
-	seen := map[string]bool{}
+	// คีย์แบบไม่สนรูปแบบ → ตำแหน่งใน out
+	// แถวที่บันทึกก่อนและหลังเปลี่ยนรูปแบบของพาร์ทชิ้นเดียวกันจะรวมเป็นแถวเดียว (เลือกแถว MATCHED ก่อน)
+	indexByKey := map[string]int{}
 
 	for _, m := range mfgRows {
 		serial := strings.TrimSpace(m.ITControllerNo)
@@ -79,22 +123,39 @@ func GetQAConfirmedTable(c *gin.Context) {
 			continue
 		}
 
+		// log การสแกนซ้ำ / log รหัสรูปแบบเก่าที่ถูกยกเลิก ไม่ใช่การประกอบจริง
+		status := strings.ToUpper(strings.TrimSpace(m.Status))
+		if status == models.MFGStatusDuplicate || status == models.MFGStatusRetiredFormat {
+			continue
+		}
+
 		machineNo := strings.TrimSpace(m.MachineNo)
-		plan := plans[machineNo]
+		plan := planOf(machineNo)
 
 		component := strings.ToUpper(strings.TrimSpace(m.Component))
 		if component == "" {
-			component = DetectComponentFromPlan(plan, serial)
+			for _, v := range fmtIdx.variants(serial) {
+				if component = DetectComponentFromPlan(plan, v); component != "" {
+					break
+				}
+			}
 		}
 		if component == "" {
-			component = DetectComponentType(serial)
+			for _, v := range fmtIdx.variants(serial) {
+				if component = DetectComponentType(v); component != "" {
+					break
+				}
+			}
 		}
 
-		key := component + "|" + machineNo + "|" + serial
-		if seen[key] {
+		displayMachine := fmtIdx.current(machineNo)
+		displaySerial := fmtIdx.current(serial)
+
+		key := component + "|" + NormalizeCodeValue(displayMachine) + "|" + NormalizeCodeValue(displaySerial)
+		existingIdx, seen := indexByKey[key]
+		if seen && out[existingIdx].Status == models.MFGStatusMatched {
 			continue
 		}
-		seen[key] = true
 
 		pc := findWHPartCheck(component, serial)
 		if pc == nil {
@@ -106,7 +167,7 @@ func GetQAConfirmedTable(c *gin.Context) {
 		displayITC := ""
 		if component == ComponentITC || component == "" {
 			lookupITC = serial
-			displayITC = serial
+			displayITC = displaySerial
 		}
 
 		row := QAConfirmedRow{
@@ -114,7 +175,7 @@ func GetQAConfirmedTable(c *gin.Context) {
 			Component:      component,
 			ComponentLabel: ComponentLabel(component),
 			PartName:       ComponentLabel(component),
-			MachineNo:      machineNo,
+			MachineNo:      displayMachine,
 			ITControllerNo: displayITC,
 			PartNo:         strings.TrimSpace(pc.PN),
 			SerialNo:       strings.TrimSpace(pc.SN),
@@ -138,9 +199,9 @@ func GetQAConfirmedTable(c *gin.Context) {
 		}
 
 		if component == ComponentITC {
-			enrichQARowFromMaster(&row, serial)
+			enrichQARowFromMaster(&row, fmtIdx.variants(serial))
 		}
-		enrichQARowFromLicense(&row, pc, lookupITC)
+		enrichQARowFromLicense(&row, pc, fmtIdx.variants(lookupITC))
 
 		if row.Model == "" && plan != nil {
 			row.Model = planValue(plan,
@@ -154,19 +215,28 @@ func GetQAConfirmedTable(c *gin.Context) {
 			row.ExportCountry = strings.TrimSpace(m.Country)
 		}
 
-		var asm map[string]string
-		if a, ok := asmByMachine[machineNo]; ok {
-			asm = a
-		} else if a, ok := asmByITC[lookupITC]; ok {
-			asm = a
-		}
-		if asm != nil {
+		if asm := asmOf(machineNo, lookupITC); asm != nil {
 			row.AsmModel = strings.TrimSpace(asm["Assembly_Parts_Name"])
 			row.SpecCode = strings.TrimSpace(asm["Spec Code"])
 			row.SpecDetail = strings.TrimSpace(asm["Specification Detail"])
 			row.ITDevice = strings.TrimSpace(asm["IT device"])
 		}
 
+		// แสดงรหัสทุกช่องเป็นรูปแบบปัจจุบัน (ค่าจากทะเบียน / แถว WH เก่ายังเป็นรูปแบบเดิม)
+		row.PartNo = fmtIdx.current(row.PartNo)
+		row.SerialNo = fmtIdx.current(row.SerialNo)
+		row.IMEI = fmtIdx.current(row.IMEI)
+		row.FormerCodes = dedupeCodes(append(append(append(
+			fmtIdx.formerCodes(machineNo),
+			fmtIdx.formerCodes(serial)...),
+			fmtIdx.formerCodes(row.PartNo)...),
+			fmtIdx.formerCodes(row.SerialNo)...)...)
+
+		if seen {
+			out[existingIdx] = row
+			continue
+		}
+		indexByKey[key] = len(out)
 		out = append(out, row)
 	}
 
@@ -180,9 +250,12 @@ func qaStatusOf(status string) string {
 	return models.MFGStatusMatched
 }
 
-func enrichQARowFromMaster(row *QAConfirmedRow, itcNo string) {
+func enrichQARowFromMaster(row *QAConfirmedRow, itcVariants []string) {
+	if len(itcVariants) == 0 {
+		return
+	}
 	var md models.MasterData
-	if config.DB.Where("it_controller_no = ?", itcNo).First(&md).Error != nil {
+	if config.DB.Where("it_controller_no IN ?", itcVariants).First(&md).Error != nil {
 		return
 	}
 
@@ -203,15 +276,15 @@ func enrichQARowFromMaster(row *QAConfirmedRow, itcNo string) {
 	}
 }
 
-func enrichQARowFromLicense(row *QAConfirmedRow, pc *models.PartCheck, itcNo string) {
+func enrichQARowFromLicense(row *QAConfirmedRow, pc *models.PartCheck, itcVariants []string) {
 	var lic models.ImportLicenseItem
 	found := false
 
 	if pc.ImportLicenseItemID != nil {
 		found = config.DB.First(&lic, *pc.ImportLicenseItemID).Error == nil
 	}
-	if !found && strings.TrimSpace(itcNo) != "" {
-		found = config.DB.Where("machine_no = ?", itcNo).First(&lic).Error == nil
+	if !found && len(itcVariants) > 0 {
+		found = config.DB.Where("machine_no IN ?", itcVariants).First(&lic).Error == nil
 	}
 	if !found {
 		return

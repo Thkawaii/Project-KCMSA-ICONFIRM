@@ -213,7 +213,7 @@ export default function QAMachineList() {
       if ((r.status || 'MATCHED') !== 'MATCHED') return false;
       if (r.matchStatus !== 'MATCH') return false;
       if (q) {
-        const matchesSearch = [r.partName, r.componentLabel, r.component, r.model, r.asmModel, r.specCode, r.specDetail, r.itDevice, r.machineNo, r.partNo, r.serialNo, r.itControllerNo, r.imei, r.licenseNo, r.invoiceNo].some(v => (v || '').toLowerCase().includes(q));
+        const matchesSearch = [r.partName, r.componentLabel, r.component, r.model, r.asmModel, r.specCode, r.specDetail, r.itDevice, r.machineNo, r.partNo, r.serialNo, r.itControllerNo, r.imei, r.licenseNo, r.invoiceNo, ...(r.formerCodes || [])].some(v => (v || '').toLowerCase().includes(q));
         if (!matchesSearch) return false;
       }
       if (periodMode !== 'all') {

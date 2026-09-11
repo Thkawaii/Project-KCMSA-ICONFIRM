@@ -337,21 +337,93 @@ func TestWeekOfMonthAndLabel(t *testing.T) {
 	}
 }
 
-// สัปดาห์ที่คร่อม 2 เดือน ต้องถูกนับเป็นของเดือนที่มีวันมากกว่า
-func TestWeekOfMonthHandlesMonthBoundary(t *testing.T) {
+// หัวอีเมลต้องยึดเดือน/ปีของ "วันที่ส่งจริง" และลำดับสัปดาห์ตามแถวปฏิทิน (เริ่มวันจันทร์)
+// รวมถึงสัปดาห์ที่คร่อมเดือนและคร่อมปี และไม่มีสัปดาห์ที่ 6
+func TestWeekLabelFollowsSendDate(t *testing.T) {
+	cases := []struct {
+		sent time.Time
+		want string
+	}{
+		{time.Date(2026, 9, 7, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 2 ของเดือนกันยายน 2569"},
+		{time.Date(2026, 9, 11, 10, 0, 0, 0, testLoc), "สัปดาห์ที่ 2 ของเดือนกันยายน 2569"},
+		{time.Date(2026, 9, 1, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 1 ของเดือนกันยายน 2569"},
+		// สัปดาห์ 28 ก.ย. – 4 ต.ค. ส่งวันที่ 28 ก.ย. ต้องเป็นของเดือนกันยายน
+		{time.Date(2026, 9, 28, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 5 ของเดือนกันยายน 2569"},
+		// สัปดาห์เดียวกัน แต่ส่งช้าไปเป็นวันที่ 1 ต.ค. (เช่น เซิร์ฟเวอร์ปิดอยู่) ก็ต้องตามวันที่ส่ง
+		{time.Date(2026, 10, 1, 9, 0, 0, 0, testLoc), "สัปดาห์ที่ 1 ของเดือนตุลาคม 2569"},
+		// เดือนมีสูงสุด 5 สัปดาห์: ส.ค. / พ.ย. / มี.ค. 2569 ปฏิทินมี 6 แถว แถวสุดท้ายนับเป็นสัปดาห์ที่ 5
+		{time.Date(2026, 8, 31, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 5 ของเดือนสิงหาคม 2569"},
+		{time.Date(2026, 11, 30, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 5 ของเดือนพฤศจิกายน 2569"},
+		{time.Date(2026, 3, 30, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 5 ของเดือนมีนาคม 2569"},
+		{time.Date(2026, 11, 23, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 5 ของเดือนพฤศจิกายน 2569"},
+		// คร่อมปี: ส่งวันที่ 29 ธ.ค. 2568 ต้องยังเป็นปี 2568
+		{time.Date(2025, 12, 29, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 5 ของเดือนธันวาคม 2568"},
+		{time.Date(2026, 12, 28, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 5 ของเดือนธันวาคม 2569"},
+	}
+
+	for _, c := range cases {
+		r := sampleReport()
+		r.BuddhistEra = true
+		r.GeneratedAt = c.sent
+		r.PeriodStart, r.PeriodEnd = WeekBounds(c.sent)
+
+		if got := r.WeekLabel(); got != c.want {
+			t.Errorf("ส่ง %s: ได้ %q ต้องเป็น %q", c.sent.Format("2006-01-02"), got, c.want)
+		}
+	}
+}
+
+// เวลาส่งที่เก็บไว้เป็น UTC ต้องถูกแปลงเป็นเวลาไทยก่อนนับวันที่
+// 00:30 วันจันทร์ที่ 7 ก.ย. เวลาไทย = 17:30 วันอาทิตย์ที่ 6 ก.ย. ใน UTC
+func TestWeekLabelUsesReportTimezone(t *testing.T) {
+	sentTH := time.Date(2026, 9, 7, 0, 30, 0, 0, testLoc)
+
 	r := sampleReport()
 	r.BuddhistEra = true
+	r.PeriodStart, r.PeriodEnd = WeekBounds(sentTH)
+	r.GeneratedAt = sentTH.UTC()
 
-	// 31 ส.ค. – 6 ก.ย. 2026 มีวันพฤหัสบดีตรงกับ 3 ก.ย. จึงเป็นสัปดาห์แรกของเดือนกันยายน
-	r.PeriodStart = time.Date(2026, 8, 31, 0, 0, 0, 0, testLoc)
+	if got := r.WeekLabel(); got != "สัปดาห์ที่ 2 ของเดือนกันยายน 2569" {
+		t.Fatalf("ต้องนับตามเวลาไทย: %s", got)
+	}
+}
 
-	if got := r.WeekOfMonth(); got != 1 {
-		t.Fatalf("ลำดับสัปดาห์ผิด: %d", got)
+// ชื่อไฟล์แนบต้องเป็นวันที่ส่งจริงตามเวลาไทย และตรงกับวันที่ที่ใช้ทำหัวอีเมลเสมอ
+func TestAttachmentFileNameFollowsSendDate(t *testing.T) {
+	cases := []struct {
+		sent time.Time
+		want string
+	}{
+		{time.Date(2026, 9, 11, 10, 0, 0, 0, testLoc), "2026-09-11"},
+		{time.Date(2026, 9, 30, 23, 59, 0, 0, testLoc), "2026-09-30"},
+		{time.Date(2026, 10, 1, 0, 5, 0, 0, testLoc), "2026-10-01"},
+		{time.Date(2025, 12, 31, 23, 50, 0, 0, testLoc), "2025-12-31"},
+		{time.Date(2028, 2, 29, 8, 30, 0, 0, testLoc), "2028-02-29"},
 	}
-	if got := r.MonthName(); got != "กันยายน" {
-		t.Fatalf("ชื่อเดือนผิด: %s", got)
+
+	for _, c := range cases {
+		for _, stored := range []time.Time{c.sent, c.sent.UTC()} {
+			r := sampleReport()
+			r.PeriodStart, r.PeriodEnd = WeekBounds(c.sent)
+			r.GeneratedAt = stored
+
+			if got := BuildXLSX(r).FileName; got != "license-weekly-alert-"+c.want+".xlsx" {
+				t.Errorf("ส่ง %s (เก็บเป็น %s): ชื่อไฟล์ %s", c.sent.Format("2006-01-02 15:04"), stored.Location(), got)
+			}
+			if got := BuildCSV(r).FileName; got != "license-weekly-alert-"+c.want+".csv" {
+				t.Errorf("ส่ง %s (เก็บเป็น %s): ชื่อไฟล์ %s", c.sent.Format("2006-01-02 15:04"), stored.Location(), got)
+			}
+		}
 	}
-	if got := r.WeekLabel(); got != "สัปดาห์ที่ 1 ของเดือนกันยายน 2569" {
+}
+
+// ไม่มีวันที่ส่ง (เช่น สร้างรายงานด้วยมือ) ต้องถอยไปใช้วันจันทร์ต้นสัปดาห์
+func TestWeekLabelWithoutSendDate(t *testing.T) {
+	r := sampleReport()
+	r.BuddhistEra = true
+	r.GeneratedAt = time.Time{}
+
+	if got := r.WeekLabel(); got != "สัปดาห์ที่ 2 ของเดือนกันยายน 2569" {
 		t.Fatalf("ข้อความสัปดาห์ผิด: %s", got)
 	}
 }

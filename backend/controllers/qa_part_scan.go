@@ -26,7 +26,11 @@ type QAScanUnit struct {
 	Component      string `json:"component"`
 	ComponentLabel string `json:"componentLabel"`
 
-	PlannedNo string `json:"plannedNo"`
+	// PlannedNo แสดงเป็น "รูปแบบที่ใช้อยู่ตอนนี้" ตาม Change Format Part เสมอ
+	// PlannedNoFormer / MachineNoFormer = รูปแบบเดิมในไฟล์แผน (มีค่าเฉพาะเมื่อถูกเปลี่ยนรูปแบบแล้ว)
+	PlannedNo       string   `json:"plannedNo"`
+	PlannedNoFormer []string `json:"plannedNoFormer,omitempty"`
+	MachineNoFormer []string `json:"machineNoFormer,omitempty"`
 
 	// Scanned = WH สแกนแล้วและผลเป็น MATCH เท่านั้น
 	// ScanAttempted = เคยมีการสแกน แต่ผลอาจไม่ผ่าน (NOT_FOUND / WRONG_PART)
@@ -107,6 +111,11 @@ func GetQAPartScanSummary(c *gin.Context) {
 		}
 	}
 
+	// ตาราง Change Format Part — โหลดครั้งเดียว ใช้จับคู่ทุกรูปแบบของรหัสเดียวกัน
+	// แผน (Planning / Engine) เก็บ "ค่าเดิม" แต่ WH / MFG บันทึก "รูปแบบใหม่"
+	// ถ้าเทียบตรง ๆ จะหาไม่เจอ แล้วหน้า QA ขึ้น "ยังไม่สแกน / สแกนไม่ผ่าน" ทั้งที่ผ่านแล้ว
+	fmtIdx := loadCodeFormatIndex()
+
 	var checks []models.PartCheck
 	config.DB.Order("checked_datetime asc").Find(&checks)
 
@@ -114,6 +123,7 @@ func GetQAPartScanSummary(c *gin.Context) {
 	//   matched* = เฉพาะการสแกนที่ผลเป็น MATCH → ใช้ตัดสินว่า "สแกนแล้ว" จริง
 	//   latest*  = การสแกนล่าสุดทุกสถานะ       → ใช้บอกว่าเคยสแกนแต่ยังไม่ผ่าน
 	// และแยกอีกชั้นเป็นแบบผูก Machine No. (กันพาร์ทที่ใช้เลขเดียวกันหลายเครื่อง เช่น Engine P/N)
+	// ทุกคีย์ถูกลงดัชนีด้วย "ทุกรูปแบบ" ของรหัส (ค่าเดิม + รูปแบบใหม่)
 	matchedCheckByMachine := map[string]models.PartCheck{}
 	matchedCheckByNo := map[string]models.PartCheck{}
 	latestCheckByMachine := map[string]models.PartCheck{}
@@ -126,49 +136,62 @@ func GetQAPartScanSummary(c *gin.Context) {
 		}
 
 		isMatch := strings.EqualFold(strings.TrimSpace(ck.MatchStatus), models.MatchStatusMatch)
-		mcKey := qaScanKey(ck.MachineNo)
+		mcKeys := fmtIdx.scanKeys(ck.MachineNo)
 
 		for _, raw := range []string{ck.SN, ck.PN, ck.MachineNo} {
-			k := qaScanKey(raw)
-			if k == "" {
-				continue
-			}
-
-			latestCheckByNo[comp+"|"+k] = ck
-			if isMatch {
-				matchedCheckByNo[comp+"|"+k] = ck
-			}
-			if mcKey != "" {
-				latestCheckByMachine[comp+"|"+mcKey+"|"+k] = ck
+			for _, k := range fmtIdx.scanKeys(raw) {
+				latestCheckByNo[comp+"|"+k] = ck
 				if isMatch {
-					matchedCheckByMachine[comp+"|"+mcKey+"|"+k] = ck
+					matchedCheckByNo[comp+"|"+k] = ck
+				}
+				for _, mcKey := range mcKeys {
+					latestCheckByMachine[comp+"|"+mcKey+"|"+k] = ck
+					if isMatch {
+						matchedCheckByMachine[comp+"|"+mcKey+"|"+k] = ck
+					}
 				}
 			}
 		}
 	}
 
 	// คืนค่า (แถวที่เจอ, ผ่าน MATCH ไหม, เคยสแกนไหม)
+	// ลองทุกรูปแบบของทั้งเลขพาร์ทและ Machine No. ในแต่ละชั้น ก่อนถอยไปชั้นถัดไป
 	lookupCheck := func(comp, machineNo, planned string) (models.PartCheck, bool, bool) {
-		numKey := qaScanKey(planned)
-		if numKey == "" {
+		numKeys := fmtIdx.scanKeys(planned)
+		if len(numKeys) == 0 {
 			return models.PartCheck{}, false, false
 		}
-		mcKey := qaScanKey(machineNo)
+		mcKeys := fmtIdx.scanKeys(machineNo)
 
-		if mcKey != "" {
-			if ck, ok := matchedCheckByMachine[comp+"|"+mcKey+"|"+numKey]; ok {
-				return ck, true, true
+		byMachine := func(idx map[string]models.PartCheck) (models.PartCheck, bool) {
+			for _, mk := range mcKeys {
+				for _, nk := range numKeys {
+					if ck, ok := idx[comp+"|"+mk+"|"+nk]; ok {
+						return ck, true
+					}
+				}
 			}
+			return models.PartCheck{}, false
 		}
-		if ck, ok := matchedCheckByNo[comp+"|"+numKey]; ok {
+		byNo := func(idx map[string]models.PartCheck) (models.PartCheck, bool) {
+			for _, nk := range numKeys {
+				if ck, ok := idx[comp+"|"+nk]; ok {
+					return ck, true
+				}
+			}
+			return models.PartCheck{}, false
+		}
+
+		if ck, ok := byMachine(matchedCheckByMachine); ok {
 			return ck, true, true
 		}
-		if mcKey != "" {
-			if ck, ok := latestCheckByMachine[comp+"|"+mcKey+"|"+numKey]; ok {
-				return ck, false, true
-			}
+		if ck, ok := byNo(matchedCheckByNo); ok {
+			return ck, true, true
 		}
-		if ck, ok := latestCheckByNo[comp+"|"+numKey]; ok {
+		if ck, ok := byMachine(latestCheckByMachine); ok {
+			return ck, false, true
+		}
+		if ck, ok := byNo(latestCheckByNo); ok {
 			return ck, false, true
 		}
 		return models.PartCheck{}, false, false
@@ -179,37 +202,71 @@ func GetQAPartScanSummary(c *gin.Context) {
 
 	// ดัชนีการประกอบของ MFG — ผูก Machine No. คู่กับเลขพาร์ทเสมอ
 	// และแยก MATCHED ออกจากแถวที่บันทึกไว้แต่ยังไม่ผ่าน (NOT_MATCHED)
-	// แถว DUPLICATE เป็นเพียง log การสแกนซ้ำ ไม่นับเป็นการประกอบ
+	// แถว DUPLICATE (log การสแกนซ้ำ) และ RETIRED_FORMAT (log รหัสรูปแบบเก่าที่ถูกยกเลิก)
+	// ไม่นับเป็นการประกอบ
 	matchedMFGByKey := map[string]models.MFGAssembly{}
 	latestMFGByKey := map[string]models.MFGAssembly{}
 	for _, m := range mfgRows {
-		serialKey := qaScanKey(m.ITControllerNo)
-		if serialKey == "" {
+		status := strings.ToUpper(strings.TrimSpace(m.Status))
+		if status == models.MFGStatusDuplicate || status == models.MFGStatusRetiredFormat {
 			continue
 		}
-		status := strings.ToUpper(strings.TrimSpace(m.Status))
-		if status == models.MFGStatusDuplicate {
+		serialKeys := fmtIdx.scanKeys(m.ITControllerNo)
+		if len(serialKeys) == 0 {
 			continue
+		}
+		mcKeys := fmtIdx.scanKeys(m.MachineNo)
+		if len(mcKeys) == 0 {
+			mcKeys = []string{""}
 		}
 
-		k := qaScanKey(m.MachineNo) + "|" + serialKey
-		latestMFGByKey[k] = m
-		if status == models.MFGStatusMatched {
-			matchedMFGByKey[k] = m
+		for _, mk := range mcKeys {
+			for _, sk := range serialKeys {
+				k := mk + "|" + sk
+				latestMFGByKey[k] = m
+				if status == models.MFGStatusMatched {
+					matchedMFGByKey[k] = m
+				}
+			}
 		}
 	}
 
+	lookupMFG := func(machineNo, planned string) (models.MFGAssembly, bool, bool) {
+		mcKeys := fmtIdx.scanKeys(machineNo)
+		numKeys := fmtIdx.scanKeys(planned)
+		find := func(idx map[string]models.MFGAssembly) (models.MFGAssembly, bool) {
+			for _, mk := range mcKeys {
+				for _, nk := range numKeys {
+					if m, ok := idx[mk+"|"+nk]; ok {
+						return m, true
+					}
+				}
+			}
+			return models.MFGAssembly{}, false
+		}
+		// คืนค่า (แถวที่เจอ, MATCHED ไหม, เคยบันทึกไหม)
+		if m, ok := find(matchedMFGByKey); ok {
+			return m, true, true
+		}
+		if m, ok := find(latestMFGByKey); ok {
+			return m, false, true
+		}
+		return models.MFGAssembly{}, false, false
+	}
+
+	// Model / ใบอนุญาต ผูกกับเลข IT Controller — ลงดัชนีทุกรูปแบบเช่นกัน
+	// เผื่อทะเบียนหรือบัญชีใบอนุญาตถูกอัปโหลดมาด้วยรูปแบบใหม่แล้ว
 	modelByITC := map[string]string{}
 
 	var masters []models.MasterData
 	config.DB.Select("it_controller_no, model, serial_no").Find(&masters)
 	for _, m := range masters {
 		model := strings.TrimSpace(m.Model)
-		if model == "" {
+		if model == "" || m.ITControllerNo == nil {
 			continue
 		}
-		if m.ITControllerNo != nil {
-			if k := qaScanKey(*m.ITControllerNo); k != "" && modelByITC[k] == "" {
+		for _, k := range fmtIdx.scanKeys(*m.ITControllerNo) {
+			if modelByITC[k] == "" {
 				modelByITC[k] = model
 			}
 		}
@@ -219,26 +276,40 @@ func GetQAPartScanSummary(c *gin.Context) {
 	config.DB.Select("machine_no, model, license_no, invoice_no").Find(&licItems)
 	licByITC := map[string]models.ImportLicenseItem{}
 	for _, it := range licItems {
-		k := qaScanKey(it.MachineNo)
-		if k == "" {
-			continue
+		for _, k := range fmtIdx.scanKeys(it.MachineNo) {
+			if _, ok := licByITC[k]; !ok {
+				licByITC[k] = it
+			}
+			if model := strings.TrimSpace(it.Model); model != "" && modelByITC[k] == "" {
+				modelByITC[k] = model
+			}
 		}
-		if _, ok := licByITC[k]; !ok {
-			licByITC[k] = it
+	}
+
+	firstModel := func(keys []string) string {
+		for _, k := range keys {
+			if v := modelByITC[k]; v != "" {
+				return v
+			}
 		}
-		if model := strings.TrimSpace(it.Model); model != "" && modelByITC[k] == "" {
-			modelByITC[k] = model
+		return ""
+	}
+	firstLicense := func(keys []string) (models.ImportLicenseItem, bool) {
+		for _, k := range keys {
+			if it, ok := licByITC[k]; ok {
+				return it, true
+			}
 		}
+		return models.ImportLicenseItem{}, false
 	}
 
 	units := make([]QAScanUnit, 0, len(plans)*len(qaScanComponentOrder))
 	machines := 0
 
 	for machineNo, plan := range plans {
-		plannedITC := PlannedITCOf(plan)
-		itcKey := qaScanKey(plannedITC)
+		itcKeys := fmtIdx.scanKeys(PlannedITCOf(plan))
 
-		model := modelByITC[itcKey]
+		model := firstModel(itcKeys)
 		if model == "" {
 			model = planValue(plan, "Model", "MODEL", "Machine Model", "Assembly_Parts_Name", "Assembly Parts Name")
 		}
@@ -264,14 +335,16 @@ func GetQAPartScanSummary(c *gin.Context) {
 			counted = true
 
 			u := QAScanUnit{
-				MachineNo:      machineNo,
-				Model:          model,
-				Component:      comp,
-				ComponentLabel: ComponentLabel(comp),
-				PlannedNo:      planned,
-				SpecCode:       specCode,
-				ITDevice:       itDevice,
-				Country:        country,
+				MachineNo:       fmtIdx.current(machineNo),
+				MachineNoFormer: fmtIdx.formerCodes(machineNo),
+				Model:           model,
+				Component:       comp,
+				ComponentLabel:  ComponentLabel(comp),
+				PlannedNo:       fmtIdx.current(planned),
+				PlannedNoFormer: fmtIdx.formerCodes(planned),
+				SpecCode:        specCode,
+				ITDevice:        itDevice,
+				Country:         country,
 			}
 
 			if ck, matched, attempted := lookupCheck(comp, machineNo, planned); attempted {
@@ -279,6 +352,11 @@ func GetQAPartScanSummary(c *gin.Context) {
 				u.ScanAttempted = true
 				u.ScannedNo = strings.TrimSpace(ck.SN)
 				u.ScannedPN = strings.TrimSpace(ck.PN)
+				// แถว RETIRED_FORMAT คงรหัสที่สแกนผิดมาไว้ให้เห็น ส่วนแถวอื่นแสดงรูปแบบปัจจุบัน
+				if ck.MatchStatus != models.MatchStatusRetiredFormat {
+					u.ScannedNo = fmtIdx.current(u.ScannedNo)
+					u.ScannedPN = fmtIdx.current(u.ScannedPN)
+				}
 				u.ScannedAt = rfc3339(ck.CheckedDatetime)
 				u.ScannedBy = strings.TrimSpace(ck.CheckedBy)
 				u.MatchStatus = ck.MatchStatus
@@ -288,7 +366,7 @@ func GetQAPartScanSummary(c *gin.Context) {
 			}
 
 			if u.LicenseNo == "" || u.InvoiceNo == "" {
-				if lic, ok := licByITC[itcKey]; ok {
+				if lic, ok := firstLicense(itcKeys); ok {
 					if u.LicenseNo == "" {
 						u.LicenseNo = strings.TrimSpace(lic.LicenseNo)
 					}
@@ -298,13 +376,7 @@ func GetQAPartScanSummary(c *gin.Context) {
 				}
 			}
 
-			mfgKey := qaScanKey(machineNo) + "|" + qaScanKey(planned)
-			m, ok := matchedMFGByKey[mfgKey]
-			assembled := ok
-			if !ok {
-				m, ok = latestMFGByKey[mfgKey]
-			}
-			if ok {
+			if m, assembled, attempted := lookupMFG(machineNo, planned); attempted {
 				u.Assembled = assembled
 				u.AssembleAttempted = true
 				u.AssembledAt = rfc3339(m.CreatedDatetime)

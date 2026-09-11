@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getQAPartScanSummary } from '../../api/qaPartScan.js';
 import { resolvePeriodRange, periodRangeLabel, shiftPeriodAnchor } from '../../lib/dateRange.js';
 import { ArrowPathIcon, ChevronLeftIcon, ChevronRightIcon, QrCodeIcon, WrenchScrewdriverIcon, XMarkIcon } from '../../components/icons.jsx';
@@ -158,6 +159,25 @@ function DetailModal({
     setSearch('');
     setLimit(50);
   }, [selection]);
+  // ล็อกการเลื่อนหน้าหลังขณะเปิดป๊อปอัป — ไม่งั้นมีตัวเลื่อนของหน้าหลังซ้อนกับของตาราง และ iPad เลื่อนทะลุได้ + ปิดด้วย Esc
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const root = document.documentElement;
+    const prevOverflow = document.body.style.overflow;
+    const prevRootOverflow = root.style.overflow;
+    document.body.style.overflow = 'hidden';
+    root.style.overflow = 'hidden';
+    const onKey = e => {
+      if (e.key === 'Escape') onCloseRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      root.style.overflow = prevRootOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
   const isWH = selection.kind === 'wh';
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -167,7 +187,7 @@ function DetailModal({
       if (selection.status === 'pending' && done) return false;
       if (selection.component && u.component !== selection.component) return false;
       if (q) {
-        const hay = [u.machineNo, u.model, u.componentLabel, u.plannedNo, u.scannedBy, u.assembledBy].join(' ').toLowerCase();
+        const hay = [u.machineNo, u.model, u.componentLabel, u.plannedNo, u.scannedNo, u.scannedBy, u.assembledBy, ...(u.plannedNoFormer || []), ...(u.machineNoFormer || [])].join(' ').toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -176,8 +196,10 @@ function DetailModal({
   const components = useMemo(() => Array.from(new Set(units.map(u => u.component))), [units]);
   const stageName = isWH ? 'WH' : 'MFG';
   const statusName = selection.status === 'pending' ? isWH ? 'ยังไม่สแกน' : 'ยังไม่ประกอบ' : isWH ? 'สแกนแล้ว' : 'ประกอบแล้ว';
-  return <div className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-900/45 backdrop-blur-[2px] sm:items-center sm:p-6" onClick={onClose}>
-      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-solid border-slate-200 bg-white shadow-[0_24px_64px_-20px_rgb(16_24_40/0.5)] sm:rounded-2xl" onClick={e => e.stopPropagation()}>
+  // ความสูงใช้ dvh (ไม่นับแถบเครื่องมือ Safari บน iPad) — เดิม 92vh + padding สูงเกินจอจริง หัวป๊อปอัปจึงหลุดขอบ
+  // render ที่ body โดยตรง กันป๊อปอัปถูก layout ของหน้าตัด/ทับ
+  return createPortal(<div className="fixed inset-0 z-[120] flex items-end justify-center overscroll-contain bg-slate-900/45 backdrop-blur-[2px] sm:items-center sm:p-3 lg:p-6" onClick={onClose}>
+      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-solid border-slate-200 bg-white shadow-[0_24px_64px_-20px_rgb(16_24_40/0.5)] supports-[height:100dvh]:max-h-[92dvh] sm:max-h-[calc(100vh-2rem)] sm:rounded-2xl sm:supports-[height:100dvh]:max-h-[calc(100dvh-2rem)] lg:max-h-[calc(100vh-3rem)] lg:max-w-5xl lg:supports-[height:100dvh]:max-h-[calc(100dvh-3rem)]" onClick={e => e.stopPropagation()}>
         <div className="flex items-start gap-3 border-b border-solid border-slate-200 bg-slate-50/70 px-5 py-4">
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-[16px] font-normal text-slate-900">
@@ -203,45 +225,45 @@ function DetailModal({
         })} className={'cursor-pointer appearance-none rounded-lg border border-solid px-2.5 py-1 font-sans text-[12px] font-semibold transition ' + (selection.component === code ? 'border-transparent bg-slate-800 text-white' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300')}>
               {COMPONENT_LABELS[code] || code}
             </button>)}
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหา..." className="ml-auto w-full min-w-[160px] rounded-lg border border-solid border-slate-200 bg-white px-3 py-1.5 font-sans text-[13px] text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-brand-500 sm:w-48" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหา..." className="ml-auto w-full min-w-[160px] rounded-lg border border-solid border-slate-200 bg-white px-3 py-1.5 font-sans text-[13px] text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-brand-500 sm:w-48 pointer-coarse:text-[16px]" />
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-width:thin]">
           <table className="w-full border-collapse text-[13px]">
             <thead className="sticky top-0 z-10">
               <tr>
-                {['Machine No', 'Model', 'ชนิดพาร์ท', 'เลขพาร์ท', 'WH สแกน', 'MFG ประกอบ'].map(h => <th key={h} className="border-b border-solid border-slate-200 bg-slate-50 px-4 py-2.5 text-left text-[11px] font-semibold tracking-wider text-slate-500 uppercase whitespace-nowrap">
+                {['Machine No', 'Model', 'ชนิดพาร์ท', 'เลขพาร์ท', 'WH สแกน', 'MFG ประกอบ'].map(h => <th key={h} className="border-b border-solid border-slate-200 bg-slate-50 px-2 py-2.5 text-left text-[11px] md:px-3 lg:px-4 font-semibold tracking-wider text-slate-500 uppercase">
                     {h}
                   </th>)}
               </tr>
             </thead>
             <tbody>
               {rows.slice(0, limit).map((u, i) => <tr key={`${u.machineNo}-${u.component}-${i}`} className="hover:bg-slate-50/70">
-                  <td className="border-b border-solid border-slate-100 px-4 py-2.5 font-mono font-semibold whitespace-nowrap text-slate-800">
+                  <td className="border-b border-solid border-slate-100 px-2 py-2.5 md:px-3 lg:px-4 font-mono font-semibold text-slate-800 [overflow-wrap:anywhere] sm:whitespace-nowrap">
                     {dash(u.machineNo)}
                   </td>
-                  <td className="border-b border-solid border-slate-100 px-4 py-2.5 whitespace-nowrap text-slate-600">
+                  <td className="border-b border-solid border-slate-100 px-2 py-2.5 md:px-3 lg:px-4 text-slate-600 [overflow-wrap:anywhere] sm:whitespace-nowrap">
                     {dash(u.model)}
                   </td>
-                  <td className="border-b border-solid border-slate-100 px-4 py-2.5 whitespace-nowrap text-slate-600">
+                  <td className="border-b border-solid border-slate-100 px-2 py-2.5 text-slate-600 md:px-3 lg:px-4">
                     {dash(u.componentLabel)}
                   </td>
-                  <td className="border-b border-solid border-slate-100 px-4 py-2.5 font-mono whitespace-nowrap text-slate-700">
+                  <td className="border-b border-solid border-slate-100 px-2 py-2.5 md:px-3 lg:px-4 font-mono text-slate-700 [overflow-wrap:anywhere] sm:whitespace-nowrap">
                     {dash(u.plannedNo)}
                   </td>
-                  <td className="border-b border-solid border-slate-100 px-4 py-2.5 whitespace-nowrap">
-                    {u.scannedInPeriod ? <span className="text-slate-600">
-                        {fmtTime(u.scannedAt)}
-                        {u.scannedBy ? <span className="ml-1 text-slate-400">· {u.scannedBy}</span> : null}
-                      </span> : u.scanAttempted ? <span className="font-semibold text-amber-600" title={u.matchMessage || ''}>
+                  <td className="border-b border-solid border-slate-100 px-2 py-2.5 md:px-3 lg:px-4">
+                    {u.scanned ? <span className="text-slate-600">
+                        <span className="lg:whitespace-nowrap">{fmtTime(u.scannedAt)}</span>{' '}
+                        {u.scannedBy ? <span className="whitespace-nowrap text-slate-400">· {u.scannedBy}</span> : null}
+                      </span> : u.scanAttempted ? <span className="font-semibold whitespace-nowrap text-amber-600" title={u.matchMessage || ''}>
                         สแกนไม่ผ่าน
-                      </span> : <span className="text-slate-400">ยังไม่สแกน</span>}
+                      </span> : <span className="whitespace-nowrap text-slate-400">ยังไม่สแกน</span>}
                   </td>
-                  <td className="border-b border-solid border-slate-100 px-4 py-2.5 whitespace-nowrap">
-                    {u.assembledInPeriod ? <span className="text-slate-600">
-                        {fmtTime(u.assembledAt)}
-                        {u.assembledBy ? <span className="ml-1 text-slate-400">· {u.assembledBy}</span> : null}
-                      </span> : <span className="text-slate-400">ยังไม่ประกอบ</span>}
+                  <td className="border-b border-solid border-slate-100 px-2 py-2.5 md:px-3 lg:px-4">
+                    {u.assembled ? <span className="text-slate-600">
+                        <span className="lg:whitespace-nowrap">{fmtTime(u.assembledAt)}</span>{' '}
+                        {u.assembledBy ? <span className="whitespace-nowrap text-slate-400">· {u.assembledBy}</span> : null}
+                      </span> : <span className="whitespace-nowrap text-slate-400">ยังไม่ประกอบ</span>}
                   </td>
                 </tr>)}
               {rows.length === 0 && <tr>
@@ -259,7 +281,7 @@ function DetailModal({
             </div>}
         </div>
       </div>
-    </div>;
+    </div>, document.body);
 }
 
 
@@ -286,6 +308,9 @@ export default function QAScanDashboard() {
   }
   useEffect(() => {
     load(false);
+    const onFocus = () => load(true);
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
   const range = useMemo(() => resolvePeriodRange(mode, anchor), [mode, anchor]);
   const rangeLabel = mode === 'all' ? 'ทั้งหมด' : periodRangeLabel(mode, anchor);
