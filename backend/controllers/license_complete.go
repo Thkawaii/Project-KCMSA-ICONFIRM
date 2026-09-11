@@ -9,6 +9,7 @@ import (
 	"iconfirm/models"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // ไฟล์นี้ดูแลสถานะ "เสร็จสิ้น" (Complete) ของใบอนุญาตนำเข้า/นำออก
@@ -62,6 +63,23 @@ func completeFields(completed bool, userName string, now time.Time) map[string]i
 	}
 }
 
+// updateCompleteByIDs อัปเดตสถานะเสร็จสิ้นตาม id ที่เลือก โดยแบ่ง IN ? ทีละก้อน
+// ผู้ใช้กด "เลือกทั้งหมด" ได้ครั้งละหลายหมื่นแถว — ยิงทีเดียวจะชนเพดาน 65,535 พารามิเตอร์ของ PostgreSQL
+func updateCompleteByIDs(model interface{}, ids []uint, fields map[string]interface{}) (int64, error) {
+	var affected int64
+	err := config.DB.Transaction(func(tx *gorm.DB) error {
+		for _, part := range chunkSlice(ids, dbInListChunk) {
+			res := tx.Model(model).Where("id IN ?", part).Updates(fields)
+			if res.Error != nil {
+				return res.Error
+			}
+			affected += res.RowsAffected
+		}
+		return nil
+	})
+	return affected, err
+}
+
 func completeActionName(completed bool) string {
 	if completed {
 		return "mark_complete"
@@ -84,10 +102,11 @@ func SetImportLicenseComplete(c *gin.Context) {
 
 	tx := config.DB.Model(&models.ImportLicenseItem{})
 	target := ""
+	byIDs := false
 
 	switch {
 	case len(req.IDs) > 0:
-		tx = tx.Where("id IN ?", req.IDs)
+		byIDs = true
 		target = strconv.Itoa(len(req.IDs)) + " รายการ"
 
 	case req.LicenseNo != nil || req.InvoiceNo != nil:
@@ -108,12 +127,21 @@ func SetImportLicenseComplete(c *gin.Context) {
 		return
 	}
 
-	res := tx.Updates(completeFields(completed, userName, now))
-	if res.Error != nil {
-		c.JSON(500, gin.H{"message": res.Error.Error()})
+	var (
+		affected int64
+		err      error
+	)
+	if byIDs {
+		affected, err = updateCompleteByIDs(&models.ImportLicenseItem{}, req.IDs, completeFields(completed, userName, now))
+	} else {
+		res := tx.Updates(completeFields(completed, userName, now))
+		affected, err = res.RowsAffected, res.Error
+	}
+	if err != nil {
+		c.JSON(500, gin.H{"message": err.Error()})
 		return
 	}
-	if res.RowsAffected == 0 {
+	if affected == 0 {
 		c.JSON(404, gin.H{"message": "ไม่พบรายการที่ต้องการอัปเดต"})
 		return
 	}
@@ -121,7 +149,7 @@ func SetImportLicenseComplete(c *gin.Context) {
 	CreateAuditLog("IMPORT_LICENSE", 0, completeActionName(completed), target, userID, userName)
 
 	c.JSON(200, gin.H{
-		"updated":     res.RowsAffected,
+		"updated":     affected,
 		"completed":   completed,
 		"completedBy": userName,
 		"completedAt": now,
@@ -143,10 +171,11 @@ func SetExportLicenseComplete(c *gin.Context) {
 
 	tx := config.DB.Model(&models.ExportLicenseItem{})
 	target := ""
+	byIDs := false
 
 	switch {
 	case len(req.IDs) > 0:
-		tx = tx.Where("id IN ?", req.IDs)
+		byIDs = true
 		target = strconv.Itoa(len(req.IDs)) + " รายการ"
 
 	case req.ExportLicenseNo != nil && strings.TrimSpace(*req.ExportLicenseNo) != "":
@@ -161,12 +190,21 @@ func SetExportLicenseComplete(c *gin.Context) {
 		return
 	}
 
-	res := tx.Updates(completeFields(completed, userName, now))
-	if res.Error != nil {
-		c.JSON(500, gin.H{"message": res.Error.Error()})
+	var (
+		affected int64
+		err      error
+	)
+	if byIDs {
+		affected, err = updateCompleteByIDs(&models.ExportLicenseItem{}, req.IDs, completeFields(completed, userName, now))
+	} else {
+		res := tx.Updates(completeFields(completed, userName, now))
+		affected, err = res.RowsAffected, res.Error
+	}
+	if err != nil {
+		c.JSON(500, gin.H{"message": err.Error()})
 		return
 	}
-	if res.RowsAffected == 0 {
+	if affected == 0 {
 		c.JSON(404, gin.H{"message": "ไม่พบรายการที่ต้องการอัปเดต"})
 		return
 	}
@@ -174,7 +212,7 @@ func SetExportLicenseComplete(c *gin.Context) {
 	CreateAuditLog("EXPORT_LICENSE", 0, completeActionName(completed), target, userID, userName)
 
 	c.JSON(200, gin.H{
-		"updated":     res.RowsAffected,
+		"updated":     affected,
 		"completed":   completed,
 		"completedBy": userName,
 		"completedAt": now,

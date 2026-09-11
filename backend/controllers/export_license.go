@@ -6,11 +6,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"iconfirm/config"
 	"iconfirm/models"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
@@ -225,7 +227,7 @@ func resolveExportLinks(items []models.ExportLicenseItem) []exportLicenseRow {
 	importByITC := map[string]models.ImportLicenseItem{}
 	if len(itcNos) > 0 {
 		var imp []models.ImportLicenseItem
-		config.DB.Where("machine_no IN ?", itcNos).Find(&imp)
+		_ = findWhereInChunks(config.DB, "machine_no", itcNos, &imp)
 		for _, r := range imp {
 			if _, ok := importByITC[r.MachineNo]; !ok {
 				importByITC[r.MachineNo] = r
@@ -241,7 +243,7 @@ func resolveExportLinks(items []models.ExportLicenseItem) []exportLicenseRow {
 	mfgByITC := map[string]models.MFGAssembly{}
 	if len(itcNos) > 0 {
 		var mfg []models.MFGAssembly
-		config.DB.Where("no IN ?", itcNos).Find(&mfg)
+		_ = findWhereInChunks(config.DB, "no", itcNos, &mfg)
 		for _, r := range mfg {
 			if _, ok := mfgByITC[r.ITControllerNo]; !ok {
 				mfgByITC[r.ITControllerNo] = r
@@ -400,6 +402,34 @@ func GetExportLicenseTrace(c *gin.Context) {
 	c.JSON(200, resp)
 }
 
+// exportRowOverLimit หาคอลัมน์ที่ค่ายาวเกินขนาดคอลัมน์ในฐานข้อมูล (นับเป็นตัวอักษร เหมือน varchar ของ PostgreSQL)
+// การบันทึกใบอนุญาตส่งออกทำใน transaction เดียวทั้งไฟล์ ถ้าปล่อยให้ค่ายาวเกินหลุดไปถึงฐานข้อมูล
+// แถวเดียวจะทำให้ทั้งไฟล์บันทึกไม่สำเร็จ — จึงคัดแถวนั้นออกตั้งแต่ตอนอ่านไฟล์ แล้วแจ้งเป็นปัญหาแทน
+// (ตัวเลขต้องตรงกับ size ใน models.ExportLicenseItem)
+func exportRowOverLimit(m *models.ExportLicenseItem) (label string, limit int) {
+	checks := []struct {
+		label string
+		value string
+		limit int
+	}{
+		{"Serial Number", m.SerialNumber, 60},
+		{"IT Controller S/N", m.ITControllerNo, 40},
+		{"Machine No", m.MachineNo, 60},
+		{"Country", m.Country, 100},
+		{"Invoice No", m.InvoiceNo, 50},
+		{"Export Entry", m.ExportEntry, 60},
+		{"Import License", m.ImportLicenseNo, 60},
+		{"Export License", m.ExportLicenseNo, 60},
+		{"Exception License", m.ExceptionLicense, 60},
+	}
+	for _, ch := range checks {
+		if utf8.RuneCountInString(ch.value) > ch.limit {
+			return ch.label, ch.limit
+		}
+	}
+	return "", 0
+}
+
 func UploadExportLicense(c *gin.Context) {
 	rows, fileName, err := readSheetRows(c, []string{"export", "exportlicense", "serail", "serial", "total"})
 	if err != nil {
@@ -424,6 +454,7 @@ func UploadExportLicense(c *gin.Context) {
 
 	userID, userName := lookupUserName(c)
 	now := time.Now()
+	fileName = clampRunes(fileName, 255)
 
 	var (
 		parsed   []models.ExportLicenseItem
@@ -484,6 +515,11 @@ func UploadExportLicense(c *gin.Context) {
 			}
 			continue
 		}
+		if label, limit := exportRowOverLimit(&row); label != "" {
+			skipped++
+			problems = append(problems, "แถว "+strconv.Itoa(i+1)+": "+label+" ยาวเกิน "+strconv.Itoa(limit)+" ตัวอักษร — ข้ามแถวนี้")
+			continue
+		}
 		if seen[row.SerialNumber] {
 			continue
 		}
@@ -513,7 +549,11 @@ func UploadExportLicense(c *gin.Context) {
 	}
 	prevCompleted := map[string]completedMark{}
 	var prevRows []models.ExportLicenseItem
-	config.DB.Where("serial_number IN ?", serials).Find(&prevRows)
+	// ค้นทีละก้อน — ไฟล์ใหญ่ส่ง IN ทีเดียวทั้งไฟล์จะชนเพดาน 65,535 พารามิเตอร์ของ PostgreSQL
+	if err := findWhereInChunks(config.DB, "serial_number", serials, &prevRows); err != nil {
+		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+		return
+	}
 	for _, r := range prevRows {
 		if r.Completed {
 			prevCompleted[r.SerialNumber] = completedMark{true, r.CompletedBy, r.CompletedAt}
@@ -527,9 +567,25 @@ func UploadExportLicense(c *gin.Context) {
 		}
 	}
 
-	config.DB.Where("serial_number IN ?", serials).Delete(&models.ExportLicenseItem{})
-
-	if err := config.DB.Create(&parsed).Error; err != nil {
+	// ลบของเก่าแล้วเขียนใหม่ใน transaction เดียว
+	//   - INSERT ทีละ dbInsertBatch แถว: เดิม INSERT ทีเดียวทั้งไฟล์ (~23 คอลัมน์/แถว)
+	//     ไฟล์เกินราว 2,850 แถวจึงเจอ "extended protocol limited to 65535 parameters"
+	//   - ถ้าบันทึกพลาดกลางทาง ระบบ rollback ทั้งหมด ข้อมูลเดิมจะไม่หายไปครึ่ง ๆ กลาง ๆ
+	//     (เดิมลบของเก่าไปก่อนแล้วค่อยบันทึก พอบันทึกพัง ของเก่าก็หายไปด้วย)
+	err = config.DB.Transaction(func(tx *gorm.DB) error {
+		for _, part := range chunkSlice(serials, dbInListChunk) {
+			if err := tx.Where("serial_number IN ?", part).Delete(&models.ExportLicenseItem{}).Error; err != nil {
+				return err
+			}
+		}
+		for _, part := range chunkSlice(parsed, dbInsertBatch) {
+			if err := tx.Create(&part).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
 		c.JSON(500, gin.H{"message": "บันทึกไม่สำเร็จ: " + err.Error()})
 		return
 	}
@@ -539,7 +595,7 @@ func UploadExportLicense(c *gin.Context) {
 	c.JSON(201, gin.H{
 		"imported": len(parsed),
 		"skipped":  skipped,
-		"problems": problems,
+		"problems": capProblems(problems),
 		"file":     fileName,
 	})
 }
@@ -627,7 +683,10 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 	existing := map[string]models.ExportLicenseItem{}
 	if len(serials) > 0 {
 		var existingRows []models.ExportLicenseItem
-		config.DB.Where("serial_number IN ?", serials).Find(&existingRows)
+		if err := findWhereInChunks(config.DB, "serial_number", serials, &existingRows); err != nil {
+			c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+			return
+		}
 		for _, r := range existingRows {
 			existing[r.SerialNumber] = r
 		}

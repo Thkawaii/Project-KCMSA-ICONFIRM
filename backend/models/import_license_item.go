@@ -43,7 +43,8 @@ type ImportLicenseItem struct {
 
 	ProductionNo string `gorm:"size:30;index"`
 
-	Remark        string `gorm:"size:255"`
+	// Remark เป็น text (ไม่จำกัดความยาว) — หมายเหตุในไฟล์จริงยาวเกิน 255 ตัวอักษรได้
+	Remark        string `gorm:"type:text"`
 	ExportCountry string `gorm:"size:100"`
 
 	ExtraJSON string `gorm:"type:text" json:"extra_json"`
