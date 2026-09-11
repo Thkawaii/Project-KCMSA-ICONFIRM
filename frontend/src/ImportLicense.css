@@ -2305,3 +2305,173 @@
     padding-top: 12px;
   }
 }
+
+/* ==========================================================================
+   แถบใบอนุญาตส่งออก — บรรทัด Invoice / ใบขนสินค้าขาออก แบบย่อบรรทัดเดียว
+   --------------------------------------------------------------------------
+   ใบที่มีหลาย Invoice เดิมเรียงเลขต่อกันยาวหลายบรรทัดจนปุ่มตกไปอีกแถว
+   ตอนนี้แสดง "เลขแรก +N" บรรทัดเดียว ถ้ายาวเกินจอให้ตัดเป็น … แทนการขึ้นบรรทัดใหม่
+   ปุ่ม "ดูทั้งหมด" อยู่นอกส่วนที่ถูกตัด จึงกดได้เสมอแม้จอแคบ
+   ========================================================================== */
+/* basis 560px: จอกว้าง ปุ่มด้านขวาอยู่แถวเดียวกับข้อมูลใบ (แม้กางรายการเต็มแล้ว)
+   จอแคบ (iPad แนวตั้ง) ที่เหลือที่ไม่พอ ปุ่มจะลงไปแถวล่าง ข้อมูลใบได้เต็มความกว้าง */
+.wh-so-active-bar.il-license-bar .il-lot-info {
+  flex: 1 1 560px;
+}
+
+/* ตอนกางรายการเต็ม แถบสูงขึ้น — ให้ปุ่มชิดบนแทนลอยกลาง */
+.wh-so-active-bar.il-license-bar.il-license-bar-open {
+  align-items: flex-start;
+}
+
+.wh-so-active-bar.il-license-bar .il-lot-info-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.il-lot-refs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin-top: 2px;
+}
+
+.il-lot-refs-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.il-ref-seg {
+  white-space: nowrap;
+}
+
+.il-ref-count {
+  flex: 0 0 auto;
+  margin-left: -10px; /* ชิดข้อความด้านหน้า (หักล้าง gap ของ .il-lot-refs) */
+  white-space: nowrap;
+}
+
+.il-ref-sep {
+  margin: 0 6px;
+  color: #cbd5e1;
+}
+
+.il-ref-first {
+  color: #334155;
+}
+
+/* "+6" = จำนวนเลขที่ถูกซ่อนไว้ */
+.il-ref-more {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  vertical-align: 1px;
+}
+
+.il-ref-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 3px 8px 3px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-brand-700, #0f8580);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.il-ref-toggle:hover,
+.il-ref-toggle:focus-visible {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  outline: none;
+}
+
+.il-ref-toggle-icon {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s ease;
+}
+
+.il-ref-toggle-open .il-ref-toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* รายการเต็มที่กางออก */
+.il-lot-refs-detail {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e6eaee;
+}
+
+.il-ref-list {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px 12px;
+}
+
+.il-ref-list-label {
+  padding-top: 3px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.il-ref-list-count {
+  margin-left: 4px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.il-ref-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.il-ref-chip {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 12.5px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .il-ref-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+}
+
+/* แถวที่ไม่มีประเทศ — ใช้สีจางให้แยกจากชื่อประเทศจริงได้ทันที */
+.il-no-country {
+  color: #94a3b8;
+  font-style: italic;
+}

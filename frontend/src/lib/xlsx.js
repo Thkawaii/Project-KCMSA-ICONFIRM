@@ -274,13 +274,32 @@ function buildDrawingXml(picList) {
   });
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + `<xdr:wsDr ${NS}>` + anchors + '</xdr:wsDr>';
 }
+// ชื่อชีตที่ Excel ยอมรับ — ถ้าผิดกติกา Excel จะขึ้น "We found a problem with some content"
+// แล้วซ่อมไฟล์โดยเปลี่ยนชื่อชีตเป็น "Recovered_Sheet1" เอง กติกาคือ
+//   - ห้ามมี \ / ? * [ ] :  และยาวไม่เกิน 31 ตัวอักษร
+//   - ห้ามว่าง ห้ามขึ้นต้น/ลงท้ายด้วย ' และห้ามใช้ชื่อสงวน "History"
+//   - ห้ามซ้ำกัน โดย "ไม่สนตัวพิมพ์เล็ก/ใหญ่" (Indonesia กับ INDONESIA ถือว่าซ้ำ)
+function makeSafeSheetName(name, fallback, used) {
+  let base = String(name ?? '').replace(/[\\/?*[\]:]/g, ' ').replace(/\s+/g, ' ').trim().replace(/^'+|'+$/g, '').trim();
+  if (!base || base.toLowerCase() === 'history') base = base ? `${base} (1)` : fallback;
+  base = Array.from(base).slice(0, 31).join('');
+  let candidate = base;
+  let n = 2;
+  while (used.has(candidate.toLowerCase())) {
+    const suffix = ` (${n++})`;
+    candidate = Array.from(base).slice(0, 31 - suffix.length).join('').trimEnd() + suffix;
+  }
+  used.add(candidate.toLowerCase());
+  return candidate;
+}
 function buildWorkbookParts(sheets) {
   const media = [];
   let mediaSeq = 0;
   const usedExts = new Set();
+  const usedSheetNames = new Set();
   const prepared = sheets.map((raw, idx) => {
     const sheetIdx = idx + 1;
-    const safeName = (raw.sheetName || `Sheet${sheetIdx}`).slice(0, 31).replace(/[\\/?*[\]:]/g, ' ');
+    const safeName = makeSafeSheetName(raw.sheetName, `Sheet${sheetIdx}`, usedSheetNames);
     const columns = (raw.columns || []).map(c => ({
       key: c.key,
       header: c.header ?? c.key,
