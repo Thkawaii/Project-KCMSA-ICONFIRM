@@ -2,6 +2,7 @@ package mailer
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -330,6 +331,21 @@ func LeadLabel(leadStatus string, leadDaysLeft int) string {
 	}
 }
 
+// thaiDigitReplacer แปลงเลขไทย (๐–๙) เป็นเลขอารบิก (0–9)
+var thaiDigitReplacer = strings.NewReplacer(
+	"\u0E50", "0", "\u0E51", "1", "\u0E52", "2", "\u0E53", "3", "\u0E54", "4",
+	"\u0E55", "5", "\u0E56", "6", "\u0E57", "7", "\u0E58", "8", "\u0E59", "9",
+)
+
+// ArabicDigits ตัวเลขทุกตัวในอีเมลต้องเป็นเลขอารบิก ไม่ใช้เลขไทย
+//
+// ใช้เป็นด่านสุดท้ายของหัวข้อ เนื้อหา HTML และฉบับข้อความล้วน
+// เผื่อมีเลขไทยปนมาจากข้อมูลที่ผู้ใช้กรอก (เลขที่ใบอนุญาต ชื่อผู้รับ ชื่อหน่วยงานใน .env ฯลฯ)
+// แปลงแบบตัวต่อตัว ความยาวข้อความ (จำนวนตัวอักษร) จึงไม่เปลี่ยน การจัดคอลัมน์ในฉบับข้อความล้วนไม่เพี้ยน
+func ArabicDigits(s string) string {
+	return thaiDigitReplacer.Replace(s)
+}
+
 // Title ชื่อเรื่องของหนังสือ ใช้ทั้งในบรรทัด "เรื่อง" และในหัวข้ออีเมล
 func (r WeeklyReport) Title() string {
 	return fmt.Sprintf("รายงานสถานะใบอนุญาตนำเข้าและนำออก ประจำ%s", r.WeekLabel())
@@ -337,6 +353,10 @@ func (r WeeklyReport) Title() string {
 
 // Subject หัวข้ออีเมล — ชื่อเรื่องของหนังสือ ตามด้วยจำนวนงานค้างในวงเล็บ
 func (r WeeklyReport) Subject() string {
+	return ArabicDigits(r.subjectText())
+}
+
+func (r WeeklyReport) subjectText() string {
 	if r.IsEmpty() {
 		return fmt.Sprintf("%s (ไม่มีรายการต้องดำเนินการ)", r.Title())
 	}

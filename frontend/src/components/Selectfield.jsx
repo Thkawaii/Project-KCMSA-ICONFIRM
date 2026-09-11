@@ -1,4 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+
+// ตัวเลือกแต่ละอันเป็น { value, label, suffix? }
+//   label  = ข้อความ (ใช้แสดงและอ่านหน้าจอ)
+//   suffix = ไอคอน/ป้ายเล็ก ๆ ต่อท้ายข้อความ (ไม่บังคับ) เช่น ไอคอนใบอนุญาตที่เสร็จสิ้นแล้ว
+//            แสดงทั้งในรายการและบนช่องที่เลือกไว้
 export default function SelectField({
   value,
   onChange,
@@ -48,8 +53,11 @@ export default function SelectField({
   }
   return <div className="sf" ref={boxRef}>
       <button type="button" id={id} className={'sf-trigger' + (open ? ' sf-trigger-open' : '')} onClick={() => !disabled && setOpen(!open)} onKeyDown={onKeyDown} disabled={disabled} aria-haspopup="listbox" aria-expanded={open}>
-        <span className={selected ? 'sf-value' : 'sf-value sf-value-empty'}>
-          {selected ? selected.label : placeholder}
+        <span className="sf-value-wrap">
+          <span className={selected ? 'sf-value' : 'sf-value sf-value-empty'}>
+            {selected ? selected.label : placeholder}
+          </span>
+          {selected?.suffix && <span className="sf-suffix">{selected.suffix}</span>}
         </span>
         <span className="sf-chevron" aria-hidden="true">
           <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
@@ -62,6 +70,7 @@ export default function SelectField({
           {options.map((option, i) => <li key={option.value}>
               <button type="button" role="option" aria-selected={option.value === value} className={'sf-option' + (option.value === value ? ' sf-option-selected' : '') + (i === active ? ' sf-option-active' : '')} onMouseEnter={() => setActive(i)} onClick={() => choose(option)}>
                 {option.label}
+                {option.suffix && <span className="sf-suffix sf-option-suffix">{option.suffix}</span>}
               </button>
             </li>)}
 

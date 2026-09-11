@@ -1666,6 +1666,19 @@
   flex-shrink: 0;
 }
 
+/* ไอคอน "เสร็จสิ้นแล้ว" ต่อท้ายชื่อใบในตัวเลือก dropdown Import / Export License */
+.il-option-complete {
+  display: inline-flex;
+  align-items: center;
+  color: #10b981;
+}
+
+.il-option-complete-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
 /* ตราประทับ "เสร็จสิ้น" บนแถบใบอนุญาตที่ปิดงานครบทั้งใบ
    วางต่อจากกลุ่มข้อความ และจัดกึ่งกลางตามความสูงของทั้งกลุ่ม
    (ไม่ห้อยอยู่แค่บรรทัดล่างสุด) */
