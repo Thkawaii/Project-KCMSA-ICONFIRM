@@ -2452,3 +2452,19 @@
   color: #94a3b8;
   font-style: italic;
 }
+
+
+/* ป้ายบอกขอบเขตการเลือก เมื่อติ๊กช่องบนหัวตาราง (เลือกทุกรายการ รวมทุกหน้า) */
+.il-selection-scope {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  vertical-align: 1px;
+}

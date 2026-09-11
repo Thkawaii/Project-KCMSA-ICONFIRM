@@ -191,9 +191,10 @@ function SelectCheckbox({
   indeterminate = false,
   onChange,
   label,
+  title,
   disabled = false
 }) {
-  return <label className={'il-check' + (disabled ? ' il-check-disabled' : '')} onClick={e => e.stopPropagation()}>
+  return <label className={'il-check' + (disabled ? ' il-check-disabled' : '')} title={title} onClick={e => e.stopPropagation()}>
       <input type="checkbox" checked={checked} disabled={disabled} ref={el => {
       if (el) el.indeterminate = indeterminate && !checked;
     }} onChange={e => onChange(e.target.checked)} aria-label={label} />
@@ -236,22 +237,37 @@ function useRowSelection(visibleRows) {
     });
   }, []);
   const clear = useCallback(() => setSelected(new Set()), []);
+  // ติ๊กช่องบนหัวตาราง = เลือก "ทุกรายการในตาราง" (ทุกหน้า) ไม่ใช่แค่หน้าที่เห็นอยู่
+  //   - ไม่ได้กรองอะไร → เลือกทั้งหมดในระบบ
+  //   - กรองอยู่ (ใบอนุญาต / ประเทศ / สถานะ / ค้นหา / ช่วงวันที่) → เลือกทุกรายการที่ผ่านตัวกรอง
+  const toggleAll = useCallback(on => {
+    setSelected(on ? new Set(visibleRows.map(r => r.ID)) : new Set());
+  }, [visibleRows]);
+  // selected ถูกตัดรายการที่หลุดจากตารางทิ้งเสมอ (useEffect ด้านบน) จึงเทียบจำนวนได้ตรง ๆ
+  const allSelected = visibleRows.length > 0 && selected.size >= visibleRows.length;
+  const someSelected = selected.size > 0 && !allSelected;
   return {
     selected,
     toggleOne,
     setGroup,
-    clear
+    clear,
+    toggleAll,
+    allSelected,
+    someSelected
   };
 }
 
 // แถบเครื่องมือที่โผล่ขึ้นมาเมื่อมีการติ๊กเลือก
 // แสดงจำนวนที่เลือก และปุ่มปิดงาน/ยกเลิกสถานะ/ล้างการเลือก
+const fmtCount = n => Number(n || 0).toLocaleString('en-US');
 function SelectionBar({
   selectedRows,
   onComplete,
   onUncomplete,
   onClear,
-  busy
+  busy,
+  allSelected = false,
+  filterActive = false
 }) {
   const count = selectedRows.length;
   if (count === 0) return null;
@@ -261,11 +277,14 @@ function SelectionBar({
       <div className="il-selection-info">
         <span className="il-selection-count">
           <CheckBadgeIcon className="size-4" />
-          เลือกไว้ {count} รายการ
+          เลือกไว้ {fmtCount(count)} รายการ
+          {allSelected && <span className="il-selection-scope">
+              {filterActive ? 'ทุกรายการตามตัวกรอง' : 'ทุกรายการ'}
+            </span>}
         </span>
         <span className="il-selection-hint">
-          {openCount > 0 ? `ยังไม่เสร็จสิ้น ${openCount} รายการ` : 'เสร็จสิ้นแล้วทั้งหมด'}
-          {doneCount > 0 && openCount > 0 ? ` · เสร็จสิ้นแล้ว ${doneCount} รายการ` : ''}
+          {openCount > 0 ? `ยังไม่เสร็จสิ้น ${fmtCount(openCount)} รายการ` : 'เสร็จสิ้นแล้วทั้งหมด'}
+          {doneCount > 0 && openCount > 0 ? ` · เสร็จสิ้นแล้ว ${fmtCount(doneCount)} รายการ` : ''}
         </span>
       </div>
       <div className="il-selection-actions">
@@ -506,6 +525,7 @@ export default function ImportLicensePage() {
     return rows;
   }, [items, selectedLot, countryFilter, expiryFilter, search, today]);
   const countryOptions = useMemo(() => buildCountryOptions(items.map(r => r.ExportCountry)), [items]);
+  const filterActive = !!selectedLot || countryFilter !== ALL_COUNTRIES || expiryFilter !== 'all' || search.trim() !== '';
 
   // ข้อมูลเปลี่ยน (อัปโหลดใหม่/ลบ) จนประเทศที่เลือกไว้ไม่เหลือแล้ว — กลับไป "ทุกประเทศ" ไม่ให้ตารางว่างค้าง
   useEffect(() => {
@@ -595,20 +615,21 @@ export default function ImportLicensePage() {
   const {
     selected,
     toggleOne,
-    setGroup,
-    clear: clearSelection
+    clear: clearSelection,
+    toggleAll,
+    allSelected,
+    someSelected
   } = useRowSelection(filtered);
   const selectedRows = useMemo(() => filtered.filter(r => selected.has(r.ID)), [filtered, selected]);
-  const pageIds = paged.map(r => r.ID);
-  const pageAllSelected = pageIds.length > 0 && pageIds.every(id => selected.has(id));
-  const pageSomeSelected = pageIds.some(id => selected.has(id));
 
   // ทำเครื่องหมาย/ยกเลิก ตามรายการที่ติ๊กไว้ (ใบเดียวหรือหลายใบก็ได้)
   async function applyComplete(completed) {
     const targets = completed ? selectedRows.filter(r => !isLicenseCompleted(r)) : selectedRows.filter(isLicenseCompleted);
     if (targets.length === 0) return;
     const ok = await confirmComplete({
-      title: completed ? `ต้องการทำเครื่องหมายเสร็จสิ้น ${targets.length} รายการ` : `ต้องการยกเลิกสถานะเสร็จสิ้น ${targets.length} รายการ`,
+      title: completed ? `ต้องการทำเครื่องหมายเสร็จสิ้น ${fmtCount(targets.length)} รายการ` : `ต้องการยกเลิกสถานะเสร็จสิ้น ${fmtCount(targets.length)} รายการ`,
+      // เลือกจากช่องบนหัวตาราง = รวมทุกหน้า — บอกให้ชัดก่อนกดยืนยัน กันกดพลาดทีเดียวหลายพันรายการ
+      html: allSelected && targets.length > pageSize ? `<div class="scan-popup-hint">รวมทุกหน้า${filterActive ? ' (ตามตัวกรองที่เลือกอยู่)' : ' — ทุกรายการในระบบ'}</div>` : '',
       danger: !completed
     });
     if (!ok) return;
@@ -620,7 +641,7 @@ export default function ImportLicensePage() {
       });
       clearSelection();
       await loadAll();
-      toastSuccess(completed ? `ทำเครื่องหมายเสร็จสิ้น ${targets.length} รายการแล้ว — หยุดนับวันหมดอายุ` : `ยกเลิกสถานะเสร็จสิ้น ${targets.length} รายการแล้ว`);
+      toastSuccess(completed ? `ทำเครื่องหมายเสร็จสิ้น ${fmtCount(targets.length)} รายการแล้ว — หยุดนับวันหมดอายุ` : `ยกเลิกสถานะเสร็จสิ้น ${fmtCount(targets.length)} รายการแล้ว`);
     } catch (err) {
       toastError(err.message || 'อัปเดตสถานะไม่สำเร็จ');
     } finally {
@@ -840,14 +861,14 @@ export default function ImportLicensePage() {
         </div>
       </div>
 
-      <SelectionBar selectedRows={selectedRows} busy={completing} onComplete={() => applyComplete(true)} onUncomplete={() => applyComplete(false)} onClear={clearSelection} />
+      <SelectionBar selectedRows={selectedRows} busy={completing} onComplete={() => applyComplete(true)} onUncomplete={() => applyComplete(false)} onClear={clearSelection} allSelected={allSelected} filterActive={filterActive} />
 
       <div className="wh-table-card">
         <table className="wh-table il-table-selectable">
           <thead>
             <tr>
               <th className="il-check-th">
-                <SelectCheckbox checked={pageAllSelected} indeterminate={pageSomeSelected} onChange={on => setGroup(pageIds, on)} label="เลือกทุกรายการในหน้านี้" disabled={pageIds.length === 0} />
+                <SelectCheckbox checked={allSelected} indeterminate={someSelected} onChange={toggleAll} label={`เลือกทุกรายการ (${fmtCount(filtered.length)} รายการ รวมทุกหน้า)`} title={allSelected ? 'ยกเลิกการเลือกทั้งหมด' : `เลือกทุกรายการ ${fmtCount(filtered.length)} รายการ (รวมทุกหน้า)`} disabled={filtered.length === 0} />
               </th>
               <th>ลำดับ</th>
               <th>ตราอักษร</th>
@@ -1862,6 +1883,7 @@ export function WHExportLicensePanel() {
     return list;
   }, [rows, exceptionFilter, countryFilter, expiryFilter, search, countryByITC, periodMode, periodAnchor]);
   const countryOptions = useMemo(() => buildCountryOptions(rows.map(countryOf)), [rows, countryByITC]);
+  const filterActive = exceptionFilter !== 'all' || countryFilter !== ALL_COUNTRIES || expiryFilter !== 'all' || search.trim() !== '' || periodMode !== 'all';
   useEffect(() => {
     if (countryFilter !== ALL_COUNTRIES && !countryOptions.some(o => o.value === countryFilter)) {
       setCountryFilter(ALL_COUNTRIES);
@@ -1965,13 +1987,12 @@ export function WHExportLicensePanel() {
   const {
     selected,
     toggleOne,
-    setGroup,
-    clear: clearSelection
+    clear: clearSelection,
+    toggleAll,
+    allSelected,
+    someSelected
   } = useRowSelection(filtered);
   const selectedRows = useMemo(() => filtered.filter(r => selected.has(r.ID)), [filtered, selected]);
-  const pageIds = paged.map(r => r.ID);
-  const pageAllSelected = pageIds.length > 0 && pageIds.every(id => selected.has(id));
-  const pageSomeSelected = pageIds.some(id => selected.has(id));
   const completedCount = useMemo(() => rows.filter(isLicenseCompleted).length, [rows]);
 
   // สรุปตัวเลขหัวหน้าจอ — จัดชุดเดียวกับหน้า Import License
@@ -2019,7 +2040,9 @@ export function WHExportLicensePanel() {
     const targets = completed ? selectedRows.filter(r => !isLicenseCompleted(r)) : selectedRows.filter(isLicenseCompleted);
     if (targets.length === 0) return;
     const ok = await confirmComplete({
-      title: completed ? `ต้องการทำเครื่องหมายเสร็จสิ้น ${targets.length} รายการ` : `ต้องการยกเลิกสถานะเสร็จสิ้น ${targets.length} รายการ`,
+      title: completed ? `ต้องการทำเครื่องหมายเสร็จสิ้น ${fmtCount(targets.length)} รายการ` : `ต้องการยกเลิกสถานะเสร็จสิ้น ${fmtCount(targets.length)} รายการ`,
+      // เลือกจากช่องบนหัวตาราง = รวมทุกหน้า — บอกให้ชัดก่อนกดยืนยัน กันกดพลาดทีเดียวหลายพันรายการ
+      html: allSelected && targets.length > pageSize ? `<div class="scan-popup-hint">รวมทุกหน้า${filterActive ? ' (ตามตัวกรองที่เลือกอยู่)' : ' — ทุกรายการในระบบ'}</div>` : '',
       danger: !completed
     });
     if (!ok) return;
@@ -2031,7 +2054,7 @@ export function WHExportLicensePanel() {
       });
       clearSelection();
       await load();
-      toastSuccess(completed ? `ทำเครื่องหมายเสร็จสิ้น ${targets.length} รายการแล้ว — หยุดนับวันหมดอายุและ Lead time` : `ยกเลิกสถานะเสร็จสิ้น ${targets.length} รายการแล้ว`);
+      toastSuccess(completed ? `ทำเครื่องหมายเสร็จสิ้น ${fmtCount(targets.length)} รายการแล้ว — หยุดนับวันหมดอายุและ Lead time` : `ยกเลิกสถานะเสร็จสิ้น ${fmtCount(targets.length)} รายการแล้ว`);
     } catch (err) {
       toastError(err.message || 'อัปเดตสถานะไม่สำเร็จ');
     } finally {
@@ -2260,14 +2283,14 @@ export function WHExportLicensePanel() {
         </div>
       </div>
 
-      <SelectionBar selectedRows={selectedRows} busy={completing} onComplete={() => applyComplete(true)} onUncomplete={() => applyComplete(false)} onClear={clearSelection} />
+      <SelectionBar selectedRows={selectedRows} busy={completing} onComplete={() => applyComplete(true)} onUncomplete={() => applyComplete(false)} onClear={clearSelection} allSelected={allSelected} filterActive={filterActive} />
 
       <div className="wh-table-card">
         <table className="wh-table il-table-selectable">
           <thead>
             <tr>
               <th className="il-check-th">
-                <SelectCheckbox checked={pageAllSelected} indeterminate={pageSomeSelected} onChange={on => setGroup(pageIds, on)} label="เลือกทุกรายการในหน้านี้" disabled={pageIds.length === 0} />
+                <SelectCheckbox checked={allSelected} indeterminate={someSelected} onChange={toggleAll} label={`เลือกทุกรายการ (${fmtCount(filtered.length)} รายการ รวมทุกหน้า)`} title={allSelected ? 'ยกเลิกการเลือกทั้งหมด' : `เลือกทุกรายการ ${fmtCount(filtered.length)} รายการ (รวมทุกหน้า)`} disabled={filtered.length === 0} />
               </th>
               <th>Item</th>
               <th>Date Ass'y</th>
