@@ -717,9 +717,7 @@ export default function ImportLicensePage() {
               <span className="wh-so-active-label">ใบอนุญาตนำเข้า</span>
               <h3 className="wh-so-active-name">{currentLot.LicenseNo || '(ไม่มีเลขใบอนุญาต)'}</h3>
               <span className="wh-subtitle">
-                Invoice {currentLot.InvoiceNo || '—'} · ใบขนสินค้า {currentLot.DeclarationNo || '—'} · รุ่น{' '}
-                {currentLot.Model || '—'} · {currentLot.Total} เครื่อง
-                {currentLot.CompletedCount > 0 && <> · เสร็จสิ้นแล้ว {currentLot.CompletedCount}/{currentLot.Total}</>}
+                Invoice {currentLot.InvoiceNo || '—'} · ใบขนสินค้า {currentLot.DeclarationNo || '—'} · {currentLot.Total} เครื่อง
               </span>
             </div>
             {lotCompletedAll && <span className="il-complete-stamp" title="ปิดงานทั้งใบแล้ว">
@@ -1876,6 +1874,11 @@ export function WHExportLicensePanel() {
     const set = new Set(currentLicenseRows.map(r => r.InvoiceNo).filter(Boolean));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [currentLicenseRows]);
+  // เลขใบขนสินค้าขาออกของใบนี้ (ใบเดียวอาจมีหลายใบขน) — แสดงไม่ซ้ำ เรียงตามเลข
+  const currentLicenseEntries = useMemo(() => {
+    const set = new Set(currentLicenseRows.map(r => (r.ExportEntry || '').trim()).filter(Boolean));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [currentLicenseRows]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
@@ -2095,9 +2098,8 @@ export function WHExportLicensePanel() {
               <span className="wh-so-active-label">ใบอนุญาตส่งออก</span>
               <h3 className="wh-so-active-name">{exceptionFilter || '(ไม่มีเลขใบอนุญาต)'}</h3>
               <span className="wh-subtitle">
-                Invoice {currentLicenseInvoices.length > 0 ? currentLicenseInvoices.join(', ') : '—'} ·{' '}
-                {currentLicenseRows.length} เครื่อง
-                {currentLicenseRows.filter(isLicenseCompleted).length > 0 && <> · เสร็จสิ้นแล้ว {currentLicenseRows.filter(isLicenseCompleted).length}/{currentLicenseRows.length}</>}
+                Invoice {currentLicenseInvoices.length > 0 ? currentLicenseInvoices.join(', ') : '—'} · ใบขนสินค้าขาออก{' '}
+                {currentLicenseEntries.length > 0 ? currentLicenseEntries.join(', ') : '—'} · {currentLicenseRows.length} เครื่อง
               </span>
             </div>
             {currentLicenseCompletedAll && <span className="il-complete-stamp" title="ปิดงานทั้งใบแล้ว">
