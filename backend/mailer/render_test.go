@@ -170,7 +170,7 @@ func TestRenderHTMLContainsKeyContent(t *testing.T) {
 		"เลยกำหนดยื่น",
 		"1. ใบอนุญาตนำเข้า (Import License)",
 		"2. ใบอนุญาตนำออก (Export License)",
-		"จึงขอแจ้งมาเพื่อโปรดพิจารณา",
+		"จึงเรียนมาเพื่อโปรดทราบ",
 	}
 	for _, want := range must {
 		if !strings.Contains(html, want) {
