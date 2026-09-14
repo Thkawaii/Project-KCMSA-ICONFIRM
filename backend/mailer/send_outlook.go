@@ -1,16 +1,5 @@
 package mailer
 
-// ส่งอีเมลผ่าน Outlook ที่ติดตั้งอยู่บนเครื่อง (Windows เท่านั้น)
-//
-// วิธีนี้ยืมบัญชีที่ล็อกอิน Outlook ค้างไว้อยู่แล้วเป็นคนส่ง
-// จึงไม่ต้องใช้ SMTP_USERNAME/SMTP_PASSWORD และไม่ต้องขอ App password จาก IT
-// จดหมายจะถูกเขียนและกดส่งให้เองทั้งหมด ไม่มีหน้าต่างให้กดยืนยัน
-//
-// ข้อจำกัด
-//   - backend ต้องรันบนเครื่อง Windows เครื่องเดียวกับที่ติดตั้ง Outlook
-//   - Outlook ต้องตั้งโปรไฟล์บัญชีไว้เรียบร้อยแล้ว (เปิดโปรแกรมแล้วเห็นกล่องจดหมาย)
-//   - จดหมายจะไปพักที่ Outbox แล้วออกจริงตอน Outlook ซิงก์รอบถัดไป
-
 import (
 	"bytes"
 	"encoding/json"
@@ -23,10 +12,6 @@ import (
 	"strings"
 )
 
-// outlookManifest ข้อมูลจดหมายที่ส่งต่อให้สคริปต์ PowerShell
-//
-// ส่งผ่านไฟล์ JSON แทนการต่อสตริงลงในสคริปต์ตรง ๆ
-// เพราะหัวข้อและเนื้อความเป็นภาษาไทยและมีอักขระที่ต้อง escape เยอะ
 type outlookManifest struct {
 	To          []string            `json:"to"`
 	CC          []string            `json:"cc"`
@@ -43,9 +28,6 @@ type outlookAttachment struct {
 	ContentType string `json:"contentType"`
 }
 
-// outlookScript สคริปต์ที่ขับ Outlook ผ่าน COM
-//
-// อ่านค่าทั้งหมดจากไฟล์ JSON จึงเป็น ASCII ล้วน ไม่มีปัญหาเรื่องการเข้ารหัสไฟล์สคริปต์
 const outlookScript = `
 $ErrorActionPreference = 'Stop'
 $manifestPath = $args[0]
@@ -169,7 +151,6 @@ func sendOutlook(cfg Config, msg Message) error {
 	return nil
 }
 
-// powershellPath หาตัว PowerShell บนเครื่อง
 func powershellPath() (string, error) {
 	for _, name := range []string{"powershell.exe", "pwsh.exe", "powershell", "pwsh"} {
 		if p, err := exec.LookPath(name); err == nil {

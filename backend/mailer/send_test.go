@@ -13,7 +13,6 @@ import (
 	"testing"
 )
 
-// MAIL_PROVIDER=file ต้องเขียนจดหมายลงไฟล์ได้โดยไม่ต้องมีบัญชีเมลเลย
 func TestFileProviderWritesMail(t *testing.T) {
 	dir := t.TempDir()
 
@@ -54,7 +53,6 @@ func TestFileProviderWritesMail(t *testing.T) {
 	}
 }
 
-// SMTP relay ภายในองค์กรที่ไม่ต้องล็อกอิน ต้องผ่าน Validate ได้
 func TestSMTPAllowsAnonymousRelay(t *testing.T) {
 	cfg := Config{
 		Provider:  ProviderSMTP,
@@ -69,7 +67,6 @@ func TestSMTPAllowsAnonymousRelay(t *testing.T) {
 	}
 }
 
-// ใส่ username มาอย่างเดียวถือว่าตั้งค่าไม่ครบ
 func TestSMTPRejectsHalfCredentials(t *testing.T) {
 	cfg := Config{
 		Provider:     ProviderSMTP,
@@ -85,7 +82,6 @@ func TestSMTPRejectsHalfCredentials(t *testing.T) {
 	}
 }
 
-// MAIL_PROVIDER=outlook ต้องผ่าน Validate โดยไม่ต้องมีรหัสผ่าน
 func TestOutlookNeedsNoCredentials(t *testing.T) {
 	cfg := Config{
 		Provider: ProviderOutlook,
@@ -97,7 +93,6 @@ func TestOutlookNeedsNoCredentials(t *testing.T) {
 	}
 }
 
-// รันบนเครื่องที่ไม่ใช่ Windows ต้องบอกสาเหตุให้ชัด ไม่ใช่พังเงียบ ๆ
 func TestOutlookRejectsNonWindows(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("เทสนี้ตรวจพฤติกรรมบนเครื่องที่ไม่ใช่ Windows")
@@ -112,7 +107,6 @@ func TestOutlookRejectsNonWindows(t *testing.T) {
 	}
 }
 
-// ไฟล์แนบ .xlsx ต้องเป็น zip ที่เปิดได้จริงและมีสีหัวคอลัมน์ตามที่ตั้งไว้
 func TestBuildXLSXIsValidWorkbook(t *testing.T) {
 	att := BuildXLSX(sampleReport())
 
@@ -138,7 +132,6 @@ func TestBuildXLSXIsValidWorkbook(t *testing.T) {
 		}
 		parts[f.Name] = string(body)
 
-		// ทุกไฟล์ในแพ็กเกจต้องเป็น XML ที่ parse ผ่าน ไม่งั้น Excel จะฟ้องว่าไฟล์เสีย
 		if err := xml.Unmarshal(body, new(interface{})); err != nil {
 			var v struct{}
 			if err2 := xml.Unmarshal(body, &v); err2 != nil {
@@ -163,7 +156,6 @@ func TestBuildXLSXIsValidWorkbook(t *testing.T) {
 		t.Fatal("ไม่พบสีพื้นหัวคอลัมน์ในไฟล์สไตล์")
 	}
 
-	// ชื่อชีตทั้งสองต้องอยู่ในสมุดงาน
 	book := parts["xl/workbook.xml"]
 	for _, name := range []string{"Import License", "Export License"} {
 		if !strings.Contains(book, name) {
@@ -187,7 +179,6 @@ func TestBuildXLSXIsValidWorkbook(t *testing.T) {
 		t.Fatal("ชีต Export ไม่ควรมีรายการฝั่งนำเข้าปนมา")
 	}
 
-	// ลำดับแท็กต้องเป็น sheetViews → cols → sheetData ไม่งั้น Excel เปิดไม่ขึ้น
 	iViews := strings.Index(sheet, "<sheetViews>")
 	iCols := strings.Index(sheet, "<cols>")
 	iData := strings.Index(sheet, "<sheetData>")
@@ -196,7 +187,6 @@ func TestBuildXLSXIsValidWorkbook(t *testing.T) {
 	}
 }
 
-// คอลัมน์ "วันคงเหลือ" ต้องไม่มีเลขติดลบหลุดออกไปในไฟล์แนบ
 func TestAttachmentHasNoNegativeDayCounts(t *testing.T) {
 	if got := DaysCountLabel(-9); got != "เลยมา 9 วัน" {
 		t.Fatalf("ค่าติดลบต้องเขียนเป็นคำ ได้ %q", got)

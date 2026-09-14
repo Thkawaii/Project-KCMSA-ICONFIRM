@@ -18,7 +18,6 @@ func TestExportLicenseFillDates(t *testing.T) {
 		t.Fatalf("ExpireDate = %v, want %v (ออก + 1 เดือน)", m.ExpireDate, want)
 	}
 
-	// วันหมดอายุที่มากับไฟล์ Excel ต้องถูกแก้ให้ตรงกติกา 1 เดือนเสมอ
 	custom := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
 	m2 := models.ExportLicenseItem{IssueDate: &issue, ExpireDate: &custom}
 	m2.FillDates()
@@ -33,8 +32,6 @@ func TestExportLicenseFillDates(t *testing.T) {
 	}
 }
 
-// เคสจากหน้างาน: นำออกใบอนุญาต 10 มี.ค. 2026 ต้องหมดอายุ 10 เม.ย. 2026
-// (เดิมโชว์ 31 ธ.ค. 2026 เพราะไปเชื่อวันหมดอายุที่ติดมากับไฟล์)
 func TestExportLicenseExpiryFollowsIssueDate(t *testing.T) {
 	issue := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
 	wrong := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
@@ -48,13 +45,12 @@ func TestExportLicenseExpiryFollowsIssueDate(t *testing.T) {
 	}
 }
 
-// Lead time: ต้องยื่นให้ กสทช. ก่อนหมดอายุ 15 วัน
 func TestExportLicenseLeadTimeDate(t *testing.T) {
 	issue := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
 	m := models.ExportLicenseItem{IssueDate: &issue}
 
 	lead := m.LeadTimeDate()
-	want := time.Date(2026, 3, 26, 0, 0, 0, 0, time.UTC) // 10 เม.ย. - 15 วัน
+	want := time.Date(2026, 3, 26, 0, 0, 0, 0, time.UTC)
 	if lead == nil || !lead.Equal(want) {
 		t.Fatalf("LeadTimeDate = %v, want %v", lead, want)
 	}
@@ -65,7 +61,6 @@ func TestExportLicenseLeadTimeDate(t *testing.T) {
 	}
 }
 
-// สถานะ Lead time ต้องมีแค่ 2 แบบ: ถึงกำหนดยื่น / เลยกำหนดยื่น
 func TestExportLicenseLeadStatus(t *testing.T) {
 	now := time.Date(2026, 3, 20, 9, 0, 0, 0, time.UTC)
 	issue := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
@@ -81,7 +76,6 @@ func TestExportLicenseLeadStatus(t *testing.T) {
 		t.Errorf("status = %q, want %q", status, models.ExportLeadOverdue)
 	}
 
-	// ยังเหลือเวลาอีกมาก ก็ยังเป็น "ถึงกำหนดยื่น" เหมือนกัน (ไม่มีสถานะที่สาม)
 	early := time.Date(2026, 3, 12, 9, 0, 0, 0, time.UTC)
 	if status, _ := m.LeadStatusAt(early); status != models.ExportLeadDue {
 		t.Errorf("status = %q, want %q", status, models.ExportLeadDue)
@@ -93,9 +87,8 @@ func TestExportLicenseLeadStatus(t *testing.T) {
 	}
 }
 
-// LeadUrgent ใช้ตัดสินว่าจะเตือนหรือไม่ — ไม่ใช่สถานะที่แสดงบนป้าย
 func TestExportLicenseLeadUrgent(t *testing.T) {
-	issue := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC) // หมดอายุ 10 เม.ย. → ยื่นภายใน 26 มี.ค.
+	issue := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
 	m := models.ExportLicenseItem{IssueDate: &issue}
 
 	if !m.LeadUrgentAt(time.Date(2026, 3, 20, 9, 0, 0, 0, time.UTC)) {
@@ -109,7 +102,6 @@ func TestExportLicenseLeadUrgent(t *testing.T) {
 	}
 }
 
-// สิ้นเดือนต้องไม่ล้นข้ามเดือน: 31 ม.ค. + 1 เดือน = 28 ก.พ. (ไม่ใช่ 3 มี.ค.)
 func TestAddMonthsClampedEndOfMonth(t *testing.T) {
 	cases := []struct {
 		in   time.Time

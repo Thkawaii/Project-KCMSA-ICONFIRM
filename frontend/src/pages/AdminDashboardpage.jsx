@@ -140,7 +140,6 @@ export default function AdminDashboardPage() {
     if (!ok) return;
     try {
       const res = await deleteAdminUser(u.id);
-      // ผู้ใช้ที่มีประวัติการใช้งาน ระบบจะปิดบัญชีถาวรแต่เก็บประวัติไว้ (ไม่ลบแถวทิ้ง)
       toastSuccess(res?.archived ? 'ลบผู้ใช้แล้ว — เก็บประวัติการใช้งานไว้' : 'ลบผู้ใช้แล้ว');
       await load();
     } catch (err) {

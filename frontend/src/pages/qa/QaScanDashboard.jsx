@@ -4,7 +4,6 @@ import { getQAPartScanSummary } from '../../api/qaPartScan.js';
 import { resolvePeriodRange, periodRangeLabel, shiftPeriodAnchor } from '../../lib/dateRange.js';
 import { ArrowPathIcon, ChevronLeftIcon, ChevronRightIcon, QrCodeIcon, WrenchScrewdriverIcon, XMarkIcon } from '../../components/icons.jsx';
 
-
 const COMPONENT_LABELS = {
   ITC: 'IT Controller',
   CV: 'Control Valve',
@@ -52,7 +51,6 @@ const fmtTime = v => v ? new Date(v).toLocaleString('th-TH', {
   minute: '2-digit'
 }) : '';
 
-
 function PeriodBar({
   mode,
   onMode,
@@ -88,7 +86,6 @@ function PeriodBar({
       </button>
     </div>;
 }
-
 
 function StageStat({
   title,
@@ -146,7 +143,6 @@ function StageStat({
     </div>;
 }
 
-
 function DetailModal({
   selection,
   units,
@@ -159,7 +155,6 @@ function DetailModal({
     setSearch('');
     setLimit(50);
   }, [selection]);
-  // ล็อกการเลื่อนหน้าหลังขณะเปิดป๊อปอัป — ไม่งั้นมีตัวเลื่อนของหน้าหลังซ้อนกับของตาราง และ iPad เลื่อนทะลุได้ + ปิดด้วย Esc
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   useEffect(() => {
@@ -196,8 +191,6 @@ function DetailModal({
   const components = useMemo(() => Array.from(new Set(units.map(u => u.component))), [units]);
   const stageName = isWH ? 'WH' : 'MFG';
   const statusName = selection.status === 'pending' ? isWH ? 'ยังไม่สแกน' : 'ยังไม่ประกอบ' : isWH ? 'สแกนแล้ว' : 'ประกอบแล้ว';
-  // ความสูงใช้ dvh (ไม่นับแถบเครื่องมือ Safari บน iPad) — เดิม 92vh + padding สูงเกินจอจริง หัวป๊อปอัปจึงหลุดขอบ
-  // render ที่ body โดยตรง กันป๊อปอัปถูก layout ของหน้าตัด/ทับ
   return createPortal(<div className="fixed inset-0 z-[120] flex items-end justify-center overscroll-contain bg-slate-900/45 backdrop-blur-[2px] sm:items-center sm:p-3 lg:p-6" onClick={onClose}>
       <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-solid border-slate-200 bg-white shadow-[0_24px_64px_-20px_rgb(16_24_40/0.5)] supports-[height:100dvh]:max-h-[92dvh] sm:max-h-[calc(100vh-2rem)] sm:rounded-2xl sm:supports-[height:100dvh]:max-h-[calc(100dvh-2rem)] lg:max-h-[calc(100vh-3rem)] lg:max-w-5xl lg:supports-[height:100dvh]:max-h-[calc(100dvh-3rem)]" onClick={e => e.stopPropagation()}>
         <div className="flex items-start gap-3 border-b border-solid border-slate-200 bg-slate-50/70 px-5 py-4">
@@ -283,7 +276,6 @@ function DetailModal({
       </div>
     </div>, document.body);
 }
-
 
 export default function QAScanDashboard() {
   const [units, setUnits] = useState([]);

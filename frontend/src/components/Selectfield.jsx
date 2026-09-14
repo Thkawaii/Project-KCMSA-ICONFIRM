@@ -1,9 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 
-// ตัวเลือกแต่ละอันเป็น { value, label, suffix? }
-//   label  = ข้อความ (ใช้แสดงและอ่านหน้าจอ)
-//   suffix = ไอคอน/ป้ายเล็ก ๆ ต่อท้ายข้อความ (ไม่บังคับ) เช่น ไอคอนใบอนุญาตที่เสร็จสิ้นแล้ว
-//            แสดงทั้งในรายการและบนช่องที่เลือกไว้
 export default function SelectField({
   value,
   onChange,

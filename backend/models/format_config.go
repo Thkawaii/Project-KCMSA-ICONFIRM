@@ -27,8 +27,6 @@ type CodeAlias struct {
 
 	FromCode string `gorm:"column:new;size:150;not null" json:"new"`
 
-	// ToOld คือ "Old (ค่าเดิม)" ตัวจริงที่มีอยู่แล้วในระบบ (ทะเบียน S/N, P/N, Machine No. ฯลฯ)
-	// เก็บอยู่ในคอลัมน์ old — ใช้แทนที่ ToSerialNo/ToPartNo เดิมไปเลย
 	ToOld string `gorm:"column:old;size:150;index;not null" json:"old"`
 
 	Note       string    `gorm:"size:255" json:"note"`

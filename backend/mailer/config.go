@@ -1,19 +1,3 @@
-// Package mailer สร้างและส่งอีเมลแจ้งเตือนใบอนุญาตประจำสัปดาห์
-//
-// แพ็กเกจนี้ใช้ไลบรารีมาตรฐานของ Go ล้วน ๆ (ไม่พึ่ง dependency ภายนอก)
-// จึงทดสอบและคอมไพล์แยกจากส่วนอื่นของระบบได้
-//
-// ช่องทางส่งอีเมล (MAIL_PROVIDER) รองรับ 3 แบบ
-//
-//	smtp  — ส่งผ่าน SMTP (ค่าเริ่มต้น smtp.office365.com:587 STARTTLS)
-//	        ใส่ SMTP_USERNAME/SMTP_PASSWORD ถ้าเซิร์ฟเวอร์บังคับล็อกอิน
-//	        เว้นว่างได้ถ้าเป็น relay ภายในองค์กรที่อนุญาตให้เครื่องเซิร์ฟเวอร์ส่งได้เลย
-//	graph — ส่งผ่าน Microsoft Graph API (client credentials) เหมาะกับองค์กรที่ปิด Basic Auth แล้ว
-//	outlook — ยืม Outlook ที่ติดตั้งและล็อกอินค้างไว้บนเครื่อง Windows เป็นคนส่ง
-//	        ไม่ต้องใช้รหัสผ่านและไม่ต้องขออะไรจาก IT แต่ backend ต้องรันบนเครื่องนั้น
-//	file  — ไม่ส่งออกนอกเครื่อง แต่เขียนจดหมายฉบับเต็มลงเป็นไฟล์ .eml + .html
-//	        ใช้ดูว่าระบบเขียนเมลออกมาหน้าตาแบบไหน โดยไม่ต้องมีบัญชีเมลเลย
-//	log   — ไม่ส่งจริง แค่เขียนสรุปบรรทัดเดียวลง log
 package mailer
 
 import (
@@ -32,7 +16,6 @@ const (
 	ProviderLog     = "log"
 )
 
-// Config ค่าตั้งช่องทางส่งอีเมล
 type Config struct {
 	Provider string
 
@@ -54,84 +37,55 @@ type Config struct {
 	GraphClientSecret string
 	GraphSender       string
 
-	// OutDir โฟลเดอร์เก็บไฟล์จดหมายเมื่อ MAIL_PROVIDER=file
 	OutDir string
 
-	// OutlookDisplayOnly เมื่อ MAIL_PROVIDER=outlook ให้เปิดหน้าต่างร่างจดหมายแทนการกดส่งเอง
-	// ใช้ตอนอยากตรวจเนื้อจดหมายก่อนส่งจริง
 	OutlookDisplayOnly bool
 
 	Timeout time.Duration
 }
 
-// WeeklyConfig ค่าตั้งของรายงานรายสัปดาห์ (รอบเวลา + เกณฑ์แจ้งเตือน)
 type WeeklyConfig struct {
 	Enabled bool
 
-	// Weekday วันในสัปดาห์ที่ให้ส่ง (ค่าเริ่มต้น จันทร์)
 	Weekday time.Weekday
 
-	// Hour/Minute เวลาที่ส่ง ตามโซนเวลา Location
 	Hour   int
 	Minute int
 
 	Location *time.Location
 
-	// ImportWithinDays ใบนำเข้าเหลือกี่วันถึงนับว่า "ใกล้หมดอายุ" (ค่าเริ่มต้น 30)
 	ImportWithinDays int
 
-	// ExportWithinDays ใบนำออกเหลือกี่วันถึงนับว่า "ใกล้หมดอายุ" (ค่าเริ่มต้น 7)
 	ExportWithinDays int
 
-	// SendWhenEmpty ส่งอีเมลไหมถ้าสัปดาห์นั้นไม่มีรายการต้องดำเนินการเลย
 	SendWhenEmpty bool
 
-	// CatchUp ถ้าเซิร์ฟเวอร์ดับคร่อมเวลาส่ง ให้ส่งย้อนหลังทันทีที่เปิดเครื่องในสัปดาห์เดียวกัน
 	CatchUp bool
 
-	// SendOnStart ส่งอีเมล 1 ฉบับทันทีที่เปิด backend โดยไม่ต้องรอถึงรอบ
-	// ยังคุมที่สัปดาห์ละ 1 ฉบับ — ถ้าสัปดาห์นั้นส่งไปแล้วจะข้าม
 	SendOnStart bool
 
-	// ForceSendOnStart ข้ามการเช็คว่าสัปดาห์นี้ส่งไปแล้วหรือยัง แล้วส่งใหม่ทุกครั้งที่เปิด backend
-	//
-	// ใช้ตอนแก้เนื้อจดหมายแล้วอยากดูผลซ้ำ ๆ โดยไม่ต้องไปลบแถวในตาราง weekly_alert_logs
-	// อย่าเปิดค้างไว้ตอนใช้งานจริง เพราะรีสตาร์ททีก็ส่งที
 	ForceSendOnStart bool
 
-	// SendOnAdd ส่งรายงานฉบับล่าสุดให้ผู้รับที่เพิ่มใหม่จากหน้า Admin ทันที
-	// ส่งถึงคนนั้นคนเดียว (ไม่มี CC/BCC) และไม่นับเป็นรอบประจำสัปดาห์
-	// ดู controllers.SendWeeklyAlertToNewRecipient
 	SendOnAdd bool
 
-	// MaxRows จำนวนแถวสูงสุดต่อ 1 ตารางในอีเมล ส่วนที่เกินให้ดูในไฟล์แนบ
 	MaxRows int
 
-	// BuddhistEra แสดงปี พ.ศ. แทน ค.ศ. ในอีเมล
 	BuddhistEra bool
 
-	// AppURL ลิงก์เปิดระบบจากในอีเมล
 	AppURL string
 
-	// Greeting ชื่อผู้รับที่พิมพ์หลังคำว่า "เรียน" เช่น "คุณธีปรัชญ์ เมธีภูริวัจน์"
 	Greeting string
 
-	// Org ชื่อบริษัทที่แสดงเป็นหัวจดหมายและใต้ลายเซ็น
 	Org string
 
-	// Dept ชื่อหน่วยงานที่ออกหนังสือ
 	Dept string
 
-	// LogoPath ที่อยู่ไฟล์โลโก้ที่จะฝังบนหัวจดหมาย เว้นว่าง = ไม่ใส่โลโก้
 	LogoPath string
 
-	// LogoWidth ความกว้างของโลโก้ในอีเมล หน่วยเป็นพิกเซล
 	LogoWidth int
 
-	// AttachFormat รูปแบบไฟล์แนบ — "xlsx" (มีสี จัดหน้าเหมือนไฟล์ที่ export จากระบบ) หรือ "csv"
 	AttachFormat string
 
-	// AttachCSV แนบไฟล์รายการทั้งหมดไปกับอีเมล
 	AttachCSV bool
 }
 
@@ -168,7 +122,6 @@ func envInt(key string, fallback int) int {
 	return n
 }
 
-// SplitList แยกรายชื่ออีเมลที่คั่นด้วย , ; หรือเว้นวรรค
 func SplitList(raw string) []string {
 	fields := strings.FieldsFunc(raw, func(r rune) bool {
 		return r == ',' || r == ';' || r == '\n' || r == '\r' || r == '\t' || r == ' '
@@ -190,10 +143,8 @@ func SplitList(raw string) []string {
 	return out
 }
 
-// DefaultRecipient ผู้รับหลักของรายงาน ถ้าไม่ได้ตั้ง WEEKLY_ALERT_TO ไว้
 const DefaultRecipient = "theeparat.metheepooriwat@kobelco.com"
 
-// LoadConfig อ่านค่าตั้งช่องทางส่งอีเมลจาก environment
 func LoadConfig() Config {
 	c := Config{
 		Provider: strings.ToLower(env("MAIL_PROVIDER", ProviderSMTP)),
@@ -222,7 +173,6 @@ func LoadConfig() Config {
 		Timeout: time.Duration(envInt("MAIL_TIMEOUT_SECONDS", 30)) * time.Second,
 	}
 
-	// ถ้าไม่ได้ตั้งผู้ส่ง ให้ใช้บัญชีที่ล็อกอิน SMTP เป็นผู้ส่ง
 	if c.FromEmail == "" {
 		if c.Provider == ProviderGraph {
 			c.FromEmail = c.GraphSender
@@ -237,7 +187,6 @@ func LoadConfig() Config {
 	return c
 }
 
-// Validate ตรวจว่าค่าตั้งครบพอจะส่งอีเมลได้จริงไหม
 func (c Config) Validate() error {
 	if len(c.To) == 0 {
 		return fmt.Errorf("ยังไม่ได้ตั้งผู้รับอีเมล — ตั้ง WEEKLY_ALERT_TO ในไฟล์ .env")
@@ -248,7 +197,6 @@ func (c Config) Validate() error {
 		return nil
 
 	case ProviderFile, ProviderOutlook:
-		// ทั้งสองแบบไม่ต้องใช้บัญชีเมล — file เขียนลงดิสก์ ส่วน outlook ยืมโปรไฟล์ที่ล็อกอินค้างไว้
 		return nil
 
 	case ProviderSMTP:
@@ -258,8 +206,6 @@ func (c Config) Validate() error {
 		if c.SMTPPort <= 0 {
 			return fmt.Errorf("SMTP_PORT ไม่ถูกต้อง")
 		}
-		// รหัสผ่านไม่บังคับ — relay ภายในองค์กรหลายที่ให้เครื่องเซิร์ฟเวอร์ส่งได้เลยโดยไม่ต้องล็อกอิน
-		// แต่ถ้าใส่มาอย่างเดียวถือว่าตั้งค่าไม่ครบ
 		if (c.SMTPUsername == "") != (c.SMTPPassword == "") {
 			return fmt.Errorf("ต้องตั้ง SMTP_USERNAME และ SMTP_PASSWORD คู่กัน (หรือเว้นว่างทั้งคู่ถ้าเป็น relay ที่ไม่ต้องล็อกอิน)")
 		}
@@ -282,7 +228,6 @@ func (c Config) Validate() error {
 	}
 }
 
-// Ready ส่งได้จริงไหม (ใช้โชว์สถานะในหน้าเว็บ)
 func (c Config) Ready() bool { return c.Validate() == nil }
 
 var weekdayNames = map[string]time.Weekday{
@@ -295,7 +240,6 @@ var weekdayNames = map[string]time.Weekday{
 	"SAT": time.Saturday, "SATURDAY": time.Saturday, "เสาร์": time.Saturday,
 }
 
-// ThaiWeekdayName ชื่อวันภาษาไทยแบบเต็ม
 func ThaiWeekdayName(d time.Weekday) string {
 	names := []string{"วันอาทิตย์", "วันจันทร์", "วันอังคาร", "วันพุธ", "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์"}
 	i := int(d)
@@ -338,12 +282,9 @@ func parseClock(raw string, fallbackHour, fallbackMinute int) (int, int) {
 	return h, m
 }
 
-// LoadWeeklyConfig อ่านค่าตั้งรอบเวลาและเกณฑ์ของรายงานรายสัปดาห์
 func LoadWeeklyConfig() WeeklyConfig {
 	loc, err := time.LoadLocation(env("WEEKLY_ALERT_TZ", "Asia/Bangkok"))
 	if err != nil || loc == nil {
-		// เครื่องที่ไม่มีฐานข้อมูลโซนเวลา (เช่น container ที่ไม่ได้ลง tzdata)
-		// ให้ล็อกเป็น UTC+7 ไว้ เพื่อให้เวลาส่งยังตรงกับเวลาไทย
 		loc = time.FixedZone("ICT", 7*60*60)
 	}
 
@@ -375,7 +316,6 @@ func LoadWeeklyConfig() WeeklyConfig {
 	}
 }
 
-// ScheduleLabel ข้อความอธิบายรอบส่ง เช่น "ทุกวันจันทร์ เวลา 08:30 น. (Asia/Bangkok)"
 func (w WeeklyConfig) ScheduleLabel() string {
 	tz := "Asia/Bangkok"
 	if w.Location != nil {
@@ -384,7 +324,6 @@ func (w WeeklyConfig) ScheduleLabel() string {
 	return fmt.Sprintf("ทุก%s เวลา %02d:%02d น. (%s)", ThaiWeekdayName(w.Weekday), w.Hour, w.Minute, tz)
 }
 
-// NextRunAfter เวลารอบส่งถัดไปนับจาก from
 func (w WeeklyConfig) NextRunAfter(from time.Time) time.Time {
 	loc := w.Location
 	if loc == nil {

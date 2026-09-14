@@ -35,13 +35,8 @@ type ExportLicenseItem struct {
 
 	LeadTime *time.Time `gorm:"index"`
 
-	// Remark เป็น text (ไม่จำกัดความยาว) — ไฟล์จริงมีหมายเหตุยาวหลายร้อยตัวอักษร
-	// เดิม varchar(255) ทำให้อัปโหลดทั้งไฟล์ล้มด้วย "value too long for type character varying(255)"
 	Remark string `gorm:"column:remark;type:text"`
 
-	// Completed = ปิดงานใบอนุญาตนี้แล้ว (ผู้ใช้กด "ทำเครื่องหมายเสร็จสิ้น" เอง)
-	// เมื่อเสร็จสิ้นแล้ว ระบบจะ "หยุดนับวันหมดอายุ" และหยุดนับ Lead time ของแถวนี้
-	// คือไม่คิดสถานะใกล้หมดอายุ/หมดอายุ/เลยกำหนดยื่น และไม่เด้งแจ้งเตือนอีกต่อไป
 	Completed   bool `gorm:"index;not null;default:false"`
 	CompletedBy string `gorm:"size:100"`
 	CompletedAt *time.Time
@@ -55,30 +50,18 @@ type ExportLicenseItem struct {
 	User   User
 }
 
-// อายุใบอนุญาตนำออก = 1 เดือนนับจากวันที่นำออกใบอนุญาต (IssueDate)
 const ExportLicenseValidityMonths = 1
 
-// Lead time: ต้องยื่นเรื่องให้ กสทช. ก่อนใบอนุญาตนำออกหมดอายุอย่างน้อย 15 วัน
 const ExportLicenseLeadDays = 15
 
-// ExportLicenseLeadWarnDays ช่วง "ใกล้ครบกำหนดยื่น" ใช้สำหรับการแจ้งเตือนเท่านั้น
-// ไม่ใช่สถานะใหม่ — สถานะ Lead time ยังมีแค่ 2 แบบตามด้านล่าง
 const ExportLicenseLeadWarnDays = 7
 
-// สถานะ Lead time มีแค่ 2 สถานะ
-//
-//	ExportLeadDue     — ถึงกำหนดยื่น (ยังยื่นทันตามกำหนด)
-//	ExportLeadOverdue — เลยกำหนดยื่น (เลยวันสุดท้ายที่ต้องยื่นแล้ว)
-//
-// ExportLeadNoDate ไม่ใช่สถานะ Lead time แต่ใช้กรณีไม่มีวันที่ให้คำนวณ
 const (
-	ExportLeadOverdue = "LEAD_OVERDUE" // เลยกำหนดยื่น
-	ExportLeadDue     = "LEAD_DUE"     // ถึงกำหนดยื่น
-	ExportLeadNoDate  = "LEAD_NO_DATE" // ไม่มีวันที่ให้คำนวณ
+	ExportLeadOverdue = "LEAD_OVERDUE"
+	ExportLeadDue     = "LEAD_DUE"
+	ExportLeadNoDate  = "LEAD_NO_DATE"
 )
 
-// AddMonthsClamped บวกเดือนแบบไม่ล้นเดือน
-// (31 ม.ค. + 1 เดือน = 28/29 ก.พ. ไม่ใช่ 2/3 มี.ค. แบบ time.AddDate)
 func AddMonthsClamped(t time.Time, months int) time.Time {
 	y, m, d := t.Date()
 	first := time.Date(y, m, 1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
@@ -91,9 +74,6 @@ func AddMonthsClamped(t time.Time, months int) time.Time {
 	return time.Date(target.Year(), target.Month(), d, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
 }
 
-// EffectiveExpireDate วันหมดอายุที่ระบบใช้จริง
-// ยึด IssueDate + อายุใบอนุญาต เป็นหลักเสมอ (กันไฟล์ Excel ที่ใส่วันหมดอายุมาผิด เช่น 31 ธ.ค.)
-// ถ้าไม่มี IssueDate ค่อยใช้ ExpireDate ที่มากับไฟล์
 func (m *ExportLicenseItem) EffectiveExpireDate() *time.Time {
 	if m.IssueDate != nil {
 		exp := AddMonthsClamped(*m.IssueDate, ExportLicenseValidityMonths)
@@ -102,7 +82,6 @@ func (m *ExportLicenseItem) EffectiveExpireDate() *time.Time {
 	return m.ExpireDate
 }
 
-// LeadTimeDate วันสุดท้ายที่ต้องยื่นเรื่องให้ กสทช. (วันหมดอายุ - 15 วัน)
 func (m *ExportLicenseItem) LeadTimeDate() *time.Time {
 	exp := m.EffectiveExpireDate()
 	if exp == nil {
@@ -112,7 +91,6 @@ func (m *ExportLicenseItem) LeadTimeDate() *time.Time {
 	return &lead
 }
 
-// FillDates เติม/แก้วันหมดอายุให้ตรงกับกติกา 1 เดือนเสมอ
 func (m *ExportLicenseItem) FillDates() {
 	if m.IssueDate == nil {
 		return
@@ -121,15 +99,12 @@ func (m *ExportLicenseItem) FillDates() {
 	m.ExpireDate = &exp
 }
 
-// DaysBetween นับจำนวนวันเต็มจาก from ถึง to (ตัดเวลาออก ปัดให้ตรงวัน)
 func DaysBetween(from, to time.Time) int {
 	a := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, from.Location())
 	b := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, from.Location())
 	return int(math.Round(b.Sub(a).Hours() / 24))
 }
 
-// LeadStatusAt คืนสถานะ Lead time และจำนวนวันคงเหลือถึงวันที่ต้องยื่น
-// มีแค่ 2 สถานะ: เลยกำหนดยื่น (daysLeft < 0) และ ถึงกำหนดยื่น (daysLeft >= 0)
 func (m *ExportLicenseItem) LeadStatusAt(now time.Time) (status string, daysLeft int) {
 	lead := m.LeadTimeDate()
 	if lead == nil {
@@ -143,8 +118,6 @@ func (m *ExportLicenseItem) LeadStatusAt(now time.Time) (status string, daysLeft
 	return ExportLeadDue, daysLeft
 }
 
-// LeadUrgentAt บอกว่าใบนี้ "ใกล้ครบกำหนดยื่น" หรือยัง (เหลือไม่เกิน ExportLicenseLeadWarnDays วัน)
-// ใช้ตัดสินว่าจะเด้งแจ้งเตือนหรือไม่ — ไม่ใช่สถานะที่แสดงบนป้าย
 func (m *ExportLicenseItem) LeadUrgentAt(now time.Time) bool {
 	status, daysLeft := m.LeadStatusAt(now)
 	return status == ExportLeadDue && daysLeft <= ExportLicenseLeadWarnDays

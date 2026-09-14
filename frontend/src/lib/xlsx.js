@@ -274,11 +274,6 @@ function buildDrawingXml(picList) {
   });
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + `<xdr:wsDr ${NS}>` + anchors + '</xdr:wsDr>';
 }
-// ชื่อชีตที่ Excel ยอมรับ — ถ้าผิดกติกา Excel จะขึ้น "We found a problem with some content"
-// แล้วซ่อมไฟล์โดยเปลี่ยนชื่อชีตเป็น "Recovered_Sheet1" เอง กติกาคือ
-//   - ห้ามมี \ / ? * [ ] :  และยาวไม่เกิน 31 ตัวอักษร
-//   - ห้ามว่าง ห้ามขึ้นต้น/ลงท้ายด้วย ' และห้ามใช้ชื่อสงวน "History"
-//   - ห้ามซ้ำกัน โดย "ไม่สนตัวพิมพ์เล็ก/ใหญ่" (Indonesia กับ INDONESIA ถือว่าซ้ำ)
 function makeSafeSheetName(name, fallback, used) {
   let base = String(name ?? '').replace(/[\\/?*[\]:]/g, ' ').replace(/\s+/g, ' ').trim().replace(/^'+|'+$/g, '').trim();
   if (!base || base.toLowerCase() === 'history') base = base ? `${base} (1)` : fallback;

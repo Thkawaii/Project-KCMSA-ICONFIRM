@@ -41,13 +41,9 @@ type QAConfirmedRow struct {
 	SpecDetail string `json:"specDetail"`
 	ITDevice   string `json:"itDevice"`
 
-	// FormerCodes = รหัสรูปแบบเดิมของแถวนี้ (ก่อนเปลี่ยนใน Change Format Part)
-	// ใช้ให้ค้นหาด้วยรหัสเก่าในหน้า QA ได้ ส่วนคอลัมน์ในตารางแสดงรูปแบบปัจจุบันเสมอ
 	FormerCodes []string `json:"formerCodes,omitempty"`
 }
 
-// qaAssemblyIndexes สร้างดัชนีข้อมูลเครื่อง (รวมจาก ALL PART / Planning / WH1 / WH2 / Engine)
-// ทั้งแบบค้นด้วยหมายเลขเครื่อง และค้นด้วยเลข IT Controller
 func qaAssemblyIndexes() (byMachine, byITC map[string]map[string]string) {
 	byMachine = map[string]map[string]string{}
 	byITC = map[string]map[string]string{}
@@ -74,9 +70,6 @@ func GetQAConfirmedTable(c *gin.Context) {
 	plans := loadMachinePlans()
 	asmByMachine, asmByITC := qaAssemblyIndexes()
 
-	// Change Format Part: แผน / ทะเบียน / บัญชีใบอนุญาต เก็บ "ค่าเดิม"
-	// แต่แถว MFG / WH ที่สแกนหลังเปลี่ยนรูปแบบ เก็บ "รูปแบบใหม่"
-	// ทุกการค้นข้ามตารางจึงต้องลองทุกรูปแบบ และทุกค่าที่แสดงต้องเป็นรูปแบบปัจจุบัน
 	fmtIdx := loadCodeFormatIndex()
 
 	planByCode := map[string]string{}
@@ -113,8 +106,6 @@ func GetQAConfirmedTable(c *gin.Context) {
 	}
 
 	out := make([]QAConfirmedRow, 0, len(mfgRows))
-	// คีย์แบบไม่สนรูปแบบ → ตำแหน่งใน out
-	// แถวที่บันทึกก่อนและหลังเปลี่ยนรูปแบบของพาร์ทชิ้นเดียวกันจะรวมเป็นแถวเดียว (เลือกแถว MATCHED ก่อน)
 	indexByKey := map[string]int{}
 
 	for _, m := range mfgRows {
@@ -123,7 +114,6 @@ func GetQAConfirmedTable(c *gin.Context) {
 			continue
 		}
 
-		// log การสแกนซ้ำ / log รหัสรูปแบบเก่าที่ถูกยกเลิก ไม่ใช่การประกอบจริง
 		status := strings.ToUpper(strings.TrimSpace(m.Status))
 		if status == models.MFGStatusDuplicate || status == models.MFGStatusRetiredFormat {
 			continue
@@ -222,7 +212,6 @@ func GetQAConfirmedTable(c *gin.Context) {
 			row.ITDevice = strings.TrimSpace(asm["IT device"])
 		}
 
-		// แสดงรหัสทุกช่องเป็นรูปแบบปัจจุบัน (ค่าจากทะเบียน / แถว WH เก่ายังเป็นรูปแบบเดิม)
 		row.PartNo = fmtIdx.current(row.PartNo)
 		row.SerialNo = fmtIdx.current(row.SerialNo)
 		row.IMEI = fmtIdx.current(row.IMEI)

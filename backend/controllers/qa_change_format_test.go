@@ -30,9 +30,6 @@ func qaUnitOf(t *testing.T, resp QAPartScanSummaryResponse, comp string) QAScanU
 	return QAScanUnit{}
 }
 
-// บัค: WH / MFG สแกนผ่านด้วยรหัสรูปแบบใหม่แล้ว แต่ป๊อปอัป QA ขึ้น "สแกนไม่ผ่าน"
-// เพราะแผนเก็บค่าเดิม ส่วนผลสแกนเก็บรูปแบบใหม่ และแถว RETIRED_FORMAT (สแกนบาร์โค้ดเก่า)
-// ถูกจับคู่กับค่าเดิมในแผนแทน
 func TestQAScanSummaryAfterChangeFormat(t *testing.T) {
 	db := newTestDB(t)
 	wh := makeUser(t, db, "wh@k.com", "wh1", "WH", "WH")
@@ -43,7 +40,6 @@ func TestQAScanSummaryAfterChangeFormat(t *testing.T) {
 	seedCodeAlias(t, CodeKindMachine, "MC-005-JCC", "MC-005")
 	seedCodeAlias(t, CodeKindSN, "CV-0005-JCC", "CV-0005")
 
-	// หน้างานยิงบาร์โค้ดเก่าก่อน (ถูกบล็อก) แล้วค่อยยิงรูปแบบใหม่
 	if w := runWH(t, wh, `{"partType":"CV","sn":"CV-0005"}`); w["matchStatus"] != models.MatchStatusRetiredFormat {
 		t.Fatalf("สแกนรหัสเก่าต้องได้ RETIRED_FORMAT แต่ได้ %v", w["matchStatus"])
 	}
@@ -73,7 +69,6 @@ func TestQAScanSummaryAfterChangeFormat(t *testing.T) {
 	}
 }
 
-// ถ้าสแกนแค่บาร์โค้ดเก่า (ยังไม่ได้สแกนรูปแบบใหม่) ต้องยังขึ้น "สแกนไม่ผ่าน" เหมือนเดิม
 func TestQAScanSummaryRetiredOnlyStillFails(t *testing.T) {
 	db := newTestDB(t)
 	wh := makeUser(t, db, "wh@k.com", "wh1", "WH", "WH")
@@ -93,8 +88,6 @@ func TestQAScanSummaryRetiredOnlyStillFails(t *testing.T) {
 	}
 }
 
-// แถว WH / MFG ที่บันทึกไว้ก่อนตั้ง Change Format Part (เก็บค่าเดิม) ต้องยังจับคู่ได้
-// และแสดงผลเป็นรูปแบบใหม่
 func TestQAScanSummaryRowsSavedBeforeChangeFormat(t *testing.T) {
 	db := newTestDB(t)
 	qa := makeUser(t, db, "qa@k.com", "qa1", "QA", "QA")
@@ -119,8 +112,6 @@ func TestQAScanSummaryRowsSavedBeforeChangeFormat(t *testing.T) {
 	}
 }
 
-// ตาราง QA (สรุปรายการยืนยัน) หลังเปลี่ยนรูปแบบ Machine No. + S/N
-// ต้องหาแผนเจอ (ประเทศ) และแสดงรหัสเป็นรูปแบบใหม่
 func TestQAConfirmedTableAfterChangeFormat(t *testing.T) {
 	db := newTestDB(t)
 	wh := makeUser(t, db, "wh@k.com", "wh1", "WH", "WH")
@@ -174,7 +165,6 @@ func TestQAConfirmedTableAfterChangeFormat(t *testing.T) {
 	}
 }
 
-// ITC ที่เปลี่ยนรูปแบบเลขเครื่อง 12 หลัก — ตาราง QA ต้องดึงข้อมูลจากทะเบียนกลางได้ครบ
 func TestQAConfirmedTableITCAfterChangeFormat(t *testing.T) {
 	db := newTestDB(t)
 	wh := makeUser(t, db, "wh@k.com", "wh1", "WH", "WH")
@@ -213,7 +203,6 @@ func TestQAConfirmedTableITCAfterChangeFormat(t *testing.T) {
 	}
 }
 
-// codeFormatIndex ต้องให้ผลเหมือนฟังก์ชันที่ค้นฐานข้อมูลตรง ๆ
 func TestCodeFormatIndexMatchesDBHelpers(t *testing.T) {
 	db := newTestDB(t)
 	seedComponentPlan(t, db, "MC-100", map[string]string{"Control Valve No": "CV-100"})

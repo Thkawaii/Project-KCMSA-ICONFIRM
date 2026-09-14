@@ -11,7 +11,6 @@ import (
 	"time"
 )
 
-// Message อีเมล 1 ฉบับก่อนแปลงเป็น MIME
 type Message struct {
 	FromEmail string
 	FromName  string
@@ -25,7 +24,6 @@ type Message struct {
 	Attachments []Attachment
 }
 
-// AllRecipients ผู้รับทั้งหมด (ใช้ตอนสั่ง RCPT TO ทาง SMTP)
 func (m Message) AllRecipients() []string {
 	out := make([]string, 0, len(m.To)+len(m.CC)+len(m.BCC))
 	out = append(out, m.To...)
@@ -42,7 +40,6 @@ func randomToken(n int) string {
 	return hex.EncodeToString(buf)
 }
 
-// wrapBase64 ตัดบรรทัด base64 ทุก 76 ตัวอักษรตามมาตรฐาน MIME
 func wrapBase64(raw []byte) string {
 	encoded := base64.StdEncoding.EncodeToString(raw)
 	const width = 76
@@ -75,7 +72,6 @@ func domainOf(email string) string {
 	return "localhost"
 }
 
-// InlineAttachments รูปที่ฝังอยู่ในเนื้อจดหมาย
 func (m Message) InlineAttachments() []Attachment {
 	out := []Attachment{}
 	for _, a := range m.Attachments {
@@ -86,7 +82,6 @@ func (m Message) InlineAttachments() []Attachment {
 	return out
 }
 
-// FileAttachments ไฟล์แนบที่ผู้รับเห็นเป็นคลิปหนีบกระดาษ
 func (m Message) FileAttachments() []Attachment {
 	out := []Attachment{}
 	for _, a := range m.Attachments {
@@ -97,7 +92,6 @@ func (m Message) FileAttachments() []Attachment {
 	return out
 }
 
-// writePart เขียน 1 ส่วนของ MIME คั่นด้วย boundary ที่กำหนด
 func writePart(b *strings.Builder, boundary, headers, body string) {
 	b.WriteString("--" + boundary + "\r\n")
 	b.WriteString(headers)
@@ -105,7 +99,6 @@ func writePart(b *strings.Builder, boundary, headers, body string) {
 	b.WriteString(body)
 }
 
-// attachmentHeaders ส่วนหัวของไฟล์แนบ แยกกรณีรูปฝังในเนื้อจดหมายกับไฟล์แนบธรรมดา
 func attachmentHeaders(att Attachment) string {
 	ct := att.ContentType
 	if ct == "" {
@@ -116,8 +109,6 @@ func attachmentHeaders(att Attachment) string {
 	h.WriteString(fmt.Sprintf("Content-Type: %s; name=\"%s\"\r\n", ct, att.FileName))
 
 	if att.Inline {
-		// Content-ID คือสิ่งที่ HTML อ้างถึงด้วย src="cid:..."
-		// วิธีนี้ใช้ได้กับ Outlook ทุกเวอร์ชัน ต่างจาก data:base64 ที่ Outlook เดสก์ท็อปไม่รองรับ
 		h.WriteString(fmt.Sprintf("Content-ID: <%s>\r\n", att.ContentID))
 		h.WriteString(fmt.Sprintf("Content-Disposition: inline; filename=\"%s\"\r\n", att.FileName))
 	} else {
@@ -128,10 +119,6 @@ func attachmentHeaders(att Attachment) string {
 	return h.String()
 }
 
-// buildBody ประกอบเนื้อจดหมาย (ข้อความล้วน + HTML + รูปที่ฝังในเนื้อ)
-//
-// คืนค่าเป็น header ของก้อนนี้ กับตัวเนื้อ เพื่อให้ผู้เรียกเอาไปวางเป็น part
-// ของ multipart/mixed หรือใช้เป็น header ระดับบนสุดของจดหมายก็ได้
 func (m Message) buildBody() (string, string) {
 	altBoundary := "ALT_" + randomToken(12)
 
@@ -151,8 +138,6 @@ func (m Message) buildBody() (string, string) {
 		return altHeader, alt.String()
 	}
 
-	// มีรูปฝังในเนื้อจดหมาย จึงต้องห่อด้วย multipart/related
-	// เพื่อบอกโปรแกรมอ่านเมลว่ารูปเหล่านี้เป็นส่วนหนึ่งของ HTML ไม่ใช่ไฟล์แนบแยก
 	relBoundary := "REL_" + randomToken(12)
 
 	var rel strings.Builder
@@ -166,7 +151,6 @@ func (m Message) buildBody() (string, string) {
 	return relHeader, rel.String()
 }
 
-// Build แปลง Message เป็นข้อมูล MIME พร้อมส่งผ่าน SMTP
 func (m Message) Build() []byte {
 	var b strings.Builder
 
@@ -185,7 +169,6 @@ func (m Message) Build() []byte {
 	writeHeader("Message-ID", fmt.Sprintf("<%s@%s>", randomToken(16), domainOf(m.FromEmail)))
 	writeHeader("MIME-Version", "1.0")
 
-	// บอกให้ระบบเมลรู้ว่าเป็นจดหมายอัตโนมัติ จะได้ไม่ตอบ auto-reply กลับมา
 	writeHeader("Auto-Submitted", "auto-generated")
 	writeHeader("X-Auto-Response-Suppress", "All")
 	writeHeader("X-Mailer", "I-CONFIRMATION Weekly License Alert")
@@ -193,7 +176,6 @@ func (m Message) Build() []byte {
 	bodyHeader, body := m.buildBody()
 	files := m.FileAttachments()
 
-	// ไม่มีไฟล์แนบ — เนื้อจดหมายเป็นก้อนบนสุดได้เลย
 	if len(files) == 0 {
 		b.WriteString(bodyHeader)
 		b.WriteString("\r\n")
@@ -201,7 +183,6 @@ func (m Message) Build() []byte {
 		return []byte(b.String())
 	}
 
-	// มีไฟล์แนบ — ห่อทุกอย่างไว้ใน multipart/mixed
 	mixedBoundary := "MIX_" + randomToken(12)
 	b.WriteString(`Content-Type: multipart/mixed; boundary="` + mixedBoundary + `"` + "\r\n\r\n")
 

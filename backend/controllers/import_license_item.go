@@ -269,14 +269,13 @@ func GetImportLicenseItems(c *gin.Context) {
 func GetImportLicenseSummary(c *gin.Context) {
 
 	type summaryRow struct {
-		LicenseNo     string `json:"LicenseNo"`
-		InvoiceNo     string `json:"InvoiceNo"`
-		DeclarationNo string `json:"DeclarationNo"`
-		Model         string `json:"Model"`
-		Total         int    `json:"Total"`
-		Confirmed     int    `json:"Confirmed"`
-		// CompletedCount = จำนวนเครื่องในล็อตที่ทำเครื่องหมาย "เสร็จสิ้น" แล้ว
-		CompletedCount int `json:"CompletedCount"`
+		LicenseNo      string `json:"LicenseNo"`
+		InvoiceNo      string `json:"InvoiceNo"`
+		DeclarationNo  string `json:"DeclarationNo"`
+		Model          string `json:"Model"`
+		Total          int    `json:"Total"`
+		Confirmed      int    `json:"Confirmed"`
+		CompletedCount int    `json:"CompletedCount"`
 	}
 
 	var rows []summaryRow
@@ -326,8 +325,6 @@ func GetImportLicenseAlerts(c *gin.Context) {
 		IssueDate     *time.Time
 	}
 
-	// ข้ามแถวที่ทำเครื่องหมาย "เสร็จสิ้น" แล้ว — ปิดงานไปแล้วจึงหยุดนับวันหมดอายุ
-	// ถ้าทุกแถวในใบนั้นเสร็จสิ้นหมด ใบนั้นจะหายไปจากรายการแจ้งเตือนทั้งใบ
 	var groups []groupRow
 	config.DB.Model(&models.ImportLicenseItem{}).
 		Where("completed IS NOT TRUE").
@@ -553,7 +550,6 @@ func UploadImportLicenseItems(c *gin.Context) {
 		machineNos = append(machineNos, row.MachineNo)
 	}
 
-	// ค้นของเดิมทีละก้อน — ถ้ายิง IN ทีเดียวทั้งไฟล์ ไฟล์ใหญ่จะชนเพดาน 65,535 พารามิเตอร์ของ PostgreSQL
 	var existingRows []models.ImportLicenseItem
 	if err := findWhereInChunks(config.DB, "machine_no", machineNos, &existingRows); err != nil {
 		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
@@ -607,10 +603,6 @@ func UploadImportLicenseItems(c *gin.Context) {
 
 	var imported, updated int
 
-	// อัปเดตแถวที่มีอยู่แล้ว — ใช้ INSERT ... ON CONFLICT (machine_no) DO UPDATE ทีละก้อน
-	// เร็วกว่ายิง UPDATE ทีละแถวราว 10 เท่า (ทดสอบ 80,000 แถว: จาก ~31 วินาที เหลือไม่กี่วินาที)
-	// อัปเดตเฉพาะคอลัมน์จากไฟล์ — สถานะยืนยัน/เสร็จสิ้นของเดิมไม่ถูกแตะ
-	// ถ้าก้อนไหนพัง (เช่นมีค่ายาวเกินคอลัมน์) ค่อยไล่ทีละแถวในก้อนนั้น เพื่อบอกได้ว่าเครื่องไหนมีปัญหา
 	upsert := clause.OnConflict{
 		Columns: []clause.Column{{Name: "machine_no"}},
 		DoUpdates: clause.AssignmentColumns([]string{
@@ -640,8 +632,6 @@ func UploadImportLicenseItems(c *gin.Context) {
 		}
 	}
 
-	// เพิ่มแถวใหม่ — INSERT ทีละ dbInsertBatch แถว ไม่ให้เกินเพดานพารามิเตอร์
-	// ถ้าก้อนไหนพัง ค่อยไล่เพิ่มทีละแถวในก้อนนั้น เพื่อให้แถวที่ถูกต้องยังเข้าได้ครบ
 	for _, part := range chunkSlice(toCreate, dbInsertBatch) {
 		if err := config.DB.Create(&part).Error; err == nil {
 			imported += len(part)
@@ -682,8 +672,6 @@ func matchImportLicense(code, invoiceNo, productionNo string) (string, string, *
 		First(&item).Error
 
 	if err != nil {
-		// หน้างานอาจเปลี่ยนรูปแบบหมายเลขเครื่อง — ลองแปลงตาม Change Format Part
-		// ทั้งแบบระบุชนิด machine และแบบผูกกลุ่ม import_license ของไฟล์รุ่นเก่า
 		candidates := []string{ResolveMachineNo(code)}
 		if alias := lookupCodeAlias("import_license", code); alias != nil {
 			candidates = append(candidates, alias.ToOld)
@@ -1040,11 +1028,6 @@ func RenewImportLicense(c *gin.Context) {
 		newIssue := base.AddDate(0, 0, req.Days)
 		newExpire := newIssue.AddDate(0, LicenseValidityMonths, 0)
 
-		// ต้องเขียน expire_date ด้วย ไม่ใช่แค่ issue_date
-		//
-		// ตารางบนหน้าเว็บอ่านคอลัมน์ ExpireDate เป็นหลัก (ดู ExpiryCell ใน Importlicensepage.jsx)
-		// ถ้าเลื่อนแต่ issue_date วันหมดอายุบนหน้าจอจะไม่ขยับเลย ทั้งที่ฐานข้อมูลเปลี่ยนแล้ว
-		// ผู้ใช้จึงเห็นเป็น "กดต่ออายุแล้วไม่มีอะไรเกิดขึ้น"
 		if err := config.DB.Model(&models.ImportLicenseItem{}).
 			Where("id = ?", rows[i].ID).
 			Updates(map[string]interface{}{

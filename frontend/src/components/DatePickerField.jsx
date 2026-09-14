@@ -1,24 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CALENDAR_MAX_YMD, CALENDAR_MIN_YMD, THAI_MONTHS, THAI_MONTHS_SHORT, formatShortThaiDate, formatTypedDate, parseTypedDate, parseYMD, ymdOf } from '../lib/typedDate.js';
 import './DatePickerField.css';
-
-// ---------------------------------------------------------------------------
-// ช่องเลือกวันที่ (ใช้ในตัวกรองช่วงวันที่ของหน้า QA และ Export License)
-//
-// ใช้ได้ 2 ทาง
-//   1. พิมพ์วันที่เองในช่อง เช่น 15/07/2569 แล้วกด Enter (หรือคลิกออก)
-//      รับทั้งปี พ.ศ./ค.ศ. ปี 2 หลัก ตัวเลขล้วน และชื่อเดือนไทย — ดู lib/typedDate.js
-//   2. เปิดปฏิทิน — กดที่ชื่อเดือน/ปีบนหัวปฏิทินเพื่อกระโดดไปเดือนหรือปีที่ต้องการได้ทันที
-//      (เดิมต้องกด < > ทีละเดือน กว่าจะย้อนไปปีก่อน ๆ ต้องกดหลายสิบครั้ง)
-//
-// iPad / มือถือ: แตะช่องพิมพ์จะขึ้นแป้นตัวเลข แต่ไม่เด้งปฏิทินทับ
-// ถ้าอยากเลือกจากปฏิทินให้แตะไอคอนปฏิทินด้านขวา
-//
-// ตำแหน่งปฏิทิน: วัดพื้นที่ว่างจริงบนจอทุกครั้งที่เปิด (รวม iPad / Surface / จอโน้ตบุ๊กที่ซูม 125%)
-//   ใต้ช่องพอ → เปิดด้านล่าง | ไม่พอแต่ด้านบนพอ → เปิดขึ้นด้านบน
-//   ไม่พอทั้งคู่ → เลื่อนหน้าให้ปฏิทินอยู่ในจอ ถ้ายังไม่พออีกให้เลื่อนภายในปฏิทินแทนการล้นจอ
-//   ล้นขอบขวา → ขยับเข้ามาในจอ
-// ---------------------------------------------------------------------------
 
 const THAI_WEEKDAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 const pad2 = n => String(n).padStart(2, '0');
@@ -38,22 +21,6 @@ function Chevron({
       <path d={d} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>;
 }
-// เลื่อนกล่องที่เลื่อนได้ตัวแรกที่ครอบอยู่ (หรือทั้งหน้า) ลงไป delta px
-function scrollAncestorsBy(el, delta) {
-  let node = el.parentElement;
-  while (node && node !== document.body) {
-    const style = getComputedStyle(node);
-    const scrollable = /(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight;
-    if (scrollable) {
-      const before = node.scrollTop;
-      node.scrollTop = before + delta;
-      if (node.scrollTop !== before) return;
-    }
-    node = node.parentElement;
-  }
-  const root = document.scrollingElement || document.documentElement;
-  root.scrollTop += delta;
-}
 export default function DatePickerField({
   value,
   onChange,
@@ -62,11 +29,9 @@ export default function DatePickerField({
   placeholder = 'เลือกวันที่',
   renderTrigger
 }) {
-  // ปฏิทินเลือกได้ตั้งแต่ พ.ศ. 2543 ถึง 2580 เสมอ — ถ้าผู้เรียกส่ง min/max มา จะแคบลงได้แต่ไม่กว้างกว่านี้
   const min = minProp && minProp > CALENDAR_MIN_YMD ? minProp : CALENDAR_MIN_YMD;
   const max = maxProp && maxProp < CALENDAR_MAX_YMD ? maxProp : CALENDAR_MAX_YMD;
   const [open, setOpen] = useState(false);
-  // days = ตารางวัน, months = เลือกเดือน, years = เลือกปี
   const [panel, setPanel] = useState('days');
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
@@ -75,18 +40,12 @@ export default function DatePickerField({
   const inputRef = useRef(null);
   const yearListRef = useRef(null);
   const popRef = useRef(null);
-  // up = เปิดขึ้นด้านบน, shiftX = ขยับซ้าย/ขวาไม่ให้ล้นจอ, maxH = จำกัดความสูงเมื่อจอเตี้ยมาก
-  const [placement, setPlacement] = useState({
-    up: false,
-    shiftX: 0,
-    maxH: null
-  });
-  const [errorUp, setErrorUp] = useState(false);
+  const [placement, setPlacement] = useState(null);
+  const [errorPos, setErrorPos] = useState(null);
   const textRef = useRef('');
   const pointerTypeRef = useRef('mouse');
   const errorTimerRef = useRef(null);
   const selected = parseYMD(value);
-  // ค่าล่าสุดที่ส่งออกไปแล้ว — กันเรียก onChange ซ้ำตอนเลือกวันแล้วช่องพิมพ์หลุดโฟกัสตามมา
   const lastValueRef = useRef(value);
   lastValueRef.current = value;
   const todayYMD = toYMD(new Date());
@@ -113,7 +72,8 @@ export default function DatePickerField({
   useEffect(() => {
     if (!open) return;
     function onOutside(e) {
-      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+      if (boxRef.current?.contains(e.target) || popRef.current?.contains(e.target)) return;
+      setOpen(false);
     }
     function onKey(e) {
       if (e.key === 'Escape') setOpen(false);
@@ -127,97 +87,107 @@ export default function DatePickerField({
   }, [open]);
   useEffect(() => () => clearTimeout(errorTimerRef.current), []);
   useLayoutEffect(() => {
-    if (!open) return undefined;
+    if (!open) {
+      setPlacement(null);
+      return undefined;
+    }
     const MARGIN = 8;
     const GAP = 6;
-    function viewportBox() {
-      const vv = window.visualViewport;
-      return vv ? {
-        top: vv.offsetTop,
-        left: vv.offsetLeft,
-        width: vv.width,
-        height: vv.height
-      } : {
-        top: 0,
-        left: 0,
-        width: window.innerWidth,
-        height: window.innerHeight
-      };
-    }
-    function compute() {
+    let frame = 0;
+    function place() {
       const pop = popRef.current;
       const box = boxRef.current;
-      if (!pop || !box) return null;
-      const vp = viewportBox();
+      if (!pop || !box) return;
+      const vv = window.visualViewport;
+      const vTop = vv ? vv.offsetTop : 0;
+      const vLeft = vv ? vv.offsetLeft : 0;
+      const vH = vv ? vv.height : window.innerHeight;
+      const vW = vv ? vv.width : window.innerWidth;
       const r = box.getBoundingClientRect();
-      const h = pop.scrollHeight + 2; // + เส้นขอบ
-      const w = pop.offsetWidth;
-      const below = vp.top + vp.height - r.bottom - GAP - MARGIN;
-      const above = r.top - vp.top - GAP - MARGIN;
-      let shiftX = 0;
-      const limitRight = vp.left + vp.width - MARGIN;
-      if (r.left + w > limitRight) shiftX = limitRight - (r.left + w);
-      if (r.left + shiftX < vp.left + MARGIN) shiftX = vp.left + MARGIN - r.left;
-      return {
-        h,
-        below,
-        above,
-        shiftX
-      };
-    }
-    function place(allowScroll) {
-      let m = compute();
-      if (!m) return;
-      if (m.h <= m.below) return setPlacement({
-        up: false,
-        shiftX: m.shiftX,
-        maxH: null
-      });
-      if (m.h <= m.above) return setPlacement({
-        up: true,
-        shiftX: m.shiftX,
-        maxH: null
-      });
-      if (allowScroll) {
-        // ไม่พอทั้งบนและล่าง — เลื่อนหน้าให้ช่องวันที่ขึ้นไปใกล้ขอบบน แล้ววัดใหม่
-        const need = m.h - m.below;
-        const canMoveUp = Math.max(0, m.above - 4);
-        const delta = Math.min(need, canMoveUp);
-        if (delta > 0) {
-          const before = boxRef.current.getBoundingClientRect().top;
-          scrollAncestorsBy(boxRef.current, delta);
-          const moved = before - boxRef.current.getBoundingClientRect().top;
-          if (moved > 0) m = compute() || m;
-          if (m.h <= m.below) return setPlacement({
-            up: false,
-            shiftX: m.shiftX,
-            maxH: null
-          });
-        }
+      if (r.bottom < vTop || r.top > vTop + vH) {
+        setOpen(false);
+        return;
       }
-      const up = m.above > m.below;
-      setPlacement({
-        up,
-        shiftX: m.shiftX,
-        maxH: Math.max(200, Math.floor(up ? m.above : m.below))
+      pop.style.removeProperty('--dpf-day-h');
+      const h = pop.scrollHeight + 2;
+      const w = pop.offsetWidth;
+      const below = vTop + vH - r.bottom - GAP - MARGIN;
+      const above = r.top - vTop - GAP - MARGIN;
+      const usable = vH - MARGIN * 2;
+      const WEEK_ROWS = 6;
+      const coarse = window.matchMedia?.('(pointer: coarse)').matches;
+      const minDay = coarse ? 32 : 28;
+      const baseDay = parseFloat(getComputedStyle(pop).getPropertyValue('--dpf-day-base')) || 38;
+      function shrinkFor(space) {
+        if (panel !== 'days' || space <= 0) return null;
+        const perRow = Math.ceil((h - space) / WEEK_ROWS);
+        const day = baseDay - perRow;
+        return day >= minDay ? day : null;
+      }
+      let top;
+      let maxH = null;
+      let dayH = null;
+      let sideLeft = null;
+      if (h <= below) {
+        top = r.bottom + GAP;
+      } else if (h <= above) {
+        top = r.top - GAP - h;
+      } else if ((dayH = shrinkFor(Math.max(below, above))) !== null) {
+        const shrunk = h - (baseDay - dayH) * WEEK_ROWS;
+        top = below >= above ? r.bottom + GAP : r.top - GAP - shrunk;
+      } else if (h <= usable && (r.right + GAP + w <= vLeft + vW - MARGIN || r.left - GAP - w >= vLeft + MARGIN)) {
+        top = Math.min(Math.max(r.top, vTop + MARGIN), vTop + vH - MARGIN - h);
+        sideLeft = r.right + GAP + w <= vLeft + vW - MARGIN ? r.right + GAP : r.left - GAP - w;
+      } else if (h <= usable) {
+        top = below >= above ? vTop + vH - MARGIN - h : vTop + MARGIN;
+      } else {
+        top = vTop + MARGIN;
+        maxH = usable;
+      }
+      if (dayH !== null) pop.style.setProperty('--dpf-day-h', `${dayH}px`);
+      let left = sideLeft !== null ? sideLeft : r.left;
+      left = Math.min(left, vLeft + vW - MARGIN - w);
+      left = Math.max(left, vLeft + MARGIN);
+      setPlacement(prev => prev && prev.top === Math.round(top) && prev.left === Math.round(left) && prev.maxH === maxH ? prev : {
+        top: Math.round(top),
+        left: Math.round(left),
+        maxH
       });
     }
-    place(true);
-    const onResize = () => place(false);
-    window.addEventListener('resize', onResize);
-    window.visualViewport?.addEventListener('resize', onResize);
+    function schedule(e) {
+      if (e && e.type === 'scroll' && popRef.current && e.target instanceof Node && popRef.current.contains(e.target)) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(place);
+    }
+    place();
+    window.addEventListener('resize', schedule);
+    window.addEventListener('scroll', schedule, true);
+    window.visualViewport?.addEventListener('resize', schedule);
+    window.visualViewport?.addEventListener('scroll', schedule);
     return () => {
-      window.removeEventListener('resize', onResize);
-      window.visualViewport?.removeEventListener('resize', onResize);
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('scroll', schedule, true);
+      window.visualViewport?.removeEventListener('resize', schedule);
+      window.visualViewport?.removeEventListener('scroll', schedule);
     };
   }, [open, panel]);
 
-  // เปิดหน้าเลือกปีแล้ว เลื่อนให้ปีที่กำลังดูอยู่กลางกล่อง ไม่ต้องไล่หาเอง
+  useEffect(() => {
+    if (!error || open) return undefined;
+    const hide = () => setError('');
+    window.addEventListener('scroll', hide, true);
+    window.addEventListener('resize', hide);
+    return () => {
+      window.removeEventListener('scroll', hide, true);
+      window.removeEventListener('resize', hide);
+    };
+  }, [error, open]);
+
   useEffect(() => {
     if (panel !== 'years' || !yearListRef.current) return;
     const list = yearListRef.current;
     const active = list.querySelector('.dpf-cell-active');
-    // เลื่อนเฉพาะในกล่องรายการปี (ไม่ใช้ scrollIntoView เพราะจะพาทั้งหน้าเลื่อนตามไปด้วย)
     if (active) list.scrollTop = active.offsetTop - list.clientHeight / 2 + active.offsetHeight / 2;
   }, [panel]);
   const weeks = useMemo(() => {
@@ -238,7 +208,6 @@ export default function DatePickerField({
   const viewKey = monthKey(view.y, view.m);
   const prevDisabled = minKey !== null && viewKey <= minKey;
   const nextDisabled = maxKey !== null && viewKey >= maxKey;
-  // หน้าเลือกปีแสดงทุกปีในช่วง min–max (ค่าเริ่มต้น พ.ศ. 2543 – 2580)
   const firstYear = minP.y;
   const lastYear = maxP.y;
   const years = useMemo(() => {
@@ -263,7 +232,6 @@ export default function DatePickerField({
     }));
   }
   function chooseYear(y) {
-    // เดือนเดิมอาจอยู่นอกช่วงข้อมูลของปีใหม่ — ขยับเข้าช่วงให้ แล้วไปเลือกเดือนต่อ
     let m = view.m;
     if (minKey !== null && monthKey(y, m) < minKey) m = minP.m;
     if (maxKey !== null && monthKey(y, m) > maxKey) m = maxP.m;
@@ -281,10 +249,17 @@ export default function DatePickerField({
     setPanel('days');
   }
   function flashError(message) {
-    // ช่องอยู่ติดขอบล่างจอ — ให้ข้อความแจ้งเตือนขึ้นด้านบนแทน จะได้ไม่ถูกตัด
     const r = boxRef.current?.getBoundingClientRect();
     const vh = window.visualViewport?.height || window.innerHeight;
-    setErrorUp(!!r && vh - r.bottom < 90 && r.top > 90);
+    const vw = window.visualViewport?.width || window.innerWidth;
+    if (r) {
+      const up = vh - r.bottom < 90 && r.top > 90;
+      setErrorPos({
+        top: up ? undefined : Math.round(r.bottom + 6),
+        bottom: up ? Math.round(vh - r.top + 6) : undefined,
+        left: Math.round(Math.max(8, Math.min(r.left, vw - 8 - Math.min(320, vw - 32))))
+      });
+    }
     setError(message);
     clearTimeout(errorTimerRef.current);
     errorTimerRef.current = setTimeout(() => setError(''), 4000);
@@ -293,10 +268,9 @@ export default function DatePickerField({
     return `เลือกได้ระหว่าง ${formatShortThaiDate(min)} – ${formatShortThaiDate(max)}`;
   }
 
-  // ตรวจข้อความที่พิมพ์ — คืน true เมื่อบันทึกค่าได้
   function commitText(raw) {
     const trimmed = String(raw ?? '').trim();
-    if (!trimmed) return true; // ลบข้อความทิ้ง = ไม่เปลี่ยนค่าเดิม
+    if (!trimmed) return true;
     const parsed = parseTypedDate(trimmed, {
       min,
       max
@@ -324,16 +298,12 @@ export default function DatePickerField({
     setEditing(true);
     setTextBoth(formatTypedDate(value));
     requestAnimationFrame(() => inputRef.current?.select());
-    // เมาส์: เปิดปฏิทินให้เลย / นิ้ว (iPad): ไม่เปิด เพราะแป้นพิมพ์กับปฏิทินจะทับกัน
     if (pointerTypeRef.current !== 'touch') setOpen(true);
   }
   function handleTextChange(e) {
-    // ไม่เติม "/" ให้อัตโนมัติระหว่างพิมพ์ — จะไปขัดคนที่พิมพ์ "/" เอง หรือพิมพ์แบบ 2026-07-15 / 15 ก.ค. 2569
-    // พิมพ์ตัวเลขล้วน 15072569 ก็ได้ พอกด Enter หรือคลิกออก ระบบจัดรูปให้เอง
     const next = e.target.value;
     setTextBoth(next);
     if (error) setError('');
-    // พิมพ์ครบเป็นวันที่แล้ว เลื่อนปฏิทินไปเดือนนั้นให้เห็นทันที
     const parsed = parseTypedDate(next, {
       min,
       max
@@ -348,7 +318,6 @@ export default function DatePickerField({
     }
   }
   function handleBlur() {
-    // ข้อความผิดตอนคลิกออก: คืนค่าเดิม และแจ้งเตือนสั้น ๆ ใต้ช่อง
     commitText(textRef.current);
     setEditing(false);
   }
@@ -376,7 +345,6 @@ export default function DatePickerField({
   }
   const triggerLabel = selected ? `${selected.d} ${THAI_MONTHS[selected.m]} ${selected.y + 543}` : placeholder;
   const todayDisabled = min && todayYMD < min || max && todayYMD > max;
-  // data-scan-ignore: หน้าที่ฟังเครื่องยิงบาร์โค้ดจากคีย์บอร์ด (WH / MFG) จะไม่ดักการพิมพ์ในช่องนี้
   return <div className="dpf" ref={boxRef} data-scan-ignore="">
       {renderTrigger ? renderTrigger({
       open,
@@ -392,13 +360,14 @@ export default function DatePickerField({
           </button>
         </div>}
 
-      {error && !open && <div className={'dpf-error' + (errorUp ? ' dpf-error-up' : '')} role="alert">{error}</div>}
+      {error && !open && errorPos && createPortal(<div className="dpf-error" role="alert" data-scan-ignore="" style={errorPos}>{error}</div>, document.body)}
 
-      {open && <div ref={popRef} className={'dpf-pop' + (placement.up ? ' dpf-pop-up' : '') + (placement.maxH ? ' dpf-pop-scroll' : '')} style={{
-      left: placement.shiftX || 0,
-      maxHeight: placement.maxH || undefined
-    }} role="dialog"
-    // กดปุ่มในปฏิทินแล้วไม่ให้ช่องพิมพ์หลุดโฟกัส (ไม่งั้นข้อความที่พิมพ์ค้างจะถูกตรวจก่อนเลือกวัน)
+      {open && createPortal(<div ref={popRef} className={'dpf-pop' + (placement?.maxH ? ' dpf-pop-scroll' : '')} style={{
+      top: placement ? placement.top : 0,
+      left: placement ? placement.left : 0,
+      maxHeight: placement?.maxH || undefined,
+      visibility: placement ? 'visible' : 'hidden'
+    }} role="dialog" data-scan-ignore=""
     onMouseDown={e => e.preventDefault()}>
           {error && <div className="dpf-error dpf-error-inline" role="alert">{error}</div>}
 
@@ -487,6 +456,6 @@ export default function DatePickerField({
               วันนี้
             </button>
           </div>
-        </div>}
+        </div>, document.body)}
     </div>;
 }

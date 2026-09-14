@@ -25,9 +25,7 @@ func runMFG(t *testing.T, u models.User, body string) map[string]interface{} {
 	return decodeJSON(t, rec)
 }
 
-// สแกนหลังเปลี่ยนรูปแบบ ต้องได้ MATCHED ทั้งตอนสแกนและตอนดึงตาราง
 func TestMFGStatusAfterFormatChange(t *testing.T) {
-	// ---- A: ITC เปลี่ยน S/N — WH สแกนใหม่ แล้ว MFG สแกนใหม่
 	t.Run("A_ITC_เปลี่ยน_SN", func(t *testing.T) {
 		db := newTestDB(t)
 		wh := makeUser(t, db, "wh@k.com", "wh1", "WH", "WH")
@@ -49,7 +47,6 @@ func TestMFGStatusAfterFormatChange(t *testing.T) {
 		}
 	})
 
-	// ---- B: ITC เปลี่ยนหมายเลขเครื่อง 12 หลัก
 	t.Run("B_ITC_เปลี่ยนเลขเครื่อง", func(t *testing.T) {
 		db := newTestDB(t)
 		wh := makeUser(t, db, "wh@k.com", "wh1", "WH", "WH")
@@ -71,7 +68,6 @@ func TestMFGStatusAfterFormatChange(t *testing.T) {
 		}
 	})
 
-	// ---- C: CV เปลี่ยน S/N — WH สแกนก่อน แล้ว MFG
 	t.Run("C_CV_เปลี่ยน_SN", func(t *testing.T) {
 		db := newTestDB(t)
 		wh := makeUser(t, db, "wh@k.com", "wh1", "WH", "WH")
@@ -92,8 +88,6 @@ func TestMFGStatusAfterFormatChange(t *testing.T) {
 	})
 }
 
-// บัค: ScanMFGAssembly ตอบ MATCHED แต่พอดึงตารางกลับเป็น NOT_MATCHED (planState=NO_PLAN)
-// เพราะแถวเก็บหมายเลขเครื่องรูปแบบใหม่ แต่คีย์ของแผนเป็นค่าเดิมจากไฟล์ Planning
 func TestMFGListStatusAfterMachineNoFormatChange(t *testing.T) {
 	db := newTestDB(t)
 	wh := makeUser(t, db, "wh@k.com", "wh1", "WH", "WH")

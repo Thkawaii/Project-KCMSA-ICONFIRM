@@ -28,7 +28,6 @@ type MFGAssembly struct {
 
 	Status string `gorm:"column:status;size:20;index"`
 
-	// RetiredDetail เก็บรายละเอียด "ต้องใช้รหัสใหม่ตัวไหนแทน" ตอนสถานะเป็น RETIRED_FORMAT
 	RetiredDetail string `gorm:"column:retired_detail;size:255"`
 
 	WHMatched         bool       `gorm:"column:wh_matched;index"`

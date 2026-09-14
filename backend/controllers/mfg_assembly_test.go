@@ -405,7 +405,6 @@ func TestMFGScanRepeatAfterMatched(t *testing.T) {
 		t.Errorf("แถวเดิม status = %q, want MATCHED (ห้ามถูกเขียนทับเป็น DUPLICATE)", row.Status)
 	}
 
-	// การสแกนซ้ำต้องถูกบันทึกเป็นแถวใหม่ เพื่อให้ขึ้นในตารางได้
 	var dup models.MFGAssembly
 	if err := db.Where("machine_no = ? AND status = ?",
 		"LX10400690", models.MFGStatusDuplicate).First(&dup).Error; err != nil {

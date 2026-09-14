@@ -45,9 +45,6 @@ export function renewImportLicense(licenseNo = '', invoiceNo = '', days = 0) {
     })
   });
 }
-// ทำเครื่องหมาย "เสร็จสิ้น" ให้ใบอนุญาตนำเข้า
-// เลือกทีละแถวด้วย ids (กี่แถวก็ได้) หรือเหมาทั้งใบด้วย licenseNo + invoiceNo
-// ส่ง completed = false เพื่อยกเลิกสถานะ
 export function setImportLicenseComplete({
   ids = null,
   licenseNo = null,

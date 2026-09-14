@@ -40,22 +40,6 @@ const EXPIRY_BADGE_CLASS = {
   [EXPIRY_STATUS.NO_DATE]: 'il-badge il-badge-muted'
 };
 
-// ---------------------------------------------------------------------------
-// สถานะ "เสร็จสิ้น" ของใบอนุญาต
-//
-// ผู้ใช้ติ๊กเลือกใบที่ทำงานเสร็จแล้ว (ใบเดียวหรือหลายใบก็ได้) แล้วกดปุ่มยืนยัน
-// ใบที่เสร็จสิ้นแล้วจะ:
-//   1. ขึ้นไอคอน/ป้าย "เสร็จสิ้น" ที่หน้าใบนั้น
-//   2. หยุดนับวันหมดอายุ — ไม่ขึ้นใกล้หมดอายุ/หมดอายุ และไม่เด้งแจ้งเตือนอีก
-// ---------------------------------------------------------------------------
-
-// ป้าย "เสร็จสิ้นแล้ว" ที่ใช้แทนป้ายนับวันหมดอายุ
-//
-// ถึงจะหยุดนับวันแล้ว แต่ยังต้องโชว์ "วันสุดท้าย" ที่ค้างไว้เสมอ
-// เพราะเวลา Export Excel ต้องเห็นวันที่จริง ไม่ใช่ข้อความว่าหยุดนับ
-// ป้ายบนการ์ดสถิติ — แบ่งข้อความเป็นก้อนคำที่ห้ามตัดกลางคำ
-// จอแคบ (iPad / Surface) ป้ายจะขึ้นบรรทัดใหม่ตรงรอยต่อที่กำหนดเท่านั้น
-// เช่น "ใบอนุญาต | นำเข้า" แทนที่เบราว์เซอร์จะตัดเป็น "ใบอนุญาตนำ | เข้า"
 function StatLabel({
   parts
 }) {
@@ -87,7 +71,6 @@ function CompleteBadge({
     </div>;
 }
 
-// ไอคอนติ๊กเล็ก ๆ ที่ปักไว้หน้าเลขใบอนุญาต เพื่อให้กวาดตาเห็นได้ทั้งตาราง
 function CompleteFlag({
   show
 }) {
@@ -97,12 +80,7 @@ function CompleteFlag({
     </span>;
 }
 
-// ข้อความตัวเลือกใบอนุญาตใน dropdown เช่น "IL-2026-0181 · 2 เครื่อง · เสร็จสิ้น 2/2"
-//   - ยังไม่มีเครื่องไหนเสร็จสิ้น → ไม่ต่อท้ายส่วน "เสร็จสิ้น"
-//   - extra = ข้อความเสริมหลังเลขใบ (ใช้แยกใบที่เลขซ้ำกัน เช่น Invoice)
 function licenseOptionLabel(licenseNo, total, done, extra = '') {
-  // ใช้ช่องว่างไม่ตัดบรรทัด (\u00A0) ภายในแต่ละก้อน จอแคบจะตัดบรรทัดเฉพาะตรง " · "
-  // เช่น ไม่ให้ "2" อยู่บรรทัดหนึ่งแล้ว "เครื่อง" ไปอยู่อีกบรรทัด
   const nb = text => text.replace(/ /g, '\u00A0');
   const parts = [licenseNo || '(ไม่มีเลขใบอนุญาต)'];
   if (extra) parts.push(nb(extra));
@@ -111,29 +89,19 @@ function licenseOptionLabel(licenseNo, total, done, extra = '') {
   return parts.join(' · ');
 }
 
-// ไอคอนต่อท้ายชื่อใบอนุญาตในตัวเลือก dropdown — ขึ้นเฉพาะใบที่ปิดงานครบทุกเครื่องแล้ว
-// ใช้ไอคอนเดียวกับตราประทับ "เสร็จสิ้นแล้ว" บนแถบใบอนุญาต ผู้ใช้จึงจำได้ว่าเป็นสถานะเดียวกัน
 function CompletedOptionIcon() {
   return <span className="il-option-complete" role="img" title="เสร็จสิ้นแล้ว" aria-label="เสร็จสิ้นแล้ว">
       <CheckBadgeSolidIcon className="il-option-complete-icon" aria-hidden="true" />
     </span>;
 }
 
-// ---------------------------------------------------------------------------
-// ตัวกรอง "ประเทศ" (ใช้ร่วมกันทั้งหน้า Import License และ Export License)
-//
-// ไฟล์จริงสะกดชื่อประเทศไม่เหมือนกัน เช่น "Indonesia" กับ "INDONESIA" หรือมีช่องว่างเกิน
-// จึงแปลงเป็นคีย์เดียวกันก่อน (ตัดช่องว่าง + ตัวพิมพ์ใหญ่) ไม่งั้นประเทศเดียวจะโผล่เป็นหลายตัวเลือก
-// ---------------------------------------------------------------------------
 const ALL_COUNTRIES = 'all';
 const NO_COUNTRY = '__no_country__';
-// ข้อความเดียวกันทุกที่ที่ไม่มีประเทศ: ตัวกรอง / ตาราง / ป๊อปอัปรายละเอียด / ชื่อชีตใน Excel
 const NO_COUNTRY_LABEL = 'ไม่ระบุประเทศ';
 function countryKey(value) {
   const key = String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
   return key || NO_COUNTRY;
 }
-// "INDONESIA" -> "Indonesia", "SOUTH AFRICA" -> "South Africa"
 function countryLabel(key) {
   if (key === NO_COUNTRY) return NO_COUNTRY_LABEL;
   return key.toLowerCase().replace(/(^|[\s-])(\S)/g, (_, sep, ch) => sep + ch.toUpperCase());
@@ -141,7 +109,6 @@ function countryLabel(key) {
 function buildCountryOptions(values) {
   const keys = new Set(values.map(countryKey));
   const list = Array.from(keys).filter(k => k !== NO_COUNTRY).sort((a, b) => a.localeCompare(b));
-  // "ไม่ระบุประเทศ" ไว้ท้ายสุดเสมอ และขึ้นเฉพาะเมื่อมีแถวที่ไม่มีประเทศจริง
   if (keys.has(NO_COUNTRY)) list.push(NO_COUNTRY);
   return [{
     value: ALL_COUNTRIES,
@@ -152,13 +119,6 @@ function buildCountryOptions(values) {
   }))];
 }
 
-// ---------------------------------------------------------------------------
-// เลข Invoice / ใบขนสินค้าขาออก บนแถบใบอนุญาตส่งออก
-//
-// ใบเดียวอาจมีหลายสิบ Invoice — เดิมเรียงต่อกันยาวจนล้นหลายบรรทัดและดันปุ่มตกลงไปอีกแถว
-// ตอนนี้ย่อเหลือบรรทัดเดียว: โชว์เลขแรก + "+N" ที่เหลือ แล้วกด "ดูทั้งหมด" เพื่อกางรายการเต็ม
-// (เอาเมาส์ชี้ค้างที่บรรทัดก็เห็นรายการเต็มได้เหมือนกัน)
-// ---------------------------------------------------------------------------
 function LicenseRefSummary({
   label,
   values
@@ -185,7 +145,6 @@ function LicenseRefList({
     </div>;
 }
 
-// ช่องติ๊กเลือกแถว — ใช้ input จริงเพื่อให้กด/โฟกัส/อ่านหน้าจอได้ตามมาตรฐาน
 function SelectCheckbox({
   checked,
   indeterminate = false,
@@ -204,8 +163,6 @@ function SelectCheckbox({
     </label>;
 }
 
-// จัดการรายการที่ถูกติ๊กไว้ + ตัดรายการที่หลุดออกจากตารางไปแล้วทิ้งอัตโนมัติ
-// (เช่น เปลี่ยนตัวกรอง ค้นหาใหม่ หรือถูกลบ) จะได้ไม่มี id ค้างที่มองไม่เห็น
 function useRowSelection(visibleRows) {
   const [selected, setSelected] = useState(() => new Set());
   useEffect(() => {
@@ -237,13 +194,9 @@ function useRowSelection(visibleRows) {
     });
   }, []);
   const clear = useCallback(() => setSelected(new Set()), []);
-  // ติ๊กช่องบนหัวตาราง = เลือก "ทุกรายการในตาราง" (ทุกหน้า) ไม่ใช่แค่หน้าที่เห็นอยู่
-  //   - ไม่ได้กรองอะไร → เลือกทั้งหมดในระบบ
-  //   - กรองอยู่ (ใบอนุญาต / ประเทศ / สถานะ / ค้นหา / ช่วงวันที่) → เลือกทุกรายการที่ผ่านตัวกรอง
   const toggleAll = useCallback(on => {
     setSelected(on ? new Set(visibleRows.map(r => r.ID)) : new Set());
   }, [visibleRows]);
-  // selected ถูกตัดรายการที่หลุดจากตารางทิ้งเสมอ (useEffect ด้านบน) จึงเทียบจำนวนได้ตรง ๆ
   const allSelected = visibleRows.length > 0 && selected.size >= visibleRows.length;
   const someSelected = selected.size > 0 && !allSelected;
   return {
@@ -257,8 +210,6 @@ function useRowSelection(visibleRows) {
   };
 }
 
-// แถบเครื่องมือที่โผล่ขึ้นมาเมื่อมีการติ๊กเลือก
-// แสดงจำนวนที่เลือก และปุ่มปิดงาน/ยกเลิกสถานะ/ล้างการเลือก
 const fmtCount = n => Number(n || 0).toLocaleString('en-US');
 function SelectionBar({
   selectedRows,
@@ -309,7 +260,6 @@ function ExpiryCell({
   expireDate
 }) {
   const exp = expireDate ? computeExpireStatus(expireDate, 30) : computeLicenseExpiry(issueDate);
-  // ใบที่ทำเครื่องหมายเสร็จสิ้นแล้ว = ปิดงาน หยุดนับวัน แต่ยังโชว์วันหมดอายุสุดท้ายไว้
   if (isLicenseCompleted(row)) return <CompleteBadge row={row} date={exp.expiryDate} />;
   return <div className="il-expiry-cell">
       <span className={EXPIRY_BADGE_CLASS[exp.status]}>{STATUS_LABEL[exp.status]}</span>
@@ -508,7 +458,6 @@ export default function ImportLicensePage() {
     if (expiryFilter === COMPLETED_FILTER) {
       rows = rows.filter(isLicenseCompleted);
     } else if (expiryFilter !== 'all') {
-      // ใบที่เสร็จสิ้นแล้วหยุดนับวันหมดอายุ จึงไม่เข้าเกณฑ์สถานะอายุใด ๆ อีก
       rows = rows.filter(r => !isLicenseCompleted(r) && computeLicenseExpiry(r.IssueDate).status === expiryFilter);
     }
     const term = search.trim().toLowerCase();
@@ -527,7 +476,6 @@ export default function ImportLicensePage() {
   const countryOptions = useMemo(() => buildCountryOptions(items.map(r => r.ExportCountry)), [items]);
   const filterActive = !!selectedLot || countryFilter !== ALL_COUNTRIES || expiryFilter !== 'all' || search.trim() !== '';
 
-  // ข้อมูลเปลี่ยน (อัปโหลดใหม่/ลบ) จนประเทศที่เลือกไว้ไม่เหลือแล้ว — กลับไป "ทุกประเทศ" ไม่ให้ตารางว่างค้าง
   useEffect(() => {
     if (countryFilter !== ALL_COUNTRIES && !countryOptions.some(o => o.value === countryFilter)) {
       setCountryFilter(ALL_COUNTRIES);
@@ -557,12 +505,9 @@ export default function ImportLicensePage() {
       value: '',
       label: 'ทุกใบอนุญาต'
     }];
-    // บัญชีแยกกลุ่มตาม "เลขใบอนุญาต + Invoice"
-    // ใบที่มีหลาย Invoice จึงต่อท้าย Invoice ให้ เพื่อไม่ให้มีตัวเลือกหน้าตาซ้ำกัน
     const lotsPerLicense = new Map();
     summary.forEach(s => lotsPerLicense.set(s.LicenseNo, (lotsPerLicense.get(s.LicenseNo) || 0) + 1));
     summary.forEach(s => {
-      // เกณฑ์เดียวกับตราประทับ "เสร็จสิ้นแล้ว" ของใบนี้ (ปิดงานครบทุกเครื่อง)
       const completedAll = s.Total > 0 && s.CompletedCount >= s.Total;
       const extra = lotsPerLicense.get(s.LicenseNo) > 1 ? `Invoice ${s.InvoiceNo || '—'}` : '';
       opts.push({
@@ -580,9 +525,6 @@ export default function ImportLicensePage() {
     completed: items.filter(isLicenseCompleted).length
   }), [items]);
 
-  // นับเป็น "จำนวนใบอนุญาต" ไม่ใช่จำนวนเครื่อง
-  // ใบเดียวมีหลายเครื่อง ถ้ามีเครื่องไหนหมดอายุแล้ว ทั้งใบนับเป็นหมดอายุ
-  // ใบที่กดเสร็จสิ้นแล้วหยุดนับวัน จึงไม่นับรวม
   const expiryCounts = useMemo(() => {
     const worst = new Map();
     for (const row of items) {
@@ -611,7 +553,6 @@ export default function ImportLicensePage() {
   }
   const currentLot = summary.find(s => `${s.LicenseNo}|${s.InvoiceNo}` === selectedLot);
 
-  // ---- การเลือกแถวเพื่อทำเครื่องหมาย "เสร็จสิ้น" ----
   const {
     selected,
     toggleOne,
@@ -622,14 +563,11 @@ export default function ImportLicensePage() {
   } = useRowSelection(filtered);
   const selectedRows = useMemo(() => filtered.filter(r => selected.has(r.ID)), [filtered, selected]);
 
-  // ทำเครื่องหมาย/ยกเลิก ตามรายการที่ติ๊กไว้ (ใบเดียวหรือหลายใบก็ได้)
   async function applyComplete(completed) {
     const targets = completed ? selectedRows.filter(r => !isLicenseCompleted(r)) : selectedRows.filter(isLicenseCompleted);
     if (targets.length === 0) return;
     const ok = await confirmComplete({
       title: completed ? `ต้องการทำเครื่องหมายเสร็จสิ้น ${fmtCount(targets.length)} รายการ` : `ต้องการยกเลิกสถานะเสร็จสิ้น ${fmtCount(targets.length)} รายการ`,
-      // เลือกจากช่องบนหัวตาราง = รวมทุกหน้า — บอกให้ชัดก่อนกดยืนยัน กันกดพลาดทีเดียวหลายพันรายการ
-      html: allSelected && targets.length > pageSize ? `<div class="scan-popup-hint">รวมทุกหน้า${filterActive ? ' (ตามตัวกรองที่เลือกอยู่)' : ' — ทุกรายการในระบบ'}</div>` : '',
       danger: !completed
     });
     if (!ok) return;
@@ -649,7 +587,6 @@ export default function ImportLicensePage() {
     }
   }
 
-  // ปิดงาน/เปิดงานทั้งใบในครั้งเดียว จากแถบใบอนุญาตที่กำลังเลือกอยู่
   async function handleCompleteLot(lot, completed) {
     const licenseNo = lot?.LicenseNo ?? '';
     const invoiceNo = lot?.InvoiceNo ?? '';
@@ -676,7 +613,6 @@ export default function ImportLicensePage() {
     }
   }
 
-  // ปุ่มสลับสถานะจากในหน้ารายละเอียด
   async function handleToggleRowComplete(row) {
     const completed = !isLicenseCompleted(row);
     setCompleting(true);
@@ -868,7 +804,7 @@ export default function ImportLicensePage() {
           <thead>
             <tr>
               <th className="il-check-th">
-                <SelectCheckbox checked={allSelected} indeterminate={someSelected} onChange={toggleAll} label={`เลือกทุกรายการ (${fmtCount(filtered.length)} รายการ รวมทุกหน้า)`} title={allSelected ? 'ยกเลิกการเลือกทั้งหมด' : `เลือกทุกรายการ ${fmtCount(filtered.length)} รายการ (รวมทุกหน้า)`} disabled={filtered.length === 0} />
+                <SelectCheckbox checked={allSelected} indeterminate={someSelected} onChange={toggleAll} label={`เลือกทุกรายการ (${fmtCount(filtered.length)} รายการ)`} title={allSelected ? 'ยกเลิกการเลือกทั้งหมด' : `เลือกทุกรายการ ${fmtCount(filtered.length)} รายการ`} disabled={filtered.length === 0} />
               </th>
               <th>ลำดับ</th>
               <th>ตราอักษร</th>
@@ -977,13 +913,7 @@ export default function ImportLicensePage() {
       {detailRow && <ImportDetailModal row={detailRow} busy={completing} onToggleComplete={handleToggleRowComplete} onClose={() => setDetailRow(null)} />}
     </AppShell>;
 }
-// ใช้ร่วมกันในหน้ารายละเอียดใบอนุญาตนำเข้า / ส่งออก
-// - ป๊อปอัปสูงไม่เกินจอ: หัว + ปุ่มล่างอยู่กับที่ เนื้อหาตรงกลางเลื่อนได้ (ดู .il-detail-sheet ใน ImportLicense.css)
-// - ปัดนิ้ว / หมุนล้อเมาส์ตรงไหนของจอก็เลื่อนเนื้อหาได้ ไม่ต้องเล็งในกล่อง
-// - ล็อกหน้าหลักไม่ให้เลื่อนตาม และกด Esc เพื่อปิด (Surface / iPad ที่ต่อคีย์บอร์ด)
-// คืน ref ไว้ผูกกับ <div className="il-detail-scroll">
 function useDetailSheet(onClose) {
-  // onClose ที่ส่งมามักเป็น arrow function ใหม่ทุกครั้งที่ render — เก็บใน ref จะได้ไม่ผูก/ถอด listener ซ้ำ
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const scrollRef = useRef(null);
@@ -995,7 +925,6 @@ function useDetailSheet(onClose) {
     };
     window.addEventListener('keydown', onKey);
 
-    // เลื่อนจากนอกพื้นที่เนื้อหา (พื้นหลัง / หัว / แถบปุ่ม) → ส่งต่อไปเลื่อนเนื้อหา
     const scroller = scrollRef.current;
     const overlay = scroller?.closest('.il-detail-overlay');
     const fromOutside = e => scroller && !scroller.contains(e.target);
@@ -1270,9 +1199,6 @@ function collectExtraColumns(rows) {
     overflow: labels.slice(EXTRA_COL_LIMIT)
   };
 }
-// วันหมดอายุใบอนุญาตนำออก ยึด "วันที่นำออกใบอนุญาต + 1 เดือน" เสมอ
-// ไม่ใช้วันหมดอายุที่ติดมากับไฟล์ Excel เพราะบางไฟล์ใส่มาไม่ตรงกติกา
-// (เช่น นำออก 10 มี.ค. 2026 แต่ไฟล์ใส่หมดอายุ 31 ธ.ค. 2026 — ที่ถูกคือ 10 เม.ย. 2026)
 function computeExportExpiry(row, withinDays = 7) {
   return computeExportLicenseDates(row, {
     withinDays
@@ -1282,7 +1208,6 @@ function ExportOneMonthExpiryCell({
   row
 }) {
   const exp = computeExportExpiry(row);
-  // ปิดงานแล้ว = หยุดนับวัน แต่ยังโชว์วันหมดอายุสุดท้ายไว้ให้เห็นและ Export ออกได้
   if (isLicenseCompleted(row)) return <CompleteBadge row={row} date={exp.expiryDate} />;
   return <div className="il-expiry-cell">
       <span className={EXPIRY_BADGE_CLASS[exp.status]}>{STATUS_LABEL[exp.status]}</span>
@@ -1292,14 +1217,10 @@ function ExportOneMonthExpiryCell({
         </>}
     </div>;
 }
-// Lead time — ต้องยื่นเรื่องให้ กสทช. ก่อนใบอนุญาตนำออกหมดอายุ 15 วัน
-// สถานะมีแค่ 2 แบบ: "ถึงกำหนดยื่น" กับ "เลยกำหนดยื่น"
-// ถ้าเป็น "ถึงกำหนดยื่น" แต่เหลือเวลาไม่เกิน 7 วัน ป้ายจะเปลี่ยนเป็นสีส้มเตือน (ข้อความเดิม)
 function ExportLeadTimeCell({
   row
 }) {
   const exp = computeExportExpiry(row);
-  // ปิดงานแล้ว = หยุดนับ Lead time แต่ยังโชว์วันครบกำหนดยื่นสุดท้ายไว้
   if (isLicenseCompleted(row)) return <CompleteBadge row={row} date={exp.leadDate} dateLabel="ครบกำหนดยื่น" />;
   if (!exp.hasDate) {
     return <div className="il-expiry-cell">
@@ -1554,9 +1475,6 @@ export function WHExportLicensePanel() {
         toastError('ไม่มีรายการให้ Export');
         return;
       }
-      // จัดกลุ่มด้วย countryKey (ไม่สนตัวพิมพ์เล็ก/ใหญ่) ไม่ใช่ชื่อดิบจากไฟล์
-      // เดิม "Indonesia" กับ "INDONESIA" ถูกแยกเป็น 2 ชีต แต่ Excel ถือว่าชื่อชีตซ้ำกัน (ไม่แยกตัวพิมพ์)
-      // พอเปิดไฟล์ Excel จึงเด้งให้ซ่อมไฟล์ แล้วเปลี่ยนชื่อชีตที่ซ้ำเป็น "Recovered_Sheet1", "Recovered_Sheet2"
       const groups = new Map();
       list.forEach(r => {
         const key = countryKey(countryOf(r));
@@ -1666,7 +1584,6 @@ export function WHExportLicensePanel() {
             const extraValues = parseExtraJson(r.extra_json);
             const done = isLicenseCompleted(r);
             const row = {
-              // ใบที่ปิดงานแล้วไม่ต้องไฮไลต์แดง เพราะหยุดนับวันหมดอายุไปแล้ว
               __danger: !done && (exp.status === EXPIRY_STATUS.EXPIRED || exp.leadStatus === LEAD_STATUS.OVERDUE),
               item: i + 1,
               assemblyDate: r.AssemblyDate ? formatThaiDate(r.AssemblyDate) : '—',
@@ -1857,7 +1774,6 @@ export function WHExportLicensePanel() {
       list = list.filter(r => (r.ExceptionLicense || '') === exceptionFilter);
     }
     if (countryFilter !== ALL_COUNTRIES) {
-      // ใช้ countryOf ตัวเดียวกับคอลัมน์ Country และปุ่ม Export แยกประเทศ ผลกรองจึงตรงกับที่เห็นในตาราง
       list = list.filter(r => countryKey(countryOf(r)) === countryFilter);
     }
     const term = search.trim().toLowerCase();
@@ -1870,7 +1786,6 @@ export function WHExportLicensePanel() {
     if (expiryFilter === COMPLETED_FILTER) {
       list = list.filter(isLicenseCompleted);
     } else if (expiryFilter !== 'all') {
-      // ใบที่เสร็จสิ้นแล้วหยุดนับทั้งวันหมดอายุและ Lead time จึงไม่เข้าสถานะใด ๆ อีก
       list = list.filter(r => {
         if (isLicenseCompleted(r)) return false;
         const exp = computeExportExpiry(r);
@@ -1916,7 +1831,6 @@ export function WHExportLicensePanel() {
   const periodLabel = periodMode === 'all' ? 'ทั้งหมด' : periodRangeLabel(periodMode, periodAnchor);
   const periodTag = periodFileTag(periodMode, periodAnchor);
   const exceptionOptions = useMemo(() => {
-    // นับทีละใบ: ใบที่ทุกเครื่องเสร็จสิ้นแล้ว (เกณฑ์เดียวกับปุ่ม "ยกเลิกเสร็จสิ้นทั้งใบ")
     const stat = new Map();
     rows.forEach(r => {
       const key = r.ExceptionLicense;
@@ -1975,7 +1889,6 @@ export function WHExportLicensePanel() {
     const set = new Set(currentLicenseRows.map(r => r.InvoiceNo).filter(Boolean));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [currentLicenseRows]);
-  // เลขใบขนสินค้าขาออกของใบนี้ (ใบเดียวอาจมีหลายใบขน) — แสดงไม่ซ้ำ เรียงตามเลข
   const currentLicenseEntries = useMemo(() => {
     const set = new Set(currentLicenseRows.map(r => (r.ExportEntry || '').trim()).filter(Boolean));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
@@ -1983,7 +1896,6 @@ export function WHExportLicensePanel() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  // ---- การเลือกแถวเพื่อทำเครื่องหมาย "เสร็จสิ้น" ----
   const {
     selected,
     toggleOne,
@@ -1995,7 +1907,6 @@ export function WHExportLicensePanel() {
   const selectedRows = useMemo(() => filtered.filter(r => selected.has(r.ID)), [filtered, selected]);
   const completedCount = useMemo(() => rows.filter(isLicenseCompleted).length, [rows]);
 
-  // สรุปตัวเลขหัวหน้าจอ — จัดชุดเดียวกับหน้า Import License
   const exportCounts = useMemo(() => ({
     total: rows.length,
     licenses: new Set(rows.map(r => (r.ExportLicenseNo || r.ExceptionLicense || '').trim()).filter(Boolean)).size,
@@ -2003,9 +1914,6 @@ export function WHExportLicensePanel() {
     completed: completedCount
   }), [rows, completedCount]);
 
-  // นับเป็น "จำนวนใบอนุญาตส่งออก" ไม่ใช่จำนวนเครื่อง
-  // ใบเดียวมีหลายเครื่อง ถ้ามีเครื่องไหนหมดอายุแล้ว ทั้งใบนับเป็นหมดอายุ
-  // ใบที่กดเสร็จสิ้นแล้วหยุดนับวัน จึงไม่นับรวม
   const exportExpiryCounts = useMemo(() => {
     const worst = new Map();
     for (const row of rows) {
@@ -2028,7 +1936,6 @@ export function WHExportLicensePanel() {
     };
   }, [rows]);
   const currentLicenseCompletedAll = currentLicenseRows.length > 0 && currentLicenseRows.every(isLicenseCompleted);
-  // กางรายการ Invoice / ใบขนสินค้าขาออกทั้งหมดของใบที่เลือก — เปลี่ยนใบแล้วย่อกลับอัตโนมัติ
   const [refsOpen, setRefsOpen] = useState(false);
   useEffect(() => {
     setRefsOpen(false);
@@ -2041,8 +1948,6 @@ export function WHExportLicensePanel() {
     if (targets.length === 0) return;
     const ok = await confirmComplete({
       title: completed ? `ต้องการทำเครื่องหมายเสร็จสิ้น ${fmtCount(targets.length)} รายการ` : `ต้องการยกเลิกสถานะเสร็จสิ้น ${fmtCount(targets.length)} รายการ`,
-      // เลือกจากช่องบนหัวตาราง = รวมทุกหน้า — บอกให้ชัดก่อนกดยืนยัน กันกดพลาดทีเดียวหลายพันรายการ
-      html: allSelected && targets.length > pageSize ? `<div class="scan-popup-hint">รวมทุกหน้า${filterActive ? ' (ตามตัวกรองที่เลือกอยู่)' : ' — ทุกรายการในระบบ'}</div>` : '',
       danger: !completed
     });
     if (!ok) return;
@@ -2062,7 +1967,6 @@ export function WHExportLicensePanel() {
     }
   }
 
-  // ปิดงาน/เปิดงานทั้งใบจากแถบใบอนุญาตส่งออกที่กำลังเลือกอยู่
   async function handleCompleteSelectedLicense(completed) {
     const licenseNo = exceptionFilter;
     if (!licenseNo || licenseNo === 'all') return;
@@ -2208,7 +2112,6 @@ export function WHExportLicensePanel() {
                   <span className="il-ref-sep" aria-hidden="true">·</span>
                   <LicenseRefSummary label="ใบขนสินค้าขาออก" values={currentLicenseEntries} />
                 </span>
-                {/* จำนวนเครื่องอยู่นอกส่วนที่ถูกตัด … จอแคบจะตัดเลขใบขนแทน แต่ยังเห็นจำนวนเครื่องเสมอ */}
                 <span className="il-ref-count">
                   <span className="il-ref-sep" aria-hidden="true">·</span>
                   {currentLicenseRows.length} เครื่อง
@@ -2290,7 +2193,7 @@ export function WHExportLicensePanel() {
           <thead>
             <tr>
               <th className="il-check-th">
-                <SelectCheckbox checked={allSelected} indeterminate={someSelected} onChange={toggleAll} label={`เลือกทุกรายการ (${fmtCount(filtered.length)} รายการ รวมทุกหน้า)`} title={allSelected ? 'ยกเลิกการเลือกทั้งหมด' : `เลือกทุกรายการ ${fmtCount(filtered.length)} รายการ (รวมทุกหน้า)`} disabled={filtered.length === 0} />
+                <SelectCheckbox checked={allSelected} indeterminate={someSelected} onChange={toggleAll} label={`เลือกทุกรายการ (${fmtCount(filtered.length)} รายการ)`} title={allSelected ? 'ยกเลิกการเลือกทั้งหมด' : `เลือกทุกรายการ ${fmtCount(filtered.length)} รายการ`} disabled={filtered.length === 0} />
               </th>
               <th>Item</th>
               <th>Date Ass'y</th>

@@ -72,7 +72,6 @@ func sampleReport() WeeklyReport {
 }
 
 func TestWeekBoundsStartsOnMonday(t *testing.T) {
-	// 7 ก.ย. 2026 เป็นวันจันทร์ สัปดาห์จึงต้องเริ่มวันเดียวกันและจบวันอาทิตย์ที่ 13
 	now := time.Date(2026, 9, 9, 15, 0, 0, 0, testLoc)
 	start, end := WeekBounds(now)
 
@@ -85,12 +84,10 @@ func TestWeekBoundsStartsOnMonday(t *testing.T) {
 }
 
 func TestISOWeekKeyFormat(t *testing.T) {
-	// 5 ม.ค. 2026 เป็นวันจันทร์อยู่แล้ว จึงได้วันเดิม
 	if got := ISOWeekKey(time.Date(2026, 1, 5, 0, 0, 0, 0, testLoc)); got != "2026-01-05" {
 		t.Fatalf("คีย์สัปดาห์ผิด: %s", got)
 	}
 
-	// ทุกวันในสัปดาห์เดียวกันต้องได้คีย์ตัวเดียวกัน ไม่งั้นตัวกันส่งซ้ำจะพัง
 	monday := ISOWeekKey(time.Date(2026, 9, 7, 9, 0, 0, 0, testLoc))
 	for _, day := range []int{8, 9, 10, 11, 12, 13} {
 		if got := ISOWeekKey(time.Date(2026, 9, day, 23, 30, 0, 0, testLoc)); got != monday {
@@ -98,7 +95,6 @@ func TestISOWeekKeyFormat(t *testing.T) {
 		}
 	}
 
-	// ข้ามไปวันจันทร์ถัดไปต้องเป็นคีย์ใหม่
 	if got := ISOWeekKey(time.Date(2026, 9, 14, 0, 0, 0, 0, testLoc)); got == monday {
 		t.Fatal("สัปดาห์ถัดไปต้องได้คีย์คนละตัว")
 	}
@@ -107,7 +103,6 @@ func TestISOWeekKeyFormat(t *testing.T) {
 func TestNextRunAfterSkipsToNextWeekWhenPassed(t *testing.T) {
 	cfg := WeeklyConfig{Weekday: time.Monday, Hour: 8, Minute: 30, Location: testLoc}
 
-	// วันจันทร์ 09:00 น. — เลยเวลานัดของสัปดาห์นี้แล้ว ต้องเด้งไปจันทร์หน้า
 	now := time.Date(2026, 9, 7, 9, 0, 0, 0, testLoc)
 	next := cfg.NextRunAfter(now)
 
@@ -136,7 +131,6 @@ func TestCountsAndSubject(t *testing.T) {
 	if !strings.Contains(subject, "ต้องดำเนินการ 6 รายการ") {
 		t.Fatalf("หัวข้ออีเมลไม่บอกจำนวนรวม: %s", subject)
 	}
-	// หัวข้อต้องอ่านเหมือนจดหมายปกติ ไม่มีวงเล็บเหลี่ยมนำหน้าแบบระบบแจ้งเตือนอัตโนมัติ
 	if strings.HasPrefix(subject, "[") {
 		t.Fatalf("หัวข้ออีเมลควรขึ้นต้นด้วยข้อความปกติ: %s", subject)
 	}
@@ -184,7 +178,6 @@ func TestRenderHTMLContainsKeyContent(t *testing.T) {
 		}
 	}
 
-	// คำลงท้ายกับเลขที่หนังสือถูกตัดออกแล้ว ต้องไม่กลับมาโผล่ในอีเมลอีก
 	for _, banned := range []string{"ขอแสดงความนับถือ", "ระบบ I-CONFIRMATION<br>", "ที่ IC-"} {
 		if strings.Contains(html, banned) {
 			t.Fatalf("อีเมล HTML ไม่ควรมีคำลงท้าย %q", banned)
@@ -196,7 +189,6 @@ func TestRenderHTMLContainsKeyContent(t *testing.T) {
 	}
 }
 
-// อีเมลต้องเรียบเหมือนจดหมายที่คนพิมพ์เอง ไม่ใช่หน้าแดชบอร์ด
 func TestRenderHTMLStaysPlain(t *testing.T) {
 	html := RenderHTML(sampleReport())
 
@@ -262,10 +254,9 @@ func TestBuildCSVHasBOMAndAllRows(t *testing.T) {
 
 	body := string(att.Data)
 	lines := strings.Split(strings.TrimSpace(body), "\n")
-	if len(lines) != 5 { // 1 หัวตาราง + 2 นำเข้า + 2 นำออก
+	if len(lines) != 5 {
 		t.Fatalf("จำนวนบรรทัดใน CSV ผิด: %d", len(lines))
 	}
-	// ชื่อไฟล์ต้องลงท้ายด้วยวันที่แบบ YYYY-MM-DD ไม่ใช่เลขสัปดาห์
 	if !regexp.MustCompile(`^license-weekly-alert-\d{4}-\d{2}-\d{2}\.csv$`).MatchString(att.FileName) {
 		t.Fatalf("รูปแบบชื่อไฟล์แนบผิด: %s", att.FileName)
 	}
@@ -300,13 +291,11 @@ func TestMessageBuildHasBothPartsAndAttachment(t *testing.T) {
 		}
 	}
 
-	// หัวข้อภาษาไทยต้องถูกเข้ารหัสไว้ ไม่ปล่อยเป็น UTF-8 ดิบในส่วนหัว
 	if strings.Contains(raw, "รายงานสถานะใบอนุญาตนำเข้าและนำออก") {
 		t.Fatal("หัวข้ออีเมลต้องเข้ารหัสแบบ MIME ก่อนใส่ในส่วนหัวจดหมาย")
 	}
 }
 
-// คำว่า "เรียน" ที่ผู้ตั้งค่าเผลอพิมพ์มาต้องไม่ซ้ำกับหัวข้อในหนังสือ
 func TestRecipientNameStripsRedundantPrefix(t *testing.T) {
 	r := sampleReport()
 	r.Greeting = "เรียน คุณธีปรัชญ์ เมธีภูริวัจน์"
@@ -325,7 +314,6 @@ func TestWeekOfMonthAndLabel(t *testing.T) {
 	r := sampleReport()
 	r.BuddhistEra = true
 
-	// สัปดาห์เริ่มวันจันทร์ที่ 7 กันยายน จึงเป็นสัปดาห์ที่ 2 ของเดือน
 	if got := r.WeekOfMonth(); got != 2 {
 		t.Fatalf("ลำดับสัปดาห์ในเดือนผิด: %d", got)
 	}
@@ -337,8 +325,6 @@ func TestWeekOfMonthAndLabel(t *testing.T) {
 	}
 }
 
-// หัวอีเมลต้องยึดเดือน/ปีของ "วันที่ส่งจริง" และลำดับสัปดาห์ตามแถวปฏิทิน (เริ่มวันจันทร์)
-// รวมถึงสัปดาห์ที่คร่อมเดือนและคร่อมปี และไม่มีสัปดาห์ที่ 6
 func TestWeekLabelFollowsSendDate(t *testing.T) {
 	cases := []struct {
 		sent time.Time
@@ -347,16 +333,12 @@ func TestWeekLabelFollowsSendDate(t *testing.T) {
 		{time.Date(2026, 9, 7, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 2 ของเดือนกันยายน 2569"},
 		{time.Date(2026, 9, 11, 10, 0, 0, 0, testLoc), "สัปดาห์ที่ 2 ของเดือนกันยายน 2569"},
 		{time.Date(2026, 9, 1, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 1 ของเดือนกันยายน 2569"},
-		// สัปดาห์ 28 ก.ย. – 4 ต.ค. ส่งวันที่ 28 ก.ย. ต้องเป็นของเดือนกันยายน
 		{time.Date(2026, 9, 28, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 5 ของเดือนกันยายน 2569"},
-		// สัปดาห์เดียวกัน แต่ส่งช้าไปเป็นวันที่ 1 ต.ค. (เช่น เซิร์ฟเวอร์ปิดอยู่) ก็ต้องตามวันที่ส่ง
 		{time.Date(2026, 10, 1, 9, 0, 0, 0, testLoc), "สัปดาห์ที่ 1 ของเดือนตุลาคม 2569"},
-		// เดือนมีสูงสุด 5 สัปดาห์: ส.ค. / พ.ย. / มี.ค. 2569 ปฏิทินมี 6 แถว แถวสุดท้ายนับเป็นสัปดาห์ที่ 5
 		{time.Date(2026, 8, 31, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 5 ของเดือนสิงหาคม 2569"},
 		{time.Date(2026, 11, 30, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 5 ของเดือนพฤศจิกายน 2569"},
 		{time.Date(2026, 3, 30, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 5 ของเดือนมีนาคม 2569"},
 		{time.Date(2026, 11, 23, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 5 ของเดือนพฤศจิกายน 2569"},
-		// คร่อมปี: ส่งวันที่ 29 ธ.ค. 2568 ต้องยังเป็นปี 2568
 		{time.Date(2025, 12, 29, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 5 ของเดือนธันวาคม 2568"},
 		{time.Date(2026, 12, 28, 8, 30, 0, 0, testLoc), "สัปดาห์ที่ 5 ของเดือนธันวาคม 2569"},
 	}
@@ -373,8 +355,6 @@ func TestWeekLabelFollowsSendDate(t *testing.T) {
 	}
 }
 
-// เวลาส่งที่เก็บไว้เป็น UTC ต้องถูกแปลงเป็นเวลาไทยก่อนนับวันที่
-// 00:30 วันจันทร์ที่ 7 ก.ย. เวลาไทย = 17:30 วันอาทิตย์ที่ 6 ก.ย. ใน UTC
 func TestWeekLabelUsesReportTimezone(t *testing.T) {
 	sentTH := time.Date(2026, 9, 7, 0, 30, 0, 0, testLoc)
 
@@ -388,7 +368,6 @@ func TestWeekLabelUsesReportTimezone(t *testing.T) {
 	}
 }
 
-// ชื่อไฟล์แนบต้องเป็นวันที่ส่งจริงตามเวลาไทย และตรงกับวันที่ที่ใช้ทำหัวอีเมลเสมอ
 func TestAttachmentFileNameFollowsSendDate(t *testing.T) {
 	cases := []struct {
 		sent time.Time
@@ -417,7 +396,6 @@ func TestAttachmentFileNameFollowsSendDate(t *testing.T) {
 	}
 }
 
-// ไม่มีวันที่ส่ง (เช่น สร้างรายงานด้วยมือ) ต้องถอยไปใช้วันจันทร์ต้นสัปดาห์
 func TestWeekLabelWithoutSendDate(t *testing.T) {
 	r := sampleReport()
 	r.BuddhistEra = true
@@ -428,7 +406,6 @@ func TestWeekLabelWithoutSendDate(t *testing.T) {
 	}
 }
 
-// เลขที่ใบอนุญาตและวันที่ต้องไม่ถูกตัดขึ้นบรรทัดใหม่กลางคำ
 func TestTableCellsDoNotWrap(t *testing.T) {
 	html := RenderHTML(sampleReport())
 
@@ -437,7 +414,6 @@ func TestTableCellsDoNotWrap(t *testing.T) {
 	}
 }
 
-// ไม่ต้องมีบรรทัดสิ่งที่ส่งมาด้วยในหนังสือ แม้จะยังแนบไฟล์ CSV ไปด้วย
 func TestNoEnclosureLine(t *testing.T) {
 	if strings.Contains(RenderHTML(sampleReport()), "สิ่งที่ส่งมาด้วย") {
 		t.Fatal("หนังสือไม่ควรมีบรรทัดสิ่งที่ส่งมาด้วย")
@@ -447,7 +423,6 @@ func TestNoEnclosureLine(t *testing.T) {
 	}
 }
 
-// ยอดจำแนกต้องแยกตามประเภทใบอนุญาต และผลรวมต้องเท่ากับยอดรวมที่ประกาศไว้
 func TestBreakdownGroupsSumToTotal(t *testing.T) {
 	r := sampleReport()
 	groups := breakdownGroups(r)
@@ -473,7 +448,6 @@ func TestBreakdownGroupsSumToTotal(t *testing.T) {
 	}
 }
 
-// ประเภทที่ไม่มีรายการเลย ต้องไม่ขึ้นหัวข้อ
 func TestBreakdownSkipsEmptyGroup(t *testing.T) {
 	r := sampleReport()
 	r.ImportCounts = Counts{}
@@ -485,7 +459,6 @@ func TestBreakdownSkipsEmptyGroup(t *testing.T) {
 	}
 }
 
-// เกณฑ์การแจ้งเตือนไม่ต้องอธิบายในหนังสือ
 func TestNoCriteriaNotes(t *testing.T) {
 	for _, body := range []string{RenderHTML(sampleReport()), RenderText(sampleReport())} {
 		if strings.Contains(body, "นับแต่วันที่ออกใบอนุญาต") || strings.Contains(body, "ยังมิได้ปิดงานรวม") {
@@ -494,7 +467,6 @@ func TestNoCriteriaNotes(t *testing.T) {
 	}
 }
 
-// ตารางใบอนุญาตนำออกต้องมีคอลัมน์สถานะเหมือนใบอนุญาตนำเข้า
 func TestExportTableHasStatusColumn(t *testing.T) {
 	html := renderExportTable(sampleReport(), 25)
 
@@ -509,8 +481,6 @@ func TestExportTableHasStatusColumn(t *testing.T) {
 	}
 }
 
-// หัวคอลัมน์จำนวนเครื่องใช้คำว่า "จำนวน"
-// ตารางต้องมีแค่ "หมดอายุแล้ว" กับ "ใกล้หมดอายุ" ไม่มีคำว่า "ปกติ"
 func TestTablesNeverShowNormalStatus(t *testing.T) {
 	for _, body := range []string{RenderHTML(sampleReport()), RenderText(sampleReport())} {
 		if strings.Contains(body, "ปกติ") {
@@ -530,7 +500,6 @@ func TestQuantityColumnLabel(t *testing.T) {
 	}
 }
 
-// โลโก้ต้องอ้างด้วย cid: และมี alt เป็นชื่อบริษัทเผื่อผู้รับปิดการโหลดรูป
 func TestRenderHTMLShowsLogo(t *testing.T) {
 	r := sampleReport()
 	r.LogoSrc = "cid:" + LogoContentID
@@ -547,12 +516,10 @@ func TestRenderHTMLShowsLogo(t *testing.T) {
 		t.Fatal("รูปโลโก้ต้องกำหนดความกว้างเป็นพิกเซล")
 	}
 
-	// โลโก้ต้องอยู่ริมซ้าย ไม่ใช่จัดกึ่งกลาง
 	if strings.Contains(html, "margin:0 auto 10px") {
 		t.Fatal("โลโก้ต้องชิดซ้าย ไม่ใช่จัดกึ่งกลาง")
 	}
 
-	// ชื่อบริษัทต้องอยู่ทางขวาของโลโก้ในแถวเดียวกัน
 	logoAt := strings.Index(html, `src="cid:`)
 	orgAt := strings.Index(html, "Kobelco Construction Machinery Southeast Asia Co., Ltd.</div>")
 	if logoAt < 0 || orgAt < 0 || orgAt < logoAt {
@@ -560,7 +527,6 @@ func TestRenderHTMLShowsLogo(t *testing.T) {
 	}
 }
 
-// ไม่มีโลโก้ก็ต้องส่งจดหมายได้ตามปกติ
 func TestRenderHTMLWithoutLogo(t *testing.T) {
 	html := RenderHTML(sampleReport())
 
@@ -572,7 +538,6 @@ func TestRenderHTMLWithoutLogo(t *testing.T) {
 	}
 }
 
-// รูปที่ฝังในเนื้อจดหมายต้องอยู่ใน multipart/related ไม่ใช่ไฟล์แนบธรรมดา
 func TestMessageEmbedsInlineImage(t *testing.T) {
 	r := sampleReport()
 	msg := Message{
@@ -603,7 +568,6 @@ func TestMessageEmbedsInlineImage(t *testing.T) {
 	}
 }
 
-// ไม่มีรูปฝัง ก็ไม่ต้องมี multipart/related ให้เปลืองโครงสร้าง
 func TestMessageWithoutInlineImageHasNoRelatedPart(t *testing.T) {
 	r := sampleReport()
 	msg := Message{
@@ -643,8 +607,6 @@ func TestThaiDateHandlesNil(t *testing.T) {
 	}
 }
 
-// ตัวเลขทุกตัวในอีเมลต้องเป็นเลขอารบิก — ทั้งหัวข้อ เนื้อหา HTML ฉบับข้อความล้วน และตารางแนบท้าย
-// รวมถึงข้อมูลที่ผู้ใช้กรอกมาเป็นเลขไทย
 func TestEmailUsesArabicDigitsOnly(t *testing.T) {
 	thaiDigits := regexp.MustCompile("[\u0E50-\u0E59]")
 
@@ -682,7 +644,6 @@ func TestEmailUsesArabicDigitsOnly(t *testing.T) {
 	}
 }
 
-// ฉบับที่ไม่มีรายการต้องดำเนินการ มีประโยคอ้างถึง "ข้อ 1 และข้อ 2" ต้องเป็นเลขอารบิกเช่นกัน
 func TestEmptyEmailUsesArabicDigits(t *testing.T) {
 	r := sampleReport()
 	r.Import = nil

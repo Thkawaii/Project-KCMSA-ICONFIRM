@@ -25,7 +25,6 @@ import './LicenseWeeklyPopup.css';
 
 const CLOSE_MS = 320;
 
-// 3 กลุ่มของป๊อปอัพ ใช้เป็นทั้งตัวกรองและหัวข้อในลิสต์
 const GROUP = {
   EXPIRED: 'EXPIRED',
   EXPIRING: 'EXPIRING',
@@ -40,11 +39,8 @@ const GROUP_LABEL = {
 
 const isExpiryAlert = it => it.Status === 'EXPIRED' || it.Status === 'EXPIRING';
 
-// Lead time — เลยกำหนดยื่น กสทช. หรือใกล้ครบกำหนดยื่น (ภายใน 7 วัน)
 const isLeadAlert = it => it.LeadStatus === LEAD_STATUS.OVERDUE || it.LeadUrgent === true;
 
-// ใบนำออกที่ "ยังไม่หมดอายุ" แต่ถึงคิวต้องยื่นเรื่องให้ กสทช. แล้ว
-// กลุ่มนี้เดิมหลุดจากป๊อปอัพรายสัปดาห์ เพราะกรองแค่สถานะอายุใบอนุญาตอย่างเดียว
 const isLeadOnly = it => it.kind === 'export' && !isExpiryAlert(it) && isLeadAlert(it);
 
 const isWeeklyAlert = it => isExpiryAlert(it) || isLeadAlert(it);
@@ -55,13 +51,10 @@ function groupOf(it) {
   return GROUP.LEAD;
 }
 
-// เรียงในกลุ่ม: กลุ่ม Lead time ใช้วันที่ต้องยื่น ที่เหลือใช้วันหมดอายุ
 function urgencyDays(it) {
   return isLeadOnly(it) ? it.LeadDaysLeft ?? 0 : it.DaysLeft ?? 0;
 }
 
-// ในป๊อปอัพใช้คำสั้นกว่าหน้าอื่น เพราะพื้นที่แคบและอ่านเร็ว ๆ
-// (หน้าจัดการใบอนุญาตกับกระดิ่งยังใช้ daysLeftLabel / leadDaysLabel ตัวเต็มเหมือนเดิม)
 function shortDaysLabel(daysLeft) {
   if (daysLeft == null) return 'ไม่ระบุวันที่';
   if (daysLeft < 0) return `เลย ${Math.abs(daysLeft)} วัน`;
@@ -76,7 +69,6 @@ function shortLeadLabel(leadDaysLeft) {
   return `ยื่นภายใน ${leadDaysLeft} วัน`;
 }
 
-// ตัดปีออกถ้าเป็นปีปัจจุบัน — บรรทัดจะได้ไม่ยาวเกิน
 function shortThaiDate(d) {
   const text = formatThaiDate(d);
   if (text === '—') return text;
@@ -84,7 +76,6 @@ function shortThaiDate(d) {
   return year === new Date().getFullYear() ? text.replace(` ${year}`, '') : text;
 }
 
-// ช่วงสัปดาห์ที่กำลังแจ้งเตือน (จันทร์ – อาทิตย์)
 function weekRangeText() {
   const now = new Date();
   const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
@@ -112,7 +103,6 @@ export default function LicenseWeeklyPopup() {
       ]);
       if (!alive) return;
 
-      // ใบที่ผู้ใช้กดซ่อนไว้ในกระดิ่งแจ้งเตือน ไม่ต้องเด้งซ้ำในป๊อปอัพรายสัปดาห์
       const impHidden = readDismissed();
       const expHidden = readExportDismissed();
       const isHidden = (map, key) => Object.prototype.hasOwnProperty.call(map, key);
@@ -122,7 +112,6 @@ export default function LicenseWeeklyPopup() {
         .map(it => ({ ...it, kind: 'import' }))
         .filter(isExpiryAlert);
 
-      // ใบนำออกเอาทั้งที่หมดอายุ/ใกล้หมดอายุ และที่ถึงกำหนดยื่น กสทช.
       const expList = (exp.status === 'fulfilled' ? exp.value?.items || [] : [])
         .filter(it => !isHidden(expHidden, exportDismissKey(it)))
         .map(it => ({ ...it, kind: 'export' }))
@@ -184,7 +173,6 @@ export default function LicenseWeeklyPopup() {
     };
   }, [items, filter]);
 
-  // นับเลขขึ้นจาก 0 ตอนการ์ดเปิด — ดึงสายตาไปที่ยอดรวมก่อนอย่างอื่น
   useEffect(() => {
     if (!open || total === 0) return;
     const reduced =
@@ -206,7 +194,6 @@ export default function LicenseWeeklyPopup() {
     return () => cancelAnimationFrame(raf);
   }, [open, total]);
 
-  // มีรายการล้นกรอบไหม — ใช้ตัดสินว่าจะโชว์เงาไล่สีท้ายลิสต์
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -296,7 +283,6 @@ export default function LicenseWeeklyPopup() {
             <XMarkIcon className="size-4" />
           </button>
 
-          {/* คุมความกว้างคอลัมน์ข้อความไว้ ไม่ให้ตัวหนังสือไปทับกับรูปรถขุด */}
           <div className="lwp-head-body">
             <p className="lwp-eyebrow">
               <ShieldCheckIcon className="size-3" />
@@ -316,8 +302,6 @@ export default function LicenseWeeklyPopup() {
           </div>
         </div>
 
-        {/* ชิปกรองย้ายลงมาบนพื้นขาว อ่านง่ายกว่าวางทับพื้นเขียว
-            และใช้สีชุดเดียวกับหัวข้อกลุ่มในลิสต์ */}
         <div className="lwp-filters">
           {chip(GROUP.EXPIRED)}
           {chip(GROUP.EXPIRING)}
@@ -388,7 +372,6 @@ export default function LicenseWeeklyPopup() {
                             : `หมดอายุ ${shortThaiDate(it.ExpiryDate)}`}
                         </span>
 
-                        {/* ใบที่หมดอายุ/ใกล้หมดอายุ แต่ยังค้างกำหนดยื่น กสทช. อยู่ */}
                         {!leadOnly && it.kind === 'export' && isLeadAlert(it) && (
                           <span className={'lwp-item-lead' + (leadLate ? ' is-late' : '')}>
                             <ClockIcon className="size-3" />

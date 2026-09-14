@@ -164,7 +164,7 @@ export default function MailRecipientsPage() {
           color: '#64748b',
           margin: '4px 0 0'
         }}>
-           
+
             <br />
           </p>
         </div>

@@ -274,8 +274,6 @@ export function CodeAliasPanel({
   async function load() {
     setLoading(true);
     try {
-      // ไม่กรองตามชนิดชิ้นส่วน เพราะแต่ละแถวจะถูกจัดกลุ่มตาม "ชนิดรหัส" ที่เลือก
-      // (SM / PH / MP / CV / CW / Engine) ไม่ได้อยู่กลุ่ม IT Controller ทั้งหมดแล้ว
       const data = await getCodeAliases();
       setRows(Array.isArray(data) ? data : []);
     } catch (err) {

@@ -964,7 +964,6 @@
   background-color: var(--color-bad-700) !important;
 }
 
-/* ปุ่มยืนยัน "ทำเครื่องหมายเสร็จสิ้น" — เขียวเข้ม สื่อว่าปิดงานเรียบร้อย */
 .swal2-popup .swal2-styled.swal2-confirm.swal2-confirm-complete {
   background-color: #16a34a !important;
   color: #fff !important;

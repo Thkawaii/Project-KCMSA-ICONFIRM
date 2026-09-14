@@ -20,7 +20,6 @@ import (
 	"time"
 )
 
-// Send ส่งอีเมลตามช่องทางที่ตั้งไว้ใน MAIL_PROVIDER
 func Send(ctx context.Context, cfg Config, msg Message) error {
 	if err := cfg.Validate(); err != nil {
 		return err
@@ -62,17 +61,6 @@ func Send(ctx context.Context, cfg Config, msg Message) error {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// file — เขียนจดหมายลงไฟล์แทนการส่งออกนอกเครื่อง
-// ---------------------------------------------------------------------------
-
-// writeToFile บันทึกจดหมายฉบับเต็มลงโฟลเดอร์ MAIL_OUT_DIR
-//
-// ได้ 2 ไฟล์ต่อ 1 ฉบับ
-//   - .eml  จดหมายจริงทั้งฉบับ (หัวจดหมาย + เนื้อ + ไฟล์แนบ) เปิดด้วย Outlook ได้เลย
-//   - .html เฉพาะเนื้อจดหมาย เปิดด้วยเบราว์เซอร์ได้เลย
-//
-// ใช้ตอนที่ยังไม่มีบัญชีเมลให้ส่ง แต่อยากเห็นว่าระบบเขียนอะไรออกมา
 func writeToFile(cfg Config, msg Message) error {
 	dir := strings.TrimSpace(cfg.OutDir)
 	if dir == "" {
@@ -102,12 +90,6 @@ func writeToFile(cfg Config, msg Message) error {
 	return nil
 }
 
-// ---------------------------------------------------------------------------
-// SMTP (ค่าเริ่มต้น Microsoft 365 — smtp.office365.com:587 STARTTLS)
-// ---------------------------------------------------------------------------
-
-// loginAuth รองรับ AUTH LOGIN ซึ่งเป็นวิธีที่เซิร์ฟเวอร์ Microsoft บางตัวเลือกใช้
-// (net/smtp มีให้แค่ PLAIN และ CRAM-MD5 มาตั้งแต่ต้น)
 type loginAuth struct {
 	username string
 	password string
@@ -153,7 +135,6 @@ func sendSMTP(cfg Config, msg Message) error {
 	tlsConfig := &tls.Config{ServerName: cfg.SMTPHost, MinVersion: tls.VersionTLS12}
 
 	if cfg.SMTPPort == 465 {
-		// พอร์ต 465 = เข้ารหัสตั้งแต่เริ่มเชื่อมต่อ (implicit TLS)
 		dialer := &net.Dialer{Timeout: timeout}
 		conn, err = tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
 	} else {
@@ -187,7 +168,6 @@ func sendSMTP(cfg Config, msg Message) error {
 	if cfg.SMTPUsername != "" {
 		auth := smtp.PlainAuth("", cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPHost)
 		if err := client.Auth(auth); err != nil {
-			// Microsoft 365 บางกล่องรับเฉพาะ AUTH LOGIN จึงลองซ้ำอีกวิธีก่อนยอมแพ้
 			if err2 := client.Auth(&loginAuth{cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPHost}); err2 != nil {
 				return fmt.Errorf("เข้าสู่ระบบเมลไม่สำเร็จ (ตรวจ SMTP_USERNAME/SMTP_PASSWORD และการเปิด SMTP AUTH ของกล่องจดหมาย): %w", err)
 			}
@@ -224,10 +204,6 @@ func clientHostname() string {
 	}
 	return "localhost"
 }
-
-// ---------------------------------------------------------------------------
-// Microsoft Graph (client credentials)
-// ---------------------------------------------------------------------------
 
 type graphRecipient struct {
 	EmailAddress struct {
@@ -267,10 +243,8 @@ func sendGraph(ctx context.Context, cfg Config, msg Message) error {
 			Name:         att.FileName,
 			ContentType:  att.ContentType,
 			ContentBytes: base64.StdEncoding.EncodeToString(att.Data),
-			// รูปที่ฝังในเนื้อจดหมายต้องบอก Graph ว่าเป็น inline พร้อม contentId
-			// ที่ตรงกับ src="cid:..." ใน HTML ไม่งั้นจะกลายเป็นไฟล์แนบธรรมดา
-			IsInline:  att.Inline,
-			ContentID: att.ContentID,
+			IsInline:     att.Inline,
+			ContentID:    att.ContentID,
 		})
 	}
 

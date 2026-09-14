@@ -42,8 +42,6 @@ func plannedCountryOf(plan map[string]string) string { return planValue(plan, pl
 
 func plannedDeviceOf(plan map[string]string) string { return planValue(plan, planDeviceKeys...) }
 
-// loadMachinePlans คืนข้อมูลแผนประกอบของทุกเครื่อง โดยรวมสด ๆ จาก
-// ALL PART (ทะเบียนกลาง) + Planning + WH1 + WH2 + Engine
 func loadMachinePlans() map[string]map[string]string {
 	return machineIndex()
 }
@@ -73,10 +71,8 @@ func (r MFGPlanResult) OK() bool { return r.State == PlanStateMatch }
 type mfgPlanResolver struct {
 	planByMachine map[string]map[string]string
 
-	// machineByCode แปลงหมายเลขเครื่องแบบ normalize (ตัดตัวคั่น/ตัวพิมพ์) กลับเป็นคีย์จริงของแผน
 	machineByCode map[string]string
 
-	// itcOwner / masterITC ใช้คีย์แบบ normalize เพื่อให้รูปแบบตัวคั่นที่ต่างกันยังจับคู่ได้
 	itcOwner  map[string]string
 	masterITC map[string]bool
 }
@@ -126,9 +122,6 @@ func (r *mfgPlanResolver) planOf(machineNo string) map[string]string {
 		return plan
 	}
 
-	// หมายเลขเครื่องที่ส่งเข้ามาอาจเป็นรูปแบบใหม่ตาม Change Format Part
-	// (แถวที่บันทึกไว้เก็บรูปแบบใหม่) ส่วนคีย์ของแผนเป็นค่าเดิมจากไฟล์ Planning
-	// จึงต้องแปลงกลับก่อน ไม่งั้นจะหาแผนไม่เจอแล้วขึ้น NO_PLAN → NOT_MATCHED
 	if old := ResolveMachineNo(machineNo); old != machineNo {
 		if plan, ok := r.planByMachine[old]; ok {
 			return plan
@@ -138,7 +131,6 @@ func (r *mfgPlanResolver) planOf(machineNo string) map[string]string {
 		}
 	}
 
-	// เผื่อหมายเลขเครื่องที่สแกนมาใช้ตัวคั่นคนละแบบกับในแผน
 	if key, ok := r.machineByCode[NormalizeCodeValue(machineNo)]; ok {
 		return r.planByMachine[key]
 	}
@@ -157,9 +149,6 @@ func (r *mfgPlanResolver) evaluateComponent(machineNo, scanned, component string
 
 	component = strings.ToUpper(strings.TrimSpace(component))
 
-	// แปลงรหัสที่สแกนตาม Change Format Part ก่อนทุกอย่าง
-	// ถ้ายังไม่รู้ชนิดชิ้นส่วน ต้องแปลงแบบไม่จำกัดชนิดไปก่อน มิฉะนั้นรูปแบบใหม่
-	// จะทำให้จับชนิดจากแผนหรือจากคำนำหน้าไม่ได้เลย
 	if component != "" {
 		scanned = ResolveComponentSerial(component, scanned)
 	} else {
@@ -173,7 +162,6 @@ func (r *mfgPlanResolver) evaluateComponent(machineNo, scanned, component string
 		component = DetectComponentType(scanned)
 	}
 
-	// เพิ่งรู้ชนิดชิ้นส่วนทีหลัง — แปลงอีกครั้ง (ไม่มีการตั้งค่าไว้จะได้ค่าเดิม)
 	if component != "" {
 		scanned = ResolveComponentSerial(component, scanned)
 	}
@@ -310,15 +298,6 @@ func mfgStatusFor(component string, duplicate bool, planState string, whMatched 
 	}
 }
 
-// mfgDisplayStatus ใช้ตอนดึงตาราง MFG เท่านั้น
-//
-// saved    = สถานะที่บันทึกไว้ตอน MFG สแกนจริง
-// computed = สถานะที่คำนวณใหม่จากแผน/WH ณ ตอนนี้
-//
-// ลดสถานะได้ (เช่น เคยผ่านแล้วภายหลังแผนหรือฝั่ง WH เปลี่ยน → NOT_MATCHED)
-// แต่ห้ามอัปเกรดให้เอง: แถวที่ตอนสแกนติดเงื่อนไข "ต้องให้ WH สแกนก่อน"
-// แล้ว WH เพิ่งมาสแกนทีหลัง ต้องคงเป็น NOT_MATCHED
-// จนกว่า MFG จะสแกนยืนยันการประกอบอีกครั้ง
 func mfgDisplayStatus(saved, computed string) string {
 	if computed != models.MFGStatusMatched {
 		return computed

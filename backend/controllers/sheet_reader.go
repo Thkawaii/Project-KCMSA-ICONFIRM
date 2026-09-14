@@ -63,18 +63,8 @@ func readSheetRows(c *gin.Context, names []string) ([][]string, string, error) {
 	return rows, fileHeader.Filename, nil
 }
 
-// sheetSparseTailStop จำนวนแถว "ว่างเกือบทั้งแถว" ติดกันที่ถือว่าหมดข้อมูลแล้ว
 const sheetSparseTailStop = 20000
 
-// readSheetAllRows อ่านทุกแถวของชีต ผลลัพธ์เหมือน xl.GetRows ทุกอย่าง
-// ต่างกันแค่หยุดอ่านเมื่อเจอ "หางไฟล์" ที่ไม่มีข้อมูลจริงยาวติดกันเกิน sheetSparseTailStop แถว
-//
-// ไฟล์ Excel ที่ใช้งานจริงบางไฟล์ลากเลขลำดับ (Item) ยาวไปจนสุดชีตกว่า 1,000,000 แถว
-// ทั้งที่ข้อมูลจริงมีแค่หลักพัน เช่นชีต TOTAL ของ IT Controller Serial Allocation
-// ถ้าใช้ GetRows ต้องอ่านครบล้านแถว ช้าเกือบ 10 วินาทีและกินแรมหลายร้อย MB ทุกครั้งที่ตรวจสอบ/อัปโหลด
-//
-// "ว่างเกือบทั้งแถว" = มีค่าไม่ถึง 2 ช่อง และจะเริ่มนับก็ต่อเมื่อไฟล์เคยมีแถวที่มีค่า ≥ 2 ช่องมาก่อนแล้ว
-// ไฟล์คอลัมน์เดียว (เช่นรายการ Serial ล้วน) จึงอ่านครบทุกแถวเหมือนเดิม ไม่ถูกตัด
 func readSheetAllRows(xl *excelize.File, sheet string) ([][]string, error) {
 	it, err := xl.Rows(sheet)
 	if err != nil {
@@ -83,8 +73,8 @@ func readSheetAllRows(xl *excelize.File, sheet string) ([][]string, error) {
 	defer it.Close()
 
 	results := make([][]string, 0, 256)
-	lastFilled := 0 // จำนวนแถวนับถึงแถวสุดท้ายที่มีค่าอย่างน้อย 1 ช่อง
-	lastDense := 0  // จำนวนแถวนับถึงแถวสุดท้ายที่มีค่าอย่างน้อย 2 ช่อง
+	lastFilled := 0
+	lastDense := 0
 	wide := false
 	stopped := false
 
@@ -118,7 +108,6 @@ func readSheetAllRows(xl *excelize.File, sheet string) ([][]string, error) {
 		}
 	}
 
-	// ตัดหางที่ไม่มีข้อมูลทิ้งแบบเดียวกับ GetRows
 	if stopped {
 		return results[:lastDense], nil
 	}

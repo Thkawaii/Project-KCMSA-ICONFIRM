@@ -26,14 +26,10 @@ type QAScanUnit struct {
 	Component      string `json:"component"`
 	ComponentLabel string `json:"componentLabel"`
 
-	// PlannedNo แสดงเป็น "รูปแบบที่ใช้อยู่ตอนนี้" ตาม Change Format Part เสมอ
-	// PlannedNoFormer / MachineNoFormer = รูปแบบเดิมในไฟล์แผน (มีค่าเฉพาะเมื่อถูกเปลี่ยนรูปแบบแล้ว)
 	PlannedNo       string   `json:"plannedNo"`
 	PlannedNoFormer []string `json:"plannedNoFormer,omitempty"`
 	MachineNoFormer []string `json:"machineNoFormer,omitempty"`
 
-	// Scanned = WH สแกนแล้วและผลเป็น MATCH เท่านั้น
-	// ScanAttempted = เคยมีการสแกน แต่ผลอาจไม่ผ่าน (NOT_FOUND / WRONG_PART)
 	Scanned       bool   `json:"scanned"`
 	ScanAttempted bool   `json:"scanAttempted"`
 	ScannedNo     string `json:"scannedNo"`
@@ -43,8 +39,6 @@ type QAScanUnit struct {
 	MatchStatus   string `json:"matchStatus"`
 	MatchMessage  string `json:"matchMessage"`
 
-	// Assembled = MFG บันทึกแล้วและสถานะเป็น MATCHED เท่านั้น
-	// AssembleAttempted = เคยบันทึก แต่สถานะยังเป็น NOT_MATCHED (เช่น WH ยังไม่รับเข้า)
 	Assembled         bool   `json:"assembled"`
 	AssembleAttempted bool   `json:"assembleAttempted"`
 	AssembledAt       string `json:"assembledAt"`
@@ -111,19 +105,11 @@ func GetQAPartScanSummary(c *gin.Context) {
 		}
 	}
 
-	// ตาราง Change Format Part — โหลดครั้งเดียว ใช้จับคู่ทุกรูปแบบของรหัสเดียวกัน
-	// แผน (Planning / Engine) เก็บ "ค่าเดิม" แต่ WH / MFG บันทึก "รูปแบบใหม่"
-	// ถ้าเทียบตรง ๆ จะหาไม่เจอ แล้วหน้า QA ขึ้น "ยังไม่สแกน / สแกนไม่ผ่าน" ทั้งที่ผ่านแล้ว
 	fmtIdx := loadCodeFormatIndex()
 
 	var checks []models.PartCheck
 	config.DB.Order("checked_datetime asc").Find(&checks)
 
-	// ดัชนีการสแกนของ WH แยกเป็น 2 ชั้น
-	//   matched* = เฉพาะการสแกนที่ผลเป็น MATCH → ใช้ตัดสินว่า "สแกนแล้ว" จริง
-	//   latest*  = การสแกนล่าสุดทุกสถานะ       → ใช้บอกว่าเคยสแกนแต่ยังไม่ผ่าน
-	// และแยกอีกชั้นเป็นแบบผูก Machine No. (กันพาร์ทที่ใช้เลขเดียวกันหลายเครื่อง เช่น Engine P/N)
-	// ทุกคีย์ถูกลงดัชนีด้วย "ทุกรูปแบบ" ของรหัส (ค่าเดิม + รูปแบบใหม่)
 	matchedCheckByMachine := map[string]models.PartCheck{}
 	matchedCheckByNo := map[string]models.PartCheck{}
 	latestCheckByMachine := map[string]models.PartCheck{}
@@ -154,8 +140,6 @@ func GetQAPartScanSummary(c *gin.Context) {
 		}
 	}
 
-	// คืนค่า (แถวที่เจอ, ผ่าน MATCH ไหม, เคยสแกนไหม)
-	// ลองทุกรูปแบบของทั้งเลขพาร์ทและ Machine No. ในแต่ละชั้น ก่อนถอยไปชั้นถัดไป
 	lookupCheck := func(comp, machineNo, planned string) (models.PartCheck, bool, bool) {
 		numKeys := fmtIdx.scanKeys(planned)
 		if len(numKeys) == 0 {
@@ -200,10 +184,6 @@ func GetQAPartScanSummary(c *gin.Context) {
 	var mfgRows []models.MFGAssembly
 	config.DB.Order("id asc").Find(&mfgRows)
 
-	// ดัชนีการประกอบของ MFG — ผูก Machine No. คู่กับเลขพาร์ทเสมอ
-	// และแยก MATCHED ออกจากแถวที่บันทึกไว้แต่ยังไม่ผ่าน (NOT_MATCHED)
-	// แถว DUPLICATE (log การสแกนซ้ำ) และ RETIRED_FORMAT (log รหัสรูปแบบเก่าที่ถูกยกเลิก)
-	// ไม่นับเป็นการประกอบ
 	matchedMFGByKey := map[string]models.MFGAssembly{}
 	latestMFGByKey := map[string]models.MFGAssembly{}
 	for _, m := range mfgRows {
@@ -244,7 +224,6 @@ func GetQAPartScanSummary(c *gin.Context) {
 			}
 			return models.MFGAssembly{}, false
 		}
-		// คืนค่า (แถวที่เจอ, MATCHED ไหม, เคยบันทึกไหม)
 		if m, ok := find(matchedMFGByKey); ok {
 			return m, true, true
 		}
@@ -254,8 +233,6 @@ func GetQAPartScanSummary(c *gin.Context) {
 		return models.MFGAssembly{}, false, false
 	}
 
-	// Model / ใบอนุญาต ผูกกับเลข IT Controller — ลงดัชนีทุกรูปแบบเช่นกัน
-	// เผื่อทะเบียนหรือบัญชีใบอนุญาตถูกอัปโหลดมาด้วยรูปแบบใหม่แล้ว
 	modelByITC := map[string]string{}
 
 	var masters []models.MasterData
@@ -352,7 +329,6 @@ func GetQAPartScanSummary(c *gin.Context) {
 				u.ScanAttempted = true
 				u.ScannedNo = strings.TrimSpace(ck.SN)
 				u.ScannedPN = strings.TrimSpace(ck.PN)
-				// แถว RETIRED_FORMAT คงรหัสที่สแกนผิดมาไว้ให้เห็น ส่วนแถวอื่นแสดงรูปแบบปัจจุบัน
 				if ck.MatchStatus != models.MatchStatusRetiredFormat {
 					u.ScannedNo = fmtIdx.current(u.ScannedNo)
 					u.ScannedPN = fmtIdx.current(u.ScannedPN)

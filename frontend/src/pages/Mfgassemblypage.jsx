@@ -100,7 +100,6 @@ function parseAssemblyCode(raw) {
     itControllerNo: tokens[1] || ''
   };
 }
-// วันนี้ในรูปแบบ YYYY-MM-DD (เวลาเครื่อง)
 function todayYMD() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -110,8 +109,6 @@ export default function MFGAssemblyPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
-  // ---- ตัวกรองช่วงวันที่ (เหมือนหน้า QA): ทั้งหมด / รายวัน / รายสัปดาห์ / รายเดือน / รายปี + เลือกวันจากปฏิทิน ----
-  // เลือกโหมดครั้งแรกโดยยังไม่ได้เลือกวัน = นับจาก "วันนี้" (ความหมายเดิมของแท็บ รายวัน/รายสัปดาห์/รายเดือน)
   const [periodMode, setPeriodMode] = useState('all');
   const [periodAnchor, setPeriodAnchor] = useState('');
   function handlePeriodModeChange(next) {
@@ -163,7 +160,6 @@ export default function MFGAssemblyPage() {
     let cancelled = false;
     async function loadMachinePlans() {
       try {
-        // รายละเอียดเครื่องรวมจาก ALL PART / Planning / WH1 / WH2 / Engine
         const data = await getMachinePlans();
         if (!cancelled) setPlanIndex(indexMachinePlans(data?.rows || []));
       } catch {
@@ -193,7 +189,6 @@ export default function MFGAssemblyPage() {
       if (busyRef.current) return;
       const tag = (e.target?.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-      // ปุ่มในปฏิทินเลือกวันที่ (ไม่ใช่ input) ก็ไม่ใช่การยิงบาร์โค้ด
       if (e.target?.closest?.('[data-scan-ignore]')) return;
       if (e.key === 'Enter') {
         if (flushTimer) clearTimeout(flushTimer);
@@ -269,8 +264,6 @@ export default function MFGAssemblyPage() {
       const msg = res?.message || 'บันทึกแล้ว';
       const ok = res?.matched || res?.status === 'MATCHED';
       const isDuplicate = res?.duplicate || res?.status === 'DUPLICATE';
-      // สแกนด้วยรหัสรูปแบบเก่าที่ถูกยกเลิกแล้ว: ระบบบันทึกแถว log ไว้ในตารางแล้ว
-      // แต่เป็นแถว "สแกนผิด" ไม่ใช่การประกอบจริง จึงไม่ต้องให้ถ่ายรูปป้ายเครื่องซ้ำ
       const isRetired = res?.retiredFormat || res?.status === 'RETIRED_FORMAT';
       if (row?.ID && !isDuplicate && !isRetired) {
         await scanCloseWait();
@@ -301,8 +294,6 @@ export default function MFGAssemblyPage() {
       await scanErrorAlert(friendlyError(err, 'บันทึกไม่สำเร็จ'));
     } finally {
       setScanBusy(false);
-      // รีเฟรชตารางเสมอ แม้ขั้นตอนถ่ายรูปหรือขั้นตอนอื่นจะพัง
-      // ไม่งั้นแถวที่เพิ่งบันทึกจะไม่ขึ้นในตารางจนกว่าจะรีโหลดหน้า
       await loadRows();
     }
     if (successMsg) scanSuccessToast(successMsg);
@@ -424,9 +415,6 @@ export default function MFGAssemblyPage() {
     }
   }
   const filtered = useMemo(() => {
-    // แสดงเฉพาะรายการที่ประกอบถูกต้อง (MATCHED) เท่านั้น
-    // รายการที่ไม่ตรง (NOT_MATCHED / DUPLICATE / RETIRED_FORMAT ฯลฯ) ยังถูกบันทึกลงฐานข้อมูลตามปกติ
-    // เพียงแต่ไม่แสดงในตาราง Matching Assembly นี้
     let list = rows.filter(r => (r.Status || '') === 'MATCHED');
     if (periodMode !== 'all') {
       list = list.filter(r => r.CheckDate && inPeriod(r.CheckDate, periodMode, periodAnchor));
