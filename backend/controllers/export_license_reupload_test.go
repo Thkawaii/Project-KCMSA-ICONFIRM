@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"bytes"
+	"fmt"
 	"mime/multipart"
 	"net/http/httptest"
 	"strings"
@@ -314,5 +315,172 @@ func TestExportLicenseGrowingFileStartsAtOne(t *testing.T) {
 	got := idsInOrder("รอบสอง")
 	if len(got) != 3 || got[0] != 1 || got[1] != 2 || got[2] != 3 {
 		t.Fatalf("รอบสอง: ได้ id %v ต้องเป็น [1 2 3]", got)
+	}
+}
+
+const masterDataCSV = `Item No.,Part Name,Model,Part No.,Serial No.,IT Controller No.
+20,Q4000 IRIDIUM IT CONTROLLER,JRN-260K,YN22E00849FA,KQ3000045093,878250022501
+100,Q4000 IRIDIUM IT CONTROLLER,JRN-260K,YN22E00849FA,KQ3000045142,878250022502
+`
+
+// Master data goes through a different write path from the licence tables
+// (update-in-place rather than upsert), so it gets its own coverage: the ids
+// must survive a re-upload and new rows must continue the numbering.
+func TestMasterDataReuploadKeepsIDsAndContinues(t *testing.T) {
+	db := newTestDB(t)
+	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
+
+	upload := func(round, body string) {
+		t.Helper()
+		c, rec := csvUploadContext(t, "master.csv", body, admin.ID, admin.Username)
+		UploadMasterData(c)
+		if rec.Code != 201 {
+			t.Fatalf("%s: อัปโหลดไม่สำเร็จ %d %s", round, rec.Code, rec.Body.String())
+		}
+	}
+
+	idBySerial := func() map[string]uint {
+		t.Helper()
+		var rows []models.MasterData
+		if err := db.Order("id asc").Find(&rows).Error; err != nil {
+			t.Fatalf("read rows: %v", err)
+		}
+		out := map[string]uint{}
+		for _, r := range rows {
+			out[r.SerialNo] = r.ID
+		}
+		return out
+	}
+
+	upload("รอบแรก", masterDataCSV)
+	first := idBySerial()
+	if len(first) != 2 || first["KQ3000045093"] != 1 || first["KQ3000045142"] != 2 {
+		t.Fatalf("รอบแรก: ได้ id %v ต้องเป็น 1 และ 2", first)
+	}
+
+	// Same file again — nothing should move.
+	upload("อัพซ้ำ", masterDataCSV)
+	again := idBySerial()
+	if len(again) != 2 {
+		t.Fatalf("อัพซ้ำ: มี %d แถว ต้องมี 2 แถว", len(again))
+	}
+	for serial, id := range first {
+		if again[serial] != id {
+			t.Errorf("อัพซ้ำ: serial %s ได้ id %d ต้องเป็น %d", serial, again[serial], id)
+		}
+	}
+
+	// File grown by one row — it should land on id 3, not skip ahead.
+	grown := masterDataCSV + "345,Q4000 IRIDIUM IT CONTROLLER,JRN-260K,YN22E00849FA,KQ3000045152,878250022701\n"
+	upload("เพิ่มแถว", grown)
+	final := idBySerial()
+	if len(final) != 3 {
+		t.Fatalf("เพิ่มแถว: มี %d แถว ต้องมี 3 แถว", len(final))
+	}
+	if final["KQ3000045093"] != 1 || final["KQ3000045142"] != 2 || final["KQ3000045152"] != 3 {
+		t.Errorf("เพิ่มแถว: ได้ id %v ต้องเป็น 1, 2, 3", final)
+	}
+}
+
+// buildMasterCSV makes a file with n data rows, numbered from start.
+func buildMasterCSV(start, n int) string {
+	var b strings.Builder
+	b.WriteString("Item No.,Part Name,Model,Part No.,Serial No.,IT Controller No.\n")
+	for i := start; i < start+n; i++ {
+		fmt.Fprintf(&b, "%d,Q4000 IRIDIUM IT CONTROLLER,JRN-260K,YN22E00849FA,KQ%07d,%012d\n",
+			i*7, i, 878250000000+i)
+	}
+	return b.String()
+}
+
+// The write path is batched in chunks of dbInsertBatch, so a file larger than
+// one chunk exercises the chunk boundary. Ids must still run 1..n in file order
+// and a second, larger file must extend the numbering rather than restart it.
+func TestMasterDataLargeFileBatching(t *testing.T) {
+	db := newTestDB(t)
+	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
+
+	const first = 1200
+	if first <= dbInsertBatch {
+		t.Fatalf("ต้องมากกว่า %d แถวถึงจะข้ามขอบ batch", dbInsertBatch)
+	}
+
+	c, rec := csvUploadContext(t, "master.csv", buildMasterCSV(1, first), admin.ID, admin.Username)
+	UploadMasterData(c)
+	if rec.Code != 201 {
+		t.Fatalf("อัปโหลดไฟล์ใหญ่ไม่สำเร็จ: %d %s", rec.Code, rec.Body.String())
+	}
+
+	var rows []models.MasterData
+	if err := db.Order("id asc").Find(&rows).Error; err != nil {
+		t.Fatalf("read rows: %v", err)
+	}
+	if len(rows) != first {
+		t.Fatalf("มี %d แถว ต้องมี %d แถว", len(rows), first)
+	}
+	for i, r := range rows {
+		if want := uint(i + 1); r.ID != want {
+			t.Fatalf("แถวที่ %d: id = %d ต้องเป็น %d", i+1, r.ID, want)
+		}
+	}
+
+	// Same 1200 rows plus 300 more.
+	c, rec = csvUploadContext(t, "master.csv", buildMasterCSV(1, first+300), admin.ID, admin.Username)
+	UploadMasterData(c)
+	if rec.Code != 201 {
+		t.Fatalf("อัปโหลดรอบสองไม่สำเร็จ: %d %s", rec.Code, rec.Body.String())
+	}
+
+	out := decodeJSON(t, rec)
+	if got := out["updated"]; got != float64(first) {
+		t.Errorf("updated = %v ต้องเป็น %d", got, first)
+	}
+	if got := out["imported"]; got != float64(300) {
+		t.Errorf("imported = %v ต้องเป็น 300", got)
+	}
+
+	rows = nil
+	if err := db.Order("id asc").Find(&rows).Error; err != nil {
+		t.Fatalf("read rows: %v", err)
+	}
+	if len(rows) != first+300 {
+		t.Fatalf("มี %d แถว ต้องมี %d แถว", len(rows), first+300)
+	}
+	for i, r := range rows {
+		if want := uint(i + 1); r.ID != want {
+			t.Fatalf("แถวที่ %d: id = %d ต้องเป็น %d", i+1, r.ID, want)
+		}
+	}
+}
+
+// A duplicate value on a unique-indexed column kills the whole batch, so the
+// handler retries that batch row by row. The clean rows must still import and
+// the offending row must be named in problems rather than failing the upload.
+func TestMasterDataBatchFallsBackPerRow(t *testing.T) {
+	db := newTestDB(t)
+	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
+
+	// Two different serials sharing one IT Controller No.
+	csv := `Item No.,Part Name,Model,Part No.,Serial No.,IT Controller No.
+1,CONTROLLER,JRN-260K,YN22E00849FA,KQ3000045093,878250022501
+2,CONTROLLER,JRN-260K,YN22E00849FA,KQ3000045142,878250022502
+3,CONTROLLER,JRN-260K,YN22E00849FA,KQ3000045152,878250022501
+`
+	c, rec := csvUploadContext(t, "master.csv", csv, admin.ID, admin.Username)
+	UploadMasterData(c)
+	if rec.Code != 201 {
+		t.Fatalf("อัปโหลดไม่สำเร็จ: %d %s", rec.Code, rec.Body.String())
+	}
+
+	var count int64
+	db.Model(&models.MasterData{}).Count(&count)
+	if count != 2 {
+		t.Fatalf("มี %d แถว ต้องมี 2 แถว (แถวที่ซ้ำต้องถูกข้าม ไม่ใช่ล้มทั้งไฟล์)", count)
+	}
+
+	out := decodeJSON(t, rec)
+	problems, _ := out["problems"].([]interface{})
+	if len(problems) == 0 {
+		t.Error("ต้องรายงานแถวที่ซ้ำใน problems")
 	}
 }
