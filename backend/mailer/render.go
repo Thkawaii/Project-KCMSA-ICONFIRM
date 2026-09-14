@@ -293,8 +293,6 @@ func breakdownGroups(r WeeklyReport) []breakdownGroup {
 	if g, ok := build("ใบอนุญาตนำออก", []breakdownItem{
 		{"หมดอายุแล้ว", r.ExportCounts.Expired},
 		{"ใกล้หมดอายุ", r.ExportCounts.Expiring},
-		{"เลยกำหนดยื่นต่อ กสทช.", r.ExportCounts.LeadOverdue},
-		{"ใกล้ครบกำหนดยื่น", r.ExportCounts.LeadDueSoon},
 	}); ok {
 		groups = append(groups, g)
 	}
@@ -302,11 +300,23 @@ func breakdownGroups(r WeeklyReport) []breakdownGroup {
 	return groups
 }
 
+// breakdownTotal sums only the items actually listed in the breakdown, so the
+// "รวมทั้งสิ้น N รายการ" figure always matches what's printed underneath it.
+func breakdownTotal(groups []breakdownGroup) int {
+	total := 0
+	for _, g := range groups {
+		for _, it := range g.Items {
+			total += it.Count
+		}
+	}
+	return total
+}
+
 func introSentence(r WeeklyReport) string {
 	if r.IsEmpty() {
 		return "ปรากฏว่าไม่มีใบอนุญาตที่หมดอายุ ใกล้หมดอายุ หรือถึงกำหนดยื่นเรื่องต่อสำนักงาน กสทช. แต่อย่างใด"
 	}
-	return fmt.Sprintf("ปรากฏว่ามีรายการที่ต้องดำเนินการรวมทั้งสิ้น %d รายการ จำแนกเป็น", r.TotalActions())
+	return fmt.Sprintf("ปรากฏว่ามีรายการที่ต้องดำเนินการรวมทั้งสิ้น %d รายการ จำแนกเป็น", breakdownTotal(breakdownGroups(r)))
 }
 
 func renderBreakdown(r WeeklyReport) string {
@@ -414,7 +424,7 @@ func renderExportTable(r WeeklyReport, maxRows int) string {
 	b.WriteString(tableOpen())
 	b.WriteString(`<tr>`)
 	b.WriteString(th("ลำดับ", "center", "44"))
-	b.WriteString(th("Exception License", "left", ""))
+	b.WriteString(th("เลขที่ใบอนุญาต", "left", ""))
 	b.WriteString(th("จำนวน", "center", "60"))
 	b.WriteString(th("วันหมดอายุ", "left", "96"))
 	b.WriteString(th("คงเหลือ", "left", "104"))
