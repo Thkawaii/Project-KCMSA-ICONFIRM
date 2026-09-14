@@ -421,11 +421,7 @@ export default function MFGAssemblyPage() {
     if (term) {
       list = list.filter(r => String(r.ID).includes(term) || (r.MachineNo || '').toLowerCase().includes(term) || (r.ITControllerNo || '').toLowerCase().includes(term) || (r.Country || '').toLowerCase().includes(term) || (r.Status || '').toLowerCase().includes(term));
     }
-    return [...list].sort((a, b) => {
-      const ta = a.CheckDate ? new Date(a.CheckDate).getTime() : -Infinity;
-      const tb = b.CheckDate ? new Date(b.CheckDate).getTime() : -Infinity;
-      return tb - ta;
-    });
+    return [...list].sort((a, b) => a.ID - b.ID);
   }, [rows, search, periodMode, periodAnchor]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);

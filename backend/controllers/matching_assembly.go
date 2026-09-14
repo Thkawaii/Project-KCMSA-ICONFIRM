@@ -14,7 +14,7 @@ import (
 func GetMatchingAssemblies(c *gin.Context) {
 
 	var rows []models.MatchingAssembly
-	config.DB.Order("id desc").Find(&rows)
+	config.DB.Order("id asc").Find(&rows)
 	c.JSON(200, rows)
 }
 

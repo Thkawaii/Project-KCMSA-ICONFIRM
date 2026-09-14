@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"iconfirm/config"
 	"iconfirm/models"
@@ -199,5 +200,119 @@ func TestExportLicenseNewRowsContinueNumbering(t *testing.T) {
 		if want := uint(i + 1); r.ID != want {
 			t.Errorf("แถวที่ %d: id = %d ต้องเป็น %d (serial %s)", i+1, r.ID, want, r.SerialNumber)
 		}
+	}
+}
+
+// The real-world case: the same file comes back with extra rows appended, and
+// some of the original rows have already been marked complete by a scan. The
+// completed rows must keep their id and their completed flag; only the appended
+// rows should arrive fresh, numbered after the existing ones.
+func TestExportLicenseReuploadKeepsScannedRows(t *testing.T) {
+	db := newTestDB(t)
+	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
+
+	c, rec := csvUploadContext(t, "export.csv", exportLicenseCSV, admin.ID, admin.Username)
+	UploadExportLicense(c)
+	if rec.Code != 201 {
+		t.Fatalf("อัปโหลดครั้งแรกไม่สำเร็จ: %d %s", rec.Code, rec.Body.String())
+	}
+
+	// Simulate a scan completing the second row.
+	done := time.Now()
+	if err := db.Model(&models.ExportLicenseItem{}).
+		Where("serial_number = ?", "878250110308").
+		Updates(map[string]interface{}{
+			"completed":    true,
+			"completed_by": "WH",
+			"completed_at": &done,
+		}).Error; err != nil {
+		t.Fatalf("mark completed: %v", err)
+	}
+
+	// Same three rows, plus two new ones.
+	grown := exportLicenseCSV + `4,YQ13U1088,878250111088,INV-003,JAPAN
+5,YC12U0517,878250110517,INV-003,JAPAN
+`
+	c, rec = csvUploadContext(t, "export.csv", grown, admin.ID, admin.Username)
+	UploadExportLicense(c)
+	if rec.Code != 201 {
+		t.Fatalf("อัปโหลดรอบสองไม่สำเร็จ: %d %s", rec.Code, rec.Body.String())
+	}
+
+	var rows []models.ExportLicenseItem
+	if err := db.Order("id asc").Find(&rows).Error; err != nil {
+		t.Fatalf("read rows: %v", err)
+	}
+	if len(rows) != 5 {
+		t.Fatalf("มี %d แถว ต้องมี 5 แถว", len(rows))
+	}
+	for i, r := range rows {
+		if want := uint(i + 1); r.ID != want {
+			t.Errorf("แถวที่ %d: id = %d ต้องเป็น %d (serial %s)", i+1, r.ID, want, r.SerialNumber)
+		}
+	}
+
+	byID := map[uint]models.ExportLicenseItem{}
+	for _, r := range rows {
+		byID[r.ID] = r
+	}
+
+	if got := byID[2]; !got.Completed || got.CompletedBy != "WH" || got.CompletedAt == nil {
+		t.Errorf("แถวที่สแกนแล้ว (id 2) เสียสถานะ completed: %+v", got)
+	}
+	for _, id := range []uint{1, 3, 4, 5} {
+		if byID[id].Completed {
+			t.Errorf("id %d ไม่ควรมีสถานะ completed", id)
+		}
+	}
+	if byID[4].SerialNumber != "878250111088" || byID[5].SerialNumber != "878250110517" {
+		t.Errorf("แถวใหม่ควรได้ id 4 และ 5 ตามลำดับในไฟล์ ได้ %s / %s",
+			byID[4].SerialNumber, byID[5].SerialNumber)
+	}
+}
+
+// Regression: a two-row file, then the same file grown to three rows. The first
+// upload must not burn id 1 — the ids have to read 1,2 then 1,2,3 and never
+// shift to 2,3,4.
+func TestExportLicenseGrowingFileStartsAtOne(t *testing.T) {
+	db := newTestDB(t)
+	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
+
+	twoRows := `Item,Machine No,Serial Number,Invoice No,Country
+20,YT05U0421,878250110421,INV-001,THAILAND
+100,YM07U0308,878250110308,INV-001,THAILAND
+`
+	threeRows := twoRows + "345,YQ13U1052,878250111052,INV-002,JAPAN\n"
+
+	idsInOrder := func(round string) []uint {
+		t.Helper()
+		var rows []models.ExportLicenseItem
+		if err := db.Order("id asc").Find(&rows).Error; err != nil {
+			t.Fatalf("%s: read rows: %v", round, err)
+		}
+		out := make([]uint, len(rows))
+		for i, r := range rows {
+			out[i] = r.ID
+		}
+		return out
+	}
+
+	c, rec := csvUploadContext(t, "export.csv", twoRows, admin.ID, admin.Username)
+	UploadExportLicense(c)
+	if rec.Code != 201 {
+		t.Fatalf("อัปโหลด 2 แถวไม่สำเร็จ: %d %s", rec.Code, rec.Body.String())
+	}
+	if got := idsInOrder("รอบแรก"); len(got) != 2 || got[0] != 1 || got[1] != 2 {
+		t.Fatalf("รอบแรก: ได้ id %v ต้องเป็น [1 2]", got)
+	}
+
+	c, rec = csvUploadContext(t, "export.csv", threeRows, admin.ID, admin.Username)
+	UploadExportLicense(c)
+	if rec.Code != 201 {
+		t.Fatalf("อัปโหลด 3 แถวไม่สำเร็จ: %d %s", rec.Code, rec.Body.String())
+	}
+	got := idsInOrder("รอบสอง")
+	if len(got) != 3 || got[0] != 1 || got[1] != 2 || got[2] != 3 {
+		t.Fatalf("รอบสอง: ได้ id %v ต้องเป็น [1 2 3]", got)
 	}
 }
