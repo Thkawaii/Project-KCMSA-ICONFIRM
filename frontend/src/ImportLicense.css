@@ -578,7 +578,6 @@
 .il-export-filter-card .prp {
   flex: 1 1 auto;
 }
-/* ปุ่ม "ล้างช่วง" ย้ายไปอยู่ใน PeriodRangePicker แล้ว (.prp-clear) */
 @media (max-width: 640px) {
   .il-export-filter-card {
     padding: 16px;
@@ -591,13 +590,10 @@
   gap: 10px;
   flex: 0 1 auto;
   min-width: 0;
-  /* หน้า Export มีตัวกรองประเทศ + สถานะ + ค้นหา + 2 ปุ่ม — จอกลาง (iPad/แล็ปท็อปเล็ก)
-     ให้ขึ้นบรรทัดใหม่ชิดขวาแทนการล้นออกนอกการ์ด */
   flex-wrap: wrap;
   justify-content: flex-end;
   margin-left: auto;
 }
-/* หน้า Export มีตัวกรองมากกว่า — ย่อช่องค้นหาลงเพื่อให้ยังอยู่บรรทัดเดียวกับ "entries per page" บนจอปกติ */
 .il-filter-search-group.il-filter-search-group-compact .wh-search {
   width: 260px;
 }
@@ -610,10 +606,6 @@
   width: 360px;
   max-width: 100%;
 }
-/* ทุกช่องในแถบตัวกรองต้องสูงเท่ากัน
-   เดิมช่องค้นหา ดรอปดาวน์ และปุ่ม ตั้ง padding กับขนาดตัวอักษรคนละค่า
-   (ปุ่ม 8px/13px, ปุ่มลบ 9px/14px, ช่องค้นหา 10px/14px) พอมาอยู่บรรทัดเดียวเลยสูงไม่เท่ากัน
-   จึงล็อกความสูงไว้ค่าเดียว แล้วจัดเนื้อหาให้อยู่กึ่งกลางแทนการพึ่ง padding */
 .il-filter-search-group .wh-search,
 .il-filter-search-group .sf-trigger,
 .il-filter-search-group .wh-issue-btn,
@@ -1544,8 +1536,6 @@
   color: #b91c1c;
 }
 
-/* ── Export License · Lead time (ยื่น กสทช. ก่อนใบอนุญาตนำออกหมดอายุ 15 วัน) ── */
-
 .lab-sum-lead {
   background: #eff6ff;
   color: #1d4ed8;
@@ -1574,7 +1564,6 @@
   color: #b42318;
 }
 
-/* คอลัมน์ Lead time ในตาราง Export License */
 .il-lead-cell {
   display: flex;
   flex-direction: column;
@@ -1582,14 +1571,11 @@
   align-items: flex-start;
 }
 
-/* บรรทัดนับวันใต้ป้าย — ใช้สีดำ ไม่ต้องเน้นสี (ตัวป้ายบอกสถานะเขียว/แดงอยู่แล้ว) */
 .il-lead-days-alert {
   color: #0f172a;
   font-weight: 100;
 }
 
-
-/* แถวกลุ่ม Lead time ในกระดิ่งแจ้งเตือน */
 .lab-list .lab-item-lead-row:hover {
   background: #f5f9ff;
   box-shadow: 0 6px 16px rgba(59, 130, 246, 0.16),
@@ -1599,15 +1585,6 @@
   color: #1d4ed8;
 }
 
-
-/* ==========================================================================
-   สถานะ "เสร็จสิ้น" ของใบอนุญาต (Import / Export License)
-   --------------------------------------------------------------------------
-   ผู้ใช้ติ๊กเลือกใบที่ทำงานเสร็จแล้ว (ใบเดียวหรือหลายใบก็ได้) แล้วกดยืนยัน
-   ใบที่เสร็จสิ้นจะขึ้นป้าย/ไอคอน และระบบจะหยุดนับวันหมดอายุของใบนั้น
-   ========================================================================== */
-
-/* ---------- ป้าย "เสร็จสิ้นแล้ว" ---------- */
 .il-badge-complete {
   display: inline-flex;
   align-items: center;
@@ -1625,7 +1602,6 @@
   gap: 4px;
 }
 
-/* วันสุดท้ายที่ค้างไว้ตอนปิดงาน — ต้องเห็นทั้งบนจอและตอน Export Excel */
 .il-complete-date {
   font-size: 12px;
   font-weight: 600;
@@ -1637,7 +1613,6 @@
   color: #64748b;
 }
 
-/* ไอคอนติ๊กเล็ก ๆ ที่ปักหน้าเลขใบอนุญาต ให้กวาดตาเห็นได้ทั้งตาราง */
 .il-license-cell {
   display: inline-flex;
   align-items: center;
@@ -1652,7 +1627,6 @@
   flex-shrink: 0;
 }
 
-/* ไอคอน "เสร็จสิ้นแล้ว" ต่อท้ายชื่อใบในตัวเลือก dropdown Import / Export License */
 .il-option-complete {
   display: inline-flex;
   align-items: center;
@@ -1665,9 +1639,6 @@
   flex-shrink: 0;
 }
 
-/* ตราประทับ "เสร็จสิ้น" บนแถบใบอนุญาตที่ปิดงานครบทั้งใบ
-   วางต่อจากกลุ่มข้อความ และจัดกึ่งกลางตามความสูงของทั้งกลุ่ม
-   (ไม่ห้อยอยู่แค่บรรทัดล่างสุด) */
 .il-lot-info {
   display: flex;
   align-items: center;
@@ -1680,8 +1651,6 @@
   min-width: 0;
 }
 
-/* ป้าย "เสร็จสิ้นแล้ว" — ใช้ไอคอน Heroicons (Tailwind) แทนรูป PNG เดิม
-   ทำให้คมชัดทุกความละเอียด ปรับสี/ขนาดได้จาก CSS และโหลดเร็วกว่า */
 .il-complete-stamp {
   display: inline-flex;
   align-items: center;
@@ -1706,7 +1675,6 @@
   color: #10b981;
 }
 
-/* ---------- ช่องติ๊กเลือกแถว ---------- */
 .il-check-th,
 .il-check-td {
   width: 44px;
@@ -1762,7 +1730,6 @@
   opacity: 0.45;
 }
 
-/* ---------- แถวที่เลือก / แถวที่เสร็จสิ้นแล้ว ---------- */
 .il-table-selectable tbody tr.il-row-selected > td {
   background: #f0fdf4;
 }
@@ -1780,7 +1747,6 @@
   color: #475569;
 }
 
-/* ---------- แถบเครื่องมือตอนติ๊กเลือก ---------- */
 .il-selection-bar {
   position: sticky;
   top: 8px;
@@ -1838,8 +1804,6 @@
   gap: 8px;
 }
 
-/* ปุ่มปิดงาน (เขียว) / ยกเลิกสถานะ (ขาว-เทา) — ใช้ซ้ำได้ทั้งแถบเลือก
-   แถบใบอนุญาต และหน้ารายละเอียด */
 .il-complete-btn,
 .il-uncomplete-btn,
 .il-selection-clear {
@@ -1906,19 +1870,14 @@
   flex-shrink: 0;
 }
 
-/* ปุ่มปิดงานบนแถบใบอนุญาตที่กำลังเลือก (พื้นหลังเข้ม) */
 .wh-so-active-bar .il-uncomplete-btn {
   background: rgba(255, 255, 255, 0.92);
 }
 
-/* ---------- การ์ดสถิติ "เสร็จสิ้นแล้ว" ---------- */
 .il-stat-complete .dash-stat-value {
   color: #15803d;
 }
 
-/* ---------- การ์ดสถิติอายุใบอนุญาต ---------- */
-/* รวม "ใกล้หมดอายุ" กับ "หมดอายุแล้ว" ไว้ในการ์ดเดียว
-   จะได้อ่านคู่กันได้ทันที และแถวสถิติยังอยู่บรรทัดเดียว */
 .il-stat-expiry-split {
   display: flex;
   align-items: flex-start;
@@ -1936,7 +1895,6 @@
   background: #e2e8f0;
 }
 
-/* ใช้สีเดียวกับป้ายสถานะในตาราง จะได้โยงกันได้ทันทีว่าตัวเลขนี้มาจากแถวไหน */
 .il-stat-expiring .dash-stat-value {
   color: #c2410c;
 }
@@ -1945,18 +1903,10 @@
   color: #b91c1c;
 }
 
-/* ตัวเลขคู่ในการ์ดเดียวต้องเล็กลงหน่อย ไม่งั้นล้นการ์ดตอนจอแคบ */
 .il-stat-expiry .dash-stat-value {
   font-size: 24px;
 }
 
-/* แถวสถิติที่มี 5 การ์ด — ใส่คลาสนี้เฉพาะหน้า Import/Export License
-   หน้าอื่นที่มี 4 การ์ดยังใช้ 4 คอลัมน์เหมือนเดิม
-
-   ตั้งแต่ iPad แนวตั้ง / Surface ขึ้นไป (> 720px) ให้ 5 การ์ดอยู่บรรทัดเดียวเสมอ
-   จอแคบลงจะย่อ padding / ตัวอักษรแทนการตกบรรทัด
-   - minmax(0, …) กันข้อความยาวดันการ์ดให้กว้างเกินคอลัมน์
-   - การ์ดอายุใบอนุญาต (ใบที่ 4) มีตัวเลข 2 ชุด จึงให้กว้างกว่าใบอื่นเล็กน้อย */
 .wh-stats-row.il-stats-row-5 {
   grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.35fr) minmax(0, 1fr);
 }
@@ -1974,7 +1924,6 @@
   line-height: 1.35;
 }
 
-/* ก้อนคำที่ห้ามตัดกลางคำ (ดู StatLabel ใน Importlicensepage.jsx) */
 .il-nobr {
   white-space: nowrap;
 }
@@ -1983,8 +1932,6 @@
   flex-shrink: 0;
 }
 
-/* ---- แท็บเล็ต: iPad / iPad Pro / Surface ทั้งแนวตั้งและแนวนอน (721px – 1199px) ----
-   (≥ 1200px เนื้อหาถูกจำกัดกว้างสุด 1200px ป้ายยาวสุดยังพอบรรทัดเดียว) */
 @media (max-width: 1199px) {
   .wh-stats-row.il-stats-row-5 {
     gap: 10px;
@@ -1994,8 +1941,6 @@
     padding: 12px;
   }
 
-  /* ป้ายยาวอาจขึ้น 2 บรรทัด — ล็อกความสูงไว้ 2 บรรทัดทุกใบ
-     ตัวเลขของทั้ง 5 การ์ดจะได้อยู่ระดับเดียวกัน */
   .wh-stats-row.il-stats-row-5 .dash-stat-label {
     align-items: flex-start;
     min-height: 2.7em;
@@ -2034,17 +1979,12 @@
   }
 }
 
-/* ---- iPad mini / iPad / iPad Air แนวตั้ง (721px – 800px) ----
-   การ์ดแคบจนไอคอนเบียดป้าย ซ่อนไอคอน (เป็นแค่ของตกแต่ง) ให้ป้ายได้เต็มความกว้าง */
 @media (min-width: 721px) and (max-width: 800px) {
   .wh-stats-row.il-stats-row-5 .dash-stat-icon {
     display: none;
   }
 }
 
-/* ---- มือถือ / iPad แบบ Split View (≤ 720px) ----
-   5 การ์ดในบรรทัดเดียวจะเล็กจนอ่านไม่ออก จึงใช้ 2 คอลัมน์
-   การ์ดอายุใบอนุญาตกินเต็มแถวไว้ล่างสุด (dense ดึงการ์ด "เสร็จสิ้นแล้ว" ขึ้นมาเติมช่องว่าง) */
 @media (max-width: 720px) {
   .wh-stats-row.il-stats-row-5 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2055,8 +1995,6 @@
     grid-column: 1 / -1;
   }
 
-  /* ป้ายบางใบขึ้น 2 บรรทัดบนมือถือจอเล็ก — ดันตัวเลขลงล่างสุด
-     การ์ดคู่เดียวกันในแถวจะได้ตัวเลขระดับเดียวกัน */
   .wh-stats-row.il-stats-row-5 .dash-stat-card {
     display: flex;
     flex-direction: column;
@@ -2076,7 +2014,6 @@
   }
 }
 
-/* ---------- ปุ่มในหน้ารายละเอียด ---------- */
 .il-modal-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2084,7 +2021,6 @@
   gap: 10px;
 }
 
-/* ---------- จอเล็ก ---------- */
 @media (max-width: 720px) {
   .il-complete-stamp {
     padding: 5px 10px 5px 8px;
@@ -2096,7 +2032,6 @@
     height: 16px;
   }
 
-  /* ตารางกลายเป็นการ์ด — ช่องติ๊กจึงเป็นแถวแรกของการ์ด ให้เด่นหน่อย */
   .wh-table tbody td.il-check-td {
     width: auto;
     justify-content: space-between;
@@ -2142,14 +2077,6 @@
   }
 }
 
-
-/* ==========================================================================
-   แถบใบอนุญาตที่กำลังเลือก (Import / Export License)
-   --------------------------------------------------------------------------
-   ใช้โทนเขียวมิ้นต์อ่อน แทนพื้นเข้มทึบ อ่านสบายตากว่าและกลมกลืนกับตารางด้านล่าง
-   จำกัดไว้เฉพาะสองหน้านี้ (.il-license-bar) หน้าอื่นที่ใช้ .wh-so-active-bar
-   เช่นหน้า Warehouse ยังคงหน้าตาเดิม
-   ========================================================================== */
 .wh-so-active-bar.il-license-bar {
   background: #ffffff;
   border: 1px solid #e6eaee;
@@ -2172,7 +2099,6 @@
   font-weight: 400;
 }
 
-/* ปุ่มในแถบ — ใช้สีเดียวกับปุ่ม Export Excel (.wh-issue-btn) */
 .wh-so-active-bar.il-license-bar .il-renew-btn {
   background: var(--color-brand-500);
   color: var(--color-brand-ink);
@@ -2200,16 +2126,6 @@
   background: #ffffff;
 }
 
-
-/* ==========================================================================
-   หน้ารายละเอียดใบอนุญาตนำเข้า / ส่งออก — หน้าตาเดิม (กว้าง 420px, 2 คอลัมน์)
-   --------------------------------------------------------------------------
-   - ป๊อปอัปสูงไม่เกินจอที่มองเห็นจริง (เดิม 88vh บน Safari ของ iPad รวมใต้แถบเครื่องมือ จึงล้นจอ)
-   - หัวข้อ + ปุ่ม X อยู่ด้านบน ปุ่มอยู่ด้านล่างเสมอ เลื่อนเฉพาะเนื้อหาตรงกลาง
-   - เงาจาง ๆ ขอบบน/ล่างของเนื้อหาจะขึ้นเฉพาะตอนที่ยังมีข้อมูลให้เลื่อน
-   - ปัดนิ้วบนพื้นหลังก็เลื่อนเนื้อหาได้ (useDetailSheet ใน Importlicensepage.jsx)
-   ใช้คลาสนี้เฉพาะสองหน้านี้ หน้าอื่นที่ใช้ .wh-detail-modal ยังเหมือนเดิม
-   ========================================================================== */
 .wh-modal-overlay.il-detail-overlay {
   padding: 16px;
   padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
@@ -2217,7 +2133,6 @@
   overscroll-behavior: contain;
 }
 
-/* overlay เป็น position: fixed เต็มจอ — max-height: 100% จึงเท่ากับจอที่มองเห็นจริง */
 .wh-modal.wh-detail-modal.il-detail-sheet {
   display: flex;
   flex-direction: column;
@@ -2238,7 +2153,6 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding: 0 22px;
-  /* เงาบอกว่ายังเลื่อนต่อได้: ชั้น local (สีขาว) เลื่อนตามเนื้อหาไปบังเงาเมื่อถึงสุดขอบ */
   background:
     linear-gradient(#ffffff 30%, rgba(255, 255, 255, 0)) center top / 100% 28px no-repeat local,
     linear-gradient(rgba(255, 255, 255, 0), #ffffff 70%) center bottom / 100% 28px no-repeat local,
@@ -2247,7 +2161,6 @@
   background-color: #ffffff;
 }
 
-/* ระยะห่างใต้หัวข้อให้เท่าเดิม */
 .il-detail-scroll > .wh-detail-section:first-child {
   padding-top: 18px;
 }
@@ -2283,20 +2196,10 @@
   }
 }
 
-/* ==========================================================================
-   แถบใบอนุญาตส่งออก — บรรทัด Invoice / ใบขนสินค้าขาออก แบบย่อบรรทัดเดียว
-   --------------------------------------------------------------------------
-   ใบที่มีหลาย Invoice เดิมเรียงเลขต่อกันยาวหลายบรรทัดจนปุ่มตกไปอีกแถว
-   ตอนนี้แสดง "เลขแรก +N" บรรทัดเดียว ถ้ายาวเกินจอให้ตัดเป็น … แทนการขึ้นบรรทัดใหม่
-   ปุ่ม "ดูทั้งหมด" อยู่นอกส่วนที่ถูกตัด จึงกดได้เสมอแม้จอแคบ
-   ========================================================================== */
-/* basis 560px: จอกว้าง ปุ่มด้านขวาอยู่แถวเดียวกับข้อมูลใบ (แม้กางรายการเต็มแล้ว)
-   จอแคบ (iPad แนวตั้ง) ที่เหลือที่ไม่พอ ปุ่มจะลงไปแถวล่าง ข้อมูลใบได้เต็มความกว้าง */
 .wh-so-active-bar.il-license-bar .il-lot-info {
   flex: 1 1 560px;
 }
 
-/* ตอนกางรายการเต็ม แถบสูงขึ้น — ให้ปุ่มชิดบนแทนลอยกลาง */
 .wh-so-active-bar.il-license-bar.il-license-bar-open {
   align-items: flex-start;
 }
@@ -2328,7 +2231,7 @@
 
 .il-ref-count {
   flex: 0 0 auto;
-  margin-left: -10px; /* ชิดข้อความด้านหน้า (หักล้าง gap ของ .il-lot-refs) */
+  margin-left: -10px;
   white-space: nowrap;
 }
 
@@ -2341,7 +2244,6 @@
   color: #334155;
 }
 
-/* "+6" = จำนวนเลขที่ถูกซ่อนไว้ */
 .il-ref-more {
   display: inline-block;
   margin-left: 6px;
@@ -2391,7 +2293,6 @@
   transform: rotate(180deg);
 }
 
-/* รายการเต็มที่กางออก */
 .il-lot-refs-detail {
   display: grid;
   gap: 10px;
@@ -2447,14 +2348,11 @@
   }
 }
 
-/* แถวที่ไม่มีประเทศ — ใช้สีจางให้แยกจากชื่อประเทศจริงได้ทันที */
 .il-no-country {
   color: #94a3b8;
   font-style: italic;
 }
 
-
-/* ป้ายบอกขอบเขตการเลือก เมื่อติ๊กช่องบนหัวตาราง (เลือกทุกรายการ รวมทุกหน้า) */
 .il-selection-scope {
   display: inline-block;
   margin-left: 8px;

@@ -11,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// เวลาอ้างอิงของไฟล์ตัวอย่าง — ถ้ารันหลังจากนี้นานสถานะจะเลื่อน จึงข้ามการทดสอบไป
 var sampleExpiryRefDate = time.Date(2026, 9, 4, 0, 0, 0, 0, time.Local)
 
 func alertContext(userID uint, username, query string) (*gin.Context, *httptest.ResponseRecorder) {
@@ -78,7 +77,6 @@ func TestSampleExpiryLicenseFiles(t *testing.T) {
 	db := newTestDB(t)
 	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
 
-	// ---------- ใบอนุญาตนำเข้า
 	c, rec := uploadContext(t, filepath.Join(sampleDir, "09_Import-License_หมดอายุ-ใกล้หมดอายุ.xlsx"),
 		nil, admin.ID, admin.Username)
 	UploadImportLicenseItems(c)
@@ -86,9 +84,6 @@ func TestSampleExpiryLicenseFiles(t *testing.T) {
 		t.Fatalf("อัปโหลดไฟล์ 09 ไม่สำเร็จ: %d %s", rec.Code, rec.Body.String())
 	}
 
-	// ตรวจวันหมดอายุที่ระบบคำนวณได้จากไฟล์ (วันที่ออก + 6 เดือน)
-	// หมายเหตุ: หน้าสรุปการเตือนของใบอนุญาตนำเข้าใช้ SQL aggregate ที่เขียนสำหรับ Postgres
-	// จึงตรวจตรงนี้ที่ค่าที่บันทึกจริงแทน ผลลัพธ์เท่ากัน
 	today := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, time.Local)
 
 	wantImp := map[string]string{
@@ -132,7 +127,6 @@ func TestSampleExpiryLicenseFiles(t *testing.T) {
 		t.Logf("นำเข้า %s: เหลือ %d วัน → %s", r.LicenseNo, daysLeft, got)
 	}
 
-	// ---------- ใบอนุญาตนำออก
 	c, rec = uploadContext(t, filepath.Join(sampleDir, "10_Export-License_หมดอายุ-ใกล้หมดอายุ.xlsx"),
 		nil, admin.ID, admin.Username)
 	UploadExportLicense(c)
@@ -162,14 +156,13 @@ func TestSampleExpiryLicenseFiles(t *testing.T) {
 		}
 	}
 
-	// สถานะ Lead time (ต้องยื่น กสทช. ก่อนหมดอายุ 15 วัน)
 	wantLead := map[string][2]interface{}{
 		"EXC-6906-0101": {models.ExportLeadOverdue, false},
 		"EXC-6907-0102": {models.ExportLeadOverdue, false},
 		"EXC-6908-0201": {models.ExportLeadOverdue, false},
 		"EXC-6908-0202": {models.ExportLeadOverdue, false},
-		"EXC-6908-0301": {models.ExportLeadDue, true},  // ถึงกำหนดยื่น + ด่วน
-		"EXC-6909-0302": {models.ExportLeadDue, false}, // ถึงกำหนดยื่น ยังไม่ด่วน
+		"EXC-6908-0301": {models.ExportLeadDue, true},
+		"EXC-6909-0302": {models.ExportLeadDue, false},
 	}
 	for lic, want := range wantLead {
 		got, ok := gotLead[lic]

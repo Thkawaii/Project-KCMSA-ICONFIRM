@@ -161,7 +161,6 @@ const BARCODE_CARDS = [{
   img: bcCounterWeight,
   kind: 'CounterWeight No.'
 }];
-// วันนี้ในรูปแบบ YYYY-MM-DD (เวลาเครื่อง)
 function todayYMD() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -178,8 +177,6 @@ export default function WHPartConfirmationPage() {
   const [licensePageSize, setLicensePageSize] = useState(10);
   const [licensePage, setLicensePage] = useState(1);
   const [highlightId, setHighlightId] = useState(null);
-  // ---- ตัวกรองช่วงวันที่ (เหมือนหน้า QA): ทั้งหมด / รายวัน / รายสัปดาห์ / รายเดือน / รายปี + เลือกวันจากปฏิทิน ----
-  // เลือกโหมดครั้งแรกโดยยังไม่ได้เลือกวัน = นับจาก "วันนี้" (ความหมายเดิมของแท็บ รายวัน/รายสัปดาห์/รายเดือน)
   const [periodMode, setPeriodMode] = useState('all');
   const [periodAnchor, setPeriodAnchor] = useState('');
   function handlePeriodModeChange(next) {
@@ -284,8 +281,6 @@ export default function WHPartConfirmationPage() {
         if (res.matched) {
           successToast = isITC ? `ตรงกับบัญชี: ${sn}` : `บันทึกแล้ว: ${tagLabel(check.PartType)} — ${sn}`;
         } else if (check.MatchStatus === 'RETIRED_FORMAT') {
-          // รหัสรูปแบบเก่าที่ถูกแทนที่ใน Change Format Part แล้ว
-          // ขึ้นแค่ข้อความสั้น ๆ ไม่ต้องบอกรายละเอียดว่าเปลี่ยนเป็นรหัสอะไร
           await scanErrorAlert(check.MatchMessage || 'รูปแบบเดิมถูกยกเลิกแล้ว');
         } else if (isITC) {
           const errMsg = check.MatchMessage || res.message || 'ไม่ตรงกับบัญชีใบอนุญาตนำเข้า';
@@ -363,8 +358,6 @@ export default function WHPartConfirmationPage() {
       if (busyRef.current) return;
       if (clean && code.length >= 2) fireRef.current(code);
     }
-    // ช่องที่ผู้ใช้พิมพ์เอง (เช่นช่องวันที่ในตัวกรองช่วงวันที่) ไม่ใช่เครื่องยิงบาร์โค้ด
-    // ถ้าไม่ข้าม พิมพ์เร็ว ๆ หรือวางข้อความ "15/07/2569" จะถูกตีความเป็นการสแกนและเด้งหน้าต่างสแกนขึ้นมา
     const isScanIgnored = target => !!(target && typeof target.closest === 'function' && target.closest('[data-scan-ignore]'));
     function onKeydown(e) {
       if (isScanIgnored(e.target)) {
@@ -466,9 +459,6 @@ export default function WHPartConfirmationPage() {
     };
   }, [licenseItems]);
   const filtered = useMemo(() => {
-    // แสดงเฉพาะรายการที่ตรวจสอบแล้วว่า "ตรงกับใบอนุญาต" (MATCHED) เท่านั้น
-    // รายการที่ไม่ตรง (NOT_FOUND / WRONG_PART / ฯลฯ) ยังถูกบันทึกลงฐานข้อมูลตามปกติ
-    // เพียงแต่ไม่แสดงในตารางประวัติการสแกนนี้
     let list = rows.filter(r => r.MatchStatus === 'MATCH');
     if (periodMode !== 'all') {
       list = list.filter(r => r.CheckedDatetime && inPeriod(r.CheckedDatetime, periodMode, periodAnchor));

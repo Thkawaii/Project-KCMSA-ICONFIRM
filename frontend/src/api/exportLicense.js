@@ -14,9 +14,6 @@ export function deleteExportLicense(id) {
     method: 'DELETE'
   });
 }
-// ทำเครื่องหมาย "เสร็จสิ้น" ให้ใบอนุญาตส่งออก
-// เลือกทีละแถวด้วย ids (กี่แถวก็ได้) หรือเหมาทั้งใบด้วย exportLicenseNo
-// ส่ง completed = false เพื่อยกเลิกสถานะ
 export function setExportLicenseComplete({
   ids = null,
   exportLicenseNo = null,

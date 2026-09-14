@@ -15,8 +15,6 @@
   animation: lwp-overlay-out 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-/* การ์ดแบ่ง 3 ส่วน: หัวสรุป (คงที่) / ลิสต์ (เลื่อนได้) / ท้ายการ์ด (คงที่)
-   ลิสต์เลื่อนในตัวเอง หัวกับปุ่มจึงไม่หนีไปไหนแม้มีเป็นร้อยรายการ */
 .lwp-card {
   position: relative;
   display: flex;
@@ -36,17 +34,13 @@
   animation: lwp-card-out 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-/* ── หัวสรุป ────────────────────────────────────────────── */
-
 .lwp-head {
   position: relative;
   flex: 0 0 auto;
   overflow: hidden;
   padding: 15px 18px 14px;
-  /* โทนเดียวกับ .shell-topbar ที่ใช้ var(--brand-500) ไล่ลงไปหา brand-600 ให้มีมิติ */
   background: linear-gradient(135deg, var(--brand-500, #06e0d4) 0%, var(--brand-600, #00a39d) 100%);
 }
-/* แสงฟุ้งมุมขวาบน ให้พื้นสีแบรนด์ไม่แบนราบ */
 .lwp-head::before {
   content: '';
   position: absolute;
@@ -59,7 +53,6 @@
   pointer-events: none;
 }
 
-/* รถขุด KOBELCO — ลอยขึ้นลงเบา ๆ ให้การ์ดไม่นิ่งสนิท */
 .lwp-rig {
   position: absolute;
   right: 8px;
@@ -72,7 +65,6 @@
     lwp-rig-float 4.6s ease-in-out 0.7s infinite;
 }
 
-/* กันคอลัมน์ข้อความไว้ครึ่งซ้าย ตัวหนังสือจะได้ไม่ทับรูป */
 .lwp-head-body {
   position: relative;
   max-width: 68%;
@@ -112,7 +104,6 @@
   color: rgba(255, 255, 255, 0.95);
 }
 
-/* ยอดรวม — เลขใหญ่ คั่นเส้น แล้วค่อยเป็นคำอธิบาย 2 บรรทัด */
 .lwp-count {
   display: flex;
   align-items: center;
@@ -147,8 +138,6 @@
   font-weight: 600;
   color: #ffffff;
 }
-
-/* ── ชิปสรุป = ตัวกรองในตัว (อยู่บนพื้นขาว อ่านง่าย) ──── */
 
 .lwp-filters {
   flex: 0 0 auto;
@@ -223,8 +212,6 @@
   box-shadow: 0 0 0 2px #f5cd8d;
 }
 
-/* Lead time ใช้โทนน้ำเงินชุดเดียวกับกระดิ่งแจ้งเตือน (.lab-*)
-   เพื่อไม่ให้ชนกับแดง = หมดอายุแล้ว และ ส้ม = ใกล้หมดอายุ */
 .lwp-chip-lead {
   background: #eaf3ff;
   border-color: #cfe1fd;
@@ -238,8 +225,6 @@
 .lwp-chip-lead.is-active {
   box-shadow: 0 0 0 2px #a9caf9;
 }
-
-/* ── ลิสต์ที่เลื่อนได้ ───────────────────────────────────── */
 
 .lwp-scroll {
   flex: 1 1 auto;
@@ -257,7 +242,6 @@
   border-radius: 999px;
   background: #d6e2e0;
 }
-/* เงาไล่สีท้ายลิสต์ บอกว่ายังเลื่อนดูต่อได้ */
 .lwp-scroll.has-fade {
   mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
@@ -267,7 +251,6 @@
   padding-top: 8px;
 }
 
-/* หัวข้อกลุ่มติดขอบบนตอนเลื่อน — รู้ตลอดว่ากำลังดูกลุ่มไหน */
 .lwp-group {
   position: sticky;
   top: 0;
@@ -310,8 +293,6 @@
 .lwp-group-lead .lwp-group-dot {
   background: #3b82f6;
 }
-
-/* ── แถวรายการ — 2 บรรทัด ───────────────────────────────── */
 
 .lwp-item {
   display: flex;
@@ -412,7 +393,6 @@
   text-overflow: ellipsis;
 }
 
-/* ใบที่หมดอายุ/ใกล้หมดอายุ แต่ยังค้างกำหนดยื่น กสทช. อยู่ */
 .lwp-item-lead {
   display: inline-flex;
   align-items: center;
@@ -440,8 +420,6 @@
   font-size: 12.5px;
   color: #8a9c99;
 }
-
-/* ── ท้ายการ์ด ──────────────────────────────────────────── */
 
 .lwp-foot {
   flex: 0 0 auto;

@@ -42,8 +42,6 @@ export async function confirmDelete({
   });
   return res.isConfirmed;
 }
-// กล่องยืนยันสำหรับ "ทำเครื่องหมายเสร็จสิ้น" / "ยกเลิกสถานะเสร็จสิ้น"
-// ใช้ปุ่มสีเขียวตอนปิดงาน และปุ่มสีเตือนตอนยกเลิก เพื่อให้เห็นความต่างชัด ๆ
 export async function confirmComplete({
   title = 'ยืนยันการทำเครื่องหมายเสร็จสิ้น',
   html = '',

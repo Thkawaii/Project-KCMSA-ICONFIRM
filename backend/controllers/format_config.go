@@ -23,17 +23,6 @@ func NormalizeCodeValue(s string) string {
 	return b.String()
 }
 
-// ---------------------------------------------------------------------------
-// ชนิดรหัส (kind) ของ Change Format Part
-//
-// รองรับ 4 ชนิด:
-//
-//	machine = Machine No.
-//	sn      = S/N  (ใช้กับ IT Controller / SM / PH / MP / CV / Engine S/N)
-//	pn      = P/N  (ใช้กับ IT Controller / Engine P/N)
-//	cw      = CW No. (Counter Weight — ไม่ได้อยู่ในทะเบียน S/N จึงต้องแยกชนิด)
-//
-// ---------------------------------------------------------------------------
 
 const (
 	CodeKindMachine = "machine"
@@ -42,11 +31,6 @@ const (
 	CodeKindCW      = "cw"
 )
 
-// codeKindAliases แปลงคำที่ผู้ใช้พิมพ์เอง หรือคอลัมน์ kind ในไฟล์ที่อัปโหลด
-// ให้เป็นชนิดรหัสมาตรฐาน (คีย์ = ตัวอักษร/ตัวเลขล้วน ตัวพิมพ์เล็ก)
-//
-// ชื่อชิ้นส่วนที่ใช้หมายเลขซีเรียล (SM / PH / MP / CV / ITC) ถูกยุบมาที่ sn
-// เพื่อให้ไฟล์เก่าที่ระบุชื่อชิ้นส่วนไว้ยังอัปโหลดผ่าน
 var codeKindAliases = map[string]string{
 	"machine":       CodeKindMachine,
 	"machineno":     CodeKindMachine,
@@ -87,7 +71,6 @@ var codeKindAliases = map[string]string{
 	"counterweightno": CodeKindCW,
 }
 
-// NormalizeCodeKind คืนชนิดรหัสมาตรฐาน หรือ "" ถ้าไม่ระบุ/ไม่รู้จัก
 func NormalizeCodeKind(raw string) string {
 	key := strings.ToLower(NormalizeCodeValue(raw))
 	if key == "" {
@@ -96,7 +79,6 @@ func NormalizeCodeKind(raw string) string {
 	return codeKindAliases[key]
 }
 
-// CodeKindLabel คืนชื่อชนิดรหัสไว้แสดงในข้อความแจ้งเตือน
 func CodeKindLabel(kind string) string {
 	switch NormalizeCodeKind(kind) {
 	case CodeKindMachine:
@@ -112,8 +94,6 @@ func CodeKindLabel(kind string) string {
 	}
 }
 
-// componentTypeOfKind คืนกลุ่ม component_type ที่ควรเก็บแถวนั้นไว้
-// CW แยกกลุ่มของตัวเอง เพื่อไม่ให้ไปชนกับการ resolve ของ IT Controller
 func componentTypeOfKind(kind string) string {
 	if NormalizeCodeKind(kind) == CodeKindCW {
 		return "counter_weight"
@@ -210,8 +190,6 @@ type registryIndex struct {
 	sn      map[string]bool
 	pn      map[string]bool
 
-	// cw เก็บหมายเลข Counter Weight (ช่อง CW No ของไฟล์ Planning)
-	// แยกจาก sn เพราะไม่ได้อยู่ในทะเบียนซีเรียล
 	cw map[string]bool
 }
 
@@ -240,9 +218,6 @@ func buildRegistryIndex() *registryIndex {
 		add(idx.pn, m.PartNo)
 	}
 
-	// หมายเลขรายชิ้นส่วนจากแผนประกอบ (Planning + WH + Engine)
-	// SM / PH / MP / CV / ITC เป็นหมายเลขซีเรียล จึงนับเป็น S/N
-	// ส่วน CW No. เก็บแยกไว้ต่างหาก
 	for mc, plan := range loadMachinePlans() {
 		add(idx.machine, mc)
 		for _, spec := range componentSpecs {
@@ -258,8 +233,6 @@ func buildRegistryIndex() *registryIndex {
 		}
 	}
 
-	// Engine สแกนคู่ P/N + S/N — ไฟล์ Engine ไม่ได้แยกว่าช่องไหนเป็นอะไรตายตัว
-	// จึงรับค่าจากทั้งสองช่องเข้าทั้ง S/N และ P/N
 	for _, row := range loadUploadRows(models.DatasetEngine) {
 		for _, v := range []string{
 			pickField(row, "ENGINE", "Engine"),
@@ -310,10 +283,6 @@ func (idx *registryIndex) hasOld(kind, oldValue string) bool {
 		}
 	}
 
-	// ค่าเดิมอาจถูกเก็บคนละช่องกับชนิดที่แอดมินเลือก
-	// (เช่น CW No. ที่เลือกชนิดเป็น S/N หรือ P/N ของ Engine ที่อยู่ในช่อง S/N)
-	// ตอนสแกนระบบก็แปลงข้ามชนิดให้อยู่แล้ว ตรงนี้จึงยอมรับได้
-	// ยังกันคำที่พิมพ์ผิดอยู่ เพราะต้องมีค่าเดิมอยู่ในทะเบียนที่ใดที่หนึ่งจริง ๆ
 	return idx.machine[norm] || idx.sn[norm] || idx.pn[norm] || idx.cw[norm]
 }
 
@@ -321,9 +290,6 @@ func oldValueExistsInRegistry(kind, oldValue string) bool {
 	return buildRegistryIndex().hasOld(kind, oldValue)
 }
 
-// lookupCodeAlias หาแถว Change Format Part ที่ New (ค่าใหม่) ตรงกับ rawCode
-// ตรงกันแบบ normalize (ตัวพิมพ์ใหญ่/ตัวเลข/ตัวอักษรล้วน) ไม่สนตัวคั่นหรือช่องว่าง
-// ตารางนี้เป็นตารางตั้งค่าที่ดูแลโดยแอดมิน ขนาดเล็ก จึงสแกนเทียบในโค้ดได้โดยไม่ต้องพึ่ง index
 func lookupCodeAlias(componentType, rawCode string) *models.CodeAlias {
 	norm := NormalizeCodeValue(rawCode)
 	if norm == "" {
@@ -369,8 +335,6 @@ func lookupCodeAliasKind(componentType, kind, rawCode string) *models.CodeAlias 
 	return nil
 }
 
-// findCodeAliasByFromCode หาแถวเดิมที่ New (หลัง normalize) ตรงกัน ไม่จำกัดชนิด/กลุ่ม
-// ใช้ตอนอัปโหลดไฟล์เพื่อตรวจว่าเป็นการอัปเดตแถวเดิมหรือเพิ่มแถวใหม่
 func findCodeAliasByFromCode(norm string) *models.CodeAlias {
 	if norm == "" {
 		return nil
@@ -385,8 +349,6 @@ func findCodeAliasByFromCode(norm string) *models.CodeAlias {
 	return nil
 }
 
-// findCodeAliasByToOld หาแถว Change Format Part จาก Old (ค่าเดิม)
-// ถ้ามีหลายแถวชี้ค่าเดิมเดียวกัน จะเอาแถวล่าสุด (id มากสุด) เพราะถือเป็นรูปแบบที่ใช้อยู่ตอนนี้
 func findCodeAliasByToOld(norm string) *models.CodeAlias {
 	if norm == "" {
 		return nil
@@ -402,11 +364,6 @@ func findCodeAliasByToOld(norm string) *models.CodeAlias {
 	return found
 }
 
-// CurrentCodeOf คืนรหัส "รูปแบบที่ใช้อยู่ตอนนี้" ของค่าที่รับมา
-//
-// ถ้าแอดมินตั้ง Change Format Part ว่า A (ใหม่) → B (เดิม) ไว้
-// ทั้ง A และ B จะคืนค่าเป็น A เพราะ B ถือว่าเลิกใช้แล้ว
-// ใช้ตอนบันทึกผลสแกน เพื่อให้ตาราง WH / MFG แสดงรูปแบบใหม่เสมอ
 func CurrentCodeOf(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -421,11 +378,6 @@ func CurrentCodeOf(raw string) string {
 	return raw
 }
 
-// RetiredCodeReplacement บอกว่ารหัสที่สแกนมาเป็น "รูปแบบเก่าที่เลิกใช้แล้ว" หรือไม่
-// ถ้าใช่ จะคืนรูปแบบใหม่ที่ต้องใช้แทน พร้อม true
-//
-// ค่าที่ตัวมันเองเป็น New (ค่าใหม่) อยู่แล้วจะไม่ถือว่าเลิกใช้
-// (กันกรณีตั้งค่าต่อกันเป็นทอด ๆ เช่น C → B และ B → A)
 func RetiredCodeReplacement(raw string) (string, bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -446,8 +398,6 @@ func RetiredCodeReplacement(raw string) (string, bool) {
 	return replacement, true
 }
 
-// retiredScanMessage ตรวจว่ารหัสที่สแกนมามีตัวไหนเป็นรูปแบบเก่าที่เลิกใช้แล้วบ้าง
-// คืนข้อความบอกว่าต้องใช้รหัสอะไรแทน
 func retiredScanMessage(codes ...string) (string, bool) {
 	var msgs []string
 	seen := map[string]bool{}
@@ -468,8 +418,6 @@ func retiredScanMessage(codes ...string) (string, bool) {
 		strings.Join(msgs, ", ") + " กรุณาสแกนรหัสรูปแบบใหม่", true
 }
 
-// CodeVariants คืนรหัสทุกรูปแบบของค่าเดียวกัน (รูปแบบใหม่ + ค่าเดิม + ค่าที่รับมา)
-// ใช้ตอนค้นหาข้อมูลเก่าที่อาจถูกบันทึกไว้ก่อนเปลี่ยนรูปแบบ
 func CodeVariants(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -478,16 +426,6 @@ func CodeVariants(raw string) []string {
 	return dedupeCodes(CurrentCodeOf(raw), resolveByKind("", raw), raw)
 }
 
-// resolveByKind แปลงรหัสที่สแกนมา (ค่าใหม่) ให้เป็นค่าเดิมที่มีอยู่ในระบบ
-// ตามที่ตั้งไว้ในหน้า Change Format Part ถ้าไม่มีการตั้งค่าไว้จะคืนค่าเดิมที่รับมา
-//
-// ลำดับการค้นหา
-//  1. แถวที่ระบุชนิดตรงกัน (เช่น ค้น P/N ก็เอาแถวชนิด pn ก่อน)
-//  2. แถวไหนก็ได้ที่ New (ค่าใหม่) ตรงกัน — รองรับกรณีที่แอดมินไม่ได้เลือกชนิด
-//     หรือเลือกชนิดคนละช่องกับที่หน้างานสแกนจริง (เช่น CW No. ที่บันทึกเป็นชนิด S/N)
-//
-// ค่า New (ค่าใหม่) ถูกบังคับให้ไม่ซ้ำกันทั้งตารางอยู่แล้วตอนอัปโหลด/บันทึก
-// การถอยไปหาแบบไม่จำกัดชนิดจึงไม่ทำให้แปลงข้ามช่องผิดตัว
 func resolveByKind(kind, raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -511,8 +449,6 @@ func resolveByKind(kind, raw string) string {
 	return raw
 }
 
-// ResolveComponentSerial แปลงหมายเลขชิ้นส่วนที่สแกนมา
-// CW No. ใช้ชนิด cw ส่วนชิ้นส่วนอื่น (ITC / SM / PH / MP / CV / Engine) ใช้ชนิด sn
 func ResolveComponentSerial(component, raw string) string {
 	if strings.ToUpper(strings.TrimSpace(component)) == ComponentCW {
 		return resolveByKind(CodeKindCW, raw)
@@ -520,25 +456,18 @@ func ResolveComponentSerial(component, raw string) string {
 	return resolveByKind(CodeKindSN, raw)
 }
 
-// ResolvePartNo แปลง P/N ที่สแกนมา (ใช้กับ IT Controller และ Engine ที่สแกนคู่ P/N + S/N)
 func ResolvePartNo(raw string) string {
 	return resolveByKind(CodeKindPN, raw)
 }
 
-// ResolveMachineNo แปลงหมายเลขเครื่องที่สแกนมาให้เป็นค่าเดิมในระบบ
 func ResolveMachineNo(raw string) string {
 	return resolveByKind(CodeKindMachine, raw)
 }
 
-// ResolveScannedCode แปลงรหัสที่สแกนมาโดยยังไม่รู้ว่าเป็นช่องไหน
-// ใช้ตอนที่ยังจับชนิดชิ้นส่วนไม่ได้ (เช่น MFG สแกนโดยไม่ได้เลือกชนิดพาร์ทไว้ก่อน)
-// เพราะถ้าไม่แปลงก่อน รูปแบบใหม่จะทำให้จับชนิดจากคำนำหน้าหรือจากแผนไม่ได้เลย
 func ResolveScannedCode(raw string) string {
 	return resolveByKind("", raw)
 }
 
-// SameCode เทียบรหัสสองค่าแบบไม่สนตัวพิมพ์ใหญ่เล็กและตัวคั่น (เว้นวรรค, ขีด ฯลฯ)
-// ใช้ตอนเทียบผลสแกนกับทะเบียน เพราะบาร์โค้ดหน้างานมักพิมพ์ตัวคั่นไม่เหมือนไฟล์ต้นทาง
 func SameCode(a, b string) bool {
 	a, b = strings.TrimSpace(a), strings.TrimSpace(b)
 	if a == "" || b == "" {
@@ -801,7 +730,6 @@ func UploadCodeAliases(c *gin.Context) {
 
 		a.ComponentType = strings.TrimSpace(a.ComponentType)
 		if a.ComponentType == "" {
-			// CW แยกกลุ่มของตัวเอง ไม่งั้นจึงใช้ค่าที่ส่งมากับฟอร์ม
 			a.ComponentType = componentTypeOfKind(a.Kind)
 		}
 		if a.ComponentType == "" {

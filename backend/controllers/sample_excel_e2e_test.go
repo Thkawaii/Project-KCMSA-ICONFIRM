@@ -108,14 +108,12 @@ func TestSampleExcelFilesUploadAndScan(t *testing.T) {
 
 	InvalidateMachineIndex()
 
-	// ทุกแถวใน Change Format Part ต้องถูกบันทึก ไม่มีแถวไหนถูกข้ามเพราะหาค่าเดิมไม่เจอ
 	var aliasCount int64
 	db.Model(&models.CodeAlias{}).Count(&aliasCount)
 	if aliasCount != 12 {
 		t.Errorf("Change Format Part บันทึกได้ %d แถว ต้องได้ 12 แถว", aliasCount)
 	}
 
-	// ---- WH สแกนด้วยรหัสรูปแบบใหม่ ต้องผ่านทุกชนิด
 	whCases := []struct {
 		name, body, want string
 	}{
@@ -143,7 +141,6 @@ func TestSampleExcelFilesUploadAndScan(t *testing.T) {
 		}
 	}
 
-	// ---- MFG สแกนด้วยรหัสรูปแบบใหม่ ต้องตรงแผนและจับคู่กับ WH ได้
 	mfgCases := []struct {
 		name, body string
 	}{

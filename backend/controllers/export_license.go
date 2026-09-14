@@ -187,14 +187,12 @@ type exportLicenseRow struct {
 	models.ExportLicenseItem
 	Link exportLicenseLink `json:"Link"`
 
-	// Lead time — ต้องยื่นเรื่องให้ กสทช. ก่อนใบอนุญาตนำออกหมดอายุ 15 วัน
 	LeadTimeDate *time.Time `json:"LeadTimeDate"`
 	LeadStatus   string     `json:"LeadStatus"`
 	LeadDaysLeft int        `json:"LeadDaysLeft"`
 	LeadDays     int        `json:"LeadDays"`
-	// LeadUrgent = ถึงกำหนดยื่นและเหลือเวลาไม่เกิน ExportLicenseLeadWarnDays วัน (ใช้เตือน ไม่ใช่สถานะ)
-	LeadUrgent   bool `json:"LeadUrgent"`
-	LeadWarnDays int  `json:"LeadWarnDays"`
+	LeadUrgent   bool       `json:"LeadUrgent"`
+	LeadWarnDays int        `json:"LeadWarnDays"`
 }
 
 func isControllerNo(s string) bool {
@@ -283,8 +281,6 @@ func resolveExportLinks(items []models.ExportLicenseItem) []exportLicenseRow {
 			link.LinkLevel = "NONE"
 		}
 
-		// วันหมดอายุยึด "วันที่นำออกใบอนุญาต + 1 เดือน" เสมอ
-		// (ข้อมูลเก่าบางแถวมีวันหมดอายุจากไฟล์ Excel ที่ไม่ตรงกับกติกา)
 		it.ExpireDate = it.EffectiveExpireDate()
 
 		leadStatus, leadDaysLeft := it.LeadStatusAt(now)
@@ -384,9 +380,6 @@ func GetExportLicenseTrace(c *gin.Context) {
 			resp["mfgAssembly"] = mfg
 		}
 
-		// Serial Number ตัวจริงของชิ้นงานต้องดึงจาก Master Data (ที่อัปโหลดไว้ที่หน้า Master Data)
-		// โดยจับคู่ด้วย IT Controller No. — ห้ามใช้ SerialNumber ที่ติดมากับไฟล์ใบอนุญาตส่งออกเอง
-		// เพราะบางไฟล์ไม่มีคอลัมน์นี้จริง (ดู ExportLicenseItem.SerialNumber ที่เป็นแค่ key กันซ้ำตอนอัปโหลด)
 		var master models.MasterData
 		if err := config.DB.Where("it_controller_no = ?", item.ITControllerNo).First(&master).Error; err == nil {
 			resp["masterData"] = master
@@ -402,10 +395,6 @@ func GetExportLicenseTrace(c *gin.Context) {
 	c.JSON(200, resp)
 }
 
-// exportRowOverLimit หาคอลัมน์ที่ค่ายาวเกินขนาดคอลัมน์ในฐานข้อมูล (นับเป็นตัวอักษร เหมือน varchar ของ PostgreSQL)
-// การบันทึกใบอนุญาตส่งออกทำใน transaction เดียวทั้งไฟล์ ถ้าปล่อยให้ค่ายาวเกินหลุดไปถึงฐานข้อมูล
-// แถวเดียวจะทำให้ทั้งไฟล์บันทึกไม่สำเร็จ — จึงคัดแถวนั้นออกตั้งแต่ตอนอ่านไฟล์ แล้วแจ้งเป็นปัญหาแทน
-// (ตัวเลขต้องตรงกับ size ใน models.ExportLicenseItem)
 func exportRowOverLimit(m *models.ExportLicenseItem) (label string, limit int) {
 	checks := []struct {
 		label string
@@ -502,9 +491,6 @@ func UploadExportLicense(c *gin.Context) {
 				row.ExtraJSON = string(b)
 			}
 		}
-		// ห้ามเอา Machine No มาแทน Serial Number เด็ดขาด — คนละค่ากัน (Machine No ไม่มี "-"
-		// ส่วน Serial Number ตัวจริงต้องมี "-") ถ้าไฟล์ไม่มี Serial Number จริง ใช้ IT Controller S/N
-		// แทนได้เท่านั้น ถ้าไม่มีทั้งคู่ ให้ข้ามแถวนั้นไปและแจ้งปัญหา แทนที่จะปลอมค่าขึ้นมา
 		if row.SerialNumber == "" && row.ITControllerNo != "" {
 			row.SerialNumber = row.ITControllerNo
 		}
@@ -540,8 +526,6 @@ func UploadExportLicense(c *gin.Context) {
 		serials = append(serials, r.SerialNumber)
 	}
 
-	// อัปโหลดซ้ำ Serial เดิม = ลบของเก่าแล้วเขียนใหม่
-	// ต้องยกสถานะ "เสร็จสิ้น" ของเดิมมาด้วย ไม่งั้นใบที่ปิดงานไปแล้วจะกลับมาเตือนใหม่
 	type completedMark struct {
 		completed   bool
 		completedBy string
@@ -549,7 +533,6 @@ func UploadExportLicense(c *gin.Context) {
 	}
 	prevCompleted := map[string]completedMark{}
 	var prevRows []models.ExportLicenseItem
-	// ค้นทีละก้อน — ไฟล์ใหญ่ส่ง IN ทีเดียวทั้งไฟล์จะชนเพดาน 65,535 พารามิเตอร์ของ PostgreSQL
 	if err := findWhereInChunks(config.DB, "serial_number", serials, &prevRows); err != nil {
 		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
 		return
@@ -567,11 +550,6 @@ func UploadExportLicense(c *gin.Context) {
 		}
 	}
 
-	// ลบของเก่าแล้วเขียนใหม่ใน transaction เดียว
-	//   - INSERT ทีละ dbInsertBatch แถว: เดิม INSERT ทีเดียวทั้งไฟล์ (~23 คอลัมน์/แถว)
-	//     ไฟล์เกินราว 2,850 แถวจึงเจอ "extended protocol limited to 65535 parameters"
-	//   - ถ้าบันทึกพลาดกลางทาง ระบบ rollback ทั้งหมด ข้อมูลเดิมจะไม่หายไปครึ่ง ๆ กลาง ๆ
-	//     (เดิมลบของเก่าไปก่อนแล้วค่อยบันทึก พอบันทึกพัง ของเก่าก็หายไปด้วย)
 	err = config.DB.Transaction(func(tx *gorm.DB) error {
 		for _, part := range chunkSlice(serials, dbInListChunk) {
 			if err := tx.Where("serial_number IN ?", part).Delete(&models.ExportLicenseItem{}).Error; err != nil {
@@ -665,7 +643,6 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 				setter(&it, val)
 			}
 		}
-		// เหมือนกับ UploadExportLicense — ห้ามใช้ Machine No แทน Serial Number
 		if it.SerialNumber == "" && it.ITControllerNo != "" {
 			it.SerialNumber = it.ITControllerNo
 		}
@@ -781,16 +758,12 @@ func GetExportLicenseAlerts(c *gin.Context) {
 	}
 	onlyAlert := strings.EqualFold(strings.TrimSpace(c.Query("only")), "alert")
 
-	// ข้ามแถวที่ทำเครื่องหมาย "เสร็จสิ้น" แล้ว — ปิดงานไปแล้วจึงหยุดนับวันหมดอายุและ Lead time
-	// ถ้าทุกแถวในใบนั้นเสร็จสิ้นหมด ใบนั้นจะหายไปจากรายการแจ้งเตือนทั้งใบ
 	var rows []models.ExportLicenseItem
 	config.DB.Where("completed IS NOT TRUE").Order("id asc").Find(&rows)
 
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
-	// จัดกลุ่มตาม Exception License เดียวกับที่ใบอนุญาตนำเข้ากลุ่มตาม License+Invoice
-	// เพื่อไม่ให้เครื่องหลายเครื่องในใบเดียวกันโผล่ซ้ำเป็นหลายรายการ
 	type licenseGroup struct {
 		ExceptionLicense string
 		Total            int
@@ -815,7 +788,6 @@ func GetExportLicenseAlerts(c *gin.Context) {
 			g.IssueDate = r.IssueDate
 		}
 
-		// ยึด IssueDate + 1 เดือน เป็นหลัก ถ้าไม่มีค่อยใช้ ExpireDate จากไฟล์
 		expiry := r.EffectiveExpireDate()
 		if expiry != nil {
 			g.HasDate = true
@@ -837,9 +809,8 @@ func GetExportLicenseAlerts(c *gin.Context) {
 		LeadDaysLeft int        `json:"LeadDaysLeft"`
 		LeadStatus   string     `json:"LeadStatus"`
 		LeadDays     int        `json:"LeadDays"`
-		// LeadUrgent = ถึงกำหนดยื่นและเหลือไม่เกิน LeadWarnDays วัน (ใช้ตัดสินว่าจะเตือนหรือไม่)
-		LeadUrgent   bool `json:"LeadUrgent"`
-		LeadWarnDays int  `json:"LeadWarnDays"`
+		LeadUrgent   bool       `json:"LeadUrgent"`
+		LeadWarnDays int        `json:"LeadWarnDays"`
 	}
 
 	var (
@@ -876,8 +847,6 @@ func GetExportLicenseAlerts(c *gin.Context) {
 		row.LeadTimeDate = &leadDay
 		row.LeadDaysLeft = models.DaysBetween(today, leadDay)
 
-		// สถานะ Lead time มีแค่ 2 แบบ: เลยกำหนดยื่น / ถึงกำหนดยื่น
-		// ส่วน "ใกล้ครบกำหนด" เป็นแค่ระดับความเร่งด่วน (LeadUrgent) ไม่ใช่สถานะ
 		if row.LeadDaysLeft < 0 {
 			row.LeadStatus = models.ExportLeadOverdue
 			leadOverdueCnt++
@@ -902,7 +871,6 @@ func GetExportLicenseAlerts(c *gin.Context) {
 			validCnt++
 		}
 
-		// ยังไม่หมดอายุ แต่ถ้าเลยกำหนดยื่น หรือใกล้ครบกำหนดยื่น กสทช. แล้ว ก็ยังต้องเตือน
 		leadNeedsAlert := row.LeadStatus == models.ExportLeadOverdue || row.LeadUrgent
 		if onlyAlert && row.Status == LicenseExpiryValid && !leadNeedsAlert {
 			continue
@@ -935,13 +903,11 @@ func GetExportLicenseAlerts(c *gin.Context) {
 		"leadDays":     models.ExportLicenseLeadDays,
 		"leadWarnDays": models.ExportLicenseLeadWarnDays,
 		"counts": gin.H{
-			"expired":  expiredCnt,
-			"expiring": soonCnt,
-			"valid":    validCnt,
-			"noDate":   noDate,
-			"alert":    expiredCnt + soonCnt,
-			// leadOverdue = เลยกำหนดยื่น, leadDue = ถึงกำหนดยื่นทั้งหมด,
-			// leadDueSoon = ถึงกำหนดยื่นและเหลือไม่เกิน leadWarnDays วัน
+			"expired":     expiredCnt,
+			"expiring":    soonCnt,
+			"valid":       validCnt,
+			"noDate":      noDate,
+			"alert":       expiredCnt + soonCnt,
 			"leadOverdue": leadOverdueCnt,
 			"leadDue":     leadDueCnt,
 			"leadDueSoon": leadDueSoonCnt,
@@ -1027,13 +993,6 @@ func RenewExportLicense(c *gin.Context) {
 
 	q := config.DB.Model(&models.ExportLicenseItem{})
 	if exportLicenseNo != "" {
-		// ไฟล์บางชุดเก็บเลขใบไว้ที่ exception_license บางชุดเก็บที่ export_license_no
-		// ต้องจับคู่ทั้งสองคอลัมน์ ให้ตรงกับตัวกรอง "ใบอนุญาตส่งออก" บนหน้าจอและปุ่มลบทั้งใบ
-		// (ถ้าดูแค่ export_license_no ข้อมูลที่มาจากคอลัมน์ Exception License จะหาไม่เจอ
-		//  แล้วตีกลับเป็น "ไม่พบล็อตใบอนุญาตส่งออกนี้" ทั้งที่มีข้อมูลอยู่)
-		//
-		// ต้องครอบวงเล็บเองด้วย ไม่งั้นเมื่อมีเงื่อนไข invoice_no ต่อท้าย
-		// เงื่อนไขจะกลายเป็น A OR (B AND C) ซึ่งกวาดเอาใบอื่นมาต่ออายุด้วย
 		q = q.Where("(exception_license = ? OR export_license_no = ?)", exportLicenseNo, exportLicenseNo)
 	}
 	if invoiceNo != "" {
@@ -1064,7 +1023,6 @@ func RenewExportLicense(c *gin.Context) {
 		newExp := models.AddMonthsClamped(newDate, ExportLicenseValidityMonths)
 		newLead := newExp.AddDate(0, 0, -models.ExportLicenseLeadDays)
 
-		// เขียน lead_time ใหม่ด้วย ไม่งั้นวันครบกำหนดยื่น กสทช. ที่เก็บไว้จะค้างอยู่ที่รอบเดิม
 		if err := config.DB.Model(&models.ExportLicenseItem{}).
 			Where("id = ?", rows[i].ID).
 			Updates(map[string]interface{}{

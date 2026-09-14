@@ -22,7 +22,6 @@ func main() {
 	config.ConnectDB()
 	config.MigratePlaintextPasswords()
 
-	// อีเมลแจ้งเตือนใบอนุญาตรายสัปดาห์ — ทำงานเบื้องหลัง ไม่บล็อกการเปิดเซิร์ฟเวอร์
 	jobs.StartWeeklyAlertScheduler()
 
 	r := gin.Default()
@@ -63,13 +62,6 @@ func main() {
 		port = "8080"
 	}
 
-	// เปิด HTTPS ได้โดยตั้งค่าที่อยู่ไฟล์ใบรับรองใน .env
-	//
-	//	TLS_CERT_FILE=certs/iconfirm.crt
-	//	TLS_KEY_FILE=certs/iconfirm.key
-	//
-	// ถ้าไม่ตั้ง จะเสิร์ฟเป็น HTTP เหมือนเดิม
-	// กรณีมี reverse proxy (nginx/Caddy/F5) ทำ TLS ให้อยู่แล้ว ก็ไม่ต้องตั้งค่าตรงนี้
 	certFile := strings.TrimSpace(os.Getenv("TLS_CERT_FILE"))
 	keyFile := strings.TrimSpace(os.Getenv("TLS_KEY_FILE"))
 

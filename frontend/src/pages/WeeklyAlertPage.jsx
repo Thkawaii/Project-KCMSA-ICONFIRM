@@ -14,7 +14,6 @@ import {
 } from '../components/icons.jsx';
 import '../WeeklyAlert.css';
 
-// วันที่ + เวลา แบบสั้น ใช้กับบรรทัด "รอบถัดไป"
 function thaiDateTime(raw) {
   if (!raw) return '—';
   const d = new Date(raw);
@@ -85,7 +84,6 @@ export default function WeeklyAlertPage() {
     } catch (err) {
       toastError(err.message || 'ส่งอีเมลไม่สำเร็จ');
       if (err.detail) {
-        // รายละเอียดจากเซิร์ฟเวอร์เมลมักยาว จึงโชว์ในคอนโซลให้ผู้ดูแลระบบตามต่อได้
         console.error('[weekly-alert]', err.detail);
       }
       await load();
@@ -120,7 +118,6 @@ export default function WeeklyAlertPage() {
 
       {cfg && (
         <div className="wa-grid">
-          {/* ---------------- คอลัมน์ซ้าย: ค่าตั้งและการส่ง ---------------- */}
           <div className="wa-col">
             <section className="wa-card">
               <header className="wa-card-head">
@@ -192,7 +189,6 @@ export default function WeeklyAlertPage() {
             </section>
           </div>
 
-          {/* ---------------- คอลัมน์ขวา: ตัวอย่างอีเมลจริง ---------------- */}
           <div className="wa-col">
             <section className="wa-card wa-card-preview">
               <header className="wa-card-head">

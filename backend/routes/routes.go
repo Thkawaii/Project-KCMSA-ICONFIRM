@@ -33,8 +33,6 @@ func SetupRoutes(r *gin.Engine) {
 
 	auth.GET("/machine-profile/:machineNo", controllers.GetMachineProfile)
 
-	// รายละเอียดเครื่องทุกคัน รวมจาก ALL PART / Planning / WH1 / WH2 / Engine
-	// ใช้แสดงรายละเอียดในหน้า WH, MFG และ LOG
 	auth.GET("/machine-plans", controllers.GetMachinePlans)
 
 	uploadData := auth.Group("/upload-data")
@@ -126,8 +124,6 @@ func SetupRoutes(r *gin.Engine) {
 		admin.DELETE("/:id", controllers.DeleteUser)
 	}
 
-	// ผู้รับอีเมลแจ้งเตือนใบอนุญาตรายสัปดาห์ — เพิ่ม/ลบคนได้จากหน้า Admin
-	// โดยไม่ต้องแก้ .env หรือแก้โค้ดแล้ว deploy ใหม่ (ดู controllers/mail_recipients.go)
 	adminMail := auth.Group("/admin/mail-recipients")
 	adminMail.Use(middleware.RoleMiddleware("ADMIN"))
 	{

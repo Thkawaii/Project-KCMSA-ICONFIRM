@@ -68,7 +68,6 @@ export default function ExportLicenseAlertBell() {
     const hid = items.filter(isHidden);
     const expired = vis.filter(it => it.Status === 'EXPIRED');
     const expiring = vis.filter(it => it.Status === 'EXPIRING');
-    // ใบที่ยังไม่หมดอายุ แต่เลยกำหนดยื่น หรือใกล้ครบกำหนดยื่นเรื่องให้ กสทช. แล้ว
     const lead = vis.filter(it => it.Status !== 'EXPIRED' && it.Status !== 'EXPIRING' && (it.LeadStatus === LEAD_STATUS.OVERDUE || it.LeadUrgent));
     return {
       hidden: hid,

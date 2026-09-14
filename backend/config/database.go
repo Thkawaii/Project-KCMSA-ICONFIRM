@@ -89,13 +89,6 @@ func ConnectDB() {
 	log.Println("Database Connected")
 }
 
-// RenameCodeAliasColumns เปลี่ยนชื่อคอลัมน์เดิมให้เป็นชื่อหัวคอลัมน์ใหม่ที่ต้องการ:
-//   - change_format_parts: from_code/from_norm -> new/old
-//   - column_aliases: scope/source/target -> table/new/old
-//
-// ทำครั้งเดียว (idempotent) — ถ้าคอลัมน์เก่าไม่มีอยู่แล้ว (เปลี่ยนไปแล้ว หรือเป็นฐานข้อมูลใหม่) จะข้ามไป
-// ต้องรันก่อน AutoMigrate เสมอ ไม่งั้น AutoMigrate จะพยายามเพิ่มคอลัมน์ใหม่แยกต่างหาก
-// (ซึ่งจะพังเพราะเป็น NOT NULL บนตารางที่มีข้อมูลอยู่แล้ว) แทนที่จะ rename ของเดิม
 func RenameCodeAliasColumns() {
 	if DB == nil {
 		return
@@ -127,14 +120,6 @@ func RenameCodeAliasColumns() {
 	rename("column_aliases", "target", "old")
 }
 
-// MigrateCodeAliasOldValue ยุบ to_serial_no / to_part_no เดิมของ change_format_parts ทิ้ง
-// เพราะคอลัมน์ old มีอยู่แล้วและควรเก็บ "Old (ค่าเดิม)" ตัวจริงไปเลย (ไม่ใช่ค่า new ที่ normalize ไว้ค้นหาแบบเดิม)
-//
-//   - ย้ายค่าจาก to_serial_no เข้าคอลัมน์ old (ทับค่าเดิมที่เคยเก็บไว้)
-//   - ลบคอลัมน์ to_serial_no และ to_part_no ทิ้ง (to_part_no ไม่ใช้ต่อแล้ว ไม่มีคอลัมน์ทดแทน)
-//
-// ทำครั้งเดียว (idempotent) — ถ้าคอลัมน์เก่าไม่มีอยู่แล้วจะข้ามไป
-// ต้องรันก่อน AutoMigrate เสมอ เหมือนกับ RenameCodeAliasColumns
 func MigrateCodeAliasOldValue() {
 	if DB == nil {
 		return
@@ -176,9 +161,6 @@ func MigrateCodeAliasOldValue() {
 	}
 }
 
-// DropLegacyAssemblyDataset ลบข้อมูลตาราง Assembly เดิมออกจากฐานข้อมูล
-// ตอนนี้ระบบรวมข้อมูลจาก ALL PART / Planning / WH1 / WH2 / Engine ให้สด ๆ แทนแล้ว
-// จึงไม่ต้องเก็บแถว dataset = "assembly" ที่ซ้ำซ้อนไว้อีก
 func DropLegacyAssemblyDataset() {
 	if DB == nil {
 		return
@@ -193,9 +175,6 @@ func DropLegacyAssemblyDataset() {
 	}
 }
 
-// NormalizeExportLicenseExpiry แก้วันหมดอายุใบอนุญาตนำออกของข้อมูลเก่าให้ตรงกติกา
-// อายุใบอนุญาตนำออก = วันที่นำออกใบอนุญาต + 1 เดือน
-// ข้อมูลเก่าบางแถวรับวันหมดอายุมาจากไฟล์ Excel ตรง ๆ (เช่น 31 ธ.ค.) ทำให้เหลือวันผิด
 func NormalizeExportLicenseExpiry() {
 	if DB == nil {
 		return

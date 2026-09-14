@@ -27,7 +27,6 @@ func seedUploadRow(t *testing.T, db *gorm.DB, dataset string, data map[string]st
 	InvalidateMachineIndex()
 }
 
-// Planning ของจริงจะแตกพาร์ทหลักออกเป็นคนละแถว — ดัชนีต้องรวมกลับเป็นเครื่องเดียว
 func TestMachineIndexMergesSplitPlanningRows(t *testing.T) {
 	db := newTestDB(t)
 
@@ -69,7 +68,6 @@ func TestMachineIndexMergesSplitPlanningRows(t *testing.T) {
 	}
 }
 
-// WH1 จับคู่ด้วยหมายเลขเครื่องโดยตรง
 func TestMachineIndexTakesAssemblyPartsFromWH1ByMachine(t *testing.T) {
 	db := newTestDB(t)
 
@@ -103,7 +101,6 @@ func TestMachineIndexTakesAssemblyPartsFromWH1ByMachine(t *testing.T) {
 	}
 }
 
-// WH1 ไม่มีหมายเลขเครื่อง — ต้องจับคู่ผ่าน Order No / Work order กับ KCM Order ของ Planning
 func TestMachineIndexMatchesWH1ByOrderKey(t *testing.T) {
 	db := newTestDB(t)
 
@@ -126,7 +123,6 @@ func TestMachineIndexMatchesWH1ByOrderKey(t *testing.T) {
 	}
 }
 
-// WH2 ใช้เติมข้อมูลพาร์ท และเป็นตัวสำรองของ Assembly Parts
 func TestMachineIndexIncludesWH2(t *testing.T) {
 	db := newTestDB(t)
 
@@ -157,7 +153,6 @@ func TestMachineIndexIncludesWH2(t *testing.T) {
 	}
 }
 
-// เครื่องที่มีแต่ในไฟล์ Engine ก็ต้องอยู่ในดัชนี
 func TestMachineIndexIncludesEngineOnlyMachine(t *testing.T) {
 	db := newTestDB(t)
 
@@ -179,7 +174,6 @@ func TestMachineIndexIncludesEngineOnlyMachine(t *testing.T) {
 	}
 }
 
-// ทะเบียนกลาง (ALL PART) ต้องเติม P/N, S/N, IMEI และ Spec Code ให้เครื่อง
 func TestMachineIndexEnrichesFromMasterData(t *testing.T) {
 	db := newTestDB(t)
 
@@ -277,7 +271,6 @@ func TestGetMachinePlansReturnsMergedRows(t *testing.T) {
 	}
 }
 
-// ตาราง Assembly ถูกยกเลิกแล้ว — ต้องไม่มี dataset นี้ให้อัปโหลดอีก
 func TestAssemblyDatasetIsRemoved(t *testing.T) {
 	if _, ok := udDatasets["assembly"]; ok {
 		t.Error("udDatasets ยังมี dataset assembly อยู่")

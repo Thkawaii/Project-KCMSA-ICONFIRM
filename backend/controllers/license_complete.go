@@ -12,33 +12,16 @@ import (
 	"gorm.io/gorm"
 )
 
-// ไฟล์นี้ดูแลสถานะ "เสร็จสิ้น" (Complete) ของใบอนุญาตนำเข้า/นำออก
-//
-// แนวคิด: ผู้ใช้เลือกใบที่ทำงานเสร็จแล้ว (เลือกใบเดียวหรือหลายใบพร้อมกันก็ได้)
-// แล้วกดปุ่มทำเครื่องหมายเสร็จสิ้น จากนั้น
-//   1. แถวนั้นจะขึ้นไอคอน "เสร็จสิ้น" ในตาราง
-//   2. ระบบจะหยุดนับวันหมดอายุของแถวนั้น — ไม่คิดสถานะใกล้หมดอายุ/หมดอายุ
-//      และไม่ส่งเข้าการแจ้งเตือน (กระดิ่ง/แบนเนอร์/ป๊อปอัปรายสัปดาห์) อีกต่อไป
-//
-// ยกเลิกสถานะได้เสมอ (completed = false) เผื่อกดผิดหรือต้องกลับมาติดตามใหม่
-
-// completeRequest รองรับ 2 แบบพร้อมกัน
-//   - ids: เลือกทีละแถว (ติ๊กในตาราง) เลือกกี่แถวก็ได้
-//   - licenseNo / invoiceNo / exportLicenseNo: เหมาซบทั้งใบในครั้งเดียว
 type completeRequest struct {
 	IDs       []uint `json:"ids"`
 	Completed *bool  `json:"completed"`
 
-	// เหมาทั้งใบ (ใบอนุญาตนำเข้าจับคู่ด้วย licenseNo + invoiceNo)
 	LicenseNo *string `json:"licenseNo"`
 	InvoiceNo *string `json:"invoiceNo"`
 
-	// เหมาทั้งใบ (ใบอนุญาตนำออกจับคู่ด้วยเลขใบอนุญาตนำออก)
 	ExportLicenseNo *string `json:"exportLicenseNo"`
 }
 
-// wantCompleted ค่าเริ่มต้นคือ "ทำเครื่องหมายว่าเสร็จสิ้น"
-// ถ้าอยากยกเลิกสถานะให้ส่ง completed = false มาชัดเจน
 func (r completeRequest) wantCompleted() bool {
 	if r.Completed == nil {
 		return true
@@ -46,8 +29,6 @@ func (r completeRequest) wantCompleted() bool {
 	return *r.Completed
 }
 
-// completeFields ค่าที่จะเขียนลงฐานข้อมูล
-// ตอนยกเลิกสถานะให้ล้างผู้กดและเวลาที่กดออกด้วย จะได้ไม่มีข้อมูลค้าง
 func completeFields(completed bool, userName string, now time.Time) map[string]interface{} {
 	if !completed {
 		return map[string]interface{}{
@@ -63,8 +44,6 @@ func completeFields(completed bool, userName string, now time.Time) map[string]i
 	}
 }
 
-// updateCompleteByIDs อัปเดตสถานะเสร็จสิ้นตาม id ที่เลือก โดยแบ่ง IN ? ทีละก้อน
-// ผู้ใช้กด "เลือกทั้งหมด" ได้ครั้งละหลายหมื่นแถว — ยิงทีเดียวจะชนเพดาน 65,535 พารามิเตอร์ของ PostgreSQL
 func updateCompleteByIDs(model interface{}, ids []uint, fields map[string]interface{}) (int64, error) {
 	var affected int64
 	err := config.DB.Transaction(func(tx *gorm.DB) error {
@@ -87,8 +66,6 @@ func completeActionName(completed bool) string {
 	return "unmark_complete"
 }
 
-// SetImportLicenseComplete ทำเครื่องหมาย/ยกเลิกเครื่องหมาย "เสร็จสิ้น" ของใบอนุญาตนำเข้า
-// POST /import-license/complete
 func SetImportLicenseComplete(c *gin.Context) {
 	var req completeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -156,8 +133,6 @@ func SetImportLicenseComplete(c *gin.Context) {
 	})
 }
 
-// SetExportLicenseComplete ทำเครื่องหมาย/ยกเลิกเครื่องหมาย "เสร็จสิ้น" ของใบอนุญาตนำออก
-// POST /export-license/complete
 func SetExportLicenseComplete(c *gin.Context) {
 	var req completeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -180,8 +155,6 @@ func SetExportLicenseComplete(c *gin.Context) {
 
 	case req.ExportLicenseNo != nil && strings.TrimSpace(*req.ExportLicenseNo) != "":
 		licenseNo := strings.TrimSpace(*req.ExportLicenseNo)
-		// ไฟล์บางชุดเก็บเลขใบไว้ที่ exception_license บางชุดเก็บที่ export_license_no
-		// จึงต้องจับคู่ทั้งสองคอลัมน์ ให้ตรงกับตัวกรอง "ใบอนุญาตส่งออก" บนหน้าจอ
 		tx = tx.Where("exception_license = ? OR export_license_no = ?", licenseNo, licenseNo)
 		target = "export_license_no=" + licenseNo
 

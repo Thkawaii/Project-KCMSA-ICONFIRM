@@ -7,7 +7,6 @@ import (
 	"iconfirm/models"
 )
 
-// เปลี่ยนรูปแบบแล้ว รหัสเดิมต้องใช้ไม่ได้อีก — ฝั่ง WH
 func TestWHRejectsRetiredFormat(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -54,9 +53,6 @@ func TestWHRejectsRetiredFormat(t *testing.T) {
 	}
 }
 
-// เปลี่ยนรูปแบบแล้ว รหัสเดิมต้องใช้ไม่ได้อีก — ฝั่ง MFG
-// ต้องบันทึกเป็นแถว log ไว้ด้วย (สถานะ RETIRED_FORMAT) เหมือนฝั่ง WH
-// ไม่ใช่แค่โยน error กลับไปเฉย ๆ แล้วไม่มีอะไรขึ้นในตาราง Matching Assembly เลย
 func TestMFGRejectsRetiredFormat(t *testing.T) {
 	cases := []struct {
 		name string
@@ -90,7 +86,6 @@ func TestMFGRejectsRetiredFormat(t *testing.T) {
 			}
 			t.Log(resp["detail"])
 
-			// ต้องมีแถวถูกบันทึกลงตารางจริง ไม่งั้นตาราง Matching Assembly ฝั่ง MFG จะไม่ขึ้นเลย
 			var row models.MFGAssembly
 			if err := db.Order("id desc").First(&row).Error; err != nil {
 				t.Fatalf("ไม่พบแถวที่บันทึกไว้: %v", err)
@@ -102,7 +97,6 @@ func TestMFGRejectsRetiredFormat(t *testing.T) {
 				t.Error("RetiredDetail ต้องไม่ว่างเปล่า ต้องบอกว่าให้ใช้รหัสใหม่ตัวไหนแทน")
 			}
 
-			// ตารางต้องยังแสดง RETIRED_FORMAT อยู่หลังรีเฟรช ไม่ถูกคำนวณทับเป็น MATCHED/NOT_MATCHED
 			c, rec = newContext("GET", "", u.ID, u.Username)
 			GetMFGAssemblies(c)
 			mustStatus(t, rec, 200)
@@ -123,7 +117,6 @@ func TestMFGRejectsRetiredFormat(t *testing.T) {
 	}
 }
 
-// ตาราง WH ต้องแสดงรหัสรูปแบบใหม่หลังเปลี่ยน format
 func TestWHTableShowsCurrentFormat(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
@@ -154,7 +147,6 @@ func TestWHTableShowsCurrentFormat(t *testing.T) {
 	}
 }
 
-// แถว WH ที่บันทึกไว้ก่อนเปลี่ยน format ต้องยังจับคู่กับ MFG ที่สแกนรหัสใหม่ได้
 func TestMFGMatchesOlderWHRowAcrossFormats(t *testing.T) {
 	db := newTestDB(t)
 	wh := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
@@ -164,7 +156,6 @@ func TestMFGMatchesOlderWHRowAcrossFormats(t *testing.T) {
 		"Control Valve No": "CV2411001",
 	})
 
-	// WH ยืนยันก่อน — ตอนนั้นยังไม่มีการเปลี่ยนรูปแบบ
 	c, rec := newContext("POST", `{"partType":"CV","sn":"CV2411001"}`, wh.ID, wh.Username)
 	ScanPartCheck(c)
 	mustStatus(t, rec, 201)
@@ -172,10 +163,8 @@ func TestMFGMatchesOlderWHRowAcrossFormats(t *testing.T) {
 		t.Fatalf("WH matchStatus = %v, want MATCH", got)
 	}
 
-	// แอดมินเปลี่ยนรูปแบบทีหลัง
 	seedCodeAlias(t, CodeKindSN, "CV2411001-jcc", "CV2411001")
 
-	// MFG สแกนรหัสใหม่ ต้องยังจับคู่กับแถว WH เดิมได้
 	c, rec = newContext("POST",
 		`{"machineNo":"LX10400690","serialNo":"CV2411001-jcc","partType":"CV"}`,
 		mfg.ID, mfg.Username)
@@ -191,7 +180,6 @@ func TestMFGMatchesOlderWHRowAcrossFormats(t *testing.T) {
 	}
 }
 
-// ตั้งค่าต่อกันเป็นทอด (C → B, B → A) ตัวกลางต้องไม่ถูกตีเป็นรหัสเลิกใช้
 func TestChainedAliasDoesNotRetireMiddleCode(t *testing.T) {
 	db := newTestDB(t)
 	makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
@@ -207,8 +195,6 @@ func TestChainedAliasDoesNotRetireMiddleCode(t *testing.T) {
 	}
 }
 
-// รายละเอียด "ต้องใช้รหัสใหม่ตัวไหน" ไม่ได้เก็บลงฐานข้อมูล (MatchDetail เป็น gorm:"-")
-// จึงต้องคำนวณใหม่ตอนดึงตาราง ไม่งั้นพอรีเฟรชหน้าจะหายไป
 func TestRetiredFormatDetailSurvivesReload(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")

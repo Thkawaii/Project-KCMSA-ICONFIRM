@@ -12,18 +12,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// UserStatusDeleted สถานะของผู้ใช้ที่ถูกลบแต่ยังมีประวัติการใช้งานผูกอยู่
-//
-// ผู้ใช้ที่เคยสแกน / ประกอบ / อัปโหลด / แก้ไขข้อมูล ถูกอ้างถึงจากหลายตาราง (user_id)
-// และฐานข้อมูลมี foreign key บังคับไว้ ถ้าลบแถวทิ้งจริงจะลบไม่ได้
-// (update or delete on table "users" violates foreign key constraint ...)
-// และถึงลบได้ ประวัติว่า "ใครเป็นคนทำ" ก็จะหายไปด้วย
-//
-// จึงเก็บแถวไว้แต่ปิดบัญชีถาวรแทน: ซ่อนจากรายชื่อผู้ใช้ เข้าสู่ระบบไม่ได้ และปล่อย username ให้ใช้ซ้ำได้
 const UserStatusDeleted = "Deleted"
 
-// userHistoryModels ตารางที่บันทึกว่าผู้ใช้คนไหนเป็นคนทำรายการ (คอลัมน์ user_id)
-// เพิ่มตารางใหม่ที่มี user_id ไว้ที่นี่ด้วย
 var userHistoryModels = []interface{}{
 	&models.AuditLog{},
 	&models.PartCheck{},
@@ -37,10 +27,8 @@ var userHistoryModels = []interface{}{
 	&models.CodeAlias{},
 }
 
-// userHasHistory ผู้ใช้คนนี้มีรายการใดในระบบอ้างถึงอยู่หรือไม่
 func userHasHistory(db *gorm.DB, userID uint) (bool, error) {
 	for _, m := range userHistoryModels {
-		// บางฐานข้อมูลอาจยังไม่มีบางตาราง (เช่น ยังไม่เคย migrate) ข้ามไป
 		if !db.Migrator().HasTable(m) {
 			continue
 		}
@@ -55,11 +43,6 @@ func userHasHistory(db *gorm.DB, userID uint) (bool, error) {
 	return false, nil
 }
 
-// archiveUser ปิดบัญชีผู้ใช้ถาวรโดยเก็บแถวไว้ให้ประวัติยังอ้างถึงได้
-//   - status = Deleted → ไม่แสดงในรายชื่อ และเข้าสู่ระบบไม่ได้
-//   - เปลี่ยน username เป็น deleted-<id>-<เดิม> → username เดิมว่าง สร้างผู้ใช้ใหม่ชื่อเดิมได้
-//   - ล้างรหัสผ่าน → ไม่มีรหัสผ่านใดเข้าได้อีก
-//   - ชื่อ (Name) คงไว้ ประวัติยังแสดงได้ว่าใครเป็นคนทำ
 func archiveUser(db *gorm.DB, user models.User) error {
 	username := fmt.Sprintf("deleted-%d-%s", user.ID, user.Username)
 	if r := []rune(username); len(r) > 100 {
@@ -266,8 +249,6 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	// ไม่มีประวัติเลย → ลบออกจริง
-	// ถ้าลบไม่ได้ (เช่น มีตารางใหม่ที่อ้างถึงผู้ใช้แต่ยังไม่อยู่ในรายการ) ถอยไปปิดบัญชีแทน
 	if !hasHistory {
 		if err := config.DB.Delete(&models.User{}, user.ID).Error; err == nil {
 			CreateAuditLog("USER", user.ID, "delete", user.Name, adminID, adminName)
@@ -276,7 +257,6 @@ func DeleteUser(c *gin.Context) {
 		}
 	}
 
-	// มีประวัติ → ปิดบัญชีถาวร เก็บประวัติไว้
 	if err := archiveUser(config.DB, user); err != nil {
 		c.JSON(500, gin.H{"message": "ลบผู้ใช้ไม่สำเร็จ"})
 		return

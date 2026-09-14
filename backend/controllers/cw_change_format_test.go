@@ -7,7 +7,6 @@ import (
 	"iconfirm/models"
 )
 
-// ตรวจว่า Change Format Part รองรับ CW No. ครบทุกขั้นตอน
 func TestCWChangeFormatEndToEnd(t *testing.T) {
 	for _, kind := range []string{CodeKindCW, CodeKindSN, ""} {
 		name := kind
@@ -22,7 +21,6 @@ func TestCWChangeFormatEndToEnd(t *testing.T) {
 
 			seedComponentPlan(t, db, "MC-006", map[string]string{"CW No": "CW-0006"})
 
-			// 1) แอดมินบันทึกผ่าน API จริง (ตรวจ validation ว่าหา Old เจอไหม)
 			body := `{"kind":"` + kind + `","new":"CW-0006-JCC","old":"CW-0006"}`
 			c, rec := newContext("POST", body, admin.ID, admin.Username)
 			CreateCodeAlias(c)
@@ -30,7 +28,6 @@ func TestCWChangeFormatEndToEnd(t *testing.T) {
 				t.Fatalf("บันทึก Change Format Part ไม่สำเร็จ: %d %s", rec.Code, rec.Body.String())
 			}
 
-			// 2) WH สแกนรหัสใหม่ → ต้องผ่าน และเก็บเป็นรูปแบบใหม่
 			w := runWH(t, wh, `{"partType":"CW","sn":"CW-0006-JCC"}`)
 			if w["matchStatus"] != models.MatchStatusMatch {
 				t.Fatalf("WH สแกนรหัสใหม่ = %v (%v)", w["matchStatus"], w["message"])
@@ -41,13 +38,11 @@ func TestCWChangeFormatEndToEnd(t *testing.T) {
 				t.Errorf("WH เก็บ SN = %q ต้องเป็น CW-0006-JCC", pc.SN)
 			}
 
-			// 3) WH สแกนรหัสเดิม → ต้องไม่ผ่านแล้ว
 			w = runWH(t, wh, `{"partType":"CW","sn":"CW-0006"}`)
 			if w["matchStatus"] != models.MatchStatusRetiredFormat {
 				t.Errorf("WH สแกนรหัสเดิม = %v ต้องเป็น RETIRED_FORMAT", w["matchStatus"])
 			}
 
-			// 4) MFG สแกนรหัสใหม่ → MATCHED และจับคู่กับ WH ได้
 			m := runMFG(t, mfg, `{"machineNo":"MC-006","serialNo":"CW-0006-JCC","partType":"CW"}`)
 			if m["plannedMatch"] != true {
 				t.Errorf("MFG plannedMatch = %v (%v)", m["plannedMatch"], m["message"])
@@ -56,7 +51,6 @@ func TestCWChangeFormatEndToEnd(t *testing.T) {
 				t.Errorf("MFG status = %v (whMatched=%v) ต้องเป็น MATCHED", m["status"], m["whMatched"])
 			}
 
-			// 5) ตาราง MFG ต้องยังเป็น MATCHED และแสดงรหัสใหม่
 			c, rec = newContext("GET", "", mfg.ID, mfg.Username)
 			GetMFGAssemblies(c)
 			mustStatus(t, rec, 200)
@@ -73,7 +67,6 @@ func TestCWChangeFormatEndToEnd(t *testing.T) {
 				}
 			}
 
-			// 6) ตาราง WH ต้องแสดงรหัสใหม่
 			c, rec = newContext("GET", "", wh.ID, wh.Username)
 			GetPartChecks(c)
 			mustStatus(t, rec, 200)
@@ -90,7 +83,6 @@ func TestCWChangeFormatEndToEnd(t *testing.T) {
 	}
 }
 
-// CW เปลี่ยนรูปแบบหมายเลขเครื่องด้วย
 func TestCWWithMachineNoFormatChange(t *testing.T) {
 	db := newTestDB(t)
 	wh := makeUser(t, db, "wh@k.com", "wh1", "WH", "WH")

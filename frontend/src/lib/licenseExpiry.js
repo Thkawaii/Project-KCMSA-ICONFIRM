@@ -6,13 +6,9 @@ export const EXPIRY_STATUS = {
   NO_DATE: 'NO_DATE'
 };
 
-// สถานะ "เสร็จสิ้น" — ผู้ใช้กดปิดงานใบนั้นเอง
-// ไม่ใช่สถานะอายุใบอนุญาต แต่เป็นสถานะที่ "ทับ" การนับวันหมดอายุทั้งหมด
-// ใบที่เสร็จสิ้นแล้วจะหยุดนับวัน ไม่ขึ้นใกล้หมดอายุ/หมดอายุ และไม่แจ้งเตือนอีก
 export const COMPLETED_FILTER = 'COMPLETED';
 export const COMPLETED_LABEL = 'เสร็จสิ้นแล้ว';
 
-// รองรับทั้งรูปแบบ Completed (จาก Go) และ completed (เผื่อ payload อื่น)
 export function isLicenseCompleted(row) {
   if (!row) return false;
   return row.Completed === true || row.completed === true;

@@ -6,8 +6,6 @@ import (
 	"iconfirm/models"
 )
 
-// MFG สแกนชิ้นส่วนที่หน้างานเปลี่ยนรูปแบบ S/N แล้ว — ต้องเทียบแผนได้
-// และต้องบันทึกเป็นค่าเดิม เพื่อให้จับคู่กับผลสแกนของ WH ได้ด้วย
 func TestScanMFGWithChangedComponentFormat(t *testing.T) {
 	cases := []struct {
 		component string
@@ -34,13 +32,11 @@ func TestScanMFGWithChangedComponentFormat(t *testing.T) {
 			})
 			seedCodeAlias(t, CodeKindSN, tc.newCode, tc.oldCode)
 
-			// WH ยืนยันก่อนด้วยรหัสรูปแบบใหม่
 			whBody := `{"partType":"` + tc.component + `","sn":"` + tc.newCode + `"}`
 			c0, rec0 := newContext("POST", whBody, wh.ID, wh.Username)
 			ScanPartCheck(c0)
 			mustStatus(t, rec0, 201)
 
-			// MFG สแกนประกอบด้วยรหัสรูปแบบใหม่เช่นกัน
 			body := `{"machineNo":"LX10400690","serialNo":"` + tc.newCode + `","partType":"` + tc.component + `"}`
 			c, rec := newContext("POST", body, mfg.ID, mfg.Username)
 			ScanMFGAssembly(c)
@@ -57,7 +53,6 @@ func TestScanMFGWithChangedComponentFormat(t *testing.T) {
 				t.Fatalf("whMatched = %v, want true — MFG ต้องจับคู่กับผลสแกนของ WH ได้", resp["whMatched"])
 			}
 
-			// แถวที่บันทึกต้องเก็บ "รูปแบบที่ใช้อยู่ตอนนี้" เพื่อให้ตารางแสดงรหัสใหม่
 			var row models.MFGAssembly
 			if err := db.Where("machine_no = ?", "LX10400690").First(&row).Error; err != nil {
 				t.Fatalf("ไม่พบแถว MFG: %v", err)
@@ -69,7 +64,6 @@ func TestScanMFGWithChangedComponentFormat(t *testing.T) {
 	}
 }
 
-// MFG สแกนโดยไม่ได้เลือกชนิดพาร์ทไว้ก่อน — ระบบต้องแปลงรหัสก่อนจับชนิดชิ้นส่วน
 func TestScanMFGChangedFormatWithoutPartType(t *testing.T) {
 	db := newTestDB(t)
 	mfg := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
@@ -93,7 +87,6 @@ func TestScanMFGChangedFormatWithoutPartType(t *testing.T) {
 	}
 }
 
-// MFG สแกน IT Controller ที่เปลี่ยนรูปแบบ
 func TestScanMFGITCChangedFormat(t *testing.T) {
 	db := newTestDB(t)
 	mfg := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
@@ -121,7 +114,6 @@ func TestScanMFGITCChangedFormat(t *testing.T) {
 	}
 }
 
-// หมายเลขเครื่องที่เปลี่ยนรูปแบบ — ต้องหาแผนของเครื่องเจอ
 func TestScanMFGChangedMachineNoFormat(t *testing.T) {
 	db := newTestDB(t)
 	mfg := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
@@ -148,7 +140,6 @@ func TestScanMFGChangedMachineNoFormat(t *testing.T) {
 	}
 }
 
-// ชิ้นส่วนที่ผิดจริง ๆ ต้องยังขึ้นไม่ตรงแผนเหมือนเดิม
 func TestScanMFGWrongComponentStillMismatch(t *testing.T) {
 	db := newTestDB(t)
 	mfg := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")

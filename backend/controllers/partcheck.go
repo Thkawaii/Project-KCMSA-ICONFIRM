@@ -43,9 +43,6 @@ func GetPartChecks(c *gin.Context) {
 	c.JSON(200, rows)
 }
 
-// applyCurrentCodeFormat แสดงรหัสในตารางเป็น "รูปแบบที่ใช้อยู่ตอนนี้" เสมอ
-// แถวที่บันทึกไว้ก่อนตั้งค่า Change Format Part จึงถูกแสดงด้วยรูปแบบใหม่ตามไปด้วย
-// (แก้เฉพาะค่าที่ส่งออกไปแสดง ไม่แตะข้อมูลในฐานข้อมูล)
 func applyCurrentCodeFormat(rows []models.PartCheck) {
 	cache := map[string]string{}
 	current := func(v string) string {
@@ -63,9 +60,6 @@ func applyCurrentCodeFormat(rows []models.PartCheck) {
 
 	for i := range rows {
 		if rows[i].MatchStatus == models.MatchStatusRetiredFormat {
-			// คงรหัสเดิมที่สแกนไว้ เพื่อให้เห็นว่าสแกนอะไรผิดมา
-			// แต่คำนวณรายละเอียดใหม่ทุกครั้ง เพราะ MatchDetail ไม่ได้เก็บลงฐานข้อมูล
-			// (และถ้าแอดมินแก้ Change Format Part ทีหลัง ข้อความจะอัปเดตตามเอง)
 			if msg, blocked := retiredScanMessage(rows[i].PN, rows[i].SN); blocked {
 				rows[i].MatchDetail = msg
 			}
@@ -154,7 +148,6 @@ func DeletePartCheck(c *gin.Context) {
 	c.JSON(200, gin.H{"deleted": true})
 }
 
-// dedupeCodes รวมรหัสหลายค่าให้เหลือเฉพาะค่าที่ไม่ว่างและไม่ซ้ำกัน (ไม่สนตัวคั่น/ตัวพิมพ์)
 func dedupeCodes(values ...string) []string {
 	seen := map[string]bool{}
 	out := make([]string, 0, len(values))
@@ -181,11 +174,6 @@ func findMasterBy(query string, args ...interface{}) *models.MasterData {
 	return &m
 }
 
-// resolveITControllerMaster หาแถวทะเบียนกลางของ IT Controller จาก P/N + S/N ที่สแกนมา
-//
-// หน้างานอาจเปลี่ยนรูปแบบรหัส (Change Format Part) ทุกชั้นของการค้นจึงต้องลอง
-// ทั้งค่าที่สแกนมาดิบ ๆ และค่าเดิมที่แปลงแล้ว ไม่งั้นการเปลี่ยนรูปแบบ P/N
-// จะทำให้หา master ไม่เจอ/เจอผิดแถว แล้วถูกตีเป็น "ข้อมูลไม่ตรง"
 func resolveITControllerMaster(pn, sn string) *models.MasterData {
 	sn = strings.TrimSpace(sn)
 	if sn == "" {
@@ -193,8 +181,6 @@ func resolveITControllerMaster(pn, sn string) *models.MasterData {
 	}
 	pn = strings.TrimSpace(pn)
 
-	// ค่าที่สแกนเข้าช่อง S/N อาจเป็น S/N, หมายเลขเครื่อง หรือ IMEI
-	// จึงแปลงเผื่อไว้ทั้งชนิด sn และ machine
 	snCandidates := dedupeCodes(
 		ResolveComponentSerial(ComponentITC, sn),
 		ResolveMachineNo(sn),
@@ -202,7 +188,6 @@ func resolveITControllerMaster(pn, sn string) *models.MasterData {
 	)
 	pnCandidates := dedupeCodes(ResolvePartNo(pn), pn)
 
-	// 1) P/N + S/N ตรงกันทั้งคู่ — แม่นที่สุด
 	for _, p := range pnCandidates {
 		for _, s := range snCandidates {
 			if m := findMasterBy("part_no = ? AND serial_no = ?", p, s); m != nil {
@@ -211,21 +196,18 @@ func resolveITControllerMaster(pn, sn string) *models.MasterData {
 		}
 	}
 
-	// 2) S/N อย่างเดียว
 	for _, s := range snCandidates {
 		if m := findMasterBy("serial_no = ?", s); m != nil {
 			return m
 		}
 	}
 
-	// 3) หมายเลขเครื่อง / IMEI ที่ยิงเข้าช่อง S/N
 	for _, s := range snCandidates {
 		if m := findMasterBy("it_controller_no = ? OR imei = ?", s, s); m != nil {
 			return m
 		}
 	}
 
-	// 4) ชั้นสุดท้าย — alias แบบผูกกลุ่ม it_controller ของไฟล์รุ่นเก่า
 	for _, raw := range dedupeCodes(sn, pn) {
 		a := lookupCodeAlias("it_controller", raw)
 		if a == nil {
@@ -312,8 +294,6 @@ func ScanPartCheck(c *gin.Context) {
 
 	var matchedItem *models.ImportLicenseItem
 
-	// รหัสที่ถูกแทนที่ด้วยรูปแบบใหม่ใน Change Format Part แล้ว ถือว่าเลิกใช้
-	// สแกนของเก่ามาต้องไม่ผ่าน ไม่งั้นหน้างานจะยังใช้บาร์โค้ดเดิมต่อไปได้เรื่อย ๆ
 	if msg, blocked := retiredScanMessage(check.PN, sn); blocked {
 		check.MatchStatus = models.MatchStatusRetiredFormat
 		check.MatchMessage = "รูปแบบเดิมถูกยกเลิกแล้ว"
@@ -341,8 +321,6 @@ func ScanPartCheck(c *gin.Context) {
 	}
 
 	if partType == ComponentITC {
-		// หน้างานอาจเปลี่ยนรูปแบบรหัส — แปลงกลับเป็นค่าเดิมตาม Change Format Part
-		// ก่อนนำไปเทียบทะเบียนกลาง มิฉะนั้น P/N รูปแบบใหม่จะถูกตีเป็น "ข้อมูลไม่ตรง"
 		rawPN, rawSN := strings.TrimSpace(check.PN), sn
 
 		resolvedPN := ResolvePartNo(rawPN)
@@ -360,8 +338,6 @@ func ScanPartCheck(c *gin.Context) {
 		check.SN = resolvedSN
 		sn = resolvedSN
 
-		// เก็บ "รูปแบบที่ใช้อยู่ตอนนี้" ลงตาราง เพื่อให้หน้า WH / MFG แสดงรหัสใหม่
-		// ส่วนการค้นทะเบียนด้านล่างยังใช้ค่าเดิม (resolvedPN / resolvedSN) เหมือนเดิม
 		displayPN, displaySN := CurrentCodeOf(resolvedPN), CurrentCodeOf(resolvedSN)
 
 		master := resolveITControllerMaster(resolvedPN, resolvedSN)
@@ -419,7 +395,6 @@ func ScanPartCheck(c *gin.Context) {
 			}
 		}
 
-		// บอกหน้างานให้ชัดว่ารหัสถูกแปลงตามที่แอดมินตั้งค่าไว้
 		if len(formatNotes) > 0 {
 			note := "แปลงรูปแบบตาม Change Format Part: " + strings.Join(formatNotes, ", ")
 			if check.MatchDetail == "" {
@@ -462,8 +437,6 @@ func ScanPartCheck(c *gin.Context) {
 }
 
 func checkEnginePart(check *models.PartCheck) {
-	// Engine สแกนคู่ P/N + S/N — แปลงตาม Change Format Part (ชนิด P/N และ S/N)
-	// เทียบด้วยค่าเดิม แต่เก็บรูปแบบที่ใช้อยู่ตอนนี้ลงตาราง
 	oldPN := ResolvePartNo(check.PN)
 	oldSN := ResolveComponentSerial(ComponentEN, check.SN)
 	check.PN = CurrentCodeOf(oldPN)
@@ -508,8 +481,6 @@ func checkPlanComponentPart(check *models.PartCheck, component string) {
 	scanned := strings.TrimSpace(check.SN)
 	label := ComponentLabel(component)
 
-	// แปลงรหัสรูปแบบใหม่ให้เป็นค่าเดิมในระบบ ตามที่ตั้งไว้ในหน้า Change Format Part
-	// ใช้ค่าเดิมในการเทียบแผน แต่เก็บ "รูปแบบที่ใช้อยู่ตอนนี้" ลงตารางเพื่อให้หน้าจอแสดงรหัสใหม่
 	if resolved := ResolveComponentSerial(component, scanned); !strings.EqualFold(resolved, scanned) {
 		scanned = resolved
 	}

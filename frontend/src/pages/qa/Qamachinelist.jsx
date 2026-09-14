@@ -17,7 +17,6 @@ const navItems = [{
   label: 'ตรวจสอบ QA',
   icon: <CheckCircleIcon className="size-4" />
 }];
-// ลำดับชนิดพาร์ทมาตรฐาน ใช้จัดลำดับชีตใน Excel (แยกชีตตามชนิดพาร์ท)
 const COMPONENT_SHEET_ORDER = ['ITC', 'CV', 'SM', 'MP', 'PH', 'EN', 'CW'];
 function licenseMatchMeta(status) {
   switch (status) {
@@ -208,8 +207,6 @@ export default function QAMachineList() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return confirmedRows.filter(r => {
-      // แสดงเฉพาะรายการที่ MATCHED ทั้งฝั่ง MFG (ประกอบตรงแผน) และฝั่งใบอนุญาต (WH สแกนตรงกับบัญชีนำเข้า)
-      // รายการที่ไม่ตรงยังถูกบันทึกลงฐานข้อมูลตามปกติ เพียงแต่ไม่แสดงในตารางนี้
       if ((r.status || 'MATCHED') !== 'MATCHED') return false;
       if (r.matchStatus !== 'MATCH') return false;
       if (q) {
@@ -468,7 +465,6 @@ export default function QAMachineList() {
         type: 'center',
         width: 12
       }];
-      // จัดกลุ่มแถวตามชนิดพาร์ท (component) เพื่อแยกเป็นคนละชีตในไฟล์เดียวกัน
       const groups = new Map();
       list.forEach((r, i) => {
         const code = String(r.component || '').trim().toUpperCase() || 'OTHER';
@@ -486,7 +482,6 @@ export default function QAMachineList() {
         const entries = groups.get(code);
         let sheetLabel = partTagLabel(code) || entries[0]?.r.componentLabel || entries[0]?.r.component || code || 'อื่นๆ';
         sheetLabel = String(sheetLabel).slice(0, 31) || 'อื่นๆ';
-        // กันชื่อชีตซ้ำ (กรณีชนิดพาร์ทไม่รู้จักหลายแบบชื่อซ้ำกัน)
         let uniqueLabel = sheetLabel;
         let suffix = 2;
         while (usedSheetNames.has(uniqueLabel)) {

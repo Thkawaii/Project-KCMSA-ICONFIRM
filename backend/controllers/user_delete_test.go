@@ -26,7 +26,6 @@ func deleteUserReq(t *testing.T, admin models.User, id uint) map[string]interfac
 	return decodeJSON(t, rec)
 }
 
-// ผู้ใช้ที่เพิ่งสร้าง ยังไม่เคยทำอะไร → ลบออกจริง
 func TestDeleteUserWithoutHistoryIsRemoved(t *testing.T) {
 	db := newTestDB(t)
 	admin := makeUser(t, db, "admin", "pw", "Admin", "ADMIN")
@@ -44,7 +43,6 @@ func TestDeleteUserWithoutHistoryIsRemoved(t *testing.T) {
 	}
 }
 
-// ผู้ใช้ที่มีประวัติการใช้งาน → ปิดบัญชีถาวร เก็บประวัติไว้ ซ่อนจากรายชื่อ เข้าสู่ระบบไม่ได้
 func TestDeleteUserWithHistoryIsArchived(t *testing.T) {
 	db := newTestDB(t)
 	admin := makeUser(t, db, "admin", "pw", "Admin", "ADMIN")
@@ -79,7 +77,6 @@ func TestDeleteUserWithHistoryIsArchived(t *testing.T) {
 		t.Error("ประวัติการใช้งานต้องไม่หาย")
 	}
 
-	// ไม่แสดงในรายชื่อผู้ใช้ของ Admin
 	c, rec := newContext("GET", "", admin.ID, admin.Username)
 	GetAdminUsers(c)
 	mustStatus(t, rec, 200)
@@ -91,19 +88,16 @@ func TestDeleteUserWithHistoryIsArchived(t *testing.T) {
 		}
 	}
 
-	// เข้าสู่ระบบด้วยบัญชีเดิมไม่ได้
 	c, rec = newContext("POST", `{"username":"wh01","password":"secret"}`, 0, "")
 	Login(c)
 	if rec.Code == 200 {
 		t.Error("ผู้ใช้ที่ลบแล้วต้องเข้าสู่ระบบไม่ได้")
 	}
 
-	// สร้างผู้ใช้ใหม่ username เดิม รหัสผ่านเดิมได้
 	c, rec = newContext("POST", `{"name":"สุภาพร ก.","username":"wh01","password":"secret","role_name":"WH"}`, admin.ID, admin.Username)
 	CreateUser(c)
 	mustStatus(t, rec, 201)
 
-	// ลบซ้ำ / แก้ไขผู้ใช้ที่ลบแล้ว → ไม่พบ
 	c, rec = newContext("DELETE", "", admin.ID, admin.Username)
 	c.Params = gin.Params{{Key: "id", Value: strconv.FormatUint(uint64(u.ID), 10)}}
 	DeleteUser(c)
@@ -115,7 +109,6 @@ func TestDeleteUserWithHistoryIsArchived(t *testing.T) {
 	mustStatus(t, rec, 404)
 }
 
-// ตั้งสถานะ Deleted ผ่านหน้าแก้ไขไม่ได้ ต้องใช้ปุ่มลบ
 func TestUpdateUserCannotSetDeletedStatus(t *testing.T) {
 	db := newTestDB(t)
 	admin := makeUser(t, db, "admin", "pw", "Admin", "ADMIN")
@@ -129,7 +122,6 @@ func TestUpdateUserCannotSetDeletedStatus(t *testing.T) {
 
 var fkDBCounter int64
 
-// จำลองฐานข้อมูลจริงที่เปิด foreign key ไว้ (ฐานข้อมูลทดสอบปกติปิดไว้ บัคนี้จึงไม่เคยถูกจับได้)
 func TestDeleteUserWithForeignKeysEnforced(t *testing.T) {
 	dsn := fmt.Sprintf("file:fktest_%d?mode=memory&cache=shared&_pragma=foreign_keys(1)", atomic.AddInt64(&fkDBCounter, 1))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
@@ -147,7 +139,6 @@ func TestDeleteUserWithForeignKeysEnforced(t *testing.T) {
 		t.Fatalf("create audit log: %v", err)
 	}
 
-	// ยืนยันว่าฐานข้อมูลทดสอบนี้บังคับ foreign key จริง (ลบตรง ๆ ต้องล้มเหมือนบัคเดิม)
 	if err := db.Delete(&models.User{}, u.ID).Error; err == nil {
 		t.Skip("sqlite ไม่ได้บังคับ foreign key ในสภาพแวดล้อมนี้ ข้ามการทดสอบ")
 	}

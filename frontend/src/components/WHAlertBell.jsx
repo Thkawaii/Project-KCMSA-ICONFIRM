@@ -103,7 +103,6 @@ export default function WHAlertBell() {
   const exp = useMemo(() => {
     const expired = expItems.filter(it => it.Status === 'EXPIRED');
     const expiring = expItems.filter(it => it.Status === 'EXPIRING');
-    // ใบที่ยังไม่หมดอายุ แต่เลยกำหนดยื่น หรือใกล้ครบกำหนดยื่น กสทช. แล้ว
     const lead = expItems.filter(it => !isAlertStatus(it) && (it.LeadStatus === LEAD_STATUS.OVERDUE || it.LeadUrgent));
     return {
       all: [...expired, ...expiring, ...lead],

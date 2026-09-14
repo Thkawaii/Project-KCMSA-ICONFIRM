@@ -253,9 +253,6 @@ func TestGetMFGAssembliesReportsWHGate(t *testing.T) {
 	}
 }
 
-// บัค: MFG สแกนตอน WH ยังไม่รับเข้าคลัง (NOT_MATCHED)
-// พอ WH มาสแกนทีหลัง ตาราง MFG เด้งเป็น MATCHED เอง
-// ที่ถูกคือต้องคง NOT_MATCHED จนกว่า MFG จะสแกนยืนยันอีกครั้ง
 func TestMFGListDoesNotAutoMatchAfterWHScans(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
@@ -271,7 +268,6 @@ func TestMFGListDoesNotAutoMatchAfterWHScans(t *testing.T) {
 		t.Fatalf("ตอนสแกน: status = %v, want NOT_MATCHED", got)
 	}
 
-	// WH เพิ่งมาสแกนรับเข้าคลังทีหลัง — MFG ยังไม่ได้สแกนซ้ำ
 	seedWHCheck(t, db, ComponentSM, "", "SM-0002", "")
 
 	c2, rec2 := newContext("GET", "", u.ID, u.Username)
@@ -293,7 +289,6 @@ func TestMFGListDoesNotAutoMatchAfterWHScans(t *testing.T) {
 		t.Error("WHMatched = false, want true (ต้องบอกได้ว่า WH รับเข้าคลังแล้ว)")
 	}
 
-	// MFG สแกนยืนยันอีกครั้ง จึงจะเป็น MATCHED
 	c3, rec3 := newContext("POST", body, u.ID, u.Username)
 	ScanMFGAssembly(c3)
 	mustStatus(t, rec3, 201)

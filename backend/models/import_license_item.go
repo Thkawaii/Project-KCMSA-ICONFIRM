@@ -16,7 +16,6 @@ const (
 	MatchStatusDuplicate   = "DUPLICATE"
 	MatchStatusNotRequired = "NOT_REQUIRED"
 
-	// MatchStatusRetiredFormat = สแกนด้วยรหัสรูปแบบเก่าที่ถูกแทนที่ใน Change Format Part แล้ว
 	MatchStatusRetiredFormat = "RETIRED_FORMAT"
 )
 
@@ -43,7 +42,6 @@ type ImportLicenseItem struct {
 
 	ProductionNo string `gorm:"size:30;index"`
 
-	// Remark เป็น text (ไม่จำกัดความยาว) — หมายเหตุในไฟล์จริงยาวเกิน 255 ตัวอักษรได้
 	Remark        string `gorm:"type:text"`
 	ExportCountry string `gorm:"size:100"`
 
@@ -53,9 +51,6 @@ type ImportLicenseItem struct {
 	ConfirmedBy       string `gorm:"size:100"`
 	ConfirmedDatetime *time.Time
 
-	// Completed = ปิดงานใบอนุญาตนี้แล้ว (ผู้ใช้กด "ทำเครื่องหมายเสร็จสิ้น" เอง)
-	// เมื่อเสร็จสิ้นแล้ว ระบบจะ "หยุดนับวันหมดอายุ" ของแถวนี้
-	// คือไม่คิดสถานะใกล้หมดอายุ/หมดอายุ และไม่เด้งแจ้งเตือนอีกต่อไป
 	Completed   bool `gorm:"index;not null;default:false"`
 	CompletedBy string `gorm:"size:100"`
 	CompletedAt *time.Time

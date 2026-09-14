@@ -23,14 +23,11 @@ func GetMFGAssemblies(c *gin.Context) {
 	for i := range rows {
 		rows[i].Item = strconv.Itoa(i + 1)
 
-		// แถวที่สแกนด้วยรหัสรูปแบบเก่าที่ถูกยกเลิกแล้ว: คงรหัสเดิมที่สแกนไว้ไม่แปลงเป็นรูปแบบใหม่
-		// (เพื่อให้เห็นว่าสแกนอะไรผิดมา) เหมือนฝั่ง WH และไม่นำไปคำนวณแผน/ตรวจซ้ำร่วมกับแถวประกอบจริง
 		if strings.EqualFold(strings.TrimSpace(rows[i].Status), models.MFGStatusRetiredFormat) {
 			rows[i].Status = models.MFGStatusRetiredFormat
 			continue
 		}
 
-		// แสดงรหัสเป็นรูปแบบที่ใช้อยู่ตอนนี้ (ไม่แตะข้อมูลในฐานข้อมูล)
 		rows[i].MachineNo = CurrentCodeOf(rows[i].MachineNo)
 		rows[i].ITControllerNo = CurrentCodeOf(rows[i].ITControllerNo)
 
@@ -61,8 +58,6 @@ func GetMFGAssemblies(c *gin.Context) {
 			seenPair[key] = true
 		}
 
-		// แถวที่ถูกบันทึกไว้เป็น "สแกนซ้ำ" ต้องคงสถานะ DUPLICATE เสมอ
-		// ไม่ให้ถูกคำนวณกลับเป็น MATCHED/NOT_MATCHED จนตารางไม่ตรงกับที่แจ้งตอนสแกน
 		if strings.EqualFold(strings.TrimSpace(rows[i].Status), models.MFGStatusDuplicate) {
 			rows[i].Status = models.MFGStatusDuplicate
 			continue
@@ -138,8 +133,6 @@ func findMFGRowForPair(machineNo, itcNo string) *models.MFGAssembly {
 		return nil
 	}
 
-	// ข้ามแถวที่เป็น "log การสแกนซ้ำ" หรือ "log รหัสรูปแบบเก่าที่ถูกยกเลิก"
-	// เพื่อให้การสแกนรอบถัดไปกลับไปแก้แถวประกอบจริงเสมอ ไม่ใช่ไปทับแถว log พวกนี้
 	var row models.MFGAssembly
 	err := config.DB.Where("machine_no IN ? AND no IN ? AND status NOT IN ?",
 		CodeVariants(machineNo), CodeVariants(itcNo),
@@ -235,7 +228,6 @@ func findWHPartCheck(component, serial string) *models.PartCheck {
 	}
 	component = strings.ToUpper(strings.TrimSpace(component))
 
-	// ค้นทุกรูปแบบของรหัสเดียวกัน เผื่อแถว WH ถูกบันทึกไว้ก่อนเปลี่ยน format
 	v := CodeVariants(serial)
 	q := config.DB.Model(&models.PartCheck{}).
 		Where("match_status = ?", models.MatchStatusMatch).
@@ -385,9 +377,6 @@ func ScanMFGAssembly(c *gin.Context) {
 		return
 	}
 
-	// รหัสที่ถูกแทนที่ด้วยรูปแบบใหม่ใน Change Format Part แล้ว ถือว่าเลิกใช้
-	// ต้องบันทึกเป็นแถว log ไว้ด้วย (เหมือนฝั่ง WH) ไม่งั้นตาราง Matching Assembly
-	// จะไม่มีประวัติการสแกนครั้งนี้เลยแม้จะแจ้ง error ไปแล้วก็ตาม
 	if msg, blocked := retiredScanMessage(machineNo, itcNo); blocked {
 		userID, name := lookupUserName(c)
 		now := time.Now()
@@ -431,8 +420,6 @@ func ScanMFGAssembly(c *gin.Context) {
 	resolver := newMFGPlanResolver()
 	plan := resolver.evaluateComponent(machineNo, itcNo, req.PartType)
 
-	// ใช้รหัสที่แปลงตาม Change Format Part แล้วเป็นค่าที่บันทึกและใช้ค้นหาทั้งหมด
-	// เก็บเป็น "รูปแบบที่ใช้อยู่ตอนนี้" ให้ตรงกับที่ฝั่ง WH เก็บ ตารางทั้งสองฝั่งจึงแสดงรหัสใหม่
 	if v := strings.TrimSpace(plan.ScannedITC); v != "" {
 		itcNo = CurrentCodeOf(v)
 	}
@@ -444,9 +431,6 @@ func ScanMFGAssembly(c *gin.Context) {
 	existing := findMFGRowForPair(machineNo, itcNo)
 
 	if existing != nil && existing.Status == models.MFGStatusMatched {
-		// สแกนซ้ำคู่ที่ประกอบยืนยันไปแล้ว: แถวเดิมต้องคง MATCHED ไว้
-		// แต่ต้องบันทึกการสแกนรอบนี้เป็นแถว DUPLICATE ให้ขึ้นในตารางด้วย
-		// (เหมือนฝั่ง WH ที่ทุกครั้งที่สแกนจะมีแถวประวัติเสมอ)
 		component := strings.TrimSpace(existing.Component)
 		if component == "" {
 			component = plan.Component
@@ -618,7 +602,6 @@ func CreateMFGAssembly(c *gin.Context) {
 	resolver := newMFGPlanResolver()
 	plan := resolver.evaluate(machineNo, itcNo)
 
-	// บันทึกค่าเดิมที่แปลงตาม Change Format Part แล้ว ให้ตรงกับที่ฝั่ง WH เก็บไว้
 	if v := strings.TrimSpace(plan.ScannedITC); v != "" {
 		itcNo = v
 	}

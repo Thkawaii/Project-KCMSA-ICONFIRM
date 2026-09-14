@@ -1,4 +1,3 @@
-// Package jobs รวมงานเบื้องหลังที่ระบบทำเองตามเวลา
 package jobs
 
 import (
@@ -12,21 +11,10 @@ import (
 	"iconfirm/models"
 )
 
-// checkInterval ความถี่ที่วนมาดูว่าถึงรอบส่งหรือยัง
-//
-// ตรวจทุก 1 นาทีก็เพียงพอ เพราะรอบส่งเป็นรายสัปดาห์
-// และการเช็คแต่ละครั้งแทบไม่กินอะไรเลย (แค่เทียบเวลา + นับแถวในตารางประวัติ)
 const checkInterval = time.Minute
 
-// StartWeeklyAlertScheduler เปิดตัวจับเวลาส่งอีเมลแจ้งเตือนใบอนุญาตรายสัปดาห์
-//
-// ทำงานเป็น goroutine เบื้องหลัง ไม่บล็อกการเปิดเซิร์ฟเวอร์
-// กันส่งซ้ำด้วย WeekKey ในตาราง weekly_alert_logs — ต่อให้รีสตาร์ท backend
-// กี่รอบในสัปดาห์เดียวกัน อีเมลรอบอัตโนมัติก็จะออกแค่ฉบับเดียว
 func StartWeeklyAlertScheduler() {
 	w := mailer.LoadWeeklyConfig()
-	// ใช้ LoadEffectiveMailConfig แทน mailer.LoadConfig ตรง ๆ เพื่อให้ log ตอนเปิดเซิร์ฟเวอร์
-	// แสดงผู้รับจริงที่จะใช้ส่ง (รวมรายชื่อที่ตั้งไว้จากหน้า Admin ด้วย)
 	cfg := controllers.LoadEffectiveMailConfig()
 
 	if !w.Enabled {
@@ -40,8 +28,6 @@ func StartWeeklyAlertScheduler() {
 		log.Printf("[weekly-alert]     อยากเห็นเมลที่ระบบเขียนก่อนโดยไม่ต้องมีบัญชีเมล ให้ตั้ง MAIL_PROVIDER=file")
 	}
 
-	// ระบบเขียนจดหมายเองได้ แต่การ "ส่ง" ต้องผ่านเซิร์ฟเวอร์เมลเสมอ
-	// จุดนี้เตือนไว้เพราะเป็นสาเหตุที่เมลไม่ออกบ่อยที่สุด
 	if cfg.Provider == mailer.ProviderSMTP && cfg.SMTPUsername == "" {
 		log.Printf("[weekly-alert] หมายเหตุ: ไม่ได้ตั้ง SMTP_USERNAME — จะส่งแบบไม่ล็อกอิน")
 		log.Printf("[weekly-alert]           ใช้ได้เฉพาะ SMTP relay ภายในองค์กรที่อนุญาตให้เครื่องนี้ส่งได้")
@@ -56,28 +42,18 @@ func StartWeeklyAlertScheduler() {
 		ticker := time.NewTicker(checkInterval)
 		defer ticker.Stop()
 
-		// เปิดเซิร์ฟเวอร์แล้วส่งทันที 1 ฉบับ ถ้าสัปดาห์นี้ยังไม่ได้ส่ง
-		// (WEEKLY_ALERT_SEND_ON_START) — ไม่ต้องรอถึงเช้าวันจันทร์
 		if w.SendOnStart {
 			sendNowIfNotSentThisWeek(w)
 		}
 
-		// เช็ครอบแรกทันทีที่เปิดเซิร์ฟเวอร์ เผื่อเครื่องดับคร่อมเวลาส่งพอดี
 		runIfDue(w)
 
 		for range ticker.C {
-			// อ่านค่าตั้งใหม่ทุกครั้ง เผื่อมีการแก้ .env แล้วรีโหลด environment
 			runIfDue(mailer.LoadWeeklyConfig())
 		}
 	}()
 }
 
-// sendNowIfNotSentThisWeek เขียนรายงานจากข้อมูลจริง ณ ตอนนั้น แล้วส่งออกทันที 1 ฉบับ
-//
-// ใช้ตอนเปิดเซิร์ฟเวอร์ เพื่อให้ผู้รับได้อีเมลสถานะล่าสุดโดยไม่ต้องรอถึงวันจันทร์
-//
-// นับเป็นการส่งแบบ AUTO และบันทึก WeekKey ลงตาราง weekly_alert_logs
-// จึงยังคุมได้ว่า "สัปดาห์ละ 1 ฉบับ" — รีสตาร์ท backend กี่รอบในสัปดาห์เดียวกันก็ไม่ส่งซ้ำ
 func sendNowIfNotSentThisWeek(w mailer.WeeklyConfig) {
 	loc := w.Location
 	if loc == nil {
@@ -119,7 +95,6 @@ func sendNowIfNotSentThisWeek(w mailer.WeeklyConfig) {
 	log.Printf("[weekly-alert] ✅ ส่งอีเมลรอบ %s เรียบร้อย (%d รายการ)", weekKey, count)
 }
 
-// dueTimeOfWeek เวลาที่ต้องส่งของสัปดาห์ที่ now อยู่
 func dueTimeOfWeek(w mailer.WeeklyConfig, now time.Time) time.Time {
 	loc := w.Location
 	if loc == nil {
@@ -128,13 +103,12 @@ func dueTimeOfWeek(w mailer.WeeklyConfig, now time.Time) time.Time {
 	now = now.In(loc)
 
 	monday, _ := mailer.WeekBounds(now)
-	offset := (int(w.Weekday) + 6) % 7 // จันทร์ = 0 ... อาทิตย์ = 6
+	offset := (int(w.Weekday) + 6) % 7
 	day := monday.AddDate(0, 0, offset)
 
 	return time.Date(day.Year(), day.Month(), day.Day(), w.Hour, w.Minute, 0, 0, loc)
 }
 
-// runIfDue ส่งอีเมลถ้าถึงเวลาแล้วและสัปดาห์นี้ยังไม่ได้ส่ง
 func runIfDue(w mailer.WeeklyConfig) {
 	if !w.Enabled {
 		return
@@ -151,8 +125,6 @@ func runIfDue(w mailer.WeeklyConfig) {
 		return
 	}
 
-	// ปิด catch-up ไว้ = ส่งเฉพาะช่วง 2 ชั่วโมงหลังเวลานัดเท่านั้น
-	// ถ้าเซิร์ฟเวอร์ดับข้ามช่วงนี้ไปก็ข้ามสัปดาห์นั้นเลย ไม่ส่งย้อนหลัง
 	if !w.CatchUp && now.Sub(due) > 2*time.Hour {
 		return
 	}

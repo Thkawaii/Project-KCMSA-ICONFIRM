@@ -14,10 +14,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// ---------------------------------------------------------------------------
-// ตัวช่วยอ่านข้อมูลดิบจากตาราง upload_data_rows
-// ---------------------------------------------------------------------------
-
 func loadUploadRows(dataset string) []map[string]string {
 	var rows []models.UploadDataRow
 	config.DB.Where("dataset = ?", dataset).Order("id asc").Find(&rows)
@@ -120,11 +116,6 @@ func orderKeysFromRow(m map[string]string) []string {
 	return dedupStrings(keys)
 }
 
-// ---------------------------------------------------------------------------
-// Machine Index — รวมข้อมูลจาก ALL PART (ทะเบียนกลาง), Planning, WH1, WH2, Engine
-// ให้เป็นข้อมูลเครื่องละ 1 ชุด แบบคำนวณสด ๆ (ไม่ต้องมีตาราง Assembly แล้ว)
-// ---------------------------------------------------------------------------
-
 type machineIndexStore struct {
 	mu   sync.Mutex
 	db   *gorm.DB
@@ -134,7 +125,6 @@ type machineIndexStore struct {
 
 var machineIndexCache machineIndexStore
 
-// InvalidateMachineIndex ล้างแคชเมื่อมีการแก้ไขข้อมูลต้นทาง
 func InvalidateMachineIndex() {
 	machineIndexCache.mu.Lock()
 	machineIndexCache.db = nil
@@ -160,7 +150,6 @@ func machineIndexSignature() string {
 		udCount, udMaxID, mdCount, ilCount, elCount, mfgCount)
 }
 
-// machineIndex คืนข้อมูลเครื่องทั้งหมด (แคชไว้จนกว่าข้อมูลต้นทางจะเปลี่ยน)
 func machineIndex() map[string]map[string]string {
 	if config.DB == nil {
 		return map[string]map[string]string{}
@@ -218,7 +207,6 @@ func buildMachineIndex() map[string]map[string]string {
 	wh2 := loadUploadRows(models.DatasetWH2)
 	engine := loadUploadRows(models.DatasetEngine)
 
-	// --- Planning: รวมหลายแถวของเครื่องเดียวกันเป็นชุดเดียว (แถวหลังทับแถวหน้า)
 	planningByMachine := map[string]map[string]string{}
 	orderToMachine := map[string]string{}
 
@@ -248,7 +236,6 @@ func buildMachineIndex() map[string]map[string]string {
 		}
 	}
 
-	// LOT NO. ใช้เป็นคีย์สำรอง — ใส่ทีหลังเพื่อไม่ให้ทับคีย์ Order
 	for _, p := range planning {
 		mc := machineFromRow(p)
 		if mc == "" {
@@ -273,7 +260,6 @@ func buildMachineIndex() map[string]map[string]string {
 		return ""
 	}
 
-	// --- WH1
 	wh1ByMachine := map[string]*machineParts{}
 	for _, w := range wh1 {
 		mc := machineOf(w)
@@ -293,7 +279,6 @@ func buildMachineIndex() map[string]map[string]string {
 		setIfEmpty(&cur.warehouse, pickField(w, "Warehouse", "Forwarding Warehouse"))
 	}
 
-	// --- WH2
 	wh2ByMachine := map[string]*machineParts{}
 	for _, w := range wh2 {
 		mc := machineOf(w)
@@ -312,7 +297,6 @@ func buildMachineIndex() map[string]map[string]string {
 		setIfEmpty(&cur.location, pickField(w, "LOCATION"))
 	}
 
-	// --- Engine
 	type engineInfo struct{ engine, history string }
 	engineByMachine := map[string]engineInfo{}
 	for _, e := range engine {
@@ -326,7 +310,6 @@ func buildMachineIndex() map[string]map[string]string {
 		engineByMachine[mc] = cur
 	}
 
-	// --- ALL PART (ทะเบียนกลาง) — ใช้เลข IT Controller เป็นคีย์
 	masterByITC := map[string]models.MasterData{}
 	var masters []models.MasterData
 	config.DB.Find(&masters)
@@ -343,7 +326,6 @@ func buildMachineIndex() map[string]map[string]string {
 		}
 	}
 
-	// --- ใบอนุญาตนำเข้า/ส่งออก + ประวัติ MFG (ใช้เติมประเทศปลายทาง)
 	licCountryByITC := map[string]string{}
 	var licItems []models.ImportLicenseItem
 	config.DB.Find(&licItems)
@@ -385,7 +367,6 @@ func buildMachineIndex() map[string]map[string]string {
 		}
 	}
 
-	// --- รายชื่อเครื่องทั้งหมด (Engine ก่อน แล้วตามด้วย Planning)
 	seen := map[string]bool{}
 	ordered := make([]string, 0, len(planningByMachine)+len(engineByMachine))
 	addMachine := func(mc string) {
@@ -427,7 +408,6 @@ func buildMachineIndex() map[string]map[string]string {
 
 		itcNo := planITC
 
-		// เลข IT Controller สำรอง + ประเทศ (ใช้เฉพาะตอนหาประเทศปลายทาง)
 		guessedITC := ""
 		if looks12Digit(planITC) {
 			guessedITC = planITC
@@ -461,7 +441,6 @@ func buildMachineIndex() map[string]map[string]string {
 			country = deriveCountry
 		}
 
-		// --- Assembly Parts: WH1 → Planning → WH2
 		partsNo, partsName := "", ""
 		if w := wh1ByMachine[mc]; w != nil {
 			partsNo, partsName = w.no, w.name
@@ -509,7 +488,6 @@ func buildMachineIndex() map[string]map[string]string {
 			}
 		}
 
-		// --- Engine
 		if e, ok := engineByMachine[mc]; ok {
 			if e.engine != "" {
 				rec["ENGINE"] = e.engine
@@ -519,7 +497,6 @@ func buildMachineIndex() map[string]map[string]string {
 			}
 		}
 
-		// --- ALL PART (ทะเบียนกลาง)
 		if m, ok := masterByITC[itcNo]; ok {
 			if v := strings.TrimSpace(m.PartNo); v != "" {
 				rec["IT Controller Part No"] = v
@@ -543,7 +520,6 @@ func buildMachineIndex() map[string]map[string]string {
 			}
 		}
 
-		// --- คีย์มาตรฐาน (เดิมอยู่ในตาราง Assembly)
 		rec["Machine No"] = mc
 		if strings.TrimSpace(rec["Machine"]) == "" {
 			rec["Machine"] = mc
@@ -566,10 +542,6 @@ func buildMachineIndex() map[string]map[string]string {
 
 	return out
 }
-
-// ---------------------------------------------------------------------------
-// API: รายละเอียดเครื่องสำหรับหน้า WH / MFG / LOG
-// ---------------------------------------------------------------------------
 
 type MachinePlanRow struct {
 	MachineNo      string `json:"machineNo"`
@@ -653,8 +625,6 @@ func machinePlanRowOf(machineNo string, rec map[string]string) MachinePlanRow {
 	}
 }
 
-// GetMachinePlans คืนรายละเอียดเครื่องทุกคัน (รวมจาก ALL PART / Planning / WH1 / WH2 / Engine)
-// ใช้แสดงรายละเอียดในหน้า WH, MFG และ LOG
 func GetMachinePlans(c *gin.Context) {
 	idx := machineIndex()
 

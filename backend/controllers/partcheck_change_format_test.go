@@ -7,7 +7,6 @@ import (
 	"iconfirm/models"
 )
 
-// seedCodeAlias เพิ่มแถว Change Format Part (New → Old) แบบตรง ๆ ลงฐานข้อมูลทดสอบ
 func seedCodeAlias(t *testing.T, kind, newCode, oldCode string) {
 	t.Helper()
 	a := models.CodeAlias{
@@ -21,8 +20,6 @@ func seedCodeAlias(t *testing.T, kind, newCode, oldCode string) {
 	}
 }
 
-// หน้างานเปลี่ยนรูปแบบ P/N ของ IT Controller (YN22E00849FA → YN22E00849FA-jcc)
-// แล้วแอดมินตั้งค่าไว้ในหน้า Change Format Part — การสแกนต้องผ่าน ไม่ใช่ "ข้อมูลไม่ตรง"
 func TestScanITCWithChangedPNFormat(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
@@ -42,7 +39,6 @@ func TestScanITCWithChangedPNFormat(t *testing.T) {
 	}
 }
 
-// เปลี่ยนรูปแบบ S/N ของ IT Controller
 func TestScanITCWithChangedSNFormat(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
@@ -62,7 +58,6 @@ func TestScanITCWithChangedSNFormat(t *testing.T) {
 	}
 }
 
-// เปลี่ยนทั้ง P/N และ S/N พร้อมกัน
 func TestScanITCWithChangedPNAndSNFormat(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
@@ -83,7 +78,6 @@ func TestScanITCWithChangedPNAndSNFormat(t *testing.T) {
 	}
 }
 
-// แถวที่แอดมินไม่ได้ระบุชนิด (kind ว่าง) ต้องยังใช้งานได้
 func TestScanITCWithChangedPNFormatNoKind(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
@@ -103,7 +97,6 @@ func TestScanITCWithChangedPNFormatNoKind(t *testing.T) {
 	}
 }
 
-// P/N ที่ผิดจริง ๆ ต้องยังขึ้น "ข้อมูลไม่ตรง" เหมือนเดิม
 func TestScanITCWrongPNStillFails(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")
@@ -122,7 +115,6 @@ func TestScanITCWrongPNStillFails(t *testing.T) {
 	}
 }
 
-// ชิ้นส่วนตามแผน (SM / PH / MP / CV) ที่เปลี่ยนรูปแบบ S/N
 func TestScanPlanComponentsWithChangedFormat(t *testing.T) {
 	cases := []struct {
 		component string
@@ -157,7 +149,6 @@ func TestScanPlanComponentsWithChangedFormat(t *testing.T) {
 	}
 }
 
-// CW No. เปลี่ยนรูปแบบ — แอดมินอาจบันทึกเป็นชนิด cw หรือ sn ก็ต้องใช้ได้
 func TestScanCWWithChangedFormat(t *testing.T) {
 	for _, kind := range []string{CodeKindCW, CodeKindSN, ""} {
 		t.Run("kind="+kind, func(t *testing.T) {
@@ -180,7 +171,6 @@ func TestScanCWWithChangedFormat(t *testing.T) {
 	}
 }
 
-// Engine สแกนคู่ P/N + S/N — เปลี่ยนรูปแบบทั้งสองช่อง
 func TestScanEngineWithChangedFormat(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "wh@kobelco.com", "wh07", "WH", "WH")

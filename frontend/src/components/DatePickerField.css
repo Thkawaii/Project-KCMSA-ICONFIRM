@@ -23,7 +23,6 @@
   cursor: text;
 }
 
-/* ช่องพิมพ์วันที่ — ไม่มีกรอบของตัวเอง ใช้กรอบของ .dpf-trigger */
 .dpf-input {
   flex: 1 1 auto;
   min-width: 0;
@@ -66,12 +65,9 @@
   box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.16);
 }
 
-/* ข้อความแจ้งพิมพ์ผิด — ลอยใต้ช่อง ไม่ดันเลย์เอาต์ตัวกรองให้ขยับ */
 .dpf-error {
-  position: absolute;
-  z-index: 40;
-  top: calc(100% + 6px);
-  left: 0;
+  position: fixed;
+  z-index: 1000;
   width: max-content;
   max-width: min(320px, calc(100vw - 32px));
   box-sizing: border-box;
@@ -123,10 +119,8 @@
 }
 
 .dpf-pop {
-  position: absolute;
-  z-index: 50;
-  top: calc(100% + 6px);
-  left: 0;
+  position: fixed;
+  z-index: 1000;
   width: 300px;
   max-width: calc(100vw - 32px);
   box-sizing: border-box;
@@ -137,22 +131,10 @@
   padding: 12px;
 }
 
-/* เปิดขึ้นด้านบน เมื่อพื้นที่ใต้ช่องไม่พอ (ช่องอยู่ติดขอบล่างจอ) */
-.dpf-pop.dpf-pop-up {
-  top: auto;
-  bottom: calc(100% + 6px);
-}
-
-/* จอเตี้ยมากจนไม่พอทั้งบนและล่าง — เลื่อนภายในปฏิทินแทนการล้นออกนอกจอ */
 .dpf-pop.dpf-pop-scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-}
-
-.dpf-error.dpf-error-up {
-  top: auto;
-  bottom: calc(100% + 6px);
 }
 
 .dpf-head {
@@ -172,7 +154,6 @@
   gap: 2px;
 }
 
-/* ชื่อเดือน / ปี บนหัวปฏิทิน กดเพื่อกระโดดไปเดือนหรือปีที่ต้องการ */
 .dpf-title-btn {
   display: inline-flex;
   align-items: center;
@@ -198,7 +179,6 @@
   color: #0f8580;
 }
 
-/* ตารางเลือกเดือน (3 × 4) และเลือกปี (4 คอลัมน์ เลื่อนได้) */
 .dpf-cells {
   display: grid;
   gap: 6px;
@@ -333,8 +313,12 @@
   gap: 2px;
 }
 
+.dpf-pop {
+  --dpf-day-base: 38px;
+}
+
 .dpf-day {
-  height: 38px;
+  height: var(--dpf-day-h, var(--dpf-day-base));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -371,7 +355,6 @@
   cursor: not-allowed;
 }
 
-/* จอเตี้ย (โน้ตบุ๊กซูม 125%, iPad / Surface แนวนอน) — ย่อความสูงช่องวันให้ปฏิทินพอดีจอมากขึ้น */
 @media (max-height: 820px) {
   .dpf-pop {
     padding: 10px;
@@ -382,8 +365,8 @@
   .dpf-weekday {
     padding: 4px 0;
   }
-  .dpf-day {
-    height: 34px;
+  .dpf-pop {
+    --dpf-day-base: 34px;
   }
   .dpf-cell {
     height: 40px;
@@ -394,10 +377,9 @@
   }
 }
 
-/* จอสัมผัส — ปุ่มวันต้องกดด้วยนิ้วได้ง่าย ไม่เล็กเกินไป */
 @media (pointer: coarse) {
-  .dpf-day {
-    height: 40px;
+  .dpf-pop {
+    --dpf-day-base: 40px;
   }
   .dpf-nav,
   .dpf-title-btn {
@@ -410,7 +392,6 @@
 }
 
 @media (max-width: 720px) {
-  /* 16px กัน iPhone/iPad ซูมหน้าจอเองตอนแตะช่องพิมพ์ */
   .dpf-trigger,
   .dpf-input {
     font-size: 16px;

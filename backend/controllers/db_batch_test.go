@@ -37,7 +37,6 @@ func TestChunkSliceKeepsEveryItemInOrder(t *testing.T) {
 	}
 }
 
-// append ต่อท้ายก้อนแรกต้องไม่ไปทับข้อมูลของก้อนถัดไป
 func TestChunkSliceAppendDoesNotClobberNextChunk(t *testing.T) {
 	list := []int{1, 2, 3, 4}
 	parts := chunkSlice(list, 2)
@@ -47,7 +46,6 @@ func TestChunkSliceAppendDoesNotClobberNextChunk(t *testing.T) {
 	}
 }
 
-// ขนาดก้อน INSERT × จำนวนคอลัมน์ ต้องไม่ชนเพดาน 65,535 พารามิเตอร์ของ PostgreSQL
 func TestInsertBatchStaysUnderPostgresParamLimit(t *testing.T) {
 	const pgMaxParams = 65535
 	const generousColumnCount = 60
@@ -84,7 +82,6 @@ func TestCapProblems(t *testing.T) {
 	}
 }
 
-// ชีตที่ลากเลข Item ยาวเกินข้อมูลจริง ต้องหยุดอ่านที่หางไฟล์ แต่ข้อมูลจริงต้องครบ
 func TestReadSheetAllRowsStopsAtSparseTail(t *testing.T) {
 	xl := excelize.NewFile()
 	defer xl.Close()
@@ -106,7 +103,6 @@ func TestReadSheetAllRowsStopsAtSparseTail(t *testing.T) {
 	for i := 1; i <= 100; i++ {
 		write(i, "M"+strconv.Itoa(i), "S"+strconv.Itoa(i))
 	}
-	// หางไฟล์: มีแต่เลข Item อย่างเดียว ยาวกว่าจุดตัด
 	for i := 101; i <= 100+sheetSparseTailStop+5000; i++ {
 		write(i)
 	}
@@ -126,7 +122,6 @@ func TestReadSheetAllRowsStopsAtSparseTail(t *testing.T) {
 	}
 }
 
-// ไฟล์คอลัมน์เดียวต้องอ่านครบทุกแถว ไม่ถูกตัดหาง
 func TestReadSheetAllRowsKeepsSingleColumnFiles(t *testing.T) {
 	xl := excelize.NewFile()
 	defer xl.Close()
