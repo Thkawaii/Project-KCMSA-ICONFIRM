@@ -21,8 +21,6 @@ func GetMFGAssemblies(c *gin.Context) {
 	seenPair := map[string]bool{}
 
 	for i := range rows {
-		rows[i].Item = strconv.Itoa(i + 1)
-
 		if strings.EqualFold(strings.TrimSpace(rows[i].Status), models.MFGStatusRetiredFormat) {
 			rows[i].Status = models.MFGStatusRetiredFormat
 			continue
@@ -398,9 +396,6 @@ func ScanMFGAssembly(c *gin.Context) {
 			c.JSON(500, gin.H{"message": err.Error()})
 			return
 		}
-		row.Item = strconv.FormatUint(uint64(row.ID), 10)
-		config.DB.Model(&row).Update("item", row.Item)
-
 		CreateAuditLog("MFG_ASSEMBLY", row.ID, "scan_retired_format",
 			machineNo+"/"+models.MFGStatusRetiredFormat, userID, name)
 
@@ -456,9 +451,6 @@ func ScanMFGAssembly(c *gin.Context) {
 			c.JSON(500, gin.H{"message": err.Error()})
 			return
 		}
-		dup.Item = strconv.FormatUint(uint64(dup.ID), 10)
-		config.DB.Model(&dup).Update("item", dup.Item)
-
 		applyMFGPlan(&dup, plan)
 
 		CreateAuditLog("MFG_ASSEMBLY", dup.ID, "scan_repeat",
@@ -501,7 +493,6 @@ func ScanMFGAssembly(c *gin.Context) {
 	if existing != nil {
 
 		row.ID = existing.ID
-		row.Item = existing.Item
 		row.CreatedBy = existing.CreatedBy
 		row.CreatedDatetime = existing.CreatedDatetime
 	}
@@ -521,8 +512,6 @@ func ScanMFGAssembly(c *gin.Context) {
 			c.JSON(500, gin.H{"message": err.Error()})
 			return
 		}
-		row.Item = strconv.FormatUint(uint64(row.ID), 10)
-		config.DB.Model(&row).Update("item", row.Item)
 	}
 
 	applyMFGPlan(&row, plan)
@@ -550,7 +539,6 @@ func ScanMFGAssembly(c *gin.Context) {
 }
 
 type MFGAssemblyRequest struct {
-	Item           string `json:"item"`
 	DateAssembly   string `json:"dateAssembly"`
 	MachineNo      string `json:"machineNo"`
 	ITControllerNo string `json:"itControllerNo"`
@@ -580,13 +568,6 @@ func CreateMFGAssembly(c *gin.Context) {
 	userID, name := lookupUserName(c)
 	now := time.Now()
 
-	item := strings.TrimSpace(req.Item)
-	if item == "" {
-		var count int64
-		config.DB.Model(&models.MFGAssembly{}).Count(&count)
-		item = strconv.FormatInt(count+1, 10)
-	}
-
 	dateAss := parseMFGDate(req.DateAssembly)
 	if dateAss == nil {
 		dateAss = &now
@@ -614,7 +595,6 @@ func CreateMFGAssembly(c *gin.Context) {
 	duplicate := itcUsedOnOtherMachine(machineNo, itcNo, 0)
 
 	row := models.MFGAssembly{
-		Item:            item,
 		DateAssembly:    dateAss,
 		MachineNo:       machineNo,
 		ITControllerNo:  itcNo,
@@ -663,7 +643,6 @@ func UpdateMFGAssembly(c *gin.Context) {
 		return
 	}
 
-	row.Item = strings.TrimSpace(req.Item)
 	row.MachineNo = strings.TrimSpace(req.MachineNo)
 	row.ITControllerNo = strings.TrimSpace(req.ITControllerNo)
 	row.Country = strings.TrimSpace(req.Country)

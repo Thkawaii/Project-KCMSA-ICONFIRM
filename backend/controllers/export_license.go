@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
@@ -55,9 +56,10 @@ var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"วันหมดอายุ": func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
 	"หมดอายุ":    func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
 
-	"item":   func(m *models.ExportLicenseItem, v string) { m.ItemNo = atoiSafe(v) },
-	"itemno": func(m *models.ExportLicenseItem, v string) { m.ItemNo = atoiSafe(v) },
-	"ลำดับ":  func(m *models.ExportLicenseItem, v string) { m.ItemNo = atoiSafe(v) },
+	// Recognised but discarded — see the note in importLicenseColumns.
+	"item":   func(*models.ExportLicenseItem, string) {},
+	"itemno": func(*models.ExportLicenseItem, string) {},
+	"ลำดับ":  func(*models.ExportLicenseItem, string) {},
 
 	"dateassy":     func(m *models.ExportLicenseItem, v string) { m.AssemblyDate = parseLicenseDate(v) },
 	"dateassey":    func(m *models.ExportLicenseItem, v string) { m.AssemblyDate = parseLicenseDate(v) },
@@ -526,37 +528,66 @@ func UploadExportLicense(c *gin.Context) {
 		serials = append(serials, r.SerialNumber)
 	}
 
-	type completedMark struct {
+	type prevMark struct {
+		id          uint
 		completed   bool
 		completedBy string
 		completedAt *time.Time
 	}
-	prevCompleted := map[string]completedMark{}
+	prev := map[string]prevMark{}
 	var prevRows []models.ExportLicenseItem
 	if err := findWhereInChunks(config.DB, "serial_number", serials, &prevRows); err != nil {
 		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
 		return
 	}
 	for _, r := range prevRows {
-		if r.Completed {
-			prevCompleted[r.SerialNumber] = completedMark{true, r.CompletedBy, r.CompletedAt}
+		prev[r.SerialNumber] = prevMark{
+			id:          r.ID,
+			completed:   r.Completed,
+			completedBy: r.CompletedBy,
+			completedAt: r.CompletedAt,
 		}
 	}
+
+	// Rows that already exist keep their original id, so re-uploading the same
+	// file overwrites rows 1,2,3 instead of appending 4,5,6.
+	var (
+		toUpdate []models.ExportLicenseItem
+		toCreate []models.ExportLicenseItem
+	)
 	for i := range parsed {
-		if mark, ok := prevCompleted[parsed[i].SerialNumber]; ok {
+		mark, ok := prev[parsed[i].SerialNumber]
+		if !ok {
+			toCreate = append(toCreate, parsed[i])
+			continue
+		}
+		parsed[i].ID = mark.id
+		if mark.completed {
 			parsed[i].Completed = mark.completed
 			parsed[i].CompletedBy = mark.completedBy
 			parsed[i].CompletedAt = mark.completedAt
 		}
+		toUpdate = append(toUpdate, parsed[i])
+	}
+
+	updatable := []string{
+		"assembly_date", "machine_no", "it_controller_no", "country",
+		"invoice_no", "invoice_date", "export_entry", "import_license_no",
+		"export_license_no", "exception_license", "issue_date", "expire_date",
+		"remark", "extra_json", "file_name", "upload_date", "user_id",
 	}
 
 	err = config.DB.Transaction(func(tx *gorm.DB) error {
-		for _, part := range chunkSlice(serials, dbInListChunk) {
-			if err := tx.Where("serial_number IN ?", part).Delete(&models.ExportLicenseItem{}).Error; err != nil {
+		overwrite := clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns(updatable),
+		}
+		for _, part := range chunkSlice(toUpdate, dbInsertBatch) {
+			if err := tx.Clauses(overwrite).Create(&part).Error; err != nil {
 				return err
 			}
 		}
-		for _, part := range chunkSlice(parsed, dbInsertBatch) {
+		for _, part := range chunkSlice(toCreate, dbInsertBatch) {
 			if err := tx.Create(&part).Error; err != nil {
 				return err
 			}
@@ -568,10 +599,16 @@ func UploadExportLicense(c *gin.Context) {
 		return
 	}
 
+	// The overwrite path inserts explicit ids, which leaves the Postgres
+	// sequence behind the max id. Nudge it forward so the next brand-new row
+	// does not collide.
+	SyncIdentityToMax(config.DB, &models.ExportLicenseItem{})
+
 	CreateAuditLog("EXPORT_LICENSE", 0, "upload_excel", fileName, userID, userName)
 
 	c.JSON(201, gin.H{
-		"imported": len(parsed),
+		"imported": len(toCreate),
+		"updated":  len(toUpdate),
 		"skipped":  skipped,
 		"problems": capProblems(problems),
 		"file":     fileName,
@@ -945,6 +982,7 @@ func ClearExportLicense(c *gin.Context) {
 			c.JSON(500, gin.H{"message": res.Error.Error()})
 			return
 		}
+		ResetIdentityIfEmpty(config.DB, &models.ExportLicenseItem{})
 		CreateAuditLog("EXPORT_LICENSE", 0, "clear_all", "", userID, userName)
 		c.JSON(200, gin.H{"deleted": res.RowsAffected})
 		return
@@ -961,6 +999,7 @@ func ClearExportLicense(c *gin.Context) {
 		c.JSON(500, gin.H{"message": res.Error.Error()})
 		return
 	}
+	ResetIdentityIfEmpty(config.DB, &models.ExportLicenseItem{})
 	CreateAuditLog("EXPORT_LICENSE", 0, "clear_license", licenseNo, userID, userName)
 	c.JSON(200, gin.H{"deleted": res.RowsAffected})
 }

@@ -55,7 +55,6 @@ const STATUS_OPTIONS = [{
   label: 'DUPLICATE — ซ้ำ'
 }];
 const EMPTY_FORM = {
-  item: '',
   dateAssembly: '',
   machineNo: '',
   itControllerNo: '',
@@ -358,7 +357,6 @@ export default function MFGAssemblyPage() {
   function openEdit(row) {
     setEditId(row.ID);
     setForm({
-      item: row.Item || '',
       dateAssembly: toDateInput(row.DateAssembly),
       machineNo: row.MachineNo || '',
       itControllerNo: row.ITControllerNo || '',
@@ -421,7 +419,7 @@ export default function MFGAssemblyPage() {
     }
     const term = search.trim().toLowerCase();
     if (term) {
-      list = list.filter(r => (r.Item || '').toLowerCase().includes(term) || (r.MachineNo || '').toLowerCase().includes(term) || (r.ITControllerNo || '').toLowerCase().includes(term) || (r.Country || '').toLowerCase().includes(term) || (r.Status || '').toLowerCase().includes(term));
+      list = list.filter(r => String(r.ID).includes(term) || (r.MachineNo || '').toLowerCase().includes(term) || (r.ITControllerNo || '').toLowerCase().includes(term) || (r.Country || '').toLowerCase().includes(term) || (r.Status || '').toLowerCase().includes(term));
     }
     return [...list].sort((a, b) => {
       const ta = a.CheckDate ? new Date(a.CheckDate).getTime() : -Infinity;
@@ -513,8 +511,7 @@ export default function MFGAssemblyPage() {
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
-            {!loading && paged.map((a, idx) => {
-            const rowNo = (page - 1) * pageSize + idx + 1;
+            {!loading && paged.map(a => {
             const meta = STATUS_META[a.Status] || {
               label: a.Status || '—',
               cls: 'il-badge il-badge-muted'
@@ -523,7 +520,7 @@ export default function MFGAssemblyPage() {
             const asmTitle = asm ? [asm.specCode && `Spec Code: ${asm.specCode}`, asm.specDetail && `Specification: ${asm.specDetail}`, asm.partsNumber && `Assembly Parts No.: ${asm.partsNumber}`, asm.itDevice && `IT device: ${asm.itDevice}`, asm.country && `ประเทศ: ${asm.country}`].filter(Boolean).join('\n') : '';
             return <tr key={a.ID}>
                     <td className="wh-cell-head" data-label="Item">
-                      <strong>{rowNo}</strong>
+                      <strong>{a.ID}</strong>
                     </td>
                     <td data-label="Date Ass'y">{fmtDate(a.DateAssembly)}</td>
                     <td className="il-mono" data-label="Machine No">
@@ -617,9 +614,6 @@ export default function MFGAssemblyPage() {
       {modalOpen && <div className="wh-modal-overlay" onClick={closeModal}>
           <div className="wh-modal" onClick={e => e.stopPropagation()}>
             <h3 className="wh-modal-title">{editId ? 'แก้ไขรายการ' : 'เพิ่มรายการ'}</h3>
-
-            <label className="wh-modal-label">Item</label>
-            <input className="wh-modal-input" value={form.item} onChange={e => setField('item', e.target.value)} placeholder="ลำดับ/รหัสรายการ (เว้นว่างให้ระบบใส่ลำดับถัดไป)" />
 
             <label className="wh-modal-label">Date Ass'y</label>
             <input className="wh-modal-input" type="date" value={form.dateAssembly} onChange={e => setField('dateAssembly', e.target.value)} />

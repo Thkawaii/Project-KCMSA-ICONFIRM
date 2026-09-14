@@ -6,9 +6,9 @@ import (
 )
 
 type ExportLicenseItem struct {
+	// ID is the only row number this table has; the old item_no column was a
+	// duplicate of it parsed from the uploaded file.
 	ID uint `gorm:"primaryKey"`
-
-	ItemNo int `gorm:"column:item_no;index"`
 
 	AssemblyDate *time.Time `gorm:"column:assembly_date"`
 

@@ -934,6 +934,7 @@ func ClearUploadData(c *gin.Context) {
 	}
 
 	userID, userName := lookupUserName(c)
+	ResetIdentityIfEmpty(config.DB, &models.UploadDataRow{})
 	InvalidateMachineIndex()
 	CreateAuditLog("UPLOAD_DATA", 0, "clear_"+dataset, dataset, userID, userName)
 

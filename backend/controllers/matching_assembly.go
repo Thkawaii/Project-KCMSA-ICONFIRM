@@ -19,7 +19,6 @@ func GetMatchingAssemblies(c *gin.Context) {
 }
 
 type MatchingAssemblyRequest struct {
-	Item              string `json:"item"`
 	MachineNo         string `json:"machineNo"`
 	ITControllerSN    string `json:"itControllerSN"`
 	Country           string `json:"country"`
@@ -39,15 +38,7 @@ func CreateMatchingAssembly(c *gin.Context) {
 	userID, name := lookupUserName(c)
 	now := time.Now()
 
-	item := strings.TrimSpace(req.Item)
-	if item == "" {
-		var count int64
-		config.DB.Model(&models.MatchingAssembly{}).Count(&count)
-		item = strconv.FormatInt(count+1, 10)
-	}
-
 	row := models.MatchingAssembly{
-		Item:              item,
 		MachineNo:         strings.TrimSpace(req.MachineNo),
 		ITControllerSN:    strings.TrimSpace(req.ITControllerSN),
 		Country:           strings.TrimSpace(req.Country),
@@ -90,7 +81,6 @@ func UpdateMatchingAssembly(c *gin.Context) {
 	}
 
 	updates := map[string]interface{}{
-		"item":                strings.TrimSpace(req.Item),
 		"machine_no":          strings.TrimSpace(req.MachineNo),
 		"it_controller_sn":    strings.TrimSpace(req.ITControllerSN),
 		"country":             strings.TrimSpace(req.Country),
@@ -167,11 +157,7 @@ func upsertMatchingAssemblyFromScan(machineNo, serialNo, partsNo, partsName, cou
 		return
 	}
 
-	var count int64
-	config.DB.Model(&models.MatchingAssembly{}).Count(&count)
-
 	row := models.MatchingAssembly{
-		Item:              strconv.FormatInt(count+1, 10),
 		MachineNo:         machineNo,
 		ITControllerSN:    serialNo,
 		Country:           country,

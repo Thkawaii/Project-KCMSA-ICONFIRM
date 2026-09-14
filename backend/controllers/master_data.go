@@ -27,7 +27,7 @@ func GetMasterData(c *gin.Context) {
 	componentType := strings.TrimSpace(c.Query("component_type"))
 	code := strings.TrimSpace(c.Query("code"))
 
-	query := config.DB.Order("item_no asc").Order("id asc")
+	query := config.DB.Order("id asc")
 	if componentType != "" {
 		query = query.Where("component_type = ?", componentType)
 	}
@@ -44,7 +44,7 @@ func GetMasterData(c *gin.Context) {
 
 	if code != "" && len(masterData) == 0 {
 		if a := lookupCodeAlias(componentType, code); a != nil {
-			q2 := config.DB.Order("item_no asc").Order("id asc").
+			q2 := config.DB.Order("id asc").
 				Where("serial_no = ?", a.ToOld)
 			if componentType != "" {
 				q2 = q2.Where("component_type = ?", componentType)
@@ -189,7 +189,6 @@ func UpdateMasterData(c *gin.Context) {
 	userID, userName := lookupUserName(c)
 
 	updates := map[string]interface{}{
-		"item_no":           existing.ItemNo,
 		"name":              existing.Name,
 		"component_type":    existing.ComponentType,
 		"model":             existing.Model,
@@ -280,8 +279,9 @@ func trimToNil(v *string) *string {
 }
 
 var masterDataColumns = map[string]func(*models.MasterData, string){
-	"itemno":     func(m *models.MasterData, v string) { m.ItemNo = atoiSafe(v) },
-	"no":         func(m *models.MasterData, v string) { m.ItemNo = atoiSafe(v) },
+	// Recognised but discarded — see the note in importLicenseColumns.
+	"itemno":     func(*models.MasterData, string) {},
+	"no":         func(*models.MasterData, string) {},
 	"partname":   func(m *models.MasterData, v string) { m.Name = v },
 	"name":       func(m *models.MasterData, v string) { m.Name = v },
 	"model":      func(m *models.MasterData, v string) { m.Model = v },
@@ -495,7 +495,6 @@ func UploadMasterData(c *gin.Context) {
 			err := config.DB.Model(&models.MasterData{}).
 				Where("id = ?", old.ID).
 				Updates(map[string]interface{}{
-					"item_no":           row.ItemNo,
 					"name":              row.Name,
 					"component_type":    row.ComponentType,
 					"model":             row.Model,
@@ -692,6 +691,7 @@ func ClearMasterData(c *gin.Context) {
 	if label == "" {
 		label = "ALL"
 	}
+	ResetIdentityIfEmpty(config.DB, &models.MasterData{})
 	InvalidateMachineIndex()
 	CreateAuditLog("MASTER_DATA", 0, "clear", label, userID, userName)
 

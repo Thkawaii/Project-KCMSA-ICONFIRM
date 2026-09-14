@@ -428,10 +428,10 @@ export default function ImportLicensePage() {
     const lotRows = items.filter(r => (r.LicenseNo || '') === licenseNo && (r.InvoiceNo || '') === invoiceNo);
     const sample = lotRows.find(r => r.IssueDate) || lotRows[0];
     const curExp = sample ? computeLicenseExpiry(sample.IssueDate) : null;
-    const curLine = curExp?.hasDate ? `<div class="scan-popup-hint">วันหมดอายุปัจจุบัน: <b>${formatThaiDate(curExp.expiryDate)}</b> (${daysLeftLabel(curExp.daysLeft)})</div>` : '<div class="scan-popup-hint">ยังไม่ได้ระบุวันที่ออกใบอนุญาต — ต่ออายุจะนับวันหมดอายุใหม่จากวันนี้</div>';
+    const curLine = curExp?.hasDate ? `<div class="scan-popup-hint">วันหมดอายุปัจจุบัน: <b>${formatThaiDate(curExp.expiryDate)}</b> (${daysLeftLabel(curExp.daysLeft)})</div>` : '';
     const days = await promptRenewDays({
       title: `ต่ออายุ ${label}`,
-      html: `${curLine}<div class="scan-popup-hint">ระบบจะเลื่อนวันหมดอายุออกไปตามจำนวนวันที่กรอก</div>`,
+      html: curLine,
       defaultDays: 180
     });
     if (!days) return;
@@ -834,7 +834,7 @@ export default function ImportLicensePage() {
                     <SelectCheckbox checked={selected.has(row.ID)} onChange={() => toggleOne(row.ID)} label={`เลือก ${row.MachineNo || 'รายการนี้'}`} />
                   </td>
                   <td className="wh-cell-head" data-label="ลำดับ">
-                    {(page - 1) * pageSize + i + 1}
+                    {row.ID}
                   </td>
                   <td data-label="ตราอักษร">{row.Brand || '—'}</td>
                   <td data-label="แบบ/รุ่น">{row.Model || '—'}</td>
@@ -1585,7 +1585,7 @@ export function WHExportLicensePanel() {
             const done = isLicenseCompleted(r);
             const row = {
               __danger: !done && (exp.status === EXPIRY_STATUS.EXPIRED || exp.leadStatus === LEAD_STATUS.OVERDUE),
-              item: i + 1,
+              item: r.ID,
               assemblyDate: r.AssemblyDate ? formatThaiDate(r.AssemblyDate) : '—',
               issueDate: r.IssueDate ? formatThaiDate(r.IssueDate) : '—',
               expiryDate: exp.hasDate ? formatThaiDate(exp.expiryDate) : '—',
@@ -1664,7 +1664,7 @@ export function WHExportLicensePanel() {
     }
     const days = await promptRenewDays({
       title: `ต่ออายุใบอนุญาตส่งออก ${licenseNo}`,
-      html: '<div class="scan-popup-hint">ระบบจะเลื่อนวันหมดอายุออกไปตามจำนวนวันที่กรอก</div>',
+      html: '',
       defaultDays: 180
     });
     if (!days) return;
@@ -1711,7 +1711,7 @@ export function WHExportLicensePanel() {
     try {
       const r = await uploadExportLicense(file);
       setMsg({
-        success: `นำเข้าสำเร็จ — ${r.imported} แถว, ข้าม ${r.skipped} แถว`
+        success: `นำเข้าสำเร็จ — เพิ่มใหม่ ${r.imported} แถว, อัปเดตของเดิม ${r.updated ?? 0} แถว, ข้าม ${r.skipped} แถว`
       });
       setFile(null);
       setPreviewData(null);
@@ -2223,7 +2223,7 @@ export function WHExportLicensePanel() {
                     <SelectCheckbox checked={selected.has(row.ID)} onChange={() => toggleOne(row.ID)} label={`เลือก ${row.MachineNo || row.SerialNumber || 'รายการนี้'}`} />
                   </td>
                   <td className="wh-cell-head" data-label="Item">
-                    {(page - 1) * pageSize + i + 1}
+                    {row.ID}
                   </td>
                   <td data-label="Date Ass'y">{formatThaiDate(row.AssemblyDate)}</td>
                   <td className="il-mono wh-cell-head" data-label="Machine No">

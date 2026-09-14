@@ -3,9 +3,10 @@ package models
 import "time"
 
 type MasterData struct {
+	// ID is the only row number this table has. The old item_no column held a
+	// second, parallel number parsed from the uploaded file; it drifted out of
+	// sync with ID and nothing read it back.
 	ID uint `gorm:"primaryKey"`
-
-	ItemNo int `gorm:"column:item_no;index"`
 
 	Name string `gorm:"size:150"`
 

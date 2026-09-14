@@ -72,6 +72,8 @@ func ConnectDB() {
 
 	DropLegacyAssemblyDataset()
 
+	DropRedundantItemColumns()
+
 	NormalizeExportLicenseExpiry()
 
 	SeedData()
@@ -172,6 +174,46 @@ func DropLegacyAssemblyDataset() {
 	}
 	if res.RowsAffected > 0 {
 		log.Printf("Removed %d legacy assembly rows from upload_data_rows", res.RowsAffected)
+	}
+}
+
+// DropRedundantItemColumns removes the leftover row-number columns that sat
+// alongside the primary key. Every one of them was a second numbering scheme
+// for the same row: mfg_assemblies.item held a string copy of the id,
+// matching_assemblies.item held "row count + 1" (which repeated as soon as a
+// row was deleted), and the item_no columns held a number parsed from the
+// uploaded spreadsheet that drifted out of sync on every re-upload. The id is
+// now the single row number, shown as "Item" in the UI.
+func DropRedundantItemColumns() {
+	if DB == nil {
+		return
+	}
+
+	columns := []struct{ table, column string }{
+		{"mfg_assemblies", "item"},
+		{"matching_assemblies", "item"},
+		{"import_license_items", "item_no"},
+		{"export_license_items", "item_no"},
+		{"master_data", "item_no"},
+	}
+
+	for _, c := range columns {
+		var count int64
+		if err := DB.Raw(
+			`SELECT COUNT(*) FROM information_schema.columns WHERE table_name = ? AND column_name = ?`,
+			c.table, c.column,
+		).Scan(&count).Error; err != nil {
+			log.Println("check column", c.table+"."+c.column, ":", err)
+			continue
+		}
+		if count == 0 {
+			continue
+		}
+		if err := DB.Exec(`ALTER TABLE ` + c.table + ` DROP COLUMN "` + c.column + `"`).Error; err != nil {
+			log.Println("drop column", c.table+"."+c.column, ":", err)
+			continue
+		}
+		log.Printf("Dropped redundant column %s.%s", c.table, c.column)
 	}
 }
 
