@@ -805,7 +805,13 @@ func PreviewMasterDataChanges(c *gin.Context) {
 	}
 	var existingRows []models.MasterData
 	if len(serials) > 0 {
-		config.DB.Where("serial_no IN ?", serials).Find(&existingRows)
+		// Chunked, and the error is surfaced: an unbounded IN blows past
+		// Postgres' 65535-parameter ceiling on a big file, and a silently
+		// failed lookup would report every row as NEW.
+		if err := findWhereInChunks(config.DB, "serial_no", serials, &existingRows); err != nil {
+			c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+			return
+		}
 	}
 	existing := make(map[string]models.MasterData, len(existingRows))
 	for _, r := range existingRows {
@@ -889,7 +895,7 @@ func PreviewMasterDataChanges(c *gin.Context) {
 		"matched":     matchedCols,
 		"extra":       extraCols,
 		"skipped":     skipped,
-		"problems":    problems,
+		"problems":    capProblems(problems),
 		"summary": gin.H{
 			"total":     len(parsed),
 			"new":       counts["NEW"],

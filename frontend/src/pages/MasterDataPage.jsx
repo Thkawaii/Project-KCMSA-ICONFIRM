@@ -457,8 +457,8 @@ function ITControllerView({
       header: noLabel,
       type: 'text'
     }];
-    const toRows = list => list.map(row => ({
-      itemNo: row.ID,
+    const toRows = list => list.map((row, i) => ({
+      itemNo: i + 1,
       name: row.Name || '',
       model: row.Model || '',
       partNo: row.PartNo || '',

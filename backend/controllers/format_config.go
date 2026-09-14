@@ -779,7 +779,7 @@ func UploadCodeAliases(c *gin.Context) {
 		"imported": imported,
 		"updated":  updated,
 		"skipped":  skipped,
-		"problems": problems,
+		"problems": capProblems(problems),
 		"file":     fileName,
 	})
 }

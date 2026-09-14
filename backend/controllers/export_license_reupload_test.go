@@ -484,3 +484,89 @@ func TestMasterDataBatchFallsBackPerRow(t *testing.T) {
 		t.Error("ต้องรายงานแถวที่ซ้ำใน problems")
 	}
 }
+
+const importLicenseCSV = `Item No.,Brand,Model,License No.,Invoice No.,Machine No.
+1,KOBELCO,SK75-10,E05036901601,TQ60611,A0010000000
+2,KOBELCO,SK75-10,E05036901602,TQ60612,A0020000000
+`
+
+// The workflow the warehouse actually runs: upload a file, scan every row on
+// it, then get a newer copy of the same file with one extra row. The already
+// scanned rows must stay confirmed — nobody should have to scan them twice —
+// and only the appended row should come in unconfirmed.
+func TestImportLicenseReuploadKeepsConfirmedRows(t *testing.T) {
+	db := newTestDB(t)
+	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
+
+	c, rec := csvUploadContext(t, "import.csv", importLicenseCSV, admin.ID, admin.Username)
+	UploadImportLicenseItems(c)
+	if rec.Code != 201 {
+		t.Fatalf("อัปโหลดครั้งแรกไม่สำเร็จ: %d %s", rec.Code, rec.Body.String())
+	}
+
+	// Both rows get scanned and confirmed.
+	confirmedAt := time.Now()
+	if err := db.Model(&models.ImportLicenseItem{}).
+		Where("machine_no IN ?", []string{"A0010000000", "A0020000000"}).
+		Updates(map[string]interface{}{
+			"confirm_status":     models.LicenseItemConfirmed,
+			"confirmed_by":       "WH",
+			"confirmed_datetime": &confirmedAt,
+		}).Error; err != nil {
+		t.Fatalf("confirm rows: %v", err)
+	}
+
+	before := map[string]uint{}
+	var rows []models.ImportLicenseItem
+	if err := db.Order("id asc").Find(&rows).Error; err != nil {
+		t.Fatalf("read rows: %v", err)
+	}
+	for _, r := range rows {
+		before[r.MachineNo] = r.ID
+	}
+
+	// Same file with a third machine appended.
+	grown := importLicenseCSV + "3,KOBELCO,SK75-10,E05036901603,TQ60613,A0030000000\n"
+	c, rec = csvUploadContext(t, "import.csv", grown, admin.ID, admin.Username)
+	UploadImportLicenseItems(c)
+	if rec.Code != 201 {
+		t.Fatalf("อัปโหลดรอบสองไม่สำเร็จ: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rows = nil
+	if err := db.Order("id asc").Find(&rows).Error; err != nil {
+		t.Fatalf("read rows: %v", err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("มี %d แถว ต้องมี 3 แถว", len(rows))
+	}
+
+	byMachine := map[string]models.ImportLicenseItem{}
+	for i, r := range rows {
+		byMachine[r.MachineNo] = r
+		if want := uint(i + 1); r.ID != want {
+			t.Errorf("แถวที่ %d: id = %d ต้องเป็น %d (%s)", i+1, r.ID, want, r.MachineNo)
+		}
+	}
+
+	for _, mc := range []string{"A0010000000", "A0020000000"} {
+		got := byMachine[mc]
+		if got.ID != before[mc] {
+			t.Errorf("%s: id เปลี่ยนจาก %d เป็น %d", mc, before[mc], got.ID)
+		}
+		if got.ConfirmStatus != models.LicenseItemConfirmed {
+			t.Errorf("%s: ต้องยังเป็น CONFIRMED ได้ %q — ต้องสแกนซ้ำโดยไม่จำเป็น", mc, got.ConfirmStatus)
+		}
+		if got.ConfirmedBy != "WH" || got.ConfirmedDatetime == nil {
+			t.Errorf("%s: ข้อมูลคนสแกน/เวลาสแกนหาย (%q, %v)", mc, got.ConfirmedBy, got.ConfirmedDatetime)
+		}
+	}
+
+	fresh := byMachine["A0030000000"]
+	if fresh.ID != 3 {
+		t.Errorf("แถวใหม่: id = %d ต้องเป็น 3", fresh.ID)
+	}
+	if fresh.ConfirmStatus == models.LicenseItemConfirmed {
+		t.Error("แถวใหม่ต้องยังไม่ถูกยืนยัน")
+	}
+}
