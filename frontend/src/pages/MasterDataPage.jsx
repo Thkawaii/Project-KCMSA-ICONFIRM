@@ -758,7 +758,9 @@ function DatasetView({
           return {};
         }
       });
-      const numericByCol = cols.map(label => {
+      const isPlanningExport = dataset === 'planning';
+      const exportCols = isPlanningExport ? cols.filter(label => label !== 'Line') : cols;
+      const numericByCol = exportCols.map(label => {
         let sawValue = false;
         for (const obj of parsed) {
           const raw = obj[label];
@@ -770,21 +772,46 @@ function DatasetView({
         }
         return sawValue;
       });
+      let noNumeric = false;
+      if (isPlanningExport) {
+        let sawValue = false;
+        noNumeric = true;
+        for (const obj of parsed) {
+          const raw = obj['Line'];
+          if (raw == null || String(raw).trim() === '') continue;
+          sawValue = true;
+          const s = String(raw).trim().replace(/,/g, '');
+          if (!/^-?\d+(\.\d+)?$/.test(s)) {
+            noNumeric = false;
+            break;
+          }
+        }
+        noNumeric = sawValue && noNumeric;
+      }
       const columns = [{
         key: '_no',
         header: '#',
-        type: 'number',
+        type: isPlanningExport ? noNumeric ? 'number' : 'text' : 'number',
         width: 6
-      }, ...cols.map((label, i) => ({
+      }, ...exportCols.map((label, i) => ({
         key: `c${i}`,
         header: label,
         type: numericByCol[i] ? 'number' : 'text'
       }))];
       const rows = parsed.map((obj, idx) => {
+        const fallbackNo = idx + 1;
+        let noVal = fallbackNo;
+        if (isPlanningExport) {
+          const raw = obj['Line'];
+          const s = raw == null ? '' : String(raw).trim();
+          if (s !== '') {
+            noVal = noNumeric ? Number(s.replace(/,/g, '')) : s;
+          }
+        }
         const out = {
-          _no: idx + 1
+          _no: noVal
         };
-        cols.forEach((label, i) => {
+        exportCols.forEach((label, i) => {
           const raw = obj[label];
           if (numericByCol[i]) {
             const s = raw == null ? '' : String(raw).trim().replace(/,/g, '');
@@ -817,6 +844,8 @@ function DatasetView({
       return '';
     }
   }
+  const isPlanning = dataset === 'planning';
+  const displayColumns = isPlanning ? columns.filter(c => c !== 'Line') : columns;
   return <>
       {loadError && <p className="form-error" role="alert">
           {loadError}
@@ -854,19 +883,19 @@ function DatasetView({
           <thead>
             <tr>
               <th className="ud-th-sticky">#</th>
-              {columns.map(c => <th key={c}>{c}</th>)}
+              {displayColumns.map(c => <th key={c}>{c}</th>)}
               <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && <tr>
-                <td colSpan={columns.length + 2} className="wh-empty-cell">
+                <td colSpan={displayColumns.length + 2} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
             {!loading && rows.map((row, i) => <tr key={row.ID}>
-                  <td className="ud-td-sticky">{(page - 1) * UD_PAGE_SIZE + i + 1}</td>
-                  {columns.map(c => <td key={c} data-label={c}>
+                  <td className="ud-td-sticky">{isPlanning ? cellValue(row, 'Line') || (page - 1) * UD_PAGE_SIZE + i + 1 : (page - 1) * UD_PAGE_SIZE + i + 1}</td>
+                  {displayColumns.map(c => <td key={c} data-label={c}>
                       {cellValue(row, c) || DASH}
                     </td>)}
                   <td className="wh-cell-action">
@@ -885,7 +914,7 @@ function DatasetView({
                   </td>
                 </tr>)}
             {!loading && rows.length === 0 && <tr>
-                <td colSpan={columns.length + 2} className="wh-empty-cell">
+                <td colSpan={displayColumns.length + 2} className="wh-empty-cell">
                   ยังไม่มีรายการที่อัปโหลด
                 </td>
               </tr>}
