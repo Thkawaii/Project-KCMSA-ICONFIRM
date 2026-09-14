@@ -18,6 +18,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
+	"gorm.io/gorm/clause"
 )
 
 func GetMasterData(c *gin.Context) {
@@ -480,48 +481,100 @@ func UploadMasterData(c *gin.Context) {
 	}
 
 	var existingRows []models.MasterData
-	config.DB.Where("serial_no IN ?", serials).Find(&existingRows)
+	if err := findWhereInChunks(config.DB, "serial_no", serials, &existingRows); err != nil {
+		// Swallowing this used to be dangerous: with no existing rows loaded,
+		// every row in the file looks new, so the update-in-place path is
+		// skipped, ids jump, and the inserts collide with the unique indexes on
+		// it_controller_no and imei.
+		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+		return
+	}
 
 	existing := make(map[string]models.MasterData, len(existingRows))
 	for _, row := range existingRows {
 		existing[row.ComponentType+"|"+row.SerialNo] = row
 	}
 
+	// Split the file into rows that already exist (which keep their id) and
+	// genuinely new ones, so each group can be written in batches instead of
+	// one query per row.
+	var toUpdate, toCreate []models.MasterData
+	for _, row := range parsed {
+		if old, ok := existing[row.ComponentType+"|"+row.SerialNo]; ok {
+			row.ID = old.ID
+			toUpdate = append(toUpdate, row)
+			continue
+		}
+		toCreate = append(toCreate, row)
+	}
+
+	updatable := []string{
+		"name", "component_type", "model", "part_no", "it_controller_no",
+		"imei", "connectivity_type", "extra_json", "upload_date", "user_id",
+	}
+
+	applyOne := func(row models.MasterData) error {
+		return config.DB.Model(&models.MasterData{}).
+			Where("id = ?", row.ID).
+			Updates(map[string]interface{}{
+				"name":              row.Name,
+				"component_type":    row.ComponentType,
+				"model":             row.Model,
+				"part_no":           row.PartNo,
+				"it_controller_no":  row.ITControllerNo,
+				"imei":              row.IMEI,
+				"connectivity_type": row.ConnectivityType,
+				"extra_json":        row.ExtraJSON,
+				"upload_date":       now,
+				"user_id":           userID,
+			}).Error
+	}
+
 	var imported, updated int
 
-	for _, row := range parsed {
-
-		if old, ok := existing[row.ComponentType+"|"+row.SerialNo]; ok {
-			err := config.DB.Model(&models.MasterData{}).
-				Where("id = ?", old.ID).
-				Updates(map[string]interface{}{
-					"name":              row.Name,
-					"component_type":    row.ComponentType,
-					"model":             row.Model,
-					"part_no":           row.PartNo,
-					"it_controller_no":  row.ITControllerNo,
-					"imei":              row.IMEI,
-					"connectivity_type": row.ConnectivityType,
-					"extra_json":        row.ExtraJSON,
-					"upload_date":       now,
-					"user_id":           userID,
-				}).Error
-
-			if err != nil {
+	// serial_no is not unique in this table, so the overwrite keys on the
+	// primary key we just looked up rather than on the business key.
+	overwrite := clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns(updatable),
+	}
+	for _, part := range chunkSlice(toUpdate, dbInsertBatch) {
+		if err := config.DB.Clauses(overwrite).Create(&part).Error; err == nil {
+			updated += len(part)
+			continue
+		}
+		// A batch dies whole, and a single duplicate it_controller_no or imei
+		// inside the file is enough to kill it. Retry row by row so the rest of
+		// the file still lands and the bad rows are named individually.
+		for _, row := range part {
+			if err := applyOne(row); err != nil {
 				problems = append(problems, "Serial "+row.SerialNo+": อัปเดตไม่สำเร็จ ("+err.Error()+")")
 				continue
 			}
-
 			updated++
+		}
+	}
+
+	// The pass above inserts explicit ids, which bypasses the sequence. Push it
+	// past the current max before the new rows draw from it.
+	if len(toUpdate) > 0 {
+		SyncIdentityToMax(config.DB, &models.MasterData{})
+	}
+
+	for _, part := range chunkSlice(toCreate, dbInsertBatch) {
+		if err := config.DB.Create(&part).Error; err == nil {
+			imported += len(part)
 			continue
 		}
-
-		if err := config.DB.Create(&row).Error; err != nil {
-			problems = append(problems, "Serial "+row.SerialNo+": เพิ่มไม่สำเร็จ ("+err.Error()+")")
-			continue
+		for i := range part {
+			row := part[i]
+			row.ID = 0
+			if err := config.DB.Create(&row).Error; err != nil {
+				problems = append(problems, "Serial "+row.SerialNo+": เพิ่มไม่สำเร็จ ("+err.Error()+")")
+				continue
+			}
+			imported++
 		}
-
-		imported++
 	}
 
 	InvalidateMachineIndex()
@@ -531,7 +584,7 @@ func UploadMasterData(c *gin.Context) {
 		"imported":     imported,
 		"updated":      updated,
 		"skipped":      skipped,
-		"problems":     problems,
+		"problems":     capProblems(problems),
 		"extraColumns": extraColumns,
 		"file":         fileHeader.Filename,
 	})
