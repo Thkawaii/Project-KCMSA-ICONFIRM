@@ -104,7 +104,6 @@ export async function promptRenewExport({
       <select id="ren-lic" class="swal2-input">${opts}</select>
       <input id="ren-days" type="number" class="swal2-input" value="${defaultDays}"
              min="1" max="3650" step="1" placeholder="จำนวนวันที่ต่อ เช่น 180" />
-      <div class="scan-popup-hint">ระบบจะเลื่อนวันหมดอายุออกไปตามจำนวนวันที่กรอก</div>
     `,
     showCancelButton: true,
     confirmButtonText: 'ต่ออายุ',

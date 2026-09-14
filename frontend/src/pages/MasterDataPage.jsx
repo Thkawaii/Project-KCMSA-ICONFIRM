@@ -457,8 +457,8 @@ function ITControllerView({
       header: noLabel,
       type: 'text'
     }];
-    const toRows = list => list.map((row, i) => ({
-      itemNo: i + 1,
+    const toRows = list => list.map(row => ({
+      itemNo: row.ID,
       name: row.Name || '',
       model: row.Model || '',
       partNo: row.PartNo || '',
@@ -597,7 +597,7 @@ function ITControllerView({
 
             {!loading && filtered.map((row, i) => <tr key={row.ID}>
                   <td className="wh-cell-head" data-label="Item No.">
-                    <strong>{i + 1}</strong>
+                    <strong>{row.ID}</strong>
                   </td>
                   <td data-label="Part Name">{row.Name || DASH}</td>
                   <td data-label="Model">{row.Model || DASH}</td>

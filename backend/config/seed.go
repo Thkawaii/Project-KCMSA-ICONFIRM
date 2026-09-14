@@ -203,7 +203,6 @@ func SeedMasterITController() {
 		imei := r.IMEI
 
 		rows = append(rows, models.MasterData{
-			ItemNo:         r.ItemNo,
 			Name:           r.PartName,
 			ComponentType:  "it_controller",
 			Model:          r.Model,

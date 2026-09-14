@@ -13,7 +13,6 @@ const MATCHING_TABS = [{
   label: 'MC'
 }];
 const EMPTY_FORM = {
-  item: '',
   machineNo: '',
   itControllerSN: '',
   country: '',
@@ -87,7 +86,6 @@ export default function WHMatchingAssemblyPage() {
   function openEdit(row) {
     setEditId(row.ID);
     setForm({
-      item: row.Item || '',
       machineNo: row.MachineNo || '',
       itControllerSN: row.ITControllerSN || '',
       country: row.Country || '',
@@ -150,7 +148,7 @@ export default function WHMatchingAssemblyPage() {
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return rows;
-    return rows.filter(r => (r.Item || '').toLowerCase().includes(term) || (r.MachineNo || '').toLowerCase().includes(term) || (r.ITControllerSN || '').toLowerCase().includes(term) || (r.Country || '').toLowerCase().includes(term) || (r.Classification || '').toLowerCase().includes(term) || (r.AssemblyPartsNo || '').toLowerCase().includes(term) || (r.AssemblyPartsName || '').toLowerCase().includes(term));
+    return rows.filter(r => String(r.ID).includes(term) || (r.MachineNo || '').toLowerCase().includes(term) || (r.ITControllerSN || '').toLowerCase().includes(term) || (r.Country || '').toLowerCase().includes(term) || (r.Classification || '').toLowerCase().includes(term) || (r.AssemblyPartsNo || '').toLowerCase().includes(term) || (r.AssemblyPartsName || '').toLowerCase().includes(term));
   }, [rows, search]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -221,7 +219,7 @@ export default function WHMatchingAssemblyPage() {
               </tr>}
             {!loading && paged.map(a => <tr key={a.ID}>
                   <td className="wh-cell-head" data-label="Item">
-                    <strong>{a.Item || '—'}</strong>
+                    <strong>{a.ID}</strong>
                   </td>
                   <td className="il-mono" data-label="Machine No.">
                     {a.MachineNo || '—'}
@@ -285,9 +283,6 @@ export default function WHMatchingAssemblyPage() {
             <h3 className="wh-modal-title">
               {editId ? 'แก้ไข Matching Assembly' : 'เพิ่ม Matching Assembly'}
             </h3>
-
-            <label className="wh-modal-label">Item</label>
-            <input className="wh-modal-input" value={form.item} onChange={e => setField('item', e.target.value)} placeholder="ลำดับ/รหัสรายการ" />
 
             <label className="wh-modal-label">Machine No.</label>
             <input className="wh-modal-input" value={form.machineNo} onChange={e => setField('machineNo', e.target.value)} placeholder="หมายเลขเครื่อง (IT Controller No.)" />

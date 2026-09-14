@@ -20,9 +20,9 @@ const (
 )
 
 type ImportLicenseItem struct {
+	// ID is the only row number this table has; the old item_no column was a
+	// duplicate of it parsed from the uploaded file.
 	ID uint `gorm:"primaryKey"`
-
-	ItemNo int `gorm:"column:item_no;index"`
 
 	Brand string `gorm:"size:100"`
 	Model string `gorm:"size:50;index"`

@@ -16,9 +16,12 @@ import (
 )
 
 var importLicenseColumns = map[string]func(*models.ImportLicenseItem, string){
-	"ลำดับ":  func(m *models.ImportLicenseItem, v string) { m.ItemNo = atoiSafe(v) },
-	"no":     func(m *models.ImportLicenseItem, v string) { m.ItemNo = atoiSafe(v) },
-	"itemno": func(m *models.ImportLicenseItem, v string) { m.ItemNo = atoiSafe(v) },
+	// The file's running number is recognised but discarded: the row's id is
+	// the only sequence we keep. Leaving these mapped (rather than deleting
+	// them) stops the column being reported as an unknown "extra" column.
+	"ลำดับ":  func(*models.ImportLicenseItem, string) {},
+	"no":     func(*models.ImportLicenseItem, string) {},
+	"itemno": func(*models.ImportLicenseItem, string) {},
 
 	"ตราอักษร": func(m *models.ImportLicenseItem, v string) { m.Brand = v },
 	"brand":    func(m *models.ImportLicenseItem, v string) { m.Brand = v },
@@ -246,7 +249,7 @@ func GetImportLicenseItems(c *gin.Context) {
 
 	var items []models.ImportLicenseItem
 
-	query := config.DB.Order("license_no asc").Order("item_no asc").Order("id asc")
+	query := config.DB.Order("license_no asc").Order("id asc")
 
 	if v := strings.TrimSpace(c.Query("license_no")); v != "" {
 		query = query.Where("license_no = ?", v)
@@ -582,7 +585,6 @@ func UploadImportLicenseItems(c *gin.Context) {
 		return db.Model(&models.ImportLicenseItem{}).
 			Where("id = ?", u.id).
 			Updates(map[string]interface{}{
-				"item_no":        row.ItemNo,
 				"brand":          row.Brand,
 				"model":          row.Model,
 				"license_no":     row.LicenseNo,
@@ -606,7 +608,7 @@ func UploadImportLicenseItems(c *gin.Context) {
 	upsert := clause.OnConflict{
 		Columns: []clause.Column{{Name: "machine_no"}},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"item_no", "brand", "model", "license_no", "invoice_no", "declaration_no",
+			"brand", "model", "license_no", "invoice_no", "declaration_no",
 			"qty", "production_no", "remark", "export_country", "issue_date", "expire_date",
 			"extra_json", "file_name", "upload_date", "user_id",
 		}),
@@ -952,6 +954,7 @@ func ClearImportLicenseItems(c *gin.Context) {
 			c.JSON(500, gin.H{"message": res.Error.Error()})
 			return
 		}
+		ResetIdentityIfEmpty(config.DB, &models.ImportLicenseItem{})
 		CreateAuditLog("IMPORT_LICENSE", 0, "clear_all", "ALL", userID, userName)
 		c.JSON(200, gin.H{"deleted": res.RowsAffected})
 		return
@@ -976,6 +979,7 @@ func ClearImportLicenseItems(c *gin.Context) {
 		return
 	}
 
+	ResetIdentityIfEmpty(config.DB, &models.ImportLicenseItem{})
 	CreateAuditLog("IMPORT_LICENSE", 0, "clear_license",
 		"license_no="+licenseNo+" invoice_no="+invoiceNo, userID, userName)
 
