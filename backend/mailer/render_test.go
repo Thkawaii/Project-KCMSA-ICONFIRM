@@ -54,13 +54,13 @@ func sampleReport() WeeklyReport {
 		},
 		Export: []ExportRow{
 			{
-				ExceptionLicense: "EX-2026-0091", Machines: 5,
+				ExportLicenseNo: "EX-2026-0091", Machines: 5,
 				IssueDate: day(now, -38), ExpiryDate: day(now, -8), DaysLeft: -8,
 				Status:   StatusExpired,
 				LeadDate: day(now, -23), LeadDaysLeft: -23, LeadStatus: LeadOverdue,
 			},
 			{
-				ExceptionLicense: "EX-2026-0133", Machines: 7,
+				ExportLicenseNo: "EX-2026-0133", Machines: 7,
 				IssueDate: day(now, -25), ExpiryDate: day(now, 5), DaysLeft: 5,
 				Status:   StatusExpiring,
 				LeadDate: day(now, -10), LeadDaysLeft: -10, LeadStatus: LeadOverdue,

@@ -44,6 +44,10 @@ func ConnectDB() {
 	RenameCodeAliasColumns()
 	MigrateCodeAliasOldValue()
 
+	// Must run before AutoMigrate: it clears the way for the unique index that
+	// AutoMigrate is about to put on export_license_items.it_controller_no.
+	MergeExportLicenseDuplicateColumns()
+
 	db.AutoMigrate(
 
 		&models.User{},
@@ -214,6 +218,128 @@ func DropRedundantItemColumns() {
 			continue
 		}
 		log.Printf("Dropped redundant column %s.%s", c.table, c.column)
+	}
+}
+
+// MergeExportLicenseDuplicateColumns folds two pairs of duplicate columns in
+// export_license_items down to one column each.
+//
+// serial_number never held anything but the IT Controller serial: when the
+// uploaded file had no serial column the parser copied it_controller_no across,
+// and the UI read the two as "it_controller_no or serial_number" everywhere.
+// it_controller_no now carries the key and gains the unique index.
+//
+// exception_license and export_license_no held the same license number, chosen
+// by which header the file happened to use, so every query had to match either
+// one. export_license_no is now the only slot.
+//
+// This runs before AutoMigrate because AutoMigrate cannot add a unique index to
+// a column that still has blanks or duplicates in it.
+func MergeExportLicenseDuplicateColumns() {
+	if DB == nil {
+		return
+	}
+
+	const table = "export_license_items"
+
+	hasColumn := func(col string) bool {
+		var n int64
+		if err := DB.Raw(
+			`SELECT COUNT(*) FROM information_schema.columns WHERE table_name = ? AND column_name = ?`,
+			table, col,
+		).Scan(&n).Error; err != nil {
+			log.Println("check column", table+"."+col, ":", err)
+			return false
+		}
+		return n > 0
+	}
+
+	// Nothing to do on a fresh database.
+	if !hasColumn("it_controller_no") {
+		return
+	}
+
+	exec := func(what, sql string) int64 {
+		res := DB.Exec(sql)
+		if res.Error != nil {
+			log.Println("export license migration ("+what+"):", res.Error)
+			return 0
+		}
+		return res.RowsAffected
+	}
+
+	if hasColumn("serial_number") {
+		n := exec("backfill it_controller_no", `
+			UPDATE `+table+`
+			SET it_controller_no = serial_number
+			WHERE COALESCE(NULLIF(TRIM(it_controller_no), ''), '') = ''
+			  AND COALESCE(NULLIF(TRIM(serial_number), ''), '') <> ''`)
+		if n > 0 {
+			log.Printf("Export License: เติม it_controller_no จาก serial_number %d แถว", n)
+		}
+	}
+
+	if hasColumn("exception_license") {
+		n := exec("backfill export_license_no", `
+			UPDATE `+table+`
+			SET export_license_no = exception_license
+			WHERE COALESCE(NULLIF(TRIM(export_license_no), ''), '') = ''
+			  AND COALESCE(NULLIF(TRIM(exception_license), ''), '') <> ''`)
+		if n > 0 {
+			log.Printf("Export License: เติม export_license_no จาก exception_license %d แถว", n)
+		}
+	}
+
+	// A row with no key cannot be re-uploaded or matched under the new rules,
+	// and would collide with every other keyless row once the index exists.
+	if n := exec("drop keyless rows", `
+		DELETE FROM `+table+`
+		WHERE COALESCE(NULLIF(TRIM(it_controller_no), ''), '') = ''`); n > 0 {
+		log.Printf("Export License: ลบแถวที่ไม่มี IT Controller S/N %d แถว (นำเข้าใหม่ไม่ได้อยู่แล้ว)", n)
+	}
+
+	// Duplicates predate the unique index. Keep the lowest id — that is the one
+	// the upsert path would have reused — but carry any "completed" mark from
+	// the copies onto it first, so a manual confirmation is never lost.
+	exec("carry completed flag", `
+		UPDATE `+table+` AS keep
+		SET completed = TRUE,
+		    completed_by = COALESCE(NULLIF(keep.completed_by, ''), dup.completed_by),
+		    completed_at = COALESCE(keep.completed_at, dup.completed_at)
+		FROM (
+			SELECT it_controller_no, MIN(id) AS keep_id
+			FROM `+table+`
+			GROUP BY it_controller_no
+			HAVING COUNT(*) > 1
+		) AS g
+		JOIN `+table+` AS dup
+		  ON dup.it_controller_no = g.it_controller_no
+		 AND dup.id <> g.keep_id
+		 AND dup.completed IS TRUE
+		WHERE keep.id = g.keep_id`)
+
+	if n := exec("dedupe it_controller_no", `
+		DELETE FROM `+table+` AS t
+		USING (
+			SELECT it_controller_no, MIN(id) AS keep_id
+			FROM `+table+`
+			GROUP BY it_controller_no
+			HAVING COUNT(*) > 1
+		) AS g
+		WHERE t.it_controller_no = g.it_controller_no
+		  AND t.id <> g.keep_id`); n > 0 {
+		log.Printf("Export License: รวมแถวซ้ำตาม it_controller_no — ลบซ้ำ %d แถว (เก็บ id ต่ำสุดไว้)", n)
+	}
+
+	for _, col := range []string{"serial_number", "exception_license"} {
+		if !hasColumn(col) {
+			continue
+		}
+		if err := DB.Exec(`ALTER TABLE ` + table + ` DROP COLUMN "` + col + `"`).Error; err != nil {
+			log.Println("drop column", table+"."+col, ":", err)
+			continue
+		}
+		log.Printf("Dropped redundant column %s.%s", table, col)
 	}
 }
 

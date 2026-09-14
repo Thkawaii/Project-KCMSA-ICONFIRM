@@ -58,7 +58,7 @@ func alertLead(t *testing.T, rec *httptest.ResponseRecorder) map[string]leadInfo
 	}
 	got := map[string]leadInfo{}
 	for _, r := range rows {
-		name, _ := r["ExceptionLicense"].(string)
+		name, _ := r["ExportLicenseNo"].(string)
 		status, _ := r["LeadStatus"].(string)
 		urgent, _ := r["LeadUrgent"].(bool)
 		got[name] = leadInfo{status, urgent}
@@ -139,7 +139,7 @@ func TestSampleExpiryLicenseFiles(t *testing.T) {
 	if rec.Code != 200 {
 		t.Fatalf("export alerts: %d %s", rec.Code, rec.Body.String())
 	}
-	gotExp := alertStatuses(t, rec, "ExceptionLicense")
+	gotExp := alertStatuses(t, rec, "ExportLicenseNo")
 	gotLead := alertLead(t, rec)
 
 	wantExp := map[string]string{

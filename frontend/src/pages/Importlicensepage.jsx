@@ -1273,7 +1273,7 @@ function ExportTraceModal({
           </span>
           <div>
             <h3 className="wh-modal-title" id="il-export-detail-title">รายละเอียดใบอนุญาตส่งออก</h3>
-            <span className="wh-detail-header-sub">{row.MachineNo || row.SerialNumber || '—'}</span>
+            <span className="wh-detail-header-sub">{row.MachineNo || row.ITControllerNo || '—'}</span>
           </div>
         </div>
 
@@ -1285,7 +1285,7 @@ function ExportTraceModal({
           </span>
           <div className="wh-detail-grid">
             {item('Machine No', row.MachineNo)}
-            {item('IT Controller S/N', row.ITControllerNo || row.SerialNumber)}
+            {item('IT Controller S/N', row.ITControllerNo)}
             {itemAlways('Serial Number', data?.masterData?.SerialNo)}
             {item('ประเทศปลายทาง', country || NO_COUNTRY_LABEL)}
           </div>
@@ -1301,7 +1301,7 @@ function ExportTraceModal({
             {item('Invoice No.', row.InvoiceNo)}
             {item('Invoice Date', row.InvoiceDate ? formatThaiDate(row.InvoiceDate) : '')}
             {item('Export Entry', row.ExportEntry)}
-            {item('Export License', row.ExportLicenseNo || row.ExceptionLicense)}
+            {item('Export License', row.ExportLicenseNo)}
             {itemAlways('Import License', row.ImportLicenseNo)}
             {item('วันที่นำออกใบอนุญาต', row.IssueDate ? formatThaiDate(row.IssueDate) : '')}
             <div className="wh-detail-item">
@@ -1360,7 +1360,7 @@ function ExportTraceModal({
                   {itemAlways('วันที่เช็ค', data.importLicense.ConfirmedDatetime ? formatThaiDate(data.importLicense.ConfirmedDatetime) : '')}
                 </div> : <p className="il-detail-note">
                   ไม่พบใบอนุญาตนำเข้าที่เชื่อมโยง — ตรวจสอบว่าเลข IT Controller (
-                  {row.ITControllerNo || row.SerialNumber || '—'}) ตรงกับ “หมายเลขเครื่อง”
+                  {row.ITControllerNo || '—'}) ตรงกับ “หมายเลขเครื่อง”
                   ในบัญชีใบอนุญาตนำเข้า และเป็นเลข 12 หลัก
                 </p>}
             </div>
@@ -1406,7 +1406,7 @@ export function WHExportLicensePanel() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [exceptionFilter, setExceptionFilter] = useState('all');
+  const [licenseFilter, setLicenseFilter] = useState('all');
   const [countryFilter, setCountryFilter] = useState(ALL_COUNTRIES);
   const [expiryFilter, setExpiryFilter] = useState('all');
   const [traceRow, setTraceRow] = useState(null);
@@ -1457,8 +1457,7 @@ export function WHExportLicensePanel() {
       }
     } catch {}
     const a = String(r.ITControllerNo || '').trim();
-    const b = String(r.SerialNumber || '').trim();
-    return countryByITC[a] || countryByITC[b] || '';
+    return countryByITC[a] || '';
   }
   async function handleExportByCountry() {
     if (exportingXlsx) return;
@@ -1586,12 +1585,12 @@ export function WHExportLicensePanel() {
               leadTimeDate: exp.hasDate ? formatThaiDate(exp.leadDate) : '—',
               completedDate: done && r.CompletedAt ? formatThaiDate(r.CompletedAt) : '—',
               machineNo: dash2(r.MachineNo),
-              itControllerNo: dash2(r.ITControllerNo || r.SerialNumber),
+              itControllerNo: dash2(r.ITControllerNo),
               invoiceNo: dash2(r.InvoiceNo),
               invoiceDate: r.InvoiceDate ? formatThaiDate(r.InvoiceDate) : '—',
               exportEntry: dash2(r.ExportEntry),
               importLicenseNo: dash2(r.ImportLicenseNo),
-              exportLicenseNo: dash2(r.ExportLicenseNo || r.ExceptionLicense),
+              exportLicenseNo: dash2(r.ExportLicenseNo),
               country: countryLabel(country),
               remark: dash2(r.Remark)
             };
@@ -1651,7 +1650,7 @@ export function WHExportLicensePanel() {
     load();
   }, []);
   async function handleRenewSelectedExport() {
-    const licenseNo = exceptionFilter;
+    const licenseNo = licenseFilter;
     if (!licenseNo || licenseNo === 'all') {
       toastError('กรุณาเลือกใบอนุญาตส่งออกที่ต้องการต่ออายุก่อน');
       return;
@@ -1673,26 +1672,26 @@ export function WHExportLicensePanel() {
   }
   useEffect(() => {
     setPage(1);
-  }, [search, exceptionFilter, countryFilter, expiryFilter, pageSize, periodMode, periodAnchor]);
+  }, [search, licenseFilter, countryFilter, expiryFilter, pageSize, periodMode, periodAnchor]);
   useEffect(() => {
-    const exc = (params?.focusException || '').trim();
-    const sn = (params?.focusSerial || '').trim();
-    if (!exc && !sn) return;
+    const lic = (params?.focusLicenseNo || '').trim();
+    const itc = (params?.focusITC || '').trim();
+    if (!lic && !itc) return;
     setExpiryFilter('all');
     setCountryFilter(ALL_COUNTRIES);
     setPeriodMode('all');
     setPeriodAnchor('');
-    setExceptionFilter('all');
-    setSearch(exc || sn);
-  }, [params?.focusSerial, params?.focusException, params?.focusTs]);
+    setLicenseFilter('all');
+    setSearch(lic || itc);
+  }, [params?.focusITC, params?.focusLicenseNo, params?.focusTs]);
   useEffect(() => {
-    const exc = (params?.focusException || '').trim();
-    if (!exc) return;
-    if (rows.some(r => (r.ExceptionLicense || '') === exc)) {
-      setExceptionFilter(exc);
+    const lic = (params?.focusLicenseNo || '').trim();
+    if (!lic) return;
+    if (rows.some(r => (r.ExportLicenseNo || '') === lic)) {
+      setLicenseFilter(lic);
       setSearch('');
     }
-  }, [rows, params?.focusException, params?.focusTs]);
+  }, [rows, params?.focusLicenseNo, params?.focusTs]);
   async function handleUpload() {
     if (!file) {
       setMsg({
@@ -1720,13 +1719,13 @@ export function WHExportLicensePanel() {
   }
   async function handleDelete(row) {
     const ok = await confirmDelete({
-      text: `ลบ Serial Number ${row.SerialNumber || '—'} ออกจากบัญชี?`
+      text: `ลบ IT Controller S/N ${row.ITControllerNo || '—'} ออกจากบัญชี?`
     });
     if (!ok) return;
     try {
       await deleteExportLicense(row.ID);
       await load();
-      toastSuccess(`ลบ ${row.SerialNumber || ''} แล้ว`);
+      toastSuccess(`ลบ ${row.ITControllerNo || ''} แล้ว`);
     } catch (err) {
       toastError(err.message || 'ลบไม่สำเร็จ');
     }
@@ -1746,7 +1745,7 @@ export function WHExportLicensePanel() {
     }
   }
   async function handleClearSelectedExportLicense() {
-    const licenseNo = exceptionFilter;
+    const licenseNo = licenseFilter;
     if (!licenseNo || licenseNo === 'all') return;
     const ok = await confirmDelete({
       text: `ลบใบอนุญาตส่งออก ${licenseNo} ออกจากระบบทั้งใบ? กู้คืนไม่ได้`,
@@ -1755,7 +1754,7 @@ export function WHExportLicensePanel() {
     if (!ok) return;
     try {
       const res = await clearExportLicense(licenseNo);
-      setExceptionFilter('all');
+      setLicenseFilter('all');
       await load();
       toastSuccess(`ลบใบอนุญาตส่งออก ${licenseNo} แล้ว (${res?.deleted ?? 0} รายการ)`);
     } catch (err) {
@@ -1764,15 +1763,15 @@ export function WHExportLicensePanel() {
   }
   const filtered = useMemo(() => {
     let list = rows;
-    if (exceptionFilter !== 'all') {
-      list = list.filter(r => (r.ExceptionLicense || '') === exceptionFilter);
+    if (licenseFilter !== 'all') {
+      list = list.filter(r => (r.ExportLicenseNo || '') === licenseFilter);
     }
     if (countryFilter !== ALL_COUNTRIES) {
       list = list.filter(r => countryKey(countryOf(r)) === countryFilter);
     }
     const term = search.trim().toLowerCase();
     if (term) {
-      list = list.filter(r => [r.SerialNumber, r.ExceptionLicense, r.MachineNo, r.ITControllerNo, r.InvoiceNo, r.ExportEntry, r.ImportLicenseNo, r.ExportLicenseNo, countryOf(r)].filter(Boolean).some(v => String(v).toLowerCase().includes(term)));
+      list = list.filter(r => [r.MachineNo, r.ITControllerNo, r.InvoiceNo, r.ExportEntry, r.ImportLicenseNo, r.ExportLicenseNo, countryOf(r)].filter(Boolean).some(v => String(v).toLowerCase().includes(term)));
     }
     if (periodMode !== 'all') {
       list = list.filter(r => r.AssemblyDate && inPeriod(r.AssemblyDate, periodMode, periodAnchor));
@@ -1790,9 +1789,9 @@ export function WHExportLicensePanel() {
       });
     }
     return list;
-  }, [rows, exceptionFilter, countryFilter, expiryFilter, search, countryByITC, periodMode, periodAnchor]);
+  }, [rows, licenseFilter, countryFilter, expiryFilter, search, countryByITC, periodMode, periodAnchor]);
   const countryOptions = useMemo(() => buildCountryOptions(rows.map(countryOf)), [rows, countryByITC]);
-  const filterActive = exceptionFilter !== 'all' || countryFilter !== ALL_COUNTRIES || expiryFilter !== 'all' || search.trim() !== '' || periodMode !== 'all';
+  const filterActive = licenseFilter !== 'all' || countryFilter !== ALL_COUNTRIES || expiryFilter !== 'all' || search.trim() !== '' || periodMode !== 'all';
   useEffect(() => {
     if (countryFilter !== ALL_COUNTRIES && !countryOptions.some(o => o.value === countryFilter)) {
       setCountryFilter(ALL_COUNTRIES);
@@ -1824,10 +1823,10 @@ export function WHExportLicensePanel() {
   }
   const periodLabel = periodMode === 'all' ? 'ทั้งหมด' : periodRangeLabel(periodMode, periodAnchor);
   const periodTag = periodFileTag(periodMode, periodAnchor);
-  const exceptionOptions = useMemo(() => {
+  const licenseOptions = useMemo(() => {
     const stat = new Map();
     rows.forEach(r => {
-      const key = r.ExceptionLicense;
+      const key = r.ExportLicenseNo;
       if (!key) return;
       const cur = stat.get(key) || {
         total: 0,
@@ -1876,9 +1875,9 @@ export function WHExportLicensePanel() {
     label: COMPLETED_LABEL
   }], []);
   const currentLicenseRows = useMemo(() => {
-    if (exceptionFilter === 'all') return [];
-    return rows.filter(r => (r.ExceptionLicense || '') === exceptionFilter);
-  }, [rows, exceptionFilter]);
+    if (licenseFilter === 'all') return [];
+    return rows.filter(r => (r.ExportLicenseNo || '') === licenseFilter);
+  }, [rows, licenseFilter]);
   const currentLicenseInvoices = useMemo(() => {
     const set = new Set(currentLicenseRows.map(r => r.InvoiceNo).filter(Boolean));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
@@ -1903,7 +1902,7 @@ export function WHExportLicensePanel() {
 
   const exportCounts = useMemo(() => ({
     total: rows.length,
-    licenses: new Set(rows.map(r => (r.ExportLicenseNo || r.ExceptionLicense || '').trim()).filter(Boolean)).size,
+    licenses: new Set(rows.map(r => (r.ExportLicenseNo || '').trim()).filter(Boolean)).size,
     entries: new Set(rows.map(r => (r.ExportEntry || '').trim()).filter(Boolean)).size,
     completed: completedCount
   }), [rows, completedCount]);
@@ -1912,7 +1911,7 @@ export function WHExportLicensePanel() {
     const worst = new Map();
     for (const row of rows) {
       if (isLicenseCompleted(row)) continue;
-      const key = (row.ExportLicenseNo || row.ExceptionLicense || '').trim();
+      const key = (row.ExportLicenseNo || '').trim();
       if (!key) continue;
       const exp = computeExportLicenseDates(row);
       if (exp.status !== EXPIRY_STATUS.EXPIRED && exp.status !== EXPIRY_STATUS.EXPIRING) continue;
@@ -1933,7 +1932,7 @@ export function WHExportLicensePanel() {
   const [refsOpen, setRefsOpen] = useState(false);
   useEffect(() => {
     setRefsOpen(false);
-  }, [exceptionFilter]);
+  }, [licenseFilter]);
   const hasMoreRefs = currentLicenseInvoices.length > 1 || currentLicenseEntries.length > 1;
   const refsTitle = [`Invoice (${currentLicenseInvoices.length}): ${currentLicenseInvoices.join(', ') || '—'}`, `ใบขนสินค้าขาออก (${currentLicenseEntries.length}): ${currentLicenseEntries.join(', ') || '—'}`].join('\n');
 
@@ -1962,7 +1961,7 @@ export function WHExportLicensePanel() {
   }
 
   async function handleCompleteSelectedLicense(completed) {
-    const licenseNo = exceptionFilter;
+    const licenseNo = licenseFilter;
     if (!licenseNo || licenseNo === 'all') return;
     const ok = await confirmComplete({
       title: completed ? `ต้องการทำเครื่องหมายเสร็จสิ้นทั้งใบ ${licenseNo}` : `ต้องการยกเลิกสถานะเสร็จสิ้นทั้งใบ ${licenseNo}`,
@@ -1995,7 +1994,7 @@ export function WHExportLicensePanel() {
       });
       setTraceRow(null);
       await load();
-      toastSuccess(completed ? `${row.MachineNo || row.SerialNumber || 'รายการนี้'} เสร็จสิ้นแล้ว — หยุดนับวันหมดอายุ` : `ยกเลิกสถานะเสร็จสิ้นของ ${row.MachineNo || row.SerialNumber || 'รายการนี้'} แล้ว`);
+      toastSuccess(completed ? `${row.MachineNo || row.ITControllerNo || 'รายการนี้'} เสร็จสิ้นแล้ว — หยุดนับวันหมดอายุ` : `ยกเลิกสถานะเสร็จสิ้นของ ${row.MachineNo || row.ITControllerNo || 'รายการนี้'} แล้ว`);
     } catch (err) {
       toastError(err.message || 'อัปเดตสถานะไม่สำเร็จ');
     } finally {
@@ -2091,15 +2090,15 @@ export function WHExportLicensePanel() {
       {rows.length > 0 && <div className="il-lot-filter">
           <label className="il-lot-filter-label">ใบอนุญาตส่งออก</label>
           <div className="il-lot-filter-select">
-            <SelectField value={exceptionFilter} onChange={setExceptionFilter} options={exceptionOptions} />
+            <SelectField value={licenseFilter} onChange={setLicenseFilter} options={licenseOptions} />
           </div>
         </div>}
 
-      {exceptionFilter !== 'all' && <div className={'wh-so-active-bar il-license-bar' + (refsOpen ? ' il-license-bar-open' : '')}>
+      {licenseFilter !== 'all' && <div className={'wh-so-active-bar il-license-bar' + (refsOpen ? ' il-license-bar-open' : '')}>
           <div className="il-lot-info">
             <div className="il-lot-info-text">
               <span className="wh-so-active-label">ใบอนุญาตส่งออก</span>
-              <h3 className="wh-so-active-name">{exceptionFilter || '(ไม่มีเลขใบอนุญาต)'}</h3>
+              <h3 className="wh-so-active-name">{licenseFilter || '(ไม่มีเลขใบอนุญาต)'}</h3>
               <div className="wh-subtitle il-lot-refs">
                 <span className="il-lot-refs-text" title={refsTitle}>
                   <LicenseRefSummary label="Invoice" values={currentLicenseInvoices} />
@@ -2214,7 +2213,7 @@ export function WHExportLicensePanel() {
               </tr>}
             {!loading && paged.map((row, i) => <tr key={row.ID} className={(isLicenseCompleted(row) ? 'il-row-complete' : '') + (selected.has(row.ID) ? ' il-row-selected' : '')}>
                   <td className="il-check-td" data-label="เลือก">
-                    <SelectCheckbox checked={selected.has(row.ID)} onChange={() => toggleOne(row.ID)} label={`เลือก ${row.MachineNo || row.SerialNumber || 'รายการนี้'}`} />
+                    <SelectCheckbox checked={selected.has(row.ID)} onChange={() => toggleOne(row.ID)} label={`เลือก ${row.MachineNo || row.ITControllerNo || 'รายการนี้'}`} />
                   </td>
                   <td className="wh-cell-head" data-label="Item">
                     {(page - 1) * pageSize + i + 1}
@@ -2224,7 +2223,7 @@ export function WHExportLicensePanel() {
                     <strong>{row.MachineNo || '—'}</strong>
                   </td>
                   <td className="il-mono" data-label="IT Controller S/N">
-                    {row.ITControllerNo || row.SerialNumber || '—'}
+                    {row.ITControllerNo || '—'}
                   </td>
                   <td data-label="Country">
                     {countryOf(row) || <span className="il-no-country">{NO_COUNTRY_LABEL}</span>}
@@ -2244,7 +2243,7 @@ export function WHExportLicensePanel() {
                   <td className="il-mono" data-label="Export License">
                     <span className="il-license-cell">
                       <CompleteFlag show={isLicenseCompleted(row)} />
-                      {row.ExportLicenseNo || row.ExceptionLicense || '—'}
+                      {row.ExportLicenseNo || '—'}
                     </span>
                   </td>
                   <td data-label="วันที่นำออกใบอนุญาต">

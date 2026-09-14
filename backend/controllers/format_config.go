@@ -250,10 +250,10 @@ func buildRegistryIndex() *registryIndex {
 	}
 
 	var expRows []models.ExportLicenseItem
-	config.DB.Select("machine_no", "serial_number").Find(&expRows)
+	config.DB.Select("machine_no", "it_controller_no").Find(&expRows)
 	for _, r := range expRows {
 		add(idx.machine, r.MachineNo)
-		add(idx.machine, r.SerialNumber)
+		add(idx.machine, r.ITControllerNo)
 	}
 
 	return idx

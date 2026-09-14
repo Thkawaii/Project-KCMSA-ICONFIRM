@@ -182,10 +182,10 @@ func buildExportRows(today time.Time, withinDays int) ([]mailer.ExportRow, maile
 	order := []string{}
 
 	for _, it := range items {
-		key := it.ExceptionLicense
+		key := it.ExportLicenseNo
 		g, ok := groups[key]
 		if !ok {
-			g = &group{row: mailer.ExportRow{ExceptionLicense: key}}
+			g = &group{row: mailer.ExportRow{ExportLicenseNo: key}}
 			groups[key] = g
 			order = append(order, key)
 		}

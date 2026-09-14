@@ -139,7 +139,7 @@ func exportRows(r WeeklyReport) []xlsxRow {
 			Expired: row.Status == StatusExpired,
 			Cells: []string{
 				num(i + 1),
-				row.ExceptionLicense,
+				row.ExportLicenseNo,
 				num(row.Machines),
 				ThaiDate(row.IssueDate, r.BuddhistEra),
 				ThaiDate(row.ExpiryDate, r.BuddhistEra),
