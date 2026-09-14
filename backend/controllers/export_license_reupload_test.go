@@ -47,7 +47,7 @@ const exportLicenseCSV = `Item,Machine No,Serial Number,Invoice No,Country
 3,YQ13U1052,878250111052,INV-002,JAPAN
 `
 
-func exportIDsBySerial(t *testing.T) map[string]uint {
+func exportIDsByKey(t *testing.T) map[string]uint {
 	t.Helper()
 	var rows []models.ExportLicenseItem
 	if err := config.DB.Order("id asc").Find(&rows).Error; err != nil {
@@ -55,7 +55,7 @@ func exportIDsBySerial(t *testing.T) map[string]uint {
 	}
 	out := map[string]uint{}
 	for _, r := range rows {
-		out[r.SerialNumber] = r.ID
+		out[r.ITControllerNo] = r.ID
 	}
 	return out
 }
@@ -82,7 +82,7 @@ func TestExportLicenseReuploadKeepsSameIDs(t *testing.T) {
 			t.Fatalf("รอบที่ %d: มี %d แถว ต้องมี 3 แถว", round, count)
 		}
 
-		ids := exportIDsBySerial(t)
+		ids := exportIDsByKey(t)
 		if round == 1 {
 			first = ids
 			continue
@@ -133,7 +133,7 @@ func TestExportLicenseClearThenReuploadRestartsAtOne(t *testing.T) {
 	}
 	for i, r := range rows {
 		if want := uint(i + 1); r.ID != want {
-			t.Errorf("แถวที่ %d: id = %d ต้องเป็น %d (serial %s)", i+1, r.ID, want, r.SerialNumber)
+			t.Errorf("แถวที่ %d: id = %d ต้องเป็น %d (serial %s)", i+1, r.ID, want, r.ITControllerNo)
 		}
 	}
 }
@@ -199,7 +199,7 @@ func TestExportLicenseNewRowsContinueNumbering(t *testing.T) {
 	}
 	for i, r := range rows {
 		if want := uint(i + 1); r.ID != want {
-			t.Errorf("แถวที่ %d: id = %d ต้องเป็น %d (serial %s)", i+1, r.ID, want, r.SerialNumber)
+			t.Errorf("แถวที่ %d: id = %d ต้องเป็น %d (serial %s)", i+1, r.ID, want, r.ITControllerNo)
 		}
 	}
 }
@@ -221,7 +221,7 @@ func TestExportLicenseReuploadKeepsScannedRows(t *testing.T) {
 	// Simulate a scan completing the second row.
 	done := time.Now()
 	if err := db.Model(&models.ExportLicenseItem{}).
-		Where("serial_number = ?", "878250110308").
+		Where("it_controller_no = ?", "878250110308").
 		Updates(map[string]interface{}{
 			"completed":    true,
 			"completed_by": "WH",
@@ -249,7 +249,7 @@ func TestExportLicenseReuploadKeepsScannedRows(t *testing.T) {
 	}
 	for i, r := range rows {
 		if want := uint(i + 1); r.ID != want {
-			t.Errorf("แถวที่ %d: id = %d ต้องเป็น %d (serial %s)", i+1, r.ID, want, r.SerialNumber)
+			t.Errorf("แถวที่ %d: id = %d ต้องเป็น %d (serial %s)", i+1, r.ID, want, r.ITControllerNo)
 		}
 	}
 
@@ -266,9 +266,9 @@ func TestExportLicenseReuploadKeepsScannedRows(t *testing.T) {
 			t.Errorf("id %d ไม่ควรมีสถานะ completed", id)
 		}
 	}
-	if byID[4].SerialNumber != "878250111088" || byID[5].SerialNumber != "878250110517" {
+	if byID[4].ITControllerNo != "878250111088" || byID[5].ITControllerNo != "878250110517" {
 		t.Errorf("แถวใหม่ควรได้ id 4 และ 5 ตามลำดับในไฟล์ ได้ %s / %s",
-			byID[4].SerialNumber, byID[5].SerialNumber)
+			byID[4].ITControllerNo, byID[5].ITControllerNo)
 	}
 }
 

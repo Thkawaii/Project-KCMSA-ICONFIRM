@@ -13,10 +13,10 @@ import (
 func seedExportItem(t *testing.T, db *gorm.DB, serial string, issue *time.Time, expire *time.Time) models.ExportLicenseItem {
 	t.Helper()
 	row := models.ExportLicenseItem{
-		SerialNumber:     serial,
-		ExceptionLicense: "EX-" + serial,
-		IssueDate:        issue,
-		ExpireDate:       expire,
+		ITControllerNo:  serial,
+		ExportLicenseNo: "EX-" + serial,
+		IssueDate:       issue,
+		ExpireDate:      expire,
 	}
 	if err := db.Create(&row).Error; err != nil {
 		t.Fatalf("seed export item: %v", err)
@@ -116,13 +116,13 @@ func TestExportLicenseExtraColumnsCaptured(t *testing.T) {
 	}
 
 	db := newTestDB(t)
-	row := models.ExportLicenseItem{SerialNumber: "SN-EXTRA", ExtraJSON: string(b)}
+	row := models.ExportLicenseItem{ITControllerNo: "SN-EXTRA", ExtraJSON: string(b)}
 	if err := db.Create(&row).Error; err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
 	var got models.ExportLicenseItem
-	if err := db.Where("serial_number = ?", "SN-EXTRA").First(&got).Error; err != nil {
+	if err := db.Where("it_controller_no = ?", "SN-EXTRA").First(&got).Error; err != nil {
 		t.Fatalf("read back: %v", err)
 	}
 
@@ -160,8 +160,8 @@ func TestResolveExportLinksLevels(t *testing.T) {
 	seedLicenseItem(t, "878250022802", "TQ60610", "", "E05036901604", "Indonesia", "")
 
 	items := []models.ExportLicenseItem{
-		{SerialNumber: "A", MachineNo: "LX10400690", ITControllerNo: "878250022802"},
-		{SerialNumber: "B", MachineNo: "UNKNOWN", ITControllerNo: "999999999999"},
+		{MachineNo: "LX10400690", ITControllerNo: "878250022802"},
+		{MachineNo: "UNKNOWN", ITControllerNo: "999999999999"},
 	}
 
 	out := resolveExportLinks(items)

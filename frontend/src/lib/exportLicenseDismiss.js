@@ -7,7 +7,7 @@ function expiryDay(item) {
   return d.toISOString().slice(0, 10);
 }
 export function exportDismissKey(item) {
-  const license = item?.ExceptionLicense || '—';
+  const license = item?.ExportLicenseNo || '—';
   const status = item?.Status || '—';
   return `${license}|${status}|${expiryDay(item)}`;
 }

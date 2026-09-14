@@ -29,7 +29,7 @@ export default function ExportLeadTimeAlert({ rows = [], activeFilter = 'all', o
       if (isLicenseCompleted(r)) return;
       const info = computeExportLicenseDates(r);
       if (!info.hasDate || !info.leadAlert) return;
-      const key = String(r.ExportLicenseNo || r.ExceptionLicense || '').trim() || '(ไม่มีเลขใบอนุญาต)';
+      const key = String(r.ExportLicenseNo || '').trim() || '(ไม่มีเลขใบอนุญาต)';
       const g = groups.get(key);
       if (!g) {
         groups.set(key, { key, info, count: 1, sample: r });

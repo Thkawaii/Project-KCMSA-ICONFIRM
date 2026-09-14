@@ -450,7 +450,7 @@ func renderExportTable(r WeeklyReport, maxRows int) string {
 
 		b.WriteString(`<tr>`)
 		b.WriteString(td(fmt.Sprintf("%d", i+1), "center"))
-		b.WriteString(tdNoWrap(dash(row.ExceptionLicense), "left"))
+		b.WriteString(tdNoWrap(dash(row.ExportLicenseNo), "left"))
 		b.WriteString(td(fmt.Sprintf("%d", row.Machines), "center"))
 		b.WriteString(tdNoWrap(esc(ThaiDate(row.ExpiryDate, r.BuddhistEra)), "left"))
 		b.WriteString(tdNoWrap(days, "left"))
@@ -510,7 +510,7 @@ func RenderText(r WeeklyReport) string {
 		b.WriteString("           ไม่มีใบอนุญาตนำออกที่ต้องดำเนินการในสัปดาห์นี้\n")
 	} else {
 		for i, row := range r.Export {
-			b.WriteString(fmt.Sprintf("           (%d) %s  จำนวน %d\n", i+1, fallback(row.ExceptionLicense), row.Machines))
+			b.WriteString(fmt.Sprintf("           (%d) %s  จำนวน %d\n", i+1, fallback(row.ExportLicenseNo), row.Machines))
 			b.WriteString(fmt.Sprintf("               หมดอายุ %s (%s) - %s\n",
 				ThaiDate(row.ExpiryDate, r.BuddhistEra),
 				DaysLeftLabel(row.Status, row.DaysLeft),

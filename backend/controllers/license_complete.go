@@ -155,7 +155,7 @@ func SetExportLicenseComplete(c *gin.Context) {
 
 	case req.ExportLicenseNo != nil && strings.TrimSpace(*req.ExportLicenseNo) != "":
 		licenseNo := strings.TrimSpace(*req.ExportLicenseNo)
-		tx = tx.Where("exception_license = ? OR export_license_no = ?", licenseNo, licenseNo)
+		tx = tx.Where("export_license_no = ?", licenseNo)
 		target = "export_license_no=" + licenseNo
 
 	default:

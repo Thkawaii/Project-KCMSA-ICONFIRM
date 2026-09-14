@@ -14,8 +14,10 @@ type ExportLicenseItem struct {
 
 	MachineNo string `gorm:"column:machine_no;size:60;index"`
 
-	ITControllerNo string `gorm:"column:it_controller_no;size:40;index"`
-	SerialNumber   string `gorm:"size:60;uniqueIndex;not null"`
+	// ITControllerNo is the business key of this table. The old serial_number
+	// column was a duplicate of it — when the uploaded file had no serial
+	// column the parser simply copied this value across.
+	ITControllerNo string `gorm:"column:it_controller_no;size:60;uniqueIndex;not null"`
 
 	Country string `gorm:"column:country;size:100;index"`
 
@@ -26,8 +28,10 @@ type ExportLicenseItem struct {
 
 	ImportLicenseNo string `gorm:"column:import_license_no;size:60;index"`
 
-	ExportLicenseNo  string `gorm:"column:export_license_no;size:60;index"`
-	ExceptionLicense string `gorm:"size:60;index"`
+	// ExportLicenseNo is the single license-number slot. The old
+	// exception_license column held the same value under a different header
+	// alias, which forced every read path into an "A or B" fallback.
+	ExportLicenseNo string `gorm:"column:export_license_no;size:60;index"`
 
 	IssueDate *time.Time `gorm:"index"`
 

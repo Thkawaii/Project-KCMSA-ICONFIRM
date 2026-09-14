@@ -23,7 +23,7 @@ func TestRegistryIndexKnowsMachineFromMFGAndExport(t *testing.T) {
 	db := newTestDB(t)
 
 	db.Create(&models.MFGAssembly{MachineNo: "LX10400690", ITControllerNo: "878250022801"})
-	db.Create(&models.ExportLicenseItem{SerialNumber: "878250022803", MachineNo: "LX10400692"})
+	db.Create(&models.ExportLicenseItem{ITControllerNo: "878250022803", MachineNo: "LX10400692"})
 
 	for _, mc := range []string{"LX10400690", "LX10400692"} {
 		if !oldValueExistsInRegistry("machine", mc) {

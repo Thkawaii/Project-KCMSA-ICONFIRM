@@ -42,8 +42,8 @@ export default function LicenseAlertBanner({
   const expired = items.filter(i => i.Status === 'EXPIRED');
   const expiring = items.filter(i => i.Status === 'EXPIRING');
   const total = expired.length + expiring.length;
-  const titleOf = it => isImport ? it.LicenseNo || 'ไม่มีเลขใบอนุญาต' : it.SerialNumber || '—';
-  const metaOf = it => isImport ? `Invoice ${it.InvoiceNo || '—'}${it.Model ? ` · ${it.Model}` : ''}` : `Exception ${it.ExceptionLicense || '—'}`;
+  const titleOf = it => isImport ? it.LicenseNo || 'ไม่มีเลขใบอนุญาต' : it.ExportLicenseNo || 'ไม่มีเลขใบอนุญาต';
+  const metaOf = it => isImport ? `Invoice ${it.InvoiceNo || '—'}${it.Model ? ` · ${it.Model}` : ''}` : `${it.Total || 1} เครื่อง`;
   if (total === 0) {
     if (!isImport) return null;
     return <div className="lab-banner lab-banner-ok" role="status">

@@ -212,7 +212,7 @@ export default function LicenseWeeklyPopup() {
   const titleOf = it =>
     it.kind === 'import'
       ? it.LicenseNo || 'ไม่มีเลขใบอนุญาต'
-      : it.ExceptionLicense || 'ไม่มีเลขใบอนุญาต';
+      : it.ExportLicenseNo || 'ไม่มีเลขใบอนุญาต';
 
   const metaOf = it =>
     it.kind === 'import'
@@ -229,7 +229,7 @@ export default function LicenseWeeklyPopup() {
       });
     } else {
       navigate('/warehouse/export-license', {
-        focusException: it.ExceptionLicense || '',
+        focusLicenseNo: it.ExportLicenseNo || '',
         focusTs: Date.now()
       });
     }

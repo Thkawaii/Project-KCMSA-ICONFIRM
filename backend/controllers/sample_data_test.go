@@ -102,8 +102,8 @@ func TestSampleExportLicenseHeaderAndExtras(t *testing.T) {
 			setter(&row, rows[idx+1][col])
 		}
 	}
-	if row.SerialNumber == "" {
-		t.Error("SerialNumber ว่าง")
+	if row.ITControllerNo == "" {
+		t.Error("ITControllerNo ว่าง")
 	}
 	if row.IssueDate == nil {
 		t.Error("IssueDate อ่านไม่ได้ (คอลัมน์ 'ใบขน Date')")

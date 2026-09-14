@@ -93,7 +93,7 @@ func BuildCSV(r WeeklyReport) Attachment {
 	for _, row := range r.Export {
 		_ = w.Write([]string{
 			"ใบอนุญาตนำออก",
-			row.ExceptionLicense,
+			row.ExportLicenseNo,
 			"", "", "", "",
 			num(row.Machines),
 			"",

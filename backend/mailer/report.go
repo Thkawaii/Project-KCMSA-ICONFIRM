@@ -34,16 +34,16 @@ type ImportRow struct {
 }
 
 type ExportRow struct {
-	ExceptionLicense string     `json:"exceptionLicense"`
-	Machines         int        `json:"machines"`
-	IssueDate        *time.Time `json:"issueDate"`
-	ExpiryDate       *time.Time `json:"expiryDate"`
-	DaysLeft         int        `json:"daysLeft"`
-	Status           string     `json:"status"`
-	LeadDate         *time.Time `json:"leadDate"`
-	LeadDaysLeft     int        `json:"leadDaysLeft"`
-	LeadStatus       string     `json:"leadStatus"`
-	LeadUrgent       bool       `json:"leadUrgent"`
+	ExportLicenseNo string     `json:"exportLicenseNo"`
+	Machines        int        `json:"machines"`
+	IssueDate       *time.Time `json:"issueDate"`
+	ExpiryDate      *time.Time `json:"expiryDate"`
+	DaysLeft        int        `json:"daysLeft"`
+	Status          string     `json:"status"`
+	LeadDate        *time.Time `json:"leadDate"`
+	LeadDaysLeft    int        `json:"leadDaysLeft"`
+	LeadStatus      string     `json:"leadStatus"`
+	LeadUrgent      bool       `json:"leadUrgent"`
 }
 
 type Counts struct {

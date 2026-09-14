@@ -238,13 +238,13 @@ function ExportAlertItem({
         <span className={'lab-item-bar ' + (isExpired ? 'lab-bar-expired' : isLeadOnly ? 'lab-bar-lead' : 'lab-bar-expiring')} />
         <span className="lab-item-body">
           <span className="lab-item-top">
-            <span className="lab-item-license">{item.ExceptionLicense || item.SerialNumber || '—'}</span>
+            <span className="lab-item-license">{item.ExportLicenseNo || '—'}</span>
             <span className={'lab-item-days ' + (isExpired ? 'lab-days-expired' : 'lab-days-expiring')}>
               {isLeadOnly ? leadDaysLabel(item.LeadDaysLeft) : daysLeftLabel(item.DaysLeft)}
             </span>
           </span>
           <span className="lab-item-meta">
-            Exception License {item.ExceptionLicense || '—'}
+            {item.Total || 1} เครื่อง
             {item.IssueDate ? ` · ออกใบอนุญาต ${formatThaiDate(item.IssueDate)}` : ''}
           </span>
           <span className="lab-item-expiry">หมดอายุ {formatThaiDate(item.ExpiryDate)}</span>

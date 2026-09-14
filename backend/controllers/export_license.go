@@ -16,6 +16,36 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// Several header aliases now feed the same struct field, so the setters come in
+// two strengths. A "force" setter belongs to a header that names the field
+// outright and always wins; a plain setter belongs to a looser alias and only
+// fills a slot that is still empty. That keeps the result independent of the
+// order the columns happen to sit in.
+
+func setITControllerNo(m *models.ExportLicenseItem, v string) {
+	if s := normalizeDigitCell(v); s != "" && m.ITControllerNo == "" {
+		m.ITControllerNo = s
+	}
+}
+
+func forceITControllerNo(m *models.ExportLicenseItem, v string) {
+	if s := normalizeDigitCell(v); s != "" {
+		m.ITControllerNo = s
+	}
+}
+
+func setExportLicenseNo(m *models.ExportLicenseItem, v string) {
+	if s := strings.TrimSpace(v); s != "" && m.ExportLicenseNo == "" {
+		m.ExportLicenseNo = s
+	}
+}
+
+func forceExportLicenseNo(m *models.ExportLicenseItem, v string) {
+	if s := strings.TrimSpace(v); s != "" {
+		m.ExportLicenseNo = s
+	}
+}
+
 var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 
 	"ใบขนdate":        func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
@@ -26,22 +56,27 @@ var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"declaration":     func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
 	"customsdate":     func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
 
-	"exceptionlicense": func(m *models.ExportLicenseItem, v string) { m.ExceptionLicense = strings.TrimSpace(v) },
-	"exception":        func(m *models.ExportLicenseItem, v string) { m.ExceptionLicense = strings.TrimSpace(v) },
-	"exportlicense":    func(m *models.ExportLicenseItem, v string) { m.ExceptionLicense = strings.TrimSpace(v) },
-	"licenseno":        func(m *models.ExportLicenseItem, v string) { m.ExceptionLicense = strings.TrimSpace(v) },
-	"เลขใบอนุญาต":      func(m *models.ExportLicenseItem, v string) { m.ExceptionLicense = strings.TrimSpace(v) },
-	"ใบอนุญาตส่งออก": func(m *models.ExportLicenseItem, v string) { m.ExceptionLicense = strings.TrimSpace(v) },
+	// Every license-number header lands in the same slot. These used to be
+	// split across export_license_no and exception_license, which meant two
+	// columns holding the same number depending on which header the file used.
+	"exceptionlicense": func(m *models.ExportLicenseItem, v string) { setExportLicenseNo(m, v) },
+	"exception":        func(m *models.ExportLicenseItem, v string) { setExportLicenseNo(m, v) },
+	"exportlicense":    func(m *models.ExportLicenseItem, v string) { setExportLicenseNo(m, v) },
+	"licenseno":        func(m *models.ExportLicenseItem, v string) { setExportLicenseNo(m, v) },
+	"เลขใบอนุญาต":      func(m *models.ExportLicenseItem, v string) { setExportLicenseNo(m, v) },
+	"ใบอนุญาตส่งออก": func(m *models.ExportLicenseItem, v string) { setExportLicenseNo(m, v) },
 
-	"serialnumber": func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
-	"serialno":     func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
-	"serial":       func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
-	"sn":           func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
-	"snno":         func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
-	"serailno":     func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
-	"serailnumber": func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
-	"หมายเลขซีเรียล": func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
-	"ซีเรียล":        func(m *models.ExportLicenseItem, v string) { m.SerialNumber = normalizeDigitCell(v) },
+	// Serial headers feed the IT Controller S/N key — the file's "Serial
+	// Number" column has always carried the IT Controller serial.
+	"serialnumber": func(m *models.ExportLicenseItem, v string) { setITControllerNo(m, v) },
+	"serialno":     func(m *models.ExportLicenseItem, v string) { setITControllerNo(m, v) },
+	"serial":       func(m *models.ExportLicenseItem, v string) { setITControllerNo(m, v) },
+	"sn":           func(m *models.ExportLicenseItem, v string) { setITControllerNo(m, v) },
+	"snno":         func(m *models.ExportLicenseItem, v string) { setITControllerNo(m, v) },
+	"serailno":     func(m *models.ExportLicenseItem, v string) { setITControllerNo(m, v) },
+	"serailnumber": func(m *models.ExportLicenseItem, v string) { setITControllerNo(m, v) },
+	"หมายเลขซีเรียล": func(m *models.ExportLicenseItem, v string) { setITControllerNo(m, v) },
+	"ซีเรียล":        func(m *models.ExportLicenseItem, v string) { setITControllerNo(m, v) },
 
 	"issuedate":         func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
 	"exportlicensedate": func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
@@ -72,16 +107,18 @@ var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"machine":       func(m *models.ExportLicenseItem, v string) { m.MachineNo = normalizeDigitCell(v) },
 	"หมายเลขเครื่อง": func(m *models.ExportLicenseItem, v string) { m.MachineNo = normalizeDigitCell(v) },
 
-	"itcontrollerserialno":     func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
-	"itcontrollerserialnumber": func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
-	"itcontrollerno":           func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
-	"itcontroller":             func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
-	"itcserialno":              func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
-	"itcno":                    func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
-	"itcontrollersn":           func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
-	"itcsn":                    func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
-	"itsn":                     func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
-	"controllersn":             func(m *models.ExportLicenseItem, v string) { m.ITControllerNo = normalizeDigitCell(v) },
+	// An explicit IT Controller header outranks a generic serial one, whatever
+	// order the columns appear in.
+	"itcontrollerserialno":     func(m *models.ExportLicenseItem, v string) { forceITControllerNo(m, v) },
+	"itcontrollerserialnumber": func(m *models.ExportLicenseItem, v string) { forceITControllerNo(m, v) },
+	"itcontrollerno":           func(m *models.ExportLicenseItem, v string) { forceITControllerNo(m, v) },
+	"itcontroller":             func(m *models.ExportLicenseItem, v string) { forceITControllerNo(m, v) },
+	"itcserialno":              func(m *models.ExportLicenseItem, v string) { forceITControllerNo(m, v) },
+	"itcno":                    func(m *models.ExportLicenseItem, v string) { forceITControllerNo(m, v) },
+	"itcontrollersn":           func(m *models.ExportLicenseItem, v string) { forceITControllerNo(m, v) },
+	"itcsn":                    func(m *models.ExportLicenseItem, v string) { forceITControllerNo(m, v) },
+	"itsn":                     func(m *models.ExportLicenseItem, v string) { forceITControllerNo(m, v) },
+	"controllersn":             func(m *models.ExportLicenseItem, v string) { forceITControllerNo(m, v) },
 
 	"invoicedate": func(m *models.ExportLicenseItem, v string) { m.InvoiceDate = parseLicenseDate(v) },
 	"invdate":     func(m *models.ExportLicenseItem, v string) { m.InvoiceDate = parseLicenseDate(v) },
@@ -100,20 +137,8 @@ var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"importlicenseno":        func(m *models.ExportLicenseItem, v string) { m.ImportLicenseNo = strings.TrimSpace(v) },
 	"ใบอนุญาตนำเข้า":         func(m *models.ExportLicenseItem, v string) { m.ImportLicenseNo = strings.TrimSpace(v) },
 
-	"exportlicenseininvoice": func(m *models.ExportLicenseItem, v string) {
-		s := strings.TrimSpace(v)
-		m.ExportLicenseNo = s
-		if m.ExceptionLicense == "" {
-			m.ExceptionLicense = s
-		}
-	},
-	"exportlicenseno": func(m *models.ExportLicenseItem, v string) {
-		s := strings.TrimSpace(v)
-		m.ExportLicenseNo = s
-		if m.ExceptionLicense == "" {
-			m.ExceptionLicense = s
-		}
-	},
+	"exportlicenseininvoice": func(m *models.ExportLicenseItem, v string) { forceExportLicenseNo(m, v) },
+	"exportlicenseno":        func(m *models.ExportLicenseItem, v string) { forceExportLicenseNo(m, v) },
 
 	"remark":   func(m *models.ExportLicenseItem, v string) { m.Remark = strings.TrimSpace(v) },
 	"remarks":  func(m *models.ExportLicenseItem, v string) { m.Remark = strings.TrimSpace(v) },
@@ -316,7 +341,7 @@ func GetExportLicense(c *gin.Context) {
 	if q := strings.TrimSpace(c.Query("q")); q != "" {
 		like := "%" + q + "%"
 		query = query.Where(
-			"serial_number ILIKE ? OR exception_license ILIKE ? OR machine_no ILIKE ? OR it_controller_no ILIKE ? OR invoice_no ILIKE ?",
+			"it_controller_no ILIKE ? OR export_license_no ILIKE ? OR machine_no ILIKE ? OR import_license_no ILIKE ? OR invoice_no ILIKE ?",
 			like, like, like, like, like,
 		)
 	}
@@ -403,15 +428,13 @@ func exportRowOverLimit(m *models.ExportLicenseItem) (label string, limit int) {
 		value string
 		limit int
 	}{
-		{"Serial Number", m.SerialNumber, 60},
-		{"IT Controller S/N", m.ITControllerNo, 40},
+		{"IT Controller S/N", m.ITControllerNo, 60},
 		{"Machine No", m.MachineNo, 60},
 		{"Country", m.Country, 100},
 		{"Invoice No", m.InvoiceNo, 50},
 		{"Export Entry", m.ExportEntry, 60},
 		{"Import License", m.ImportLicenseNo, 60},
 		{"Export License", m.ExportLicenseNo, 60},
-		{"Exception License", m.ExceptionLicense, 60},
 	}
 	for _, ch := range checks {
 		if utf8.RuneCountInString(ch.value) > ch.limit {
@@ -493,13 +516,10 @@ func UploadExportLicense(c *gin.Context) {
 				row.ExtraJSON = string(b)
 			}
 		}
-		if row.SerialNumber == "" && row.ITControllerNo != "" {
-			row.SerialNumber = row.ITControllerNo
-		}
-		if row.SerialNumber == "" {
+		if row.ITControllerNo == "" {
 			skipped++
 			if row.MachineNo != "" {
-				problems = append(problems, "แถว "+strconv.Itoa(i+1)+": เครื่อง "+row.MachineNo+" ไม่มี Serial Number หรือ IT Controller S/N ในไฟล์ — ข้ามแถวนี้ (ไม่ใช้ Machine No แทน S/N เพราะเป็นคนละค่ากัน)")
+				problems = append(problems, "แถว "+strconv.Itoa(i+1)+": เครื่อง "+row.MachineNo+" ไม่มี IT Controller S/N (หรือ Serial Number) ในไฟล์ — ข้ามแถวนี้ (ไม่ใช้ Machine No แทน เพราะเป็นคนละค่ากัน)")
 			}
 			continue
 		}
@@ -508,10 +528,10 @@ func UploadExportLicense(c *gin.Context) {
 			problems = append(problems, "แถว "+strconv.Itoa(i+1)+": "+label+" ยาวเกิน "+strconv.Itoa(limit)+" ตัวอักษร — ข้ามแถวนี้")
 			continue
 		}
-		if seen[row.SerialNumber] {
+		if seen[row.ITControllerNo] {
 			continue
 		}
-		seen[row.SerialNumber] = true
+		seen[row.ITControllerNo] = true
 
 		row.FillDates()
 
@@ -519,13 +539,13 @@ func UploadExportLicense(c *gin.Context) {
 	}
 
 	if len(parsed) == 0 {
-		c.JSON(400, gin.H{"message": "ไม่พบแถวข้อมูลที่นำเข้าได้ (ต้องมี Serial Number)"})
+		c.JSON(400, gin.H{"message": "ไม่พบแถวข้อมูลที่นำเข้าได้ (ต้องมี IT Controller S/N)"})
 		return
 	}
 
-	serials := make([]string, 0, len(parsed))
+	keys := make([]string, 0, len(parsed))
 	for _, r := range parsed {
-		serials = append(serials, r.SerialNumber)
+		keys = append(keys, r.ITControllerNo)
 	}
 
 	type prevMark struct {
@@ -536,12 +556,12 @@ func UploadExportLicense(c *gin.Context) {
 	}
 	prev := map[string]prevMark{}
 	var prevRows []models.ExportLicenseItem
-	if err := findWhereInChunks(config.DB, "serial_number", serials, &prevRows); err != nil {
+	if err := findWhereInChunks(config.DB, "it_controller_no", keys, &prevRows); err != nil {
 		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
 		return
 	}
 	for _, r := range prevRows {
-		prev[r.SerialNumber] = prevMark{
+		prev[r.ITControllerNo] = prevMark{
 			id:          r.ID,
 			completed:   r.Completed,
 			completedBy: r.CompletedBy,
@@ -556,7 +576,7 @@ func UploadExportLicense(c *gin.Context) {
 		toCreate []models.ExportLicenseItem
 	)
 	for i := range parsed {
-		mark, ok := prev[parsed[i].SerialNumber]
+		mark, ok := prev[parsed[i].ITControllerNo]
 		if !ok {
 			toCreate = append(toCreate, parsed[i])
 			continue
@@ -573,7 +593,7 @@ func UploadExportLicense(c *gin.Context) {
 	updatable := []string{
 		"assembly_date", "machine_no", "it_controller_no", "country",
 		"invoice_no", "invoice_date", "export_entry", "import_license_no",
-		"export_license_no", "exception_license", "issue_date", "expire_date",
+		"export_license_no", "issue_date", "expire_date",
 		"remark", "extra_json", "file_name", "upload_date", "user_id",
 	}
 
@@ -662,7 +682,7 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 	}
 
 	var newItems []models.ExportLicenseItem
-	seenSerial := map[string]bool{}
+	seenKey := map[string]bool{}
 	dupSkip, _ := findDuplicateKnownColumns(
 		headers,
 		func(k string) bool { _, ok := exportLicenseColumns[k]; return ok },
@@ -682,29 +702,26 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 				setter(&it, val)
 			}
 		}
-		if it.SerialNumber == "" && it.ITControllerNo != "" {
-			it.SerialNumber = it.ITControllerNo
-		}
-		if it.SerialNumber == "" || seenSerial[it.SerialNumber] {
+		if it.ITControllerNo == "" || seenKey[it.ITControllerNo] {
 			continue
 		}
-		seenSerial[it.SerialNumber] = true
+		seenKey[it.ITControllerNo] = true
 		newItems = append(newItems, it)
 	}
 
-	serials := make([]string, 0, len(newItems))
+	keys := make([]string, 0, len(newItems))
 	for _, it := range newItems {
-		serials = append(serials, it.SerialNumber)
+		keys = append(keys, it.ITControllerNo)
 	}
 	existing := map[string]models.ExportLicenseItem{}
-	if len(serials) > 0 {
+	if len(keys) > 0 {
 		var existingRows []models.ExportLicenseItem
-		if err := findWhereInChunks(config.DB, "serial_number", serials, &existingRows); err != nil {
+		if err := findWhereInChunks(config.DB, "it_controller_no", keys, &existingRows); err != nil {
 			c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
 			return
 		}
 		for _, r := range existingRows {
-			existing[r.SerialNumber] = r
+			existing[r.ITControllerNo] = r
 		}
 	}
 
@@ -722,11 +739,11 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 	preview := make([]rowResult, 0, 300)
 
 	for _, it := range newItems {
-		old, ok := existing[it.SerialNumber]
+		old, ok := existing[it.ITControllerNo]
 		if !ok {
 			counts["NEW"]++
 			if len(preview) < 300 {
-				preview = append(preview, rowResult{Key: it.SerialNumber, Status: "NEW"})
+				preview = append(preview, rowResult{Key: it.ITControllerNo, Status: "NEW"})
 			}
 			continue
 		}
@@ -740,10 +757,8 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 				}
 			}
 		}
-		add("Exception License", old.ExceptionLicense, it.ExceptionLicense, true)
 		add("Export License", old.ExportLicenseNo, it.ExportLicenseNo, true)
 		add("Import License", old.ImportLicenseNo, it.ImportLicenseNo, true)
-		add("IT Controller S/N", old.ITControllerNo, it.ITControllerNo, true)
 		add("Machine No", old.MachineNo, it.MachineNo, false)
 		add("Invoice", old.InvoiceNo, it.InvoiceNo, false)
 		add("Export Entry", old.ExportEntry, it.ExportEntry, false)
@@ -761,7 +776,7 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 		}
 		counts[status]++
 		if status != "UNCHANGED" && len(preview) < 300 {
-			preview = append(preview, rowResult{Key: it.SerialNumber, Status: status, Diffs: diffs})
+			preview = append(preview, rowResult{Key: it.ITControllerNo, Status: status, Diffs: diffs})
 		}
 	}
 
@@ -773,8 +788,8 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 		"headerRow":   headerIdx + 1,
 		"matched":     matched,
 		"extra":       extra,
-		"keyLabel":    "Serial Number",
-		"coreFields":  []string{"Exception License", "Export License", "Import License", "IT Controller S/N"},
+		"keyLabel":    "IT Controller S/N",
+		"coreFields":  []string{"Export License", "Import License"},
 		"summary": gin.H{
 			"total":     total,
 			"new":       counts["NEW"],
@@ -804,20 +819,20 @@ func GetExportLicenseAlerts(c *gin.Context) {
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	type licenseGroup struct {
-		ExceptionLicense string
-		Total            int
-		IssueDate        *time.Time
-		ExpiryDate       *time.Time
-		HasDate          bool
+		ExportLicenseNo string
+		Total           int
+		IssueDate       *time.Time
+		ExpiryDate      *time.Time
+		HasDate         bool
 	}
 	groups := map[string]*licenseGroup{}
 	order := make([]string, 0)
 
 	for _, r := range rows {
-		key := r.ExceptionLicense
+		key := r.ExportLicenseNo
 		g, ok := groups[key]
 		if !ok {
-			g = &licenseGroup{ExceptionLicense: key}
+			g = &licenseGroup{ExportLicenseNo: key}
 			groups[key] = g
 			order = append(order, key)
 		}
@@ -837,12 +852,12 @@ func GetExportLicenseAlerts(c *gin.Context) {
 	}
 
 	type alertRow struct {
-		ExceptionLicense string     `json:"ExceptionLicense"`
-		Total            int        `json:"Total"`
-		IssueDate        *time.Time `json:"IssueDate"`
-		ExpiryDate       *time.Time `json:"ExpiryDate"`
-		DaysLeft         int        `json:"DaysLeft"`
-		Status           string     `json:"Status"`
+		ExportLicenseNo string     `json:"ExportLicenseNo"`
+		Total           int        `json:"Total"`
+		IssueDate       *time.Time `json:"IssueDate"`
+		ExpiryDate      *time.Time `json:"ExpiryDate"`
+		DaysLeft        int        `json:"DaysLeft"`
+		Status          string     `json:"Status"`
 
 		LeadTimeDate *time.Time `json:"LeadTimeDate"`
 		LeadDaysLeft int        `json:"LeadDaysLeft"`
@@ -861,12 +876,12 @@ func GetExportLicenseAlerts(c *gin.Context) {
 	for _, key := range order {
 		g := groups[key]
 		row := alertRow{
-			ExceptionLicense: g.ExceptionLicense,
-			Total:            g.Total,
-			IssueDate:        g.IssueDate,
-			LeadDays:         models.ExportLicenseLeadDays,
-			LeadWarnDays:     models.ExportLicenseLeadWarnDays,
-			LeadStatus:       models.ExportLeadNoDate,
+			ExportLicenseNo: g.ExportLicenseNo,
+			Total:           g.Total,
+			IssueDate:       g.IssueDate,
+			LeadDays:        models.ExportLicenseLeadDays,
+			LeadWarnDays:    models.ExportLicenseLeadWarnDays,
+			LeadStatus:      models.ExportLeadNoDate,
 		}
 
 		if !g.HasDate {
@@ -995,7 +1010,7 @@ func ClearExportLicense(c *gin.Context) {
 		return
 	}
 
-	res := config.DB.Where("exception_license = ? OR export_license_no = ?", licenseNo, licenseNo).
+	res := config.DB.Where("export_license_no = ?", licenseNo).
 		Delete(&models.ExportLicenseItem{})
 	if res.Error != nil {
 		c.JSON(500, gin.H{"message": res.Error.Error()})
@@ -1034,7 +1049,7 @@ func RenewExportLicense(c *gin.Context) {
 
 	q := config.DB.Model(&models.ExportLicenseItem{})
 	if exportLicenseNo != "" {
-		q = q.Where("(exception_license = ? OR export_license_no = ?)", exportLicenseNo, exportLicenseNo)
+		q = q.Where("export_license_no = ?", exportLicenseNo)
 	}
 	if invoiceNo != "" {
 		q = q.Where("invoice_no = ?", invoiceNo)

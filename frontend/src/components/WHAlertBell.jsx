@@ -163,7 +163,7 @@ export default function WHAlertBell() {
   const goExport = item => {
     setOpen(false);
     navigate('/warehouse/export-license', item ? {
-      focusException: item.ExceptionLicense || '',
+      focusLicenseNo: item.ExportLicenseNo || '',
       focusTs: Date.now()
     } : {});
   };
@@ -205,7 +205,7 @@ export default function WHAlertBell() {
           <AlertSection theme="export" title="ใบอนุญาตส่งออก" kindIcon={<ArrowUpTrayIcon className="size-3" />} loaded={loaded} expired={exp.expired} expiring={exp.expiring} limit={expLimit} onLimitChange={setExpLimit} noDate={expNoDate} noDateLabel="ยังไม่ได้ระบุวันหมดอายุ/ใบขน" expiringLabel="ใกล้หมดอายุ (ภายใน 7 วัน)" onOpen={goExport} getKey={expKey} lead={exp.lead} leadLabel={`Lead time · ต้องยื่น กสทช. (ก่อนหมดอายุ ${EXPORT_LICENSE_LEAD_DAYS} วัน)`} renderMeta={it => <>
                 {it.Total || 1} เครื่อง
                 {it.IssueDate ? ` · ออกใบอนุญาต ${formatThaiDate(it.IssueDate)}` : ''}
-              </>} titleField={it => it.ExceptionLicense || '—'} />
+              </>} titleField={it => it.ExportLicenseNo || '—'} />
 
           {totalOutstanding > 0 && <div className="lab-resolve-note">
               ตัวเลขบนกระดิ่งคือจำนวนที่<strong>ยังไม่ได้เปิดดู</strong> — พอเปิดดูแล้วจะหายไป
