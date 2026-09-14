@@ -148,7 +148,7 @@ export default function WHMatchingAssemblyPage() {
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return rows;
-    return rows.filter(r => String(r.ID).includes(term) || (r.MachineNo || '').toLowerCase().includes(term) || (r.ITControllerSN || '').toLowerCase().includes(term) || (r.Country || '').toLowerCase().includes(term) || (r.Classification || '').toLowerCase().includes(term) || (r.AssemblyPartsNo || '').toLowerCase().includes(term) || (r.AssemblyPartsName || '').toLowerCase().includes(term));
+    return rows.filter(r => (r.MachineNo || '').toLowerCase().includes(term) || (r.ITControllerSN || '').toLowerCase().includes(term) || (r.Country || '').toLowerCase().includes(term) || (r.Classification || '').toLowerCase().includes(term) || (r.AssemblyPartsNo || '').toLowerCase().includes(term) || (r.AssemblyPartsName || '').toLowerCase().includes(term));
   }, [rows, search]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -194,7 +194,7 @@ export default function WHMatchingAssemblyPage() {
           </div>
           entries per page
         </div>
-        <input className="wh-search" type="text" placeholder="ค้นหา Item / Machine No. / S/N / Country / Parts" value={search} onChange={e => setSearch(e.target.value)} />
+        <input className="wh-search" type="text" placeholder="ค้นหา Machine No. / S/N / Country / Parts" value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
       <div className="wh-table-card">
@@ -217,9 +217,9 @@ export default function WHMatchingAssemblyPage() {
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
-            {!loading && paged.map(a => <tr key={a.ID}>
+            {!loading && paged.map((a, idx) => <tr key={a.ID}>
                   <td className="wh-cell-head" data-label="Item">
-                    <strong>{a.ID}</strong>
+                    <strong>{(page - 1) * pageSize + idx + 1}</strong>
                   </td>
                   <td className="il-mono" data-label="Machine No.">
                     {a.MachineNo || '—'}

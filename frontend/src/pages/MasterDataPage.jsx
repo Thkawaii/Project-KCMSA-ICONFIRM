@@ -597,7 +597,7 @@ function ITControllerView({
 
             {!loading && filtered.map((row, i) => <tr key={row.ID}>
                   <td className="wh-cell-head" data-label="Item No.">
-                    <strong>{row.ID}</strong>
+                    <strong>{i + 1}</strong>
                   </td>
                   <td data-label="Part Name">{row.Name || DASH}</td>
                   <td data-label="Model">{row.Model || DASH}</td>
