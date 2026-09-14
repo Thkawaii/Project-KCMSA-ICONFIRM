@@ -65,6 +65,10 @@ func ResetIdentityIfEmpty(db *gorm.DB, model interface{}) {
 // the table. Needed after any write that inserts explicit ids, because those
 // inserts bypass the sequence and would otherwise let a later insert reuse an
 // id that is already taken.
+//
+// The three-argument setval matters. setval(seq, 1) marks the sequence as
+// already used, so the next row would get 2 and id 1 would be skipped for good.
+// Passing is_called explicitly keeps an empty table starting at 1.
 func SyncIdentityToMax(db *gorm.DB, model interface{}) {
 	if db == nil || db.Dialector.Name() != "postgres" {
 		return
@@ -75,7 +79,8 @@ func SyncIdentityToMax(db *gorm.DB, model interface{}) {
 	}
 	if err := db.Exec(
 		`SELECT setval(pg_get_serial_sequence(?, 'id'),
-		               GREATEST(COALESCE((SELECT MAX(id) FROM "`+table+`"), 0), 1))`,
+		               COALESCE((SELECT MAX(id) FROM "`+table+`"), 1),
+		               (SELECT MAX(id) FROM "`+table+`") IS NOT NULL)`,
 		table,
 	).Error; err != nil {
 		log.Println("sync identity:", table, ":", err)

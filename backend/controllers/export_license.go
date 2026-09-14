@@ -587,6 +587,13 @@ func UploadExportLicense(c *gin.Context) {
 				return err
 			}
 		}
+		// The pass above inserts explicit ids, which bypasses the sequence.
+		// Push it past the current max before the new rows draw from it.
+		// Only needed if that pass actually ran — on a first upload the
+		// sequence is already correct and must not be touched.
+		if len(toUpdate) > 0 {
+			SyncIdentityToMax(tx, &models.ExportLicenseItem{})
+		}
 		for _, part := range chunkSlice(toCreate, dbInsertBatch) {
 			if err := tx.Create(&part).Error; err != nil {
 				return err
@@ -598,11 +605,6 @@ func UploadExportLicense(c *gin.Context) {
 		c.JSON(500, gin.H{"message": "บันทึกไม่สำเร็จ: " + err.Error()})
 		return
 	}
-
-	// The overwrite path inserts explicit ids, which leaves the Postgres
-	// sequence behind the max id. Nudge it forward so the next brand-new row
-	// does not collide.
-	SyncIdentityToMax(config.DB, &models.ExportLicenseItem{})
 
 	CreateAuditLog("EXPORT_LICENSE", 0, "upload_excel", fileName, userID, userName)
 

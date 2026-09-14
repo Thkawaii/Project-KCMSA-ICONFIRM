@@ -249,7 +249,7 @@ func GetImportLicenseItems(c *gin.Context) {
 
 	var items []models.ImportLicenseItem
 
-	query := config.DB.Order("license_no asc").Order("id asc")
+	query := config.DB.Order("id asc")
 
 	if v := strings.TrimSpace(c.Query("license_no")); v != "" {
 		query = query.Where("license_no = ?", v)
@@ -617,7 +617,11 @@ func UploadImportLicenseItems(c *gin.Context) {
 		batch := make([]models.ImportLicenseItem, len(part))
 		for i, u := range part {
 			batch[i] = u.row
-			batch[i].ID = 0
+			// Carry the real id rather than 0. With 0, the insert draws a fresh
+			// value from the sequence before ON CONFLICT sends it to the UPDATE
+			// branch, so every re-upload burned one number per existing row and
+			// the next genuinely-new row jumped past 4,5,6.
+			batch[i].ID = u.id
 			batch[i].UploadDate = now
 			batch[i].UserID = userID
 		}
@@ -632,6 +636,14 @@ func UploadImportLicenseItems(c *gin.Context) {
 			}
 			updated++
 		}
+	}
+
+	// The update path above inserts explicit ids, which bypasses the sequence.
+	// Push it past the current max so the new rows below get clean numbers.
+	// Only needed if that path actually ran — on a first upload the sequence
+	// is already correct and must not be touched.
+	if len(toUpdate) > 0 {
+		SyncIdentityToMax(config.DB, &models.ImportLicenseItem{})
 	}
 
 	for _, part := range chunkSlice(toCreate, dbInsertBatch) {

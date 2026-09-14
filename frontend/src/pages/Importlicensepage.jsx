@@ -464,13 +464,7 @@ export default function ImportLicensePage() {
     if (term) {
       rows = rows.filter(r => (r.MachineNo || '').toLowerCase().includes(term) || (r.ProductionNo || '').toLowerCase().includes(term) || (r.LicenseNo || '').toLowerCase().includes(term) || (r.InvoiceNo || '').toLowerCase().includes(term) || (r.DeclarationNo || '').toLowerCase().includes(term) || (r.Model || '').toLowerCase().includes(term) || (r.ExportCountry || '').toLowerCase().includes(term));
     }
-    rows = [...rows].sort((a, b) => {
-      const da = a.IssueDate ? new Date(a.IssueDate).getTime() : NaN;
-      const db = b.IssueDate ? new Date(b.IssueDate).getTime() : NaN;
-      const va = Number.isNaN(da) ? -Infinity : da;
-      const vb = Number.isNaN(db) ? -Infinity : db;
-      return vb - va;
-    });
+    rows = [...rows].sort((a, b) => a.ID - b.ID);
     return rows;
   }, [items, selectedLot, countryFilter, expiryFilter, search, today]);
   const countryOptions = useMemo(() => buildCountryOptions(items.map(r => r.ExportCountry)), [items]);
