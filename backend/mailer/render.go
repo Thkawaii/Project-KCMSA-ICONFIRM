@@ -151,16 +151,12 @@ func RenderHTML(r WeeklyReport) string {
 	b.WriteString(`<div style="height:14px;"></div>`)
 
 	b.WriteString(indentPara(fmt.Sprintf(
-		"ด้วยระบบ I-CONFIRMATION ได้ตรวจสอบสถานะใบอนุญาตนำเข้าและนำออกที่ยังมิได้ปิดงาน ณ วันที่ %s แล้ว %s",
+		"ด้วยระบบ I-CONFIRMATION ได้ตรวจสอบสถานะใบอนุญาตนำเข้าและนำออกที่อยู่ระหว่างดำเนินการ ณ วันที่ %s แล้ว %s",
 		esc(ThaiDateFull(r.GeneratedAt, r.BuddhistEra)), esc(introSentence(r)))))
 
 	b.WriteString(renderBreakdown(r))
 
-	if r.IsEmpty() {
-		b.WriteString(indentPara("รายละเอียดของแต่ละประเภทใบอนุญาต ปรากฏตามข้อ 1 และข้อ 2 ดังนี้"))
-	} else {
-		b.WriteString(indentPara("จึงขอเรียนรายละเอียดของแต่ละประเภทใบอนุญาต เพื่อโปรดพิจารณาดำเนินการ ดังนี้"))
-	}
+	b.WriteString(indentPara("รายละเอียดของแต่ละประเภทใบอนุญาต ปรากฏตามข้อ 1 และข้อ 2 ดังนี้"))
 
 	b.WriteString(clauseHeading("1.", "ใบอนุญาตนำเข้า (Import License)"))
 	if len(r.Import) == 0 {
@@ -184,11 +180,7 @@ func RenderHTML(r WeeklyReport) string {
 
 	b.WriteString(`<div style="height:6px;"></div>`)
 
-	if r.IsEmpty() {
-		b.WriteString(indentPara("จึงเรียนมาเพื่อโปรดทราบ"))
-	} else {
-		b.WriteString(indentPara("จึงขอแจ้งมาเพื่อโปรดพิจารณาดำเนินการในส่วนที่เกี่ยวข้องต่อไป ขอขอบคุณเป็นอย่างยิ่ง"))
-	}
+	b.WriteString(indentPara("จึงเรียนมาเพื่อโปรดทราบและดำเนินการในส่วนที่เกี่ยวข้องต่อไป"))
 
 	if r.AppURL != "" {
 		b.WriteString(indentPara(fmt.Sprintf(
@@ -479,16 +471,12 @@ func RenderText(r WeeklyReport) string {
 	b.WriteString("เรียน   " + recipientName(r) + "\n")
 	b.WriteString("\n")
 
-	b.WriteString(pad + fmt.Sprintf("ด้วยระบบ I-CONFIRMATION ได้ตรวจสอบสถานะใบอนุญาตนำเข้าและนำออกที่ยังมิได้ปิดงาน\nณ วันที่ %s แล้ว %s\n",
+	b.WriteString(pad + fmt.Sprintf("ด้วยระบบ I-CONFIRMATION ได้ตรวจสอบสถานะใบอนุญาตนำเข้าและนำออกที่อยู่ระหว่างดำเนินการ\nณ วันที่ %s แล้ว %s\n",
 		ThaiDateFull(r.GeneratedAt, r.BuddhistEra), introSentence(r)))
 	b.WriteString(renderBreakdownText(r))
 	b.WriteString("\n")
 
-	if r.IsEmpty() {
-		b.WriteString(pad + "รายละเอียดของแต่ละประเภทใบอนุญาต ปรากฏตามข้อ 1 และข้อ 2 ดังนี้\n\n")
-	} else {
-		b.WriteString(pad + "จึงขอเรียนรายละเอียดของแต่ละประเภทใบอนุญาต เพื่อโปรดพิจารณาดำเนินการ ดังนี้\n\n")
-	}
+	b.WriteString(pad + "รายละเอียดของแต่ละประเภทใบอนุญาต ปรากฏตามข้อ 1 และข้อ 2 ดังนี้\n\n")
 
 	b.WriteString(pad + "1. ใบอนุญาตนำเข้า (Import License)\n")
 	if len(r.Import) == 0 {
@@ -522,11 +510,7 @@ func RenderText(r WeeklyReport) string {
 	}
 	b.WriteString("\n")
 
-	if r.IsEmpty() {
-		b.WriteString(pad + "จึงเรียนมาเพื่อโปรดทราบ\n\n")
-	} else {
-		b.WriteString(pad + "จึงขอแจ้งมาเพื่อโปรดพิจารณาดำเนินการในส่วนที่เกี่ยวข้องต่อไป ขอขอบคุณเป็นอย่างยิ่ง\n\n")
-	}
+	b.WriteString(pad + "จึงเรียนมาเพื่อโปรดทราบและดำเนินการในส่วนที่เกี่ยวข้องต่อไป\n\n")
 
 	if r.AppURL != "" {
 		b.WriteString(pad + "ทั้งนี้ สามารถตรวจสอบรายละเอียดทั้งหมดได้ที่\n" + pad + r.AppURL + "\n\n")
