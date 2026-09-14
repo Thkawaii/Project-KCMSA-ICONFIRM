@@ -1,2 +1,7 @@
+# กัน secret ไม่ให้ติดไปกับ image
+.env
+.env.*
+!.env.example
+
 uploads
 *.md

@@ -828,7 +828,7 @@ export default function ImportLicensePage() {
                     <SelectCheckbox checked={selected.has(row.ID)} onChange={() => toggleOne(row.ID)} label={`เลือก ${row.MachineNo || 'รายการนี้'}`} />
                   </td>
                   <td className="wh-cell-head" data-label="ลำดับ">
-                    {row.ID}
+                    {(page - 1) * pageSize + i + 1}
                   </td>
                   <td data-label="ตราอักษร">{row.Brand || '—'}</td>
                   <td data-label="แบบ/รุ่น">{row.Model || '—'}</td>
@@ -2217,7 +2217,7 @@ export function WHExportLicensePanel() {
                     <SelectCheckbox checked={selected.has(row.ID)} onChange={() => toggleOne(row.ID)} label={`เลือก ${row.MachineNo || row.SerialNumber || 'รายการนี้'}`} />
                   </td>
                   <td className="wh-cell-head" data-label="Item">
-                    {row.ID}
+                    {(page - 1) * pageSize + i + 1}
                   </td>
                   <td data-label="Date Ass'y">{formatThaiDate(row.AssemblyDate)}</td>
                   <td className="il-mono wh-cell-head" data-label="Machine No">
