@@ -1579,7 +1579,7 @@ export function WHExportLicensePanel() {
             const done = isLicenseCompleted(r);
             const row = {
               __danger: !done && (exp.status === EXPIRY_STATUS.EXPIRED || exp.leadStatus === LEAD_STATUS.OVERDUE),
-              item: r.ID,
+              item: i + 1,
               assemblyDate: r.AssemblyDate ? formatThaiDate(r.AssemblyDate) : '—',
               issueDate: r.IssueDate ? formatThaiDate(r.IssueDate) : '—',
               expiryDate: exp.hasDate ? formatThaiDate(exp.expiryDate) : '—',
