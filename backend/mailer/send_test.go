@@ -172,7 +172,7 @@ func TestBuildXLSXIsValidWorkbook(t *testing.T) {
 	}
 
 	sheet2 := parts["xl/worksheets/sheet2.xml"]
-	if !strings.Contains(sheet2, "Exception License") || !strings.Contains(sheet2, "EX-2026-0091") {
+	if !strings.Contains(sheet2, "เลขที่ใบอนุญาต") || !strings.Contains(sheet2, "EX-2026-0091") {
 		t.Fatal("ชีต Export ต้องมีทั้งหัวคอลัมน์และข้อมูลจริง")
 	}
 	if strings.Contains(sheet2, "IL-2026-0148") {

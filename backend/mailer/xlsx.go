@@ -50,7 +50,7 @@ var importColumns = []xlsxColumn{
 
 var exportColumns = []xlsxColumn{
 	{Title: "ลำดับ", Width: 8, Center: true},
-	{Title: "Exception License", Width: 24},
+	{Title: "เลขที่ใบอนุญาต", Width: 24},
 	{Title: "จำนวนเครื่อง", Width: 13, Center: true},
 	{Title: "วันที่นำออก", Width: 18, Center: true},
 	{Title: "วันหมดอายุ", Width: 16, Center: true},

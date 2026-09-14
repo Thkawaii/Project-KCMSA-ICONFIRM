@@ -160,7 +160,7 @@ func TestRenderHTMLContainsKeyContent(t *testing.T) {
 		"เรื่อง",
 		"เรียน",
 		"ด้วยระบบ I-CONFIRMATION ได้ตรวจสอบ",
-		"ปรากฏว่ามีรายการที่ต้องดำเนินการรวมทั้งสิ้น 6 รายการ จำแนกเป็น",
+		"ปรากฏว่ามีรายการที่ต้องดำเนินการรวมทั้งสิ้น 4 รายการ จำแนกเป็น",
 		"ใบอนุญาตนำเข้า",
 		"ใบอนุญาตนำออก",
 		"จำนวน",
@@ -234,7 +234,7 @@ func TestRenderTextIncludesBothSections(t *testing.T) {
 	if !strings.Contains(text, "1. ใบอนุญาตนำเข้า") || !strings.Contains(text, "2. ใบอนุญาตนำออก") {
 		t.Fatal("ฉบับข้อความล้วนต้องมีทั้งสองหมวด")
 	}
-	if !strings.Contains(text, "ต้องดำเนินการรวมทั้งสิ้น 6 รายการ จำแนกเป็น") {
+	if !strings.Contains(text, "ต้องดำเนินการรวมทั้งสิ้น 4 รายการ จำแนกเป็น") {
 		t.Fatalf("ฉบับข้อความล้วนสรุปตัวเลขผิด:\n%s", text)
 	}
 	if !strings.Contains(text, "เรื่อง") || !strings.Contains(text, "เรียน") {
@@ -443,8 +443,13 @@ func TestBreakdownGroupsSumToTotal(t *testing.T) {
 			sum += it.Count
 		}
 	}
-	if sum != r.TotalActions() {
-		t.Fatalf("ผลรวมยอดจำแนก %d ไม่ตรงกับยอดรวม %d", sum, r.TotalActions())
+	wantTotal := r.ImportCounts.Expired + r.ImportCounts.Expiring +
+		r.ExportCounts.Expired + r.ExportCounts.Expiring
+	if sum != wantTotal {
+		t.Fatalf("ผลรวมยอดจำแนก %d ไม่ตรงกับยอดหมดอายุ/ใกล้หมดอายุ %d", sum, wantTotal)
+	}
+	if sum != breakdownTotal(groups) {
+		t.Fatalf("breakdownTotal %d ไม่ตรงกับผลรวมยอดจำแนก %d", breakdownTotal(groups), sum)
 	}
 }
 
