@@ -55,7 +55,10 @@ func TestSampleUploadDataFiles(t *testing.T) {
 	}
 }
 
-func TestSamplePlanningHasNoExclusiveConflict(t *testing.T) {
+// A planning row may carry any number of part types — one machine is one built
+// machine. This only checks that the sample file yields readable component
+// numbers; several on one row is expected, not an error.
+func TestSamplePlanningReadsComponents(t *testing.T) {
 	newTestDB(t)
 	rows := readXlsx(t, "04_Planning.xlsx")
 	ds := udDatasets["planning"]
@@ -63,14 +66,16 @@ func TestSamplePlanningHasNoExclusiveConflict(t *testing.T) {
 	if idx < 0 {
 		t.Fatal("หาหัวตารางไม่เจอ")
 	}
+	total := 0
 	for i := idx + 1; i < len(rows); i++ {
 		data, any := buildStandardRowData(ds, headerMap, rows[i])
 		if !any {
 			continue
 		}
-		if filled := countPlanComponents(data); len(filled) > 1 {
-			t.Errorf("แถวที่ %d กรอกพาร์ทหลัก %d ชนิด: %v", i+1, len(filled), filled)
-		}
+		total += len(planComponentsFilled(data))
+	}
+	if total == 0 {
+		t.Error("ไฟล์ตัวอย่างอ่านหมายเลขพาร์ทไม่ได้เลยสักช่อง")
 	}
 }
 

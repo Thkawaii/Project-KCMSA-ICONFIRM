@@ -675,8 +675,8 @@ func UploadDataFile(c *gin.Context) {
 	now := time.Now()
 
 	var parsed []models.UploadDataRow
-	var planConflicts []planRowConflict
 	skipped := 0
+	componentCells := 0
 
 	for i := headerIdx + 1; i < len(rows); i++ {
 		raw := rows[i]
@@ -733,13 +733,7 @@ func UploadDataFile(c *gin.Context) {
 		}
 
 		if dataset == models.DatasetPlanning {
-			if filled := countPlanComponents(data); len(filled) > 1 {
-				planConflicts = append(planConflicts, planRowConflict{
-					RowNo:     i + 1,
-					MachineNo: machineFromRow(data),
-					Filled:    filled,
-				})
-			}
+			componentCells += len(planComponentsFilled(data))
 		}
 
 		jsonBytes, _ := json.Marshal(data)
@@ -754,14 +748,6 @@ func UploadDataFile(c *gin.Context) {
 		fillUploadDataKeys(&row, dataset, data)
 
 		parsed = append(parsed, row)
-	}
-
-	if len(planConflicts) > 0 {
-		c.JSON(400, gin.H{
-			"message":   planConflictMessage(planConflicts),
-			"conflicts": planConflicts,
-		})
-		return
 	}
 
 	if len(parsed) == 0 {
@@ -791,12 +777,13 @@ func UploadDataFile(c *gin.Context) {
 
 	if len(toInsert) == 0 {
 		c.JSON(200, gin.H{
-			"dataset":   dataset,
-			"imported":  0,
-			"skipped":   skipped,
-			"duplicate": duplicate,
-			"file":      fileName,
-			"message":   "ไม่มีแถวใหม่ — ข้อมูลในไฟล์ซ้ำกับที่มีอยู่แล้วทั้งหมด",
+			"dataset":    dataset,
+			"imported":   0,
+			"skipped":    skipped,
+			"duplicate":  duplicate,
+			"components": componentCells,
+			"file":       fileName,
+			"message":    "ไม่มีแถวใหม่ — ข้อมูลในไฟล์ซ้ำกับที่มีอยู่แล้วทั้งหมด",
 		})
 		return
 	}
@@ -813,11 +800,12 @@ func UploadDataFile(c *gin.Context) {
 	CreateAuditLog("UPLOAD_DATA", 0, "upload_"+dataset, fileName, userID, userName)
 
 	c.JSON(201, gin.H{
-		"dataset":   dataset,
-		"imported":  len(toInsert),
-		"skipped":   skipped,
-		"duplicate": duplicate,
-		"file":      fileName,
+		"dataset":    dataset,
+		"imported":   len(toInsert),
+		"skipped":    skipped,
+		"duplicate":  duplicate,
+		"components": componentCells,
+		"file":       fileName,
 	})
 }
 
