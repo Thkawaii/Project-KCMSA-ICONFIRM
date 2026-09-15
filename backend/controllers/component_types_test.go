@@ -69,9 +69,9 @@ func TestMFGStatusForAllPartsWaitsForWH(t *testing.T) {
 	}
 }
 
-func TestCountPlanComponents(t *testing.T) {
+func TestPlanComponentsFilled(t *testing.T) {
 	one := map[string]string{"IT Controller No": "878250022801"}
-	if got := countPlanComponents(one); len(got) != 1 {
+	if got := planComponentsFilled(one); len(got) != 1 {
 		t.Errorf("กรอกชนิดเดียว = %v, want 1", got)
 	}
 
@@ -79,19 +79,26 @@ func TestCountPlanComponents(t *testing.T) {
 		"IT Controller No": "878250022801",
 		"Swing Motor No":   "SW2411001",
 	}
-	if got := countPlanComponents(two); len(got) != 2 {
-		t.Errorf("กรอกสองชนิด = %v, want 2", got)
+	if got := planComponentsFilled(two); len(got) != 2 {
+		t.Errorf("ITC + SM = %v, want 2", got)
 	}
 
-	withCW := map[string]string{
+	// One machine is one whole excavator, so every part type may sit on the
+	// same planning row.
+	full := map[string]string{
 		"IT Controller No": "878250022801",
+		"Swing Motor No":   "SW2411001",
+		"Pump Assy HYD No": "PH2411001",
+		"Motor Propel No":  "MP2411001",
+		"Control Valve No": "CV2411001",
 		"CW No":            "CW2411001",
+		"Engine":           "J05E-0007",
 	}
-	if got := countPlanComponents(withCW); len(got) != 1 {
-		t.Errorf("ITC + CW = %v, want 1 (CW ไม่นับในกลุ่มบังคับ)", got)
+	if got := planComponentsFilled(full); len(got) != 7 {
+		t.Errorf("กรอกครบทุกชนิด = %v, want 7", got)
 	}
 
-	if got := countPlanComponents(map[string]string{}); len(got) != 0 {
+	if got := planComponentsFilled(map[string]string{}); len(got) != 0 {
 		t.Errorf("ไม่กรอกเลย = %v, want 0", got)
 	}
 }
