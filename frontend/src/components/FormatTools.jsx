@@ -186,14 +186,6 @@ export function ColumnAliasPanel({
             </div>
           </div>
 
-          {changeKind === 'add' && <p style={{
-        fontSize: 12.5,
-        color: '#64748b',
-        margin: '8px 2px 0'
-      }}>
-              เพิ่มหัวคอลัมน์ใหม่ไม่ต้องเลือก "ข้อมูลเดิม" — ระบบจะเก็บคอลัมน์นี้เป็น "คอลัมน์เพิ่ม" ให้เอง
-            </p>}
-
           <div className="fmt-actions">
             <button className="wh-issue-btn fmt-add-btn" onClick={handleAdd} disabled={saving}>
               {saving ? 'กำลังเพิ่ม...' : 'เพิ่ม'}
@@ -691,7 +683,9 @@ export function ChangePreview({
     const map = {
       NEW: ['#dcfce7', '#166534'],
       UPDATED: ['#dbeafe', '#1e40af'],
-      CHANGED: ['#fef3c7', '#92400e']
+      CHANGED: ['#fef3c7', '#92400e'],
+      DELETE: ['#fee2e2', '#991b1b'],
+      DELETE_NOT_FOUND: ['#f1f5f9', '#b91c1c']
     };
     const [bg, color] = map[status] || ['#f1f5f9', '#475569'];
     return <span style={{
@@ -723,7 +717,7 @@ export function ChangePreview({
       <div style={{
       marginBottom: 8
     }}>
-        ตรวจไฟล์ <strong>{result.file}</strong> (หัวตารางแถวที่ {result.headerRow ?? '—'}) — ยังไม่บันทึก กดอัปโหลดเพื่อยืนยัน
+        <strong>{result.file}</strong>
       </div>
       <div style={{
       display: 'flex',
@@ -736,6 +730,8 @@ export function ChangePreview({
         {stat('อัปเดต', s.updated, '#dbeafe', '#1e40af')}
         {stat('ค่าเปลี่ยน', s.changed, '#fef3c7', '#92400e')}
         {stat('เหมือนเดิม', s.unchanged, '#f1f5f9', '#475569')}
+        {stat('ลบ', s.deleted, '#fee2e2', '#991b1b')}
+        {s.deleteNotFound > 0 && stat('ไม่พบที่จะลบ', s.deleteNotFound, '#f1f5f9', '#b91c1c')}
       </div>
 
       {(matched.length > 0 || missing.length > 0) && <div style={{
@@ -777,7 +773,7 @@ export function ChangePreview({
       marginBottom: 8,
       color: '#92400e'
     }}>
-          ⚠ มี {s.changed} แถวที่ค่าหลัก ({coreFields.join(' · ')}) เปลี่ยน — ตรวจก่อนยืนยัน
+          ⚠ {coreFields.join(' · ')}: {s.changed}
         </div>}
 
       {rows.length > 0 ? <div style={{
@@ -803,7 +799,7 @@ export function ChangePreview({
                   <td>
                     {(r.diffs || []).length === 0 ? <span style={{
                 color: '#94a3b8'
-              }}>{r.status === 'NEW' ? 'แถวใหม่' : '—'}</span> : <div style={{
+              }}>—</span> : <div style={{
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 2
@@ -833,7 +829,7 @@ export function ChangePreview({
           </table>
         </div> : <div style={{
       color: '#64748b'
-    }}>ทุกแถวเหมือนเดิม — อัปโหลดจะไม่เปลี่ยนแปลงข้อมูล</div>}
+    }}>—</div>}
 
       {result.problems?.length > 0 && <ul style={{
       margin: '8px 0 0',
@@ -859,7 +855,8 @@ export function MasterDataEditModal({
     PartNo: row.PartNo || '',
     SerialNo: row.SerialNo || '',
     ITControllerNo: row.ITControllerNo || '',
-    IMEI: row.IMEI || ''
+    IMEI: row.IMEI || '',
+    Note: row.Note || ''
   });
   const [saving, setSaving] = useState(false);
   const set = k => e => setForm(f => ({
@@ -880,7 +877,8 @@ export function MasterDataEditModal({
         PartNo: form.PartNo.trim(),
         SerialNo: form.SerialNo.trim(),
         ITControllerNo: form.ITControllerNo.trim(),
-        IMEI: form.IMEI.trim()
+        IMEI: form.IMEI.trim(),
+        Note: form.Note.trim()
       };
       await saveWithGuard(patch);
       toastSuccess('บันทึกการแก้ไขแล้ว');
@@ -922,7 +920,7 @@ export function MasterDataEditModal({
       <div className="wh-modal" style={{
       maxWidth: 560
     }} onClick={e => e.stopPropagation()}>
-        <h3 className="wh-modal-title">แก้ไขทะเบียน Master Data</h3>
+        <h3 className="wh-modal-title">แก้ไขข้อมูล</h3>
 
         <div className="fmt-form fmt-form-compact" style={{
         marginTop: 12
@@ -940,15 +938,8 @@ export function MasterDataEditModal({
           {field('Serial No.', 'SerialNo', true)}
           {field(itcLabel, 'ITControllerNo', true)}
           {form.ComponentType === 'it_controller' && field('IMEI', 'IMEI', true)}
+          {field('Note', 'Note')}
         </div>
-
-        <p style={{
-        fontSize: 12,
-        color: '#94a3b8',
-        marginTop: 10
-      }}>
-          แก้เพื่อให้ตรงกับ format ใหม่ที่หน้างานใช้ — เว้นว่างได้ในช่องที่อะไหล่ชนิดนั้นไม่มี
-        </p>
 
         <div className="wh-modal-actions">
           <button className="wh-modal-cancel" onClick={onClose} disabled={saving}>ยกเลิก</button>

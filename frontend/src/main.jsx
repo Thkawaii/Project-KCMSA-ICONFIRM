@@ -57,10 +57,6 @@ const ROUTE_CONFIG = {
   },
   '/format-settings': {
     component: FormatSettingsPage,
-    roles: ['UPLOAD', 'ADMIN']
-  },
-  '/admin/master-data': {
-    component: MasterDataPage,
     roles: ['ADMIN']
   },
   '/admin/mail-recipients': {

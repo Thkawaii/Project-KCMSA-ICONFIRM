@@ -16,9 +16,7 @@ import (
 )
 
 var importLicenseColumns = map[string]func(*models.ImportLicenseItem, string){
-	// The file's running number is recognised but discarded: the row's id is
-	// the only sequence we keep. Leaving these mapped (rather than deleting
-	// them) stops the column being reported as an unknown "extra" column.
+
 	"ลำดับ":  func(*models.ImportLicenseItem, string) {},
 	"no":     func(*models.ImportLicenseItem, string) {},
 	"itemno": func(*models.ImportLicenseItem, string) {},
@@ -57,6 +55,8 @@ var importLicenseColumns = map[string]func(*models.ImportLicenseItem, string){
 	"productionno": func(m *models.ImportLicenseItem, v string) { m.ProductionNo = normalizeDigitCell(v) },
 	"imei":         func(m *models.ImportLicenseItem, v string) { m.ProductionNo = normalizeDigitCell(v) },
 
+	"note":     func(m *models.ImportLicenseItem, v string) { m.Note = strings.TrimSpace(v) },
+	"notes":    func(m *models.ImportLicenseItem, v string) { m.Note = strings.TrimSpace(v) },
 	"หมายเหตุ": func(m *models.ImportLicenseItem, v string) { m.Remark = v },
 	"remark":   func(m *models.ImportLicenseItem, v string) { m.Remark = v },
 
@@ -243,6 +243,38 @@ func findImportLicenseHeader(rows [][]string) (int, []string) {
 	}
 
 	return -1, nil
+}
+
+func matchImportLicenseNoteDeletes(rows []models.ImportLicenseItem) ([]uint, []string, error) {
+	var (
+		ids      []uint
+		problems []string
+		taken    = map[uint]bool{}
+	)
+	for _, row := range rows {
+		var candidates []models.ImportLicenseItem
+		if err := config.DB.Where("machine_no = ?", row.MachineNo).Order("id asc").Find(&candidates).Error; err != nil {
+			return nil, nil, err
+		}
+		found := false
+		for _, cand := range candidates {
+			if taken[cand.ID] {
+				continue
+			}
+			if !sameOptionalCode(row.ProductionNo, cand.ProductionNo) ||
+				!sameOptionalText(row.LicenseNo, cand.LicenseNo) ||
+				!sameOptionalText(row.InvoiceNo, cand.InvoiceNo) {
+				continue
+			}
+			taken[cand.ID] = true
+			ids = append(ids, cand.ID)
+			found = true
+		}
+		if !found {
+			problems = append(problems, "หมายเลขเครื่อง "+row.MachineNo+": ไม่พบข้อมูลที่ตรงกันสำหรับลบ")
+		}
+	}
+	return ids, problems, nil
 }
 
 func GetImportLicenseItems(c *gin.Context) {
@@ -473,10 +505,11 @@ func UploadImportLicenseItems(c *gin.Context) {
 	fallbackIssueDate := scanIssueDateFromHeaderBlock(rows, headerIdx)
 
 	var (
-		parsed   []models.ImportLicenseItem
-		seen     = map[string]bool{}
-		skipped  int
-		problems []string
+		parsed     []models.ImportLicenseItem
+		deleteRows []models.ImportLicenseItem
+		seen       = map[string]bool{}
+		skipped    int
+		problems   []string
 	)
 
 	dupSkip, dupProblems := findDuplicateKnownColumns(
@@ -534,6 +567,11 @@ func UploadImportLicenseItems(c *gin.Context) {
 			continue
 		}
 
+		if IsDeleteNote(row.Note) {
+			deleteRows = append(deleteRows, row)
+			continue
+		}
+
 		if seen[row.MachineNo] {
 			problems = append(problems, "แถว "+strconv.Itoa(i+1)+": หมายเลขเครื่อง "+row.MachineNo+" ซ้ำกันเองในไฟล์")
 			continue
@@ -543,9 +581,28 @@ func UploadImportLicenseItems(c *gin.Context) {
 		parsed = append(parsed, row)
 	}
 
-	if len(parsed) == 0 {
+	if len(parsed) == 0 && len(deleteRows) == 0 {
 		c.JSON(400, gin.H{"message": "ไม่พบแถวข้อมูลที่นำเข้าได้ในไฟล์นี้"})
 		return
+	}
+
+	deleteIDs, deleteProblems, err := matchImportLicenseNoteDeletes(deleteRows)
+	if err != nil {
+		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+		return
+	}
+	problems = append(problems, deleteProblems...)
+	deleted := 0
+	for _, part := range chunkSlice(deleteIDs, dbInsertBatch) {
+		res := config.DB.Where("id IN ?", part).Delete(&models.ImportLicenseItem{})
+		if res.Error != nil {
+			c.JSON(500, gin.H{"message": "ลบข้อมูลไม่สำเร็จ: " + res.Error.Error()})
+			return
+		}
+		deleted += int(res.RowsAffected)
+	}
+	if deleted > 0 {
+		CreateAuditLog("IMPORT_LICENSE", 0, "delete_by_note", strconv.Itoa(deleted), userID, userName)
 	}
 
 	machineNos := make([]string, 0, len(parsed))
@@ -593,6 +650,7 @@ func UploadImportLicenseItems(c *gin.Context) {
 				"qty":            row.Qty,
 				"production_no":  row.ProductionNo,
 				"remark":         row.Remark,
+				"note":           row.Note,
 				"export_country": row.ExportCountry,
 				"issue_date":     row.IssueDate,
 				"expire_date":    row.ExpireDate,
@@ -609,7 +667,7 @@ func UploadImportLicenseItems(c *gin.Context) {
 		Columns: []clause.Column{{Name: "machine_no"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"brand", "model", "license_no", "invoice_no", "declaration_no",
-			"qty", "production_no", "remark", "export_country", "issue_date", "expire_date",
+			"qty", "production_no", "remark", "note", "export_country", "issue_date", "expire_date",
 			"extra_json", "file_name", "upload_date", "user_id",
 		}),
 	}
@@ -617,10 +675,7 @@ func UploadImportLicenseItems(c *gin.Context) {
 		batch := make([]models.ImportLicenseItem, len(part))
 		for i, u := range part {
 			batch[i] = u.row
-			// Carry the real id rather than 0. With 0, the insert draws a fresh
-			// value from the sequence before ON CONFLICT sends it to the UPDATE
-			// branch, so every re-upload burned one number per existing row and
-			// the next genuinely-new row jumped past 4,5,6.
+
 			batch[i].ID = u.id
 			batch[i].UploadDate = now
 			batch[i].UserID = userID
@@ -638,10 +693,6 @@ func UploadImportLicenseItems(c *gin.Context) {
 		}
 	}
 
-	// The update path above inserts explicit ids, which bypasses the sequence.
-	// Push it past the current max so the new rows below get clean numbers.
-	// Only needed if that path actually ran — on a first upload the sequence
-	// is already correct and must not be touched.
 	if len(toUpdate) > 0 {
 		SyncIdentityToMax(config.DB, &models.ImportLicenseItem{})
 	}
@@ -667,6 +718,7 @@ func UploadImportLicenseItems(c *gin.Context) {
 	c.JSON(201, gin.H{
 		"imported": imported,
 		"updated":  updated,
+		"deleted":  deleted,
 		"skipped":  skipped,
 		"problems": capProblems(problems),
 		"file":     fileHeader.Filename,
@@ -724,7 +776,7 @@ func matchImportLicense(code, invoiceNo, productionNo string) (string, string, *
 
 	if item.ConfirmStatus == models.LicenseItemConfirmed {
 		return models.MatchStatusDuplicate,
-			"เครื่องนี้ถูกยืนยันไปแล้ว", &item
+			"IT Controller นี้ถูกยืนยันไปแล้ว", &item
 	}
 
 	return models.MatchStatusMatch, "ตรงกับบัญชีใบอนุญาตนำเข้า", &item
@@ -800,7 +852,7 @@ func PreviewImportLicenseMapping(c *gin.Context) {
 	}
 
 	fallbackIssueDate := scanIssueDateFromHeaderBlock(rows, headerIdx)
-	var newItems []models.ImportLicenseItem
+	var newItems, deleteItems []models.ImportLicenseItem
 	seenMachine := map[string]bool{}
 	dupSkip, _ := findDuplicateKnownColumns(
 		headers,
@@ -825,11 +877,25 @@ func PreviewImportLicenseMapping(c *gin.Context) {
 			it.IssueDate = fallbackIssueDate
 		}
 		it.FillExpireDate()
+		if it.MachineNo != "" && IsDeleteNote(it.Note) {
+			deleteItems = append(deleteItems, it)
+			continue
+		}
 		if it.MachineNo == "" || seenMachine[it.MachineNo] {
 			continue
 		}
 		seenMachine[it.MachineNo] = true
 		newItems = append(newItems, it)
+	}
+
+	deleteIDs, _, err := matchImportLicenseNoteDeletes(deleteItems)
+	if err != nil {
+		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+		return
+	}
+	willDelete := make(map[uint]bool, len(deleteIDs))
+	for _, id := range deleteIDs {
+		willDelete[id] = true
 	}
 
 	machineNos := make([]string, 0, len(newItems))
@@ -844,6 +910,9 @@ func PreviewImportLicenseMapping(c *gin.Context) {
 			return
 		}
 		for _, r := range existingRows {
+			if willDelete[r.ID] {
+				continue
+			}
 			existing[r.MachineNo] = r
 		}
 	}
@@ -858,8 +927,20 @@ func PreviewImportLicenseMapping(c *gin.Context) {
 		Status string      `json:"status"`
 		Diffs  []fieldDiff `json:"diffs,omitempty"`
 	}
-	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0}
+	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0, "DELETE": 0, "DELETE_NOT_FOUND": 0}
 	preview := make([]rowResult, 0, 300)
+
+	for _, it := range deleteItems {
+		single, _, err := matchImportLicenseNoteDeletes([]models.ImportLicenseItem{it})
+		status := "DELETE"
+		if err != nil || len(single) == 0 {
+			status = "DELETE_NOT_FOUND"
+		}
+		counts[status]++
+		if len(preview) < 300 {
+			preview = append(preview, rowResult{Key: it.MachineNo, Status: status})
+		}
+	}
 
 	for _, it := range newItems {
 		old, ok := existing[it.MachineNo]
@@ -888,6 +969,7 @@ func PreviewImportLicenseMapping(c *gin.Context) {
 		add("ใบขนสินค้า", old.DeclarationNo, it.DeclarationNo, false)
 		add("ส่งออกไปประเทศ", old.ExportCountry, it.ExportCountry, false)
 		add("หมายเหตุ", old.Remark, it.Remark, false)
+		add("Note", old.Note, it.Note, false)
 
 		var status string
 		switch {
@@ -904,7 +986,7 @@ func PreviewImportLicenseMapping(c *gin.Context) {
 		}
 	}
 
-	total := counts["NEW"] + counts["UPDATED"] + counts["CHANGED"] + counts["UNCHANGED"]
+	total := counts["NEW"] + counts["UPDATED"] + counts["CHANGED"] + counts["UNCHANGED"] + counts["DELETE"] + counts["DELETE_NOT_FOUND"]
 
 	c.JSON(200, gin.H{
 		"file":        fileHeader.Filename,
@@ -915,11 +997,13 @@ func PreviewImportLicenseMapping(c *gin.Context) {
 		"keyLabel":    "หมายเลขเครื่อง",
 		"coreFields":  []string{"เลขใบอนุญาต", "อินวอยซ์", "หมายเลขการผลิต", "แบบ/รุ่น"},
 		"summary": gin.H{
-			"total":     total,
-			"new":       counts["NEW"],
-			"updated":   counts["UPDATED"],
-			"changed":   counts["CHANGED"],
-			"unchanged": counts["UNCHANGED"],
+			"total":          total,
+			"new":            counts["NEW"],
+			"updated":        counts["UPDATED"],
+			"changed":        counts["CHANGED"],
+			"unchanged":      counts["UNCHANGED"],
+			"deleted":        counts["DELETE"],
+			"deleteNotFound": counts["DELETE_NOT_FOUND"],
 		},
 		"rows": preview,
 	})

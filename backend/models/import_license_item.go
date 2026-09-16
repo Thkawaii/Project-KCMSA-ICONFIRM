@@ -20,8 +20,6 @@ const (
 )
 
 type ImportLicenseItem struct {
-	// ID is the only row number this table has; the old item_no column was a
-	// duplicate of it parsed from the uploaded file.
 	ID uint `gorm:"primaryKey"`
 
 	Brand string `gorm:"size:100"`
@@ -45,13 +43,15 @@ type ImportLicenseItem struct {
 	Remark        string `gorm:"type:text"`
 	ExportCountry string `gorm:"size:100"`
 
+	Note string `gorm:"column:note;type:text"`
+
 	ExtraJSON string `gorm:"type:text" json:"extra_json"`
 
 	ConfirmStatus     string `gorm:"size:20;index;default:PENDING"`
 	ConfirmedBy       string `gorm:"size:100"`
 	ConfirmedDatetime *time.Time
 
-	Completed   bool `gorm:"index;not null;default:false"`
+	Completed   bool   `gorm:"index;not null;default:false"`
 	CompletedBy string `gorm:"size:100"`
 	CompletedAt *time.Time
 

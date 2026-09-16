@@ -55,9 +55,6 @@ func TestSampleUploadDataFiles(t *testing.T) {
 	}
 }
 
-// A planning row may carry any number of part types — one machine is one built
-// machine. This only checks that the sample file yields readable component
-// numbers; several on one row is expected, not an error.
 func TestSamplePlanningReadsComponents(t *testing.T) {
 	newTestDB(t)
 	rows := readXlsx(t, "04_Planning.xlsx")

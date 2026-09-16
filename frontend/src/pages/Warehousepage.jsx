@@ -211,7 +211,7 @@ export default function WarehousePage() {
 
         <div className="wh-upload-card">
           <div className="fdz-row">
-            <FileDropZone file={soFile} onSelect={handleSoFile} accept=".xlsx,.xls" label="อัปโหลด SO / สต็อกเข้าคลัง" hint="ลากไฟล์ Excel (.xlsx, .xls) มาวาง หรือกดเพื่อเลือก" disabled={soUploading} />
+            <FileDropZone file={soFile} onSelect={handleSoFile} accept=".xlsx,.xls" label="อัปโหลด SO / สต็อกเข้าคลัง" disabled={soUploading} />
             <button className="wh-issue-btn" onClick={handleSoUpload} disabled={soUploading || !soFile}>
               {soUploading ? 'กำลังอัปโหลด...' : 'อัปโหลด'}
             </button>

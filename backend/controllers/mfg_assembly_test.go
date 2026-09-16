@@ -53,7 +53,12 @@ func TestLookupMFGCountry(t *testing.T) {
 func TestITCUsedOnOtherMachine(t *testing.T) {
 	db := newTestDB(t)
 
-	db.Create(&models.MFGAssembly{MachineNo: "LX1", ITControllerNo: "878250022802"})
+	db.Create(&models.MFGAssembly{MachineNo: "LX1", ITControllerNo: "878250022802", Status: models.MFGStatusMatched})
+	db.Create(&models.MFGAssembly{MachineNo: "YN22E00849FA", ITControllerNo: "878250022803", Status: models.MFGStatusNotMatched})
+
+	if itcUsedOnOtherMachine("LX2", "878250022803", 0) {
+		t.Error("แถวที่ยังไม่ MATCHED ของเครื่องอื่นไม่ควรนับว่าซ้ำ")
+	}
 
 	if itcUsedOnOtherMachine("LX1", "878250022802", 0) {
 		t.Error("เครื่องเดียวกันไม่ควรนับว่าซ้ำ")
@@ -312,7 +317,7 @@ func TestScanMFGAssemblyDuplicate(t *testing.T) {
 	seedPlan(t, db, "LX10400690", "878250022802", "Indonesia")
 	seedMaster(t, "YN22E00849FA", "KQ3000045092", "878250022802", "359779081234562")
 
-	db.Create(&models.MFGAssembly{MachineNo: "LX0", ITControllerNo: "878250022802"})
+	db.Create(&models.MFGAssembly{MachineNo: "LX0", ITControllerNo: "878250022802", Status: models.MFGStatusMatched})
 
 	body := `{"machineNo":"LX10400690","itControllerNo":"878250022802"}`
 	c, rec := newContext("POST", body, u.ID, u.Username)
@@ -627,5 +632,90 @@ func TestMFGFinalMessages(t *testing.T) {
 	}
 	if got := mfgFinalMessage(models.MFGStatusNotMatched, matched, ""); got != "ข้อมูลตรง แต่ต้องให้ WH สแกนก่อนจึงจะประกอบได้" {
 		t.Errorf("WH pending message = %q", got)
+	}
+}
+
+func TestScanMFGFailedScanOnWrongMachineDoesNotBlock(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
+
+	seedPlan(t, db, "LX10400690", "878250022801", "Indonesia")
+	seedMaster(t, "YN22E00849FA", "KQ3000045091", "878250022801", "359779081234561")
+	db.Create(&models.PartCheck{
+		PartType:    "ITC",
+		MachineNo:   "878250022801",
+		MatchStatus: models.MatchStatusMatch,
+		CheckedBy:   "WH",
+	})
+	db.Create(&models.MFGAssembly{MachineNo: "LX99", ITControllerNo: "878250022801", Status: models.MFGStatusNotMatched})
+
+	body := `{"machineNo":"LX10400690","itControllerNo":"878250022801"}`
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c)
+	mustStatus(t, rec, 201)
+	if got := decodeJSON(t, rec)["status"]; got != models.MFGStatusMatched {
+		t.Fatalf("status = %v, want MATCHED", got)
+	}
+}
+
+func TestScanMFGRejectsPartCodeAsMachine(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
+
+	seedPlan(t, db, "LX10400690", "878250022801", "Indonesia")
+	seedMaster(t, "YN22E00849FA", "KQ3000045091", "878250022801", "359779081234561")
+
+	body := `{"machineNo":"YN22E00849FA","serialNo":"KQ3000045091"}`
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c)
+	mustStatus(t, rec, 422)
+
+	var count int64
+	db.Model(&models.MFGAssembly{}).Count(&count)
+	if count != 0 {
+		t.Fatalf("rows = %d, want 0", count)
+	}
+}
+
+func TestScanMFGITCWithPartNoAndSerialNo(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "mfg@kobelco.com", "mfg07", "MFG", "MFG")
+
+	seedPlan(t, db, "LX10400690", "878250022801", "Indonesia")
+	seedMaster(t, "YN22E00849FA", "KQ3000045091", "878250022801", "359779081234561")
+	db.Create(&models.PartCheck{
+		PartType:    "ITC",
+		MachineNo:   "878250022801",
+		MatchStatus: models.MatchStatusMatch,
+		CheckedBy:   "WH",
+	})
+
+	body := `{"machineNo":"LX10400690","partNo":"YN22E00849FA","serialNo":"KQ3000045091","partType":"ITC"}`
+	c, rec := newContext("POST", body, u.ID, u.Username)
+	ScanMFGAssembly(c)
+	mustStatus(t, rec, 201)
+	resp := decodeJSON(t, rec)
+	if resp["status"] != models.MFGStatusMatched {
+		t.Fatalf("status = %v (%v), want MATCHED", resp["status"], resp["message"])
+	}
+
+	var row models.MFGAssembly
+	db.Where("machine_no = ?", "LX10400690").First(&row)
+	if row.ITControllerNo != "878250022801" || row.PartNo != "YN22E00849FA" || row.SerialNo != "KQ3000045091" {
+		t.Errorf("row = %+v", row)
+	}
+
+	wrong := `{"machineNo":"LX10400690","partNo":"YN22E00849TA","serialNo":"KQ3000045091","partType":"ITC"}`
+	c2, rec2 := newContext("POST", wrong, u.ID, u.Username)
+	ScanMFGAssembly(c2)
+	mustStatus(t, rec2, 201)
+	resp2 := decodeJSON(t, rec2)
+	if resp2["status"] != models.MFGStatusNotMatched || resp2["partMismatch"] != true {
+		t.Fatalf("status = %v partMismatch = %v, want NOT_MATCHED/true", resp2["status"], resp2["partMismatch"])
+	}
+
+	db.Where("machine_no = ? AND status = ?", "LX10400690", models.MFGStatusMatched).First(&row)
+	if row.PartNo != "YN22E00849FA" {
+		t.Errorf("แถว MATCHED เดิมถูกเขียนทับ: %+v", row)
 	}
 }

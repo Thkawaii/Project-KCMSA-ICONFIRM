@@ -4,22 +4,21 @@ import SelectField from '../components/Selectfield.jsx';
 import { ColumnAliasPanel, CodeAliasPanel } from '../components/FormatTools.jsx';
 import '../components/FormatTools.css';
 import { ADMIN_NAV_ITEMS } from './AdminDashboardpage.jsx';
-import { FORMAT_NAV_ITEMS } from './MasterDataPage.jsx';
 const TARGET_COLUMNS = {
   planning: ['Line', 'LOT NO.', 'Machine', 'Product Spec 1', 'Product Spec 2', 'Domestic/Exp', 'Assembly Status', 'Shipping Status', 'KCM Order', 'Country', 'Country Name', 'Brand', 'Destination', 'IT device', 'IT Controller', 'IT Controller No', 'Swing Motor No', 'Pump Assy HYD No', 'Motor Propel No', 'Control Valve No', 'Counter weight', {
     value: 'CW No',
     label: 'CW No (Counter Weight)'
-  }, 'Front ATT', 'Engine start key', 'Note1', 'Note2', 'Note3'],
+  }, 'Front ATT', 'Engine start key', 'Note1', 'Note2', 'Note3', 'Note'],
   wh1: ['Warehouse', 'Order No', 'Work order', 'Parts No', 'Name', 'Assembly Parts Number', 'Assembly Parts Name', 'Note', 'Final Color'],
   wh2: ['Order', 'ORDER No.', 'Parts No', 'PARTS NAME', 'Quantity', 'LOCATION', 'Note'],
-  engine: ['Machine No', 'History', 'ENGINE'],
+  engine: ['Machine No', 'History', 'ENGINE', 'Note'],
   import_license: ['ลำดับ', 'ตราอักษร', {
     value: 'รุ่น',
     label: 'แบบ/รุ่น'
   }, 'เลขใบอนุญาตนำเข้า', 'วันที่ออกใบอนุญาต', 'เลขอินวอยซ์นำเข้า', 'เลขใบขนสินค้าขาเข้า', {
     value: 'จำนวน',
     label: 'จำนวน (เครื่อง)'
-  }, 'หมายเลขเครื่อง', 'หมายเลขการผลิต', 'หมายเหตุ', 'ส่งออกไปประเทศ'],
+  }, 'หมายเลขเครื่อง', 'หมายเลขการผลิต', 'หมายเหตุ', 'ส่งออกไปประเทศ', 'Note'],
   export_license: ['Item', "Date Ass'y", 'Machine No', {
     value: 'IT Controller Serial No.',
     label: 'IT Controller S/N'
@@ -29,7 +28,7 @@ const TARGET_COLUMNS = {
   }, 'Export Entry', 'Import License', 'Export License', {
     value: 'Declaration date',
     label: 'วันที่นำออกใบอนุญาต'
-  }, 'Remark'],
+  }, 'Remark', 'Note'],
   machine_spec: ['Machine No', 'KCM Order', 'Country Name', 'IT device', 'IT Controller', 'IT Controller S/N', 'Engine', 'Engine History', 'Control valve', 'Motor Propel', 'Pump Assy HYD', 'HYD oil', 'Boom', 'Arm', 'Shoe', 'Seat', 'Radio'],
   wh_stock_mc: [{
     value: 'orderno',
@@ -108,7 +107,7 @@ const TARGET_COLUMNS = {
   }]
 };
 const MASTER_DATA_BASE = ['Item No', 'Part Name', 'Model', 'Part No', 'Serial No'];
-const MASTER_DATA_TAIL = ['IMEI'];
+const MASTER_DATA_TAIL = ['IMEI', 'Connectivity', 'Note'];
 const ITC_LABEL_BY_SCOPE = {
   master_data: 'No.',
   'master_data:it_controller': 'IT Controller no.',
@@ -174,7 +173,7 @@ const SCOPES = [{
 }];
 export default function FormatSettingsPage() {
   const isAdmin = (localStorage.getItem('iconfirm_role') || '').toUpperCase() === 'ADMIN';
-  const navItems = isAdmin ? ADMIN_NAV_ITEMS : FORMAT_NAV_ITEMS;
+  const navItems = ADMIN_NAV_ITEMS;
   const shellRoleLabel = isAdmin ? 'Admin' : 'Upload View';
   const [scope, setScope] = useState('planning');
   const active = SCOPES.find(s => s.scope === scope) || SCOPES[0];

@@ -21,6 +21,8 @@ type UploadDataRow struct {
 	KCMOrder  string `gorm:"size:100"`
 	WorkOrder string `gorm:"size:100"`
 
+	Note string `gorm:"column:note;type:text"`
+
 	DataJSON string `gorm:"type:text"`
 
 	FileName   string `gorm:"size:255"`

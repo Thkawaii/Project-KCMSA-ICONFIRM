@@ -7,12 +7,14 @@ export async function scanStep({
   placeholder = 'รอรับสัญญาณจากเครื่องสแกน...',
   confirmText = 'ต่อไป',
   cancelText = 'ยกเลิก',
-  validate
+  validate,
+  initialValue = ''
 }) {
   const res = await Swal.fire({
     title,
     html,
     input: 'text',
+    inputValue: initialValue,
     inputPlaceholder: placeholder,
     inputAutoFocus: true,
     inputAttributes: {
@@ -45,6 +47,9 @@ export async function scanStep({
         if (!input.value.trim()) return;
         confirmed = true;
         Swal.clickConfirm();
+        setTimeout(() => {
+          confirmed = false;
+        }, 400);
       };
       input.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
@@ -55,18 +60,21 @@ export async function scanStep({
       input.addEventListener('paste', () => {
         setTimeout(doConfirm, 0);
       });
-      let burstStart = 0;
-      let burstCount = 0;
+      let lastKeyAt = 0;
+      let fastKeys = 0;
+      let idleTimer = null;
       input.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key.length !== 1) return;
-        const now = Date.now();
-        if (now - burstStart > 150) {
-          burstStart = now;
-          burstCount = 0;
+        if (e.key === 'Enter') {
+          if (idleTimer) clearTimeout(idleTimer);
+          return;
         }
-        burstCount++;
-        if (burstCount >= 6) {
-          setTimeout(doConfirm, 60);
+        if (e.key.length !== 1) return;
+        const now = Date.now();
+        fastKeys = now - lastKeyAt <= 50 ? fastKeys + 1 : 0;
+        lastKeyAt = now;
+        if (idleTimer) clearTimeout(idleTimer);
+        if (fastKeys >= 5) {
+          idleTimer = setTimeout(doConfirm, 200);
         }
       });
     }

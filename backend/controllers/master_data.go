@@ -35,11 +35,15 @@ func GetMasterData(c *gin.Context) {
 	if conn := strings.TrimSpace(c.Query("connectivity_type")); conn != "" {
 		query = query.Where("connectivity_type = ?", conn)
 	}
+	limit := atoiSafe(c.Query("limit"))
 	if code != "" {
 		query = query.Where(
 			"serial_no = ? OR it_controller_no = ? OR imei = ? OR part_no = ?",
 			code, code, code, code,
 		)
+	}
+	if limit > 0 {
+		query = query.Limit(limit)
 	}
 	query.Find(&masterData)
 
@@ -49,6 +53,9 @@ func GetMasterData(c *gin.Context) {
 				Where("serial_no = ?", a.ToOld)
 			if componentType != "" {
 				q2 = q2.Where("component_type = ?", componentType)
+			}
+			if limit > 0 {
+				q2 = q2.Limit(limit)
 			}
 			q2.Find(&masterData)
 		}
@@ -178,7 +185,7 @@ func UpdateMasterData(c *gin.Context) {
 		if refs.Total > 0 {
 			c.JSON(409, gin.H{
 				"message": "แถวนี้ถูกใช้ยืนยัน/จับคู่ไปแล้ว การแก้ Serial No./Part No./IT Controller No./IMEI " +
-					"อาจทำให้การ match เดิมไม่ตรง — แนะนำให้ใช้ Format Settings (CodeAlias) แทน " +
+					"อาจทำให้การ match เดิมไม่ตรง — แนะนำให้ ADMIN ตั้ง Change Format Part แทน " +
 					"หรือส่ง force=true เพื่อยืนยันการแก้",
 				"blocked": true,
 				"refs":    refs,
@@ -199,6 +206,7 @@ func UpdateMasterData(c *gin.Context) {
 		"imei":              existing.IMEI,
 		"spec_code":         existing.SpecCode,
 		"connectivity_type": existing.ConnectivityType,
+		"note":              existing.Note,
 		"upload_date":       time.Now(),
 		"user_id":           userID,
 	}
@@ -259,6 +267,7 @@ func normalizeMasterData(m *models.MasterData) {
 	m.PartNo = strings.TrimSpace(m.PartNo)
 	m.SerialNo = strings.TrimSpace(m.SerialNo)
 	m.SpecCode = strings.TrimSpace(m.SpecCode)
+	m.Note = strings.TrimSpace(m.Note)
 	m.ITControllerNo = trimToNil(m.ITControllerNo)
 	m.IMEI = trimToNil(m.IMEI)
 
@@ -280,9 +289,12 @@ func trimToNil(v *string) *string {
 }
 
 var masterDataColumns = map[string]func(*models.MasterData, string){
-	// Recognised but discarded — see the note in importLicenseColumns.
+
 	"itemno":     func(*models.MasterData, string) {},
-	"no":         func(*models.MasterData, string) {},
+	"no":         func(m *models.MasterData, v string) { m.ITControllerNo = &v },
+	"note":       func(m *models.MasterData, v string) { m.Note = v },
+	"notes":      func(m *models.MasterData, v string) { m.Note = v },
+	"หมายเหตุ":   func(m *models.MasterData, v string) { m.Note = v },
 	"partname":   func(m *models.MasterData, v string) { m.Name = v },
 	"name":       func(m *models.MasterData, v string) { m.Name = v },
 	"model":      func(m *models.MasterData, v string) { m.Model = v },
@@ -330,6 +342,28 @@ var masterDataColumns = map[string]func(*models.MasterData, string){
 	"networktype":      func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
 	"ittype":           func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
 	"ชนิดการเชื่อมต่อ": func(m *models.MasterData, v string) { m.ConnectivityType = models.NormalizeConnectivity(v) },
+}
+
+var masterITCHeaderKeys = map[string]bool{
+	"itcontrollerno": true, "itcontroller": true, "itcno": true,
+	"itcontrollerserialno": true, "itcontrollersn": true, "itcontrollerserial": true,
+	"swingmotorno": true, "swingmotor": true, "swno": true,
+	"pumpassyhydno": true, "pumpassyno": true, "pumpno": true,
+	"motorpropelno": true, "propelno": true,
+	"controlvalveno": true, "valveno": true, "cvno": true,
+}
+
+func masterNoColumnIsITC(headers []string) bool {
+	hasItemNo := false
+	for _, h := range headers {
+		if masterITCHeaderKeys[h] {
+			return false
+		}
+		if h == "itemno" {
+			hasItemNo = true
+		}
+	}
+	return hasItemNo
 }
 
 var componentTypeHeaderKeys = map[string]bool{
@@ -467,12 +501,34 @@ func UploadMasterData(c *gin.Context) {
 		problems = append(problems,
 			"พบคอลัมน์นอกสเปก (ระบบไม่รู้จัก) "+strconv.Itoa(len(extraColumns))+" คอลัมน์: "+
 				strings.Join(extraColumns, ", ")+
-				" — เก็บค่าไว้ใน Extra ให้แล้ว หากต้องการให้ map เข้าคอลัมน์มาตรฐาน ให้ตั้ง Column Alias ที่หน้า Format Settings")
+				" — เก็บค่าไว้ใน Extra ให้แล้ว หากต้องการให้ map เข้าคอลัมน์มาตรฐาน ให้ ADMIN ตั้ง Column Alias")
 	}
 
 	if len(parsed) == 0 {
 		c.JSON(400, gin.H{"message": "ไม่พบแถวข้อมูลที่นำเข้าได้ในไฟล์นี้"})
 		return
+	}
+
+	deleteRows, keepRows := splitMasterDataDeletes(parsed)
+	parsed = keepRows
+
+	deleteIDs, deleteProblems, err := matchMasterDataNoteDeletes(deleteRows)
+	if err != nil {
+		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+		return
+	}
+	problems = append(problems, deleteProblems...)
+	deleted := 0
+	for _, part := range chunkSlice(deleteIDs, dbInsertBatch) {
+		res := config.DB.Where("id IN ?", part).Delete(&models.MasterData{})
+		if res.Error != nil {
+			c.JSON(500, gin.H{"message": "ลบข้อมูลไม่สำเร็จ: " + res.Error.Error()})
+			return
+		}
+		deleted += int(res.RowsAffected)
+	}
+	if deleted > 0 {
+		CreateAuditLog("MASTER_DATA", 0, "delete_by_note", strconv.Itoa(deleted), userID, userName)
 	}
 
 	serials := make([]string, 0, len(parsed))
@@ -482,10 +538,7 @@ func UploadMasterData(c *gin.Context) {
 
 	var existingRows []models.MasterData
 	if err := findWhereInChunks(config.DB, "serial_no", serials, &existingRows); err != nil {
-		// Swallowing this used to be dangerous: with no existing rows loaded,
-		// every row in the file looks new, so the update-in-place path is
-		// skipped, ids jump, and the inserts collide with the unique indexes on
-		// it_controller_no and imei.
+
 		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
 		return
 	}
@@ -495,9 +548,6 @@ func UploadMasterData(c *gin.Context) {
 		existing[row.ComponentType+"|"+row.SerialNo] = row
 	}
 
-	// Split the file into rows that already exist (which keep their id) and
-	// genuinely new ones, so each group can be written in batches instead of
-	// one query per row.
 	var toUpdate, toCreate []models.MasterData
 	for _, row := range parsed {
 		if old, ok := existing[row.ComponentType+"|"+row.SerialNo]; ok {
@@ -510,7 +560,7 @@ func UploadMasterData(c *gin.Context) {
 
 	updatable := []string{
 		"name", "component_type", "model", "part_no", "it_controller_no",
-		"imei", "connectivity_type", "extra_json", "upload_date", "user_id",
+		"imei", "connectivity_type", "note", "extra_json", "upload_date", "user_id",
 	}
 
 	applyOne := func(row models.MasterData) error {
@@ -524,6 +574,7 @@ func UploadMasterData(c *gin.Context) {
 				"it_controller_no":  row.ITControllerNo,
 				"imei":              row.IMEI,
 				"connectivity_type": row.ConnectivityType,
+				"note":              row.Note,
 				"extra_json":        row.ExtraJSON,
 				"upload_date":       now,
 				"user_id":           userID,
@@ -532,8 +583,6 @@ func UploadMasterData(c *gin.Context) {
 
 	var imported, updated int
 
-	// serial_no is not unique in this table, so the overwrite keys on the
-	// primary key we just looked up rather than on the business key.
 	overwrite := clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns(updatable),
@@ -543,9 +592,7 @@ func UploadMasterData(c *gin.Context) {
 			updated += len(part)
 			continue
 		}
-		// A batch dies whole, and a single duplicate it_controller_no or imei
-		// inside the file is enough to kill it. Retry row by row so the rest of
-		// the file still lands and the bad rows are named individually.
+
 		for _, row := range part {
 			if err := applyOne(row); err != nil {
 				problems = append(problems, "Serial "+row.SerialNo+": อัปเดตไม่สำเร็จ ("+err.Error()+")")
@@ -555,8 +602,6 @@ func UploadMasterData(c *gin.Context) {
 		}
 	}
 
-	// The pass above inserts explicit ids, which bypasses the sequence. Push it
-	// past the current max before the new rows draw from it.
 	if len(toUpdate) > 0 {
 		SyncIdentityToMax(config.DB, &models.MasterData{})
 	}
@@ -583,6 +628,7 @@ func UploadMasterData(c *gin.Context) {
 	c.JSON(201, gin.H{
 		"imported":     imported,
 		"updated":      updated,
+		"deleted":      deleted,
 		"skipped":      skipped,
 		"problems":     capProblems(problems),
 		"extraColumns": extraColumns,
@@ -592,12 +638,60 @@ func UploadMasterData(c *gin.Context) {
 
 const masterExtraPrefix = "[+] "
 
+func splitMasterDataDeletes(rows []models.MasterData) (deletes, keeps []models.MasterData) {
+	for _, row := range rows {
+		if IsDeleteNote(row.Note) {
+			deletes = append(deletes, row)
+			continue
+		}
+		keeps = append(keeps, row)
+	}
+	return deletes, keeps
+}
+
+func matchMasterDataNoteDeletes(rows []models.MasterData) ([]uint, []string, error) {
+	var (
+		ids      []uint
+		problems []string
+		taken    = map[uint]bool{}
+	)
+	for _, row := range rows {
+		var candidates []models.MasterData
+		if err := config.DB.
+			Where("component_type = ? AND serial_no = ?", row.ComponentType, row.SerialNo).
+			Order("id asc").
+			Find(&candidates).Error; err != nil {
+			return nil, nil, err
+		}
+		found := false
+		for _, cand := range candidates {
+			if taken[cand.ID] {
+				continue
+			}
+			if !sameOptionalCode(row.PartNo, cand.PartNo) ||
+				!sameOptionalCode(derefStr(row.ITControllerNo), derefStr(cand.ITControllerNo)) ||
+				!sameOptionalCode(derefStr(row.IMEI), derefStr(cand.IMEI)) {
+				continue
+			}
+			taken[cand.ID] = true
+			ids = append(ids, cand.ID)
+			found = true
+		}
+		if !found {
+			problems = append(problems, "Serial "+row.SerialNo+": ไม่พบข้อมูลที่ตรงกันสำหรับลบ")
+		}
+	}
+	return ids, problems, nil
+}
+
 func classifyMasterDataHeaders(rows [][]string, headerIdx int, headers []string, typeColIdx int) (activeKnown, extraLabel map[int]string, extraCols, dupProblems []string) {
 	activeKnown = map[int]string{}
 	extraLabel = map[int]string{}
 	seenKey := map[string]bool{}
 	dupWarned := map[string]bool{}
 	seenExtra := map[string]bool{}
+
+	noIsITC := masterNoColumnIsITC(headers)
 
 	labelAt := func(col int) string {
 		if headerIdx >= 0 && headerIdx < len(rows) && col < len(rows[headerIdx]) {
@@ -608,6 +702,9 @@ func classifyMasterDataHeaders(rows [][]string, headerIdx int, headers []string,
 
 	for col, key := range headers {
 		if col == typeColIdx {
+			continue
+		}
+		if key == "no" && !noIsITC {
 			continue
 		}
 		if _, ok := masterDataColumns[key]; ok {
@@ -645,10 +742,11 @@ func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallb
 	activeKnown, extraLabel, extraCols, dupProblems := classifyMasterDataHeaders(rows, headerIdx, headers, typeColIdx)
 
 	var (
-		parsed   []models.MasterData
-		seen     = map[string]bool{}
-		skipped  int
-		problems []string
+		parsed     []models.MasterData
+		seen       = map[string]bool{}
+		seenDelete = map[string]bool{}
+		skipped    int
+		problems   []string
 	)
 	problems = append(problems, dupProblems...)
 
@@ -701,6 +799,16 @@ func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallb
 
 		if row.SerialNo == "" {
 			skipped++
+			continue
+		}
+
+		if IsDeleteNote(row.Note) {
+			delKey := row.ComponentType + "|" + row.SerialNo + "|" + row.PartNo + "|" + derefStr(row.ITControllerNo) + "|" + derefStr(row.IMEI)
+			if seenDelete[delKey] {
+				continue
+			}
+			seenDelete[delKey] = true
+			parsed = append(parsed, row)
 			continue
 		}
 
@@ -799,15 +907,26 @@ func PreviewMasterDataChanges(c *gin.Context) {
 
 	parsed, skipped, problems, extraCols := parseMasterDataRows(rows, headerIdx, headers, fallbackComponentType, 0, time.Now())
 
+	deleteRows, keepRows := splitMasterDataDeletes(parsed)
+	parsed = keepRows
+
+	deleteIDs, _, err := matchMasterDataNoteDeletes(deleteRows)
+	if err != nil {
+		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+		return
+	}
+	willDelete := make(map[uint]bool, len(deleteIDs))
+	for _, id := range deleteIDs {
+		willDelete[id] = true
+	}
+
 	serials := make([]string, 0, len(parsed))
 	for _, r := range parsed {
 		serials = append(serials, r.SerialNo)
 	}
 	var existingRows []models.MasterData
 	if len(serials) > 0 {
-		// Chunked, and the error is surfaced: an unbounded IN blows past
-		// Postgres' 65535-parameter ceiling on a big file, and a silently
-		// failed lookup would report every row as NEW.
+
 		if err := findWhereInChunks(config.DB, "serial_no", serials, &existingRows); err != nil {
 			c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
 			return
@@ -815,6 +934,9 @@ func PreviewMasterDataChanges(c *gin.Context) {
 	}
 	existing := make(map[string]models.MasterData, len(existingRows))
 	for _, r := range existingRows {
+		if willDelete[r.ID] {
+			continue
+		}
 		existing[r.ComponentType+"|"+r.SerialNo] = r
 	}
 
@@ -838,7 +960,17 @@ func PreviewMasterDataChanges(c *gin.Context) {
 	}
 
 	var results []rowResult
-	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0}
+	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0, "DELETE": 0, "DELETE_NOT_FOUND": 0}
+
+	for _, r := range deleteRows {
+		single, _, err := matchMasterDataNoteDeletes([]models.MasterData{r})
+		status := "DELETE"
+		if err != nil || len(single) == 0 {
+			status = "DELETE_NOT_FOUND"
+		}
+		counts[status]++
+		results = append(results, rowResult{Serial: r.SerialNo, ComponentType: r.ComponentType, Status: status})
+	}
 
 	for _, r := range parsed {
 		old, ok := existing[r.ComponentType+"|"+r.SerialNo]
@@ -863,6 +995,7 @@ func PreviewMasterDataChanges(c *gin.Context) {
 		add("IMEI", deref(old.IMEI), deref(r.IMEI), true)
 		add("Part Name", old.Name, r.Name, false)
 		add("Model", old.Model, r.Model, false)
+		add("Note", old.Note, r.Note, false)
 
 		var status string
 		switch {
@@ -897,11 +1030,13 @@ func PreviewMasterDataChanges(c *gin.Context) {
 		"skipped":     skipped,
 		"problems":    capProblems(problems),
 		"summary": gin.H{
-			"total":     len(parsed),
-			"new":       counts["NEW"],
-			"updated":   counts["UPDATED"],
-			"changed":   counts["CHANGED"],
-			"unchanged": counts["UNCHANGED"],
+			"total":          len(parsed) + len(deleteRows),
+			"new":            counts["NEW"],
+			"updated":        counts["UPDATED"],
+			"changed":        counts["CHANGED"],
+			"unchanged":      counts["UNCHANGED"],
+			"deleted":        counts["DELETE"],
+			"deleteNotFound": counts["DELETE_NOT_FOUND"],
 		},
 		"rows": preview,
 	})
@@ -1012,7 +1147,7 @@ func masterDataHeaderHint(rows [][]string, componentType string) string {
 	base := "หาหัวตารางไม่เจอ — ไฟล์ต้องมีคอลัมน์ Serial No. และคอลัมน์ที่รู้จักอย่างน้อย 3 คอลัมน์"
 	if bestRow < 0 || bestHits == 0 {
 		return base + " (ไม่พบคอลัมน์ที่รู้จักเลยใน 30 แถวแรก) — ตรวจว่าหัวตารางสะกดตรงสเปก " +
-			"หรือถ้าหน้างานเปลี่ยนชื่อหัวคอลัมน์ ให้ไปตั้ง Column Alias ที่หน้า Format Settings (scope: master_data)"
+			"หรือถ้าหน้างานเปลี่ยนชื่อหัวคอลัมน์ ให้ ADMIN ตั้ง Column Alias (scope: master_data)"
 	}
 
 	msg := base + ". แถวที่ใกล้ที่สุดคือแถว " + strconv.Itoa(bestRow+1) +
@@ -1020,10 +1155,10 @@ func masterDataHeaderHint(rows [][]string, componentType string) string {
 	switch {
 	case !bestSerial:
 		msg += " — แต่ยังขาดคอลัมน์ Serial No. ถ้าไฟล์เปลี่ยนชื่อหัว Serial ไปแล้ว " +
-			"ให้ตั้ง Column Alias (source = ชื่อหัวใหม่, target = Serial No) ที่หน้า Format Settings แล้วอัปโหลดซ้ำ"
+			"ให้ ADMIN ตั้ง Column Alias (source = ชื่อหัวใหม่, target = Serial No) แล้วอัปโหลดซ้ำ"
 	case bestHits < 3:
 		msg += " — แต่จำนวนคอลัมน์ที่รู้จักยังไม่ถึง 3 อาจมีหัวคอลัมน์ถูกเปลี่ยนชื่อ " +
-			"ให้ตั้ง Column Alias ที่หน้า Format Settings แล้วอัปโหลดซ้ำ"
+			"ให้ ADMIN ตั้ง Column Alias แล้วอัปโหลดซ้ำ"
 	}
 	return msg
 }

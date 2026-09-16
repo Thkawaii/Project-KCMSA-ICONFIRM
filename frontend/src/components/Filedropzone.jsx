@@ -47,11 +47,11 @@ export default function FileDropZone({
       <span className="fdz-body">
         {file ? <>
             <span className="fdz-name">{file.name}</span>
-            <span className="fdz-meta">{formatSize(file.size)} · กดเพื่อเปลี่ยนไฟล์</span>
+            <span className="fdz-meta">{formatSize(file.size)}</span>
           </> : <>
             <span className="fdz-label">{dragging ? <span className="dz-drop-text"><span className="dz-arrow">↓</span> ปล่อยไฟล์ได้เลย</span> : label}</span>
             <span className="fdz-meta">
-              {hint || (extensions.length ? `ลากไฟล์มาวาง หรือกดเพื่อเลือก · ${extensions.join(' / ')}` : 'ลากไฟล์มาวาง หรือกดเพื่อเลือก')}
+              {hint || extensions.join(' / ')}
             </span>
           </>}
       </span>

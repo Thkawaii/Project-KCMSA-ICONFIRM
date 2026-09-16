@@ -392,10 +392,6 @@ export default function LicenseWeeklyPopup() {
             <span>ไปจัดการใบอนุญาต</span>
             <ChevronRightIcon className="size-4" />
           </button>
-          <p className="lwp-rule">
-            ใบนำออกอายุ {EXPORT_LICENSE_VALIDITY_MONTHS} เดือน · ต้องยื่น กสทช. ก่อนหมดอายุ{' '}
-            {EXPORT_LICENSE_LEAD_DAYS} วัน
-          </p>
         </div>
       </div>
     </div>

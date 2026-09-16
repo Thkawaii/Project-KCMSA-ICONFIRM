@@ -6,10 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// One machine is one assembled excavator: the IT Controller, Swing Motor, Pump,
-// Motor Propel, Control Valve, Counter Weight and Engine all belong to it and
-// may share a single planning row. The upload must accept that row and every
-// part must stay individually addressable afterwards.
 const multiComponentPlanCSV = `Line,LOT NO.,Machine,KCM Order,Country Name,IT Controller No,Swing Motor No,Pump Assy HYD No,Motor Propel No,Control Valve No,CW No
 A,LOT-001,MC-777,KCM-777,Thailand,878250022801,SW2411001,PH2411001,MP2411001,CV2411001,CW2411001
 A,LOT-002,MC-778,KCM-778,Vietnam,878250022802,SW2411002,,,,CW2411002
@@ -53,15 +49,12 @@ func TestPlanningRowAcceptsEveryComponent(t *testing.T) {
 		}
 	}
 
-	// Each serial must still resolve back to its own part type, not to
-	// whichever one happens to come first in the row.
 	for code, serial := range want {
 		if got := DetectComponentFromPlan(plan, serial); got != code {
 			t.Errorf("แกะชนิดจาก %q ได้ %q ต้องเป็น %q", serial, got, code)
 		}
 	}
 
-	// A partially filled row keeps working alongside the full one.
 	plan778 := planForMachine("MC-778")
 	if plan778 == nil {
 		t.Fatal("ไม่พบแผนของเครื่อง MC-778")
@@ -74,8 +67,6 @@ func TestPlanningRowAcceptsEveryComponent(t *testing.T) {
 	}
 }
 
-// The plan resolver used by MFG must match each part of the same machine
-// independently, which is what the old one-type-per-row rule was hiding.
 func TestMFGResolverMatchesEveryComponentOfOneMachine(t *testing.T) {
 	db := newTestDB(t)
 	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
@@ -100,7 +91,6 @@ func TestMFGResolverMatchesEveryComponentOfOneMachine(t *testing.T) {
 		}
 	}
 
-	// A part belonging to another machine must still be caught.
 	res := r.evaluateComponent("MC-777", "SW2411002", ComponentSM)
 	if res.State != PlanStateMismatch {
 		t.Errorf("สแกน Swing Motor ของเครื่องอื่น state = %s ต้องเป็น MISMATCH", res.State)

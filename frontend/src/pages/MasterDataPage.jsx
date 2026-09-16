@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AppShell from '../components/AppShell.jsx';
-import { ADMIN_NAV_ITEMS } from './AdminDashboardpage.jsx';
 import SelectField from '../components/Selectfield.jsx';
 import useFileDrop from '../lib/useFileDrop.js';
 import { getMasterData, uploadMasterData, deleteMasterData, clearMasterData, previewMasterDataChanges } from '../api/masterData.js';
@@ -33,7 +32,6 @@ const COMPONENT_TYPES = [{
   noLabel: 'Control Valve NO.'
 }];
 const COMPONENT_TYPE_VALUES = new Set(COMPONENT_TYPES.map(t => t.value));
-const EXPECTED_COLUMNS_BY_TYPE = Object.fromEntries(COMPONENT_TYPES.map(t => [t.value, t.value === 'it_controller' ? ['Part Name', 'Model', 'Part No.', 'Serial No.', t.noLabel, 'IMEI'] : ['Part Name', 'Serial No.', t.noLabel]]));
 const DATASET_TYPES = [{
   value: 'planning',
   label: 'Planning'
@@ -90,19 +88,13 @@ const CONNECTIVITY_FILTER = [{
 }))];
 const uploadNavItems = [{
   to: '/master-data',
-  label: 'ทะเบียน Master Data',
-  icon: <RectangleStackIcon className="size-4" />
-}, {
-  to: '/format-settings',
-  label: 'Setting',
+  label: 'อัพโหลดข้อมูล',
   icon: <RectangleStackIcon className="size-4" />
 }];
-export const FORMAT_NAV_ITEMS = uploadNavItems;
 const DASH = '—';
 export default function MasterDataPage() {
-  const isAdmin = (localStorage.getItem('iconfirm_role') || '').toUpperCase() === 'ADMIN';
-  const navItems = isAdmin ? ADMIN_NAV_ITEMS : uploadNavItems;
-  const shellRoleLabel = isAdmin ? 'Admin' : 'Upload View';
+  const navItems = uploadNavItems;
+  const shellRoleLabel = 'Upload';
   const [uploadType, setUploadType] = useState('it_controller');
   const [viewType, setViewType] = useState('it_controller');
   const [compType, setCompType] = useState('all');
@@ -172,17 +164,17 @@ export default function MasterDataPage() {
       if (COMPONENT_TYPE_VALUES.has(uploadType)) {
         const result = await uploadMasterData(pendingFile, uploadType);
         setUploadMsg({
-          success: `นำเข้าสำเร็จ — เพิ่มใหม่ ${result.imported} รายการ, อัปเดตของเดิม ${result.updated} รายการ`,
+          success: `เพิ่มใหม่ ${result.imported ?? 0} · อัปเดต ${result.updated ?? 0} · ลบ ${result.deleted ?? 0}`,
           problems: result.problems || []
         });
       } else {
         const result = await uploadDataFile(uploadType, pendingFile);
-        const parts = [];
-        if (result.skipped) parts.push(`ข้าม ${result.skipped} แถว`);
-        if (result.duplicate) parts.push(`ซ้ำ ${result.duplicate} แถว`);
-        const extra = parts.length ? ` (${parts.join(', ')})` : '';
+        const parts = [`เพิ่มใหม่ ${result.imported ?? 0}`, `อัปเดต ${result.updated ?? 0}`, `ลบ ${result.deleted ?? 0}`];
+        if (result.skipped) parts.push(`ข้าม ${result.skipped}`);
+        if (result.duplicate) parts.push(`ซ้ำ ${result.duplicate}`);
         setUploadMsg({
-          success: `เพิ่มข้อมูลสำเร็จ ${result.imported} รายการ${extra}`
+          success: parts.join(' · '),
+          problems: result.problems || []
         });
       }
       setPendingFile(null);
@@ -206,7 +198,7 @@ export default function MasterDataPage() {
   return <AppShell navItems={navItems} roleLabel={shellRoleLabel}>
       <div className="wh-heading-row">
         <div>
-          <h2 className="wh-title">Upload Master Data</h2>
+          <h2 className="wh-title">อัพโหลดข้อมูล</h2>
         </div>
       </div>
 
@@ -219,15 +211,9 @@ export default function MasterDataPage() {
           <span className="upload-dropzone-text">
             {fileDragging ? <span className="dz-drop-text">
                 <span className="dz-arrow">↓</span> ปล่อยไฟล์ได้เลย
-              </span> : pendingFile ? pendingFile.name : `ลากไฟล์มาวาง หรือคลิกเพื่อเลือก (${typeLabel(uploadType)})`}
+              </span> : pendingFile ? pendingFile.name : typeLabel(uploadType)}
           </span>
           <span className="upload-dropzone-hint">.xlsx, .xls, .csv</span>
-          {!pendingFile && !fileDragging && <span className="dz-nudge">พร้อมรับไฟล์แล้ว — วางตรงนี้</span>}
-          {EXPECTED_COLUMNS_BY_TYPE[uploadType] && <span className="upload-dropzone-hint" style={{
-          marginTop: 2
-        }}>
-              คอลัมน์ที่ควรมี: {EXPECTED_COLUMNS_BY_TYPE[uploadType].join(' · ')}
-            </span>}
         </label>
 
         <div className="upload-panel-side">
@@ -344,7 +330,7 @@ function ITControllerView({
     }
     const kw = keyword.trim().toLowerCase();
     if (kw) {
-      result = result.filter(row => [row.Name, row.Model, row.PartNo, row.SerialNo, row.ITControllerNo, row.IMEI].filter(Boolean).some(field => String(field).toLowerCase().includes(kw)));
+      result = result.filter(row => [row.Name, row.Model, row.PartNo, row.SerialNo, row.ITControllerNo, row.IMEI, row.Note].filter(Boolean).some(field => String(field).toLowerCase().includes(kw)));
     }
     if (showITCols && connFilter !== 'all') {
       result = result.filter(row => (row.ConnectivityType || 'UNKNOWN') === connFilter);
@@ -435,6 +421,14 @@ function ITControllerView({
       key: 'imei',
       header: 'IMEI',
       type: 'text'
+    }, {
+      key: 'connectivity',
+      header: 'Connectivity',
+      type: 'text'
+    }, {
+      key: 'note',
+      header: 'Note',
+      type: 'text'
     }] : [{
       key: 'itemNo',
       header: 'Item No.',
@@ -456,6 +450,10 @@ function ITControllerView({
       key: 'itcNo',
       header: noLabel,
       type: 'text'
+    }, {
+      key: 'note',
+      header: 'Note',
+      type: 'text'
     }];
     const toRows = list => list.map((row, i) => ({
       itemNo: i + 1,
@@ -464,7 +462,9 @@ function ITControllerView({
       partNo: row.PartNo || '',
       serialNo: row.SerialNo || '',
       itcNo: row.ITControllerNo || '',
-      imei: row.IMEI || ''
+      imei: row.IMEI || '',
+      connectivity: row.ComponentType === 'it_controller' ? CONNECTIVITY_LABELS[row.ConnectivityType || 'UNKNOWN'] : '',
+      note: row.Note || ''
     }));
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     if (compType === 'all') {
@@ -585,12 +585,13 @@ function ITControllerView({
               <th>{noLabel}</th>
               {showITCols && <th>IMEI</th>}
               {showITCols && <th>Connectivity</th>}
+              <th>Note</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && <tr>
-                <td colSpan={showITCols ? 9 : 6} className="wh-empty-cell">
+                <td colSpan={showITCols ? 10 : 7} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
@@ -616,6 +617,7 @@ function ITControllerView({
                   {showITCols && <td data-label="Connectivity">
                       {row.ComponentType === 'it_controller' ? CONNECTIVITY_LABELS[row.ConnectivityType || 'UNKNOWN'] : DASH}
                     </td>}
+                  <td data-label="Note">{row.Note || DASH}</td>
                   <td className="wh-cell-action">
                     <div style={{
                 display: 'flex',
@@ -633,7 +635,7 @@ function ITControllerView({
                 </tr>)}
 
             {!loading && filtered.length === 0 && <tr>
-                <td colSpan={showITCols ? 9 : 6} className="wh-empty-cell">
+                <td colSpan={showITCols ? 10 : 7} className="wh-empty-cell">
                   {keyword.trim() || compType !== 'all' ? 'ไม่พบรายการตามตัวกรอง' : 'ยังไม่มีข้อมูลในทะเบียน'}
                 </td>
               </tr>}

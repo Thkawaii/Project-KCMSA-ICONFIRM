@@ -23,7 +23,6 @@ func NormalizeCodeValue(s string) string {
 	return b.String()
 }
 
-
 const (
 	CodeKindMachine = "machine"
 	CodeKindSN      = "sn"

@@ -136,7 +136,6 @@ export default function LicenseAlertBell() {
           <div className="lab-panel-head">
             <div>
               <h3 className="lab-panel-title">อายุใบอนุญาตนำเข้า</h3>
-              <p className="lab-panel-sub">ใบอนุญาตมีอายุ 6 เดือน · ตรวจสอบรายสัปดาห์</p>
             </div>
             <button className="lab-panel-close" onClick={() => setOpen(false)} aria-label="ปิด">
               <XMarkIcon className="size-4" />
@@ -185,7 +184,7 @@ export default function LicenseAlertBell() {
 
           {counts.noDate > 0 && <div className="lab-foot-note">
               <ClockIcon className="size-4" />
-              มี {counts.noDate} ใบที่ยังไม่ได้ระบุวันที่ออกใบอนุญาต — เติมวันที่เพื่อให้ระบบเตือนอายุได้
+              ยังไม่ได้ระบุวันที่ออกใบอนุญาต: {counts.noDate}
             </div>}
 
           {hiddenCount > 0 && <div className="lab-hidden-bar">

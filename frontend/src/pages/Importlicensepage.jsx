@@ -357,7 +357,7 @@ export default function ImportLicensePage() {
     try {
       const result = await uploadImportLicense(file);
       setUploadMsg({
-        success: `นำเข้าสำเร็จ — เพิ่มใหม่ ${result.imported} เครื่อง, อัปเดต ${result.updated} เครื่อง, ข้าม ${result.skipped} แถว`,
+        success: `เพิ่มใหม่ ${result.imported ?? 0} · อัปเดต ${result.updated ?? 0} · ลบ ${result.deleted ?? 0} · ข้าม ${result.skipped ?? 0}`,
         problems: result.problems || []
       });
       setFile(null);
@@ -642,7 +642,7 @@ export default function ImportLicensePage() {
           setFile(f);
           setUploadMsg(null);
           setPreviewData(null);
-        }} accept=".xlsx,.xls,.csv" label="อัปโหลดบัญชีใบอนุญาตนำเข้า" hint="ไฟล์ Excel หรือ CSV ที่มีคอลัมน์ หมายเลขเครื่อง / หมายเลขการผลิต / เลขใบอนุญาตนำเข้า / เลขอินวอยซ์นำเข้า" disabled={uploading} />
+        }} accept=".xlsx,.xls,.csv" label="อัปโหลดบัญชีใบอนุญาตนำเข้า" disabled={uploading} />
           <button className="wh-modal-cancel" onClick={handlePreview} disabled={previewing || uploading || !file}>
             {previewing ? 'กำลังตรวจสอบ...' : 'ตรวจสอบก่อนอัปโหลด'}
           </button>
@@ -812,6 +812,7 @@ export default function ImportLicensePage() {
               <th>หมายเลขเครื่อง</th>
               <th>หมายเลขการผลิต</th>
               <th>หมายเหตุ</th>
+              <th>Note</th>
               <th>ส่งออกไปประเทศ</th>
               <th>คอลัมน์เพิ่ม</th>
               <th></th>
@@ -819,7 +820,7 @@ export default function ImportLicensePage() {
           </thead>
           <tbody>
             {loading && <tr>
-                <td colSpan={16} className="wh-empty-cell">
+                <td colSpan={17} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
@@ -852,6 +853,7 @@ export default function ImportLicensePage() {
                     {row.ProductionNo || '—'}
                   </td>
                   <td data-label="หมายเหตุ">{row.Remark || '—'}</td>
+                  <td data-label="Note">{row.Note || '—'}</td>
                   <td data-label="ส่งออกไปประเทศ">
                     {row.ExportCountry || <span className="il-no-country">{NO_COUNTRY_LABEL}</span>}
                   </td>
@@ -870,8 +872,8 @@ export default function ImportLicensePage() {
                   </td>
                 </tr>)}
             {!loading && paged.length === 0 && <tr>
-                <td colSpan={16} className="wh-empty-cell">
-                  ยังไม่มีข้อมูลในบัญชี — อัปโหลดไฟล์ Excel หรือ CSV ด้านบนก่อน
+                <td colSpan={17} className="wh-empty-cell">
+                  ยังไม่มีข้อมูล
                 </td>
               </tr>}
           </tbody>
@@ -1054,6 +1056,7 @@ function ImportDetailModal({
               </span>
             </div>
             {item('หมายเหตุ', row.Remark)}
+            {item('Note', row.Note)}
           </div>
         </div>
 
@@ -1338,6 +1341,7 @@ function ExportTraceModal({
             {completed && item('วันที่กดเสร็จสิ้น', row.CompletedAt ? formatThaiDate(row.CompletedAt) : '')}
             {item("Date Ass'y", row.AssemblyDate ? formatThaiDate(row.AssemblyDate) : '')}
             {item('Remark', row.Remark)}
+            {item('Note', row.Note)}
           </div>
         </div>
 
@@ -1359,9 +1363,7 @@ function ExportTraceModal({
                   {itemAlways('ผู้ยืนยัน (WH)', data.importLicense.ConfirmedBy)}
                   {itemAlways('วันที่เช็ค', data.importLicense.ConfirmedDatetime ? formatThaiDate(data.importLicense.ConfirmedDatetime) : '')}
                 </div> : <p className="il-detail-note">
-                  ไม่พบใบอนุญาตนำเข้าที่เชื่อมโยง — ตรวจสอบว่าเลข IT Controller (
-                  {row.ITControllerNo || '—'}) ตรงกับ “หมายเลขเครื่อง”
-                  ในบัญชีใบอนุญาตนำเข้า และเป็นเลข 12 หลัก
+                  ไม่พบใบอนุญาตนำเข้า
                 </p>}
             </div>
 
@@ -1547,6 +1549,10 @@ export function WHExportLicensePanel() {
         key: 'remark',
         header: 'Remark',
         type: 'text'
+      }, {
+        key: 'note',
+        header: 'Note',
+        type: 'text'
       }];
       const dash2 = v => v && String(v).trim() !== '' ? String(v) : '—';
       const sheets = countryNames.map(country => {
@@ -1592,7 +1598,8 @@ export function WHExportLicensePanel() {
               importLicenseNo: dash2(r.ImportLicenseNo),
               exportLicenseNo: dash2(r.ExportLicenseNo),
               country: countryLabel(country),
-              remark: dash2(r.Remark)
+              remark: dash2(r.Remark),
+              note: dash2(r.Note)
             };
             extra.spread.forEach((label, idx) => {
               row[`x${idx}`] = extraValues[label] ?? '';
@@ -1704,7 +1711,8 @@ export function WHExportLicensePanel() {
     try {
       const r = await uploadExportLicense(file);
       setMsg({
-        success: `นำเข้าสำเร็จ — เพิ่มใหม่ ${r.imported} แถว, อัปเดตของเดิม ${r.updated ?? 0} แถว, ข้าม ${r.skipped} แถว`
+        success: `เพิ่มใหม่ ${r.imported ?? 0} · อัปเดต ${r.updated ?? 0} · ลบ ${r.deleted ?? 0} · ข้าม ${r.skipped ?? 0}`,
+        problems: r.problems || []
       });
       setFile(null);
       setPreviewData(null);
@@ -2009,7 +2017,7 @@ export function WHExportLicensePanel() {
           setFile(f);
           setMsg(null);
           setPreviewData(null);
-        }} accept=".xlsx,.xls,.csv" label="อัปโหลดบัญชีใบอนุญาตส่งออก" hint="ไฟล์ Excel หรือ CSV ที่มีคอลัมน์ ใบขน (Date) / Exception License / Serial Number / Expire date (อัปโหลดซ้ำ Serial เดิม ระบบทับให้)" disabled={uploading} />
+        }} accept=".xlsx,.xls,.csv" label="อัปโหลดบัญชีใบอนุญาตส่งออก" disabled={uploading} />
           <button className="wh-modal-cancel" onClick={handlePreview} disabled={previewing || uploading || !file}>
             {previewing ? 'กำลังตรวจสอบ...' : 'ตรวจสอบก่อนอัปโหลด'}
           </button>
@@ -2020,6 +2028,9 @@ export function WHExportLicensePanel() {
         {previewData && (previewData.summary ? <ChangePreview result={previewData} /> : <PreviewResult result={previewData} />)}
         {msg?.success && <p className="upload-card-msg upload-card-msg-ok wh-upload-msg">{msg.success}</p>}
         {msg?.error && <p className="upload-card-msg upload-card-msg-err wh-upload-msg">{msg.error}</p>}
+        {msg?.problems?.length > 0 && <ul className="il-problem-list">
+            {msg.problems.map((p, i) => <li key={i}>{p}</li>)}
+          </ul>}
       </div>
 
       <div className="dash-stats-row wh-stats-row il-stats-row-5">
@@ -2201,13 +2212,14 @@ export function WHExportLicensePanel() {
               <th>หมดอายุ (1 เดือน)</th>
               <th>Lead time ({EXPORT_LICENSE_LEAD_DAYS} วัน)</th>
               <th>Remark</th>
+              <th>Note</th>
               <th>คอลัมน์เพิ่ม</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && <tr>
-                <td colSpan={16} className="wh-empty-cell">
+                <td colSpan={17} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
@@ -2256,6 +2268,7 @@ export function WHExportLicensePanel() {
                     <ExportLeadTimeCell row={row} />
                   </td>
                   <td data-label="Remark">{row.Remark || '—'}</td>
+                  <td data-label="Note">{row.Note || '—'}</td>
                   <td data-label="คอลัมน์เพิ่ม">
                     <ExtraColumnsCell json={row.extra_json} />
                   </td>
@@ -2271,8 +2284,8 @@ export function WHExportLicensePanel() {
                   </td>
                 </tr>)}
             {!loading && paged.length === 0 && <tr>
-                <td colSpan={16} className="wh-empty-cell">
-                  ยังไม่มีข้อมูลใบอนุญาตส่งออก — อัปโหลดไฟล์ Excel หรือ CSV ด้านบนก่อน
+                <td colSpan={17} className="wh-empty-cell">
+                  ยังไม่มีข้อมูล
                 </td>
               </tr>}
           </tbody>

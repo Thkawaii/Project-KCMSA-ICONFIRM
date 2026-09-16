@@ -18,7 +18,7 @@ func GetMFGAssemblies(c *gin.Context) {
 	resolver := newMFGPlanResolver()
 
 	serialOwner := map[string]string{}
-	seenPair := map[string]bool{}
+	matchedPair := map[string]bool{}
 
 	for i := range rows {
 		if strings.EqualFold(strings.TrimSpace(rows[i].Status), models.MFGStatusRetiredFormat) {
@@ -40,20 +40,24 @@ func GetMFGAssemblies(c *gin.Context) {
 		applyMFGPlan(&rows[i], plan)
 
 		duplicate := false
+		savedMatched := strings.EqualFold(strings.TrimSpace(rows[i].Status), models.MFGStatusMatched)
 		if serial := strings.TrimSpace(rows[i].ITControllerNo); serial != "" {
 			mc := strings.TrimSpace(rows[i].MachineNo)
 			comp := strings.ToUpper(strings.TrimSpace(rows[i].Component))
 			ownerKey := comp + "|" + serial
 			key := ownerKey + "|" + mc
 
-			if owner, ok := serialOwner[ownerKey]; !ok {
-				serialOwner[ownerKey] = mc
-			} else if owner != mc {
+			if owner, ok := serialOwner[ownerKey]; ok && owner != mc {
 				duplicate = true
-			} else if seenPair[key] {
+			} else if savedMatched && matchedPair[key] {
 				duplicate = true
 			}
-			seenPair[key] = true
+			if savedMatched {
+				if _, ok := serialOwner[ownerKey]; !ok {
+					serialOwner[ownerKey] = mc
+				}
+				matchedPair[key] = true
+			}
 		}
 
 		if strings.EqualFold(strings.TrimSpace(rows[i].Status), models.MFGStatusDuplicate) {
@@ -113,8 +117,8 @@ func itcUsedOnOtherMachine(machineNo, itcNo string, excludeID uint) bool {
 	}
 
 	q := config.DB.Model(&models.MFGAssembly{}).
-		Where("no IN ? AND machine_no <> ? AND status <> ?",
-			CodeVariants(itcNo), strings.TrimSpace(machineNo), models.MFGStatusRetiredFormat)
+		Where("no IN ? AND machine_no <> ? AND status = ?",
+			CodeVariants(itcNo), strings.TrimSpace(machineNo), models.MFGStatusMatched)
 	if excludeID != 0 {
 		q = q.Where("id <> ?", excludeID)
 	}
@@ -347,7 +351,83 @@ type MFGScanRequest struct {
 
 	SerialNo string `json:"serialNo"`
 
+	PartNo string `json:"partNo"`
+
 	PartType string `json:"partType"`
+}
+
+type mfgITCPartCheck struct {
+	PartNo   string
+	SerialNo string
+	ITCNo    string
+	Message  string
+	Detail   string
+}
+
+func (r mfgITCPartCheck) Failed() bool {
+	return r.Message != ""
+}
+
+func checkMFGITCPart(pn, sn string) mfgITCPartCheck {
+	pn = strings.TrimSpace(pn)
+	sn = strings.TrimSpace(sn)
+	out := mfgITCPartCheck{PartNo: pn, SerialNo: sn}
+
+	if pn == "" || sn == "" {
+		out.Message = "IT Controller ต้องสแกน Machine + P/N + S/N"
+		return out
+	}
+	if SameCode(pn, sn) {
+		out.Message = "ค่า S/N ซ้ำกับ P/N"
+		out.Detail = "P/N และ S/N เป็นค่าเดียวกัน (" + sn + ")"
+		return out
+	}
+
+	resolvedPN := ResolvePartNo(pn)
+	resolvedSN := ResolveComponentSerial(ComponentITC, sn)
+	master := resolveITControllerMaster(resolvedPN, resolvedSN)
+	if master == nil {
+		out.Message = "ไม่พบข้อมูลในระบบ กรุณาติดต่อ ADMIN"
+		out.Detail = "ไม่พบ IT Controller P/N " + pn + " S/N " + sn + " ในทะเบียน Master Data"
+		return out
+	}
+
+	out.ITCNo = derefStr(master.ITControllerNo)
+	if strings.TrimSpace(master.SerialNo) != "" {
+		out.SerialNo = CurrentCodeOf(master.SerialNo)
+	}
+	out.PartNo = CurrentCodeOf(resolvedPN)
+
+	if master.PartNo != "" && !SameCode(resolvedPN, master.PartNo) {
+		out.Message = "ข้อมูลไม่ตรง"
+		out.Detail = "S/N " + master.SerialNo + " คู่กับ P/N " + CurrentCodeOf(master.PartNo) + " แต่สแกนได้ " + pn
+		return out
+	}
+	if out.ITCNo == "" {
+		out.Message = "ไม่พบข้อมูลในระบบ กรุณาติดต่อ ADMIN"
+		out.Detail = "S/N " + master.SerialNo + " ไม่มีหมายเลข IT Controller ในทะเบียน Master Data"
+	}
+	return out
+}
+
+func mfgCodeIsPart(code string) bool {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return false
+	}
+	if looks12Digit(code) {
+		return true
+	}
+	variants := CodeVariants(code)
+	if len(variants) == 0 {
+		variants = []string{code}
+	}
+	var n int64
+	config.DB.Model(&models.MasterData{}).
+		Where("part_no IN ? OR serial_no IN ? OR it_controller_no IN ? OR imei IN ?",
+			variants, variants, variants, variants).
+		Count(&n)
+	return n > 0
 }
 
 func (r MFGScanRequest) scannedSerial() string {
@@ -370,10 +450,39 @@ func ScanMFGAssembly(c *gin.Context) {
 
 	machineNo := strings.TrimSpace(req.MachineNo)
 	itcNo := req.scannedSerial()
+	partType := strings.ToUpper(strings.TrimSpace(req.PartType))
 	if machineNo == "" {
 		c.JSON(400, gin.H{"message": "ต้องมี Machine No"})
 		return
 	}
+
+	resolver := newMFGPlanResolver()
+
+	if resolver.planOf(resolveMachineNo(machineNo)) == nil && mfgCodeIsPart(machineNo) {
+		c.JSON(422, gin.H{
+			"message":        "Machine No. ไม่ถูกต้อง — ค่าที่สแกนเป็นหมายเลขพาร์ท กรุณาสแกนบาร์โค้ด Machine",
+			"invalidMachine": true,
+		})
+		return
+	}
+
+	scanPartNo := strings.TrimSpace(req.PartNo)
+	scanSerialNo := strings.TrimSpace(req.SerialNo)
+	if scanSerialNo == "" {
+		scanSerialNo = strings.TrimSpace(req.ITControllerNo)
+	}
+
+	var itcCheck *mfgITCPartCheck
+	if partType == ComponentITC && scanPartNo != "" {
+		check := checkMFGITCPart(scanPartNo, scanSerialNo)
+		itcCheck = &check
+		scanPartNo = check.PartNo
+		scanSerialNo = check.SerialNo
+		if check.ITCNo != "" {
+			itcNo = check.ITCNo
+		}
+	}
+	partFailed := itcCheck != nil && itcCheck.Failed()
 
 	if msg, blocked := retiredScanMessage(machineNo, itcNo); blocked {
 		userID, name := lookupUserName(c)
@@ -383,6 +492,8 @@ func ScanMFGAssembly(c *gin.Context) {
 			DateAssembly:    &now,
 			MachineNo:       machineNo,
 			ITControllerNo:  itcNo,
+			PartNo:          scanPartNo,
+			SerialNo:        scanSerialNo,
 			Status:          models.MFGStatusRetiredFormat,
 			RetiredDetail:   msg,
 			CheckDate:       &now,
@@ -412,7 +523,6 @@ func ScanMFGAssembly(c *gin.Context) {
 
 	machineNo = resolveMachineNo(machineNo)
 
-	resolver := newMFGPlanResolver()
 	plan := resolver.evaluateComponent(machineNo, itcNo, req.PartType)
 
 	if v := strings.TrimSpace(plan.ScannedITC); v != "" {
@@ -424,8 +534,11 @@ func ScanMFGAssembly(c *gin.Context) {
 	now := time.Now()
 
 	existing := findMFGRowForPair(machineNo, itcNo)
+	if partFailed && existing != nil && existing.Status == models.MFGStatusMatched {
+		existing = nil
+	}
 
-	if existing != nil && existing.Status == models.MFGStatusMatched {
+	if !partFailed && existing != nil && existing.Status == models.MFGStatusMatched {
 		component := strings.TrimSpace(existing.Component)
 		if component == "" {
 			component = plan.Component
@@ -435,6 +548,8 @@ func ScanMFGAssembly(c *gin.Context) {
 			DateAssembly:    &now,
 			MachineNo:       machineNo,
 			ITControllerNo:  itcNo,
+			PartNo:          scanPartNo,
+			SerialNo:        scanSerialNo,
 			Component:       component,
 			Country:         existing.Country,
 			CheckDate:       &now,
@@ -482,6 +597,8 @@ func ScanMFGAssembly(c *gin.Context) {
 		DateAssembly:    &now,
 		MachineNo:       machineNo,
 		ITControllerNo:  itcNo,
+		PartNo:          scanPartNo,
+		SerialNo:        scanSerialNo,
 		Component:       plan.Component,
 		Country:         mfgCountryFor(machineNo, itcNo, resolver.planOf(machineNo)),
 		CheckDate:       &now,
@@ -490,15 +607,22 @@ func ScanMFGAssembly(c *gin.Context) {
 		UpdatedDatetime: now,
 		UserID:          userID,
 	}
+	if partFailed && row.Component == "" {
+		row.Component = ComponentITC
+	}
 	if existing != nil {
 
 		row.ID = existing.ID
 		row.CreatedBy = existing.CreatedBy
 		row.CreatedDatetime = existing.CreatedDatetime
+		row.PhotoURL = existing.PhotoURL
 	}
 
 	enrichMFGWithWH(&row)
 	row.Status = mfgStatusFor(plan.Component, duplicate, plan.State, row.WHMatched)
+	if partFailed {
+		row.Status = models.MFGStatusNotMatched
+	}
 
 	action := "scan_create"
 	if existing != nil {
@@ -518,6 +642,15 @@ func ScanMFGAssembly(c *gin.Context) {
 
 	CreateAuditLog("MFG_ASSEMBLY", row.ID, action, machineNo+"/"+row.Status, userID, name)
 
+	message := mfgFinalMessage(row.Status, plan, row.WHLicenseNo)
+	detail := plan.Detail
+	if partFailed {
+		message = itcCheck.Message
+		if itcCheck.Detail != "" {
+			detail = itcCheck.Detail
+		}
+	}
+
 	c.JSON(201, gin.H{
 		"row":                   row,
 		"status":                row.Status,
@@ -526,7 +659,9 @@ func ScanMFGAssembly(c *gin.Context) {
 		"retried":               existing != nil,
 		"component":             plan.Component,
 		"componentLabel":        plan.Label,
-		"message":               mfgFinalMessage(row.Status, plan, row.WHLicenseNo),
+		"message":               message,
+		"detail":                detail,
+		"partMismatch":          partFailed,
 		"whRequired":            row.WHRequired,
 		"whMissing":             row.WHRequired && !row.WHMatched,
 		"whMatchStatus":         row.WHMatchStatus,
@@ -542,6 +677,8 @@ type MFGAssemblyRequest struct {
 	DateAssembly   string `json:"dateAssembly"`
 	MachineNo      string `json:"machineNo"`
 	ITControllerNo string `json:"itControllerNo"`
+	PartNo         string `json:"partNo"`
+	SerialNo       string `json:"serialNo"`
 	Country        string `json:"country"`
 	CheckDate      string `json:"checkDate"`
 	Status         string `json:"status"`
@@ -598,6 +735,8 @@ func CreateMFGAssembly(c *gin.Context) {
 		DateAssembly:    dateAss,
 		MachineNo:       machineNo,
 		ITControllerNo:  itcNo,
+		PartNo:          strings.TrimSpace(req.PartNo),
+		SerialNo:        strings.TrimSpace(req.SerialNo),
 		Component:       plan.Component,
 		Country:         country,
 		CheckDate:       checkDate,
@@ -645,6 +784,8 @@ func UpdateMFGAssembly(c *gin.Context) {
 
 	row.MachineNo = strings.TrimSpace(req.MachineNo)
 	row.ITControllerNo = strings.TrimSpace(req.ITControllerNo)
+	row.PartNo = strings.TrimSpace(req.PartNo)
+	row.SerialNo = strings.TrimSpace(req.SerialNo)
 	row.Country = strings.TrimSpace(req.Country)
 	if d := parseMFGDate(req.DateAssembly); d != nil {
 		row.DateAssembly = d

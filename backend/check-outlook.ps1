@@ -1,12 +1,3 @@
-# ตรวจว่าเครื่องนี้สั่ง Outlook ส่งเมลได้จริงไหม ก่อนไปเปิด backend
-#
-# รันจาก PowerShell:
-#     cd backend
-#     powershell -ExecutionPolicy Bypass -File .\check-outlook.ps1
-#
-# ถ้าผ่าน จะมีเมลทดสอบเข้ากล่องจดหมายของตัวเอง 1 ฉบับ
-# ถ้าไม่ผ่าน อ่านข้อความ error ที่ขึ้น แล้วแก้ตามที่บอก
-
 $ErrorActionPreference = 'Stop'
 
 $to = 'theeparat.metheepooriwat@kobelco.com'

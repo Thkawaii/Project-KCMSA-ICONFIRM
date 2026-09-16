@@ -292,8 +292,6 @@ func breakdownGroups(r WeeklyReport) []breakdownGroup {
 	return groups
 }
 
-// breakdownTotal sums only the items actually listed in the breakdown, so the
-// "รวมทั้งสิ้น N รายการ" figure always matches what's printed underneath it.
 func breakdownTotal(groups []breakdownGroup) int {
 	total := 0
 	for _, g := range groups {
