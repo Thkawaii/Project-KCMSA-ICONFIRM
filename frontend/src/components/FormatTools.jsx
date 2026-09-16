@@ -639,7 +639,8 @@ export function ExtraColumnsCell({
     </div>;
 }
 export function ChangePreview({
-  result
+  result,
+  typeLabel
 }) {
   if (!result) return null;
   if (result.headerFound === false) {
@@ -661,6 +662,9 @@ export function ChangePreview({
   const matched = result.matched || [];
   const keyLabel = result.keyLabel || 'Serial No.';
   const coreFields = result.coreFields && result.coreFields.length ? result.coreFields : ['P/N', 'S/N', 'IT Controller', 'IMEI'];
+  const showType = !!result.allParts;
+  const labelOf = value => typeLabel ? typeLabel(value) : value;
+  const byType = Array.isArray(result.byType) ? result.byType : [];
   const stat = (label, value, bg, color) => <div style={{
     background: bg,
     color,
@@ -734,6 +738,28 @@ export function ChangePreview({
         {s.deleteNotFound > 0 && stat('ไม่พบที่จะลบ', s.deleteNotFound, '#f1f5f9', '#b91c1c')}
       </div>
 
+      {showType && byType.length > 0 && <div style={{
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: 6,
+      alignItems: 'center',
+      marginBottom: 8
+    }}>
+          <span style={{
+        color: '#4338ca',
+        fontWeight: 600
+      }}>แยกตามชนิด:</span>
+          {byType.map(t => <span key={t.component_type} style={{
+        background: '#eef2ff',
+        color: '#3730a3',
+        borderRadius: 999,
+        padding: '2px 10px',
+        fontSize: 12
+      }}>
+              {labelOf(t.component_type)} {t.count}
+            </span>)}
+        </div>}
+
       {(matched.length > 0 || missing.length > 0) && <div style={{
       display: 'flex',
       flexWrap: 'wrap',
@@ -788,6 +814,7 @@ export function ChangePreview({
             <thead>
               <tr>
                 <th>สถานะ</th>
+                {showType && <th>ชนิด</th>}
                 <th>{keyLabel}</th>
                 <th>ฟิลด์ที่เปลี่ยน (เดิม → ใหม่)</th>
               </tr>
@@ -795,6 +822,7 @@ export function ChangePreview({
             <tbody>
               {rows.map((r, i) => <tr key={`${r.serial ?? r.key}-${i}`}>
                   <td>{badge(r.status)}</td>
+                  {showType && <td>{r.component_type ? labelOf(r.component_type) : '—'}</td>}
                   <td style={codeStyle}>{r.serial ?? r.key ?? '—'}</td>
                   <td>
                     {(r.diffs || []).length === 0 ? <span style={{

@@ -32,6 +32,12 @@ const COMPONENT_TYPES = [{
   noLabel: 'Control Valve NO.'
 }];
 const COMPONENT_TYPE_VALUES = new Set(COMPONENT_TYPES.map(t => t.value));
+// ALL PART: อัปโหลดไฟล์เดียวได้ทุก Part — backend อ่านทุกชีต แล้วแยกชนิดให้เองจาก
+// คอลัมน์ Type / ชื่อชีต / หัวคอลัมน์เฉพาะชนิด (เช่น "Swing Motor No.")
+const ALL_PARTS_UPLOAD = 'all';
+function isMasterUploadType(value) {
+  return value === ALL_PARTS_UPLOAD || COMPONENT_TYPE_VALUES.has(value);
+}
 const DATASET_TYPES = [{
   value: 'planning',
   label: 'Planning'
@@ -45,7 +51,10 @@ const DATASET_TYPES = [{
   value: 'engine',
   label: 'Engine'
 }];
-const UPLOAD_TYPE_OPTIONS = [...COMPONENT_TYPES.map(t => ({
+const UPLOAD_TYPE_OPTIONS = [{
+  value: ALL_PARTS_UPLOAD,
+  label: 'ALL PART'
+}, ...COMPONENT_TYPES.map(t => ({
   value: t.value,
   label: t.label
 })), ...DATASET_TYPES];
@@ -53,7 +62,14 @@ const TYPE_OPTIONS = [{
   value: 'it_controller',
   label: 'ALL PART'
 }, ...DATASET_TYPES];
-const ALL_TYPE_LABELS = Object.fromEntries([...COMPONENT_TYPES, ...DATASET_TYPES].map(t => [t.value, t.label]));
+const ALL_TYPE_LABELS = Object.fromEntries([{
+  value: ALL_PARTS_UPLOAD,
+  label: 'ALL PART'
+}, ...COMPONENT_TYPES, ...DATASET_TYPES].map(t => [t.value, t.label]));
+function formatByType(byType) {
+  if (!Array.isArray(byType) || byType.length === 0) return '';
+  return byType.map(t => `${typeLabel(t.component_type)} ${t.count}`).join(' · ');
+}
 function typeLabel(value) {
   return ALL_TYPE_LABELS[value] || value;
 }
@@ -95,7 +111,7 @@ const DASH = '—';
 export default function MasterDataPage() {
   const navItems = uploadNavItems;
   const shellRoleLabel = 'Upload';
-  const [uploadType, setUploadType] = useState('it_controller');
+  const [uploadType, setUploadType] = useState(ALL_PARTS_UPLOAD);
   const [viewType, setViewType] = useState('it_controller');
   const [compType, setCompType] = useState('all');
   const [pendingFile, setPendingFile] = useState(null);
@@ -104,7 +120,8 @@ export default function MasterDataPage() {
   const [previewData, setPreviewData] = useState(null);
   const [previewing, setPreviewing] = useState(false);
   const fileInputRef = useRef(null);
-  const isMasterType = COMPONENT_TYPE_VALUES.has(uploadType);
+  const isMasterType = isMasterUploadType(uploadType);
+  const isAllParts = uploadType === ALL_PARTS_UPLOAD;
   const canPreview = true;
   async function handlePreview() {
     if (!pendingFile) {
@@ -161,10 +178,11 @@ export default function MasterDataPage() {
     setUploading(true);
     setUploadMsg(null);
     try {
-      if (COMPONENT_TYPE_VALUES.has(uploadType)) {
+      if (isMasterType) {
         const result = await uploadMasterData(pendingFile, uploadType);
+        const breakdown = isAllParts ? formatByType(result.byType) : '';
         setUploadMsg({
-          success: `เพิ่มใหม่ ${result.imported ?? 0} · อัปเดต ${result.updated ?? 0} · ลบ ${result.deleted ?? 0}`,
+          success: `เพิ่มใหม่ ${result.imported ?? 0} · อัปเดต ${result.updated ?? 0} · ลบ ${result.deleted ?? 0}` + (breakdown ? ` — ${breakdown}` : ''),
           problems: result.problems || []
         });
       } else {
@@ -180,9 +198,9 @@ export default function MasterDataPage() {
       setPendingFile(null);
       setPreviewData(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      if (COMPONENT_TYPE_VALUES.has(uploadType)) {
+      if (isMasterType) {
         setViewType('it_controller');
-        setCompType(uploadType === 'it_controller' ? 'all' : uploadType);
+        setCompType(uploadType === 'it_controller' || isAllParts ? 'all' : uploadType);
       } else {
         setViewType(uploadType);
       }
@@ -251,7 +269,7 @@ export default function MasterDataPage() {
           </div>
         </div>
 
-        {previewData && (previewData._mode === 'change' ? <ChangePreview result={previewData} /> : <PreviewResult result={previewData} />)}
+        {previewData && (previewData._mode === 'change' ? <ChangePreview result={previewData} typeLabel={typeLabel} /> : <PreviewResult result={previewData} />)}
 
         {uploadMsg?.success && <p className="upload-card-msg upload-card-msg-ok">{uploadMsg.success}</p>}
         {uploadMsg?.error && <p className="upload-card-msg upload-card-msg-err">{uploadMsg.error}</p>}
@@ -455,8 +473,17 @@ function ITControllerView({
       header: 'Note',
       type: 'text'
     }];
+    if (compType === 'all') {
+      // ใส่ชนิดอะไหล่ไว้ในไฟล์ เพื่อให้แก้แล้วอัปโหลดกลับด้วย ALL PART ได้ทันที
+      columns.splice(1, 0, {
+        key: 'partType',
+        header: 'Part Type',
+        type: 'text'
+      });
+    }
     const toRows = list => list.map((row, i) => ({
       itemNo: i + 1,
+      partType: typeLabel(row.ComponentType),
       name: row.Name || '',
       model: row.Model || '',
       partNo: row.PartNo || '',
