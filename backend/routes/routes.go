@@ -18,11 +18,11 @@ func SetupRoutes(r *gin.Engine) {
 	{
 		masterData.GET("", controllers.GetMasterData)
 		masterData.GET("/summary", controllers.GetMasterDataSummary)
-		masterData.POST("", controllers.CreateMasterData)
 
 		manage := masterData.Group("")
-		manage.Use(middleware.RoleMiddleware("UPLOAD", "ADMIN"))
+		manage.Use(middleware.RoleMiddleware("UPLOAD"))
 		{
+			manage.POST("", controllers.CreateMasterData)
 			manage.POST("/upload", controllers.UploadMasterData)
 			manage.POST("/preview", controllers.PreviewMasterDataChanges)
 			manage.PATCH("/:id", controllers.UpdateMasterData)
@@ -41,7 +41,7 @@ func SetupRoutes(r *gin.Engine) {
 		uploadData.GET("/export", controllers.ExportUploadData)
 
 		manage := uploadData.Group("")
-		manage.Use(middleware.RoleMiddleware("UPLOAD", "ADMIN"))
+		manage.Use(middleware.RoleMiddleware("UPLOAD"))
 		{
 			manage.POST("/upload/:dataset", controllers.UploadDataFile)
 			manage.POST("/preview/:dataset", controllers.PreviewUploadDataMapping)
@@ -57,7 +57,7 @@ func SetupRoutes(r *gin.Engine) {
 		formatConfig.GET("/code-alias", controllers.GetCodeAliases)
 
 		manage := formatConfig.Group("")
-		manage.Use(middleware.RoleMiddleware("UPLOAD", "ADMIN"))
+		manage.Use(middleware.RoleMiddleware("ADMIN"))
 		{
 			manage.POST("/column-alias", controllers.CreateColumnAlias)
 			manage.DELETE("/column-alias/:id", controllers.DeleteColumnAlias)

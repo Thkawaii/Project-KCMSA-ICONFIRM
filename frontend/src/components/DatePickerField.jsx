@@ -451,7 +451,7 @@ export default function DatePickerField({
             </>}
 
           <div className="dpf-foot">
-            <span className="dpf-hint">พิมพ์ได้ เช่น 15/07/2569</span>
+            <span className="dpf-hint" />
             <button type="button" className="dpf-today" onClick={() => pick(todayYMD)} disabled={!!todayDisabled}>
               วันนี้
             </button>

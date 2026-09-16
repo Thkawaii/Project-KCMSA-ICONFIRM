@@ -122,6 +122,7 @@ var udDatasets = map[string]udDataset{
 			col("Note1", "note1"),
 			col("Note2", "note2"),
 			col("Note3", "note3"),
+			col("Note", "notes"),
 		},
 	},
 
@@ -196,6 +197,7 @@ var udDatasets = map[string]udDataset{
 			col("Machine No", "machineno", "machinenumber", "mcno", "mcnumber", "machineid"),
 			col("History", "history"),
 			col("ENGINE", "engine"),
+			col("Note", "notes"),
 		},
 	},
 }
@@ -425,16 +427,20 @@ func PreviewUploadDataMapping(c *gin.Context) {
 		coreSet[f] = true
 	}
 
+	standardLabels := udStandardLabelSet(ds)
+
 	var existingJSON []string
 	config.DB.Model(&models.UploadDataRow{}).
 		Where("dataset = ?", dataset).Pluck("data_json", &existingJSON)
 	existing := make(map[string]map[string]string, len(existingJSON))
+	existingStd := make(map[string]int, len(existingJSON))
 	for _, j := range existingJSON {
 		m := map[string]string{}
 		if err := json.Unmarshal([]byte(j), &m); err != nil {
 			continue
 		}
 		existing[uploadDataDiffKey(dataset, m)] = m
+		existingStd[uploadDataSignature(m, standardLabels)]++
 	}
 
 	type fieldDiff struct {
@@ -448,7 +454,7 @@ func PreviewUploadDataMapping(c *gin.Context) {
 		Diffs  []fieldDiff `json:"diffs,omitempty"`
 	}
 
-	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0}
+	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0, "DELETE": 0, "DELETE_NOT_FOUND": 0}
 	preview := make([]rowResult, 0, 300)
 
 	for i := headerIdx + 1; i < len(rows); i++ {
@@ -465,6 +471,23 @@ func PreviewUploadDataMapping(c *gin.Context) {
 		keyLabel := strings.TrimSpace(strings.ReplaceAll(diffKey, "|", " · "))
 		if keyLabel == "" {
 			keyLabel = "(ไม่มีคีย์)"
+		}
+
+		if IsDeleteNote(data[uploadNoteLabel]) {
+			sig := uploadDataSignature(data, standardLabels)
+			status := "DELETE_NOT_FOUND"
+			if existingStd[sig] > 0 {
+				status = "DELETE"
+				existingStd[sig]--
+				if old, ok := existing[diffKey]; ok && uploadDataSignature(old, standardLabels) == sig {
+					delete(existing, diffKey)
+				}
+			}
+			counts[status]++
+			if len(preview) < 300 {
+				preview = append(preview, rowResult{Key: keyLabel, Status: status})
+			}
+			continue
 		}
 
 		old, ok := existing[diffKey]
@@ -504,7 +527,7 @@ func PreviewUploadDataMapping(c *gin.Context) {
 		}
 	}
 
-	total := counts["NEW"] + counts["UPDATED"] + counts["CHANGED"] + counts["UNCHANGED"]
+	total := counts["NEW"] + counts["UPDATED"] + counts["CHANGED"] + counts["UNCHANGED"] + counts["DELETE"] + counts["DELETE_NOT_FOUND"]
 
 	c.JSON(200, gin.H{
 		"file":        fileName,
@@ -517,14 +540,24 @@ func PreviewUploadDataMapping(c *gin.Context) {
 		"keyLabel":    udDatasetKeyLabel[dataset],
 		"coreFields":  udDatasetCoreFields[dataset],
 		"summary": gin.H{
-			"total":     total,
-			"new":       counts["NEW"],
-			"updated":   counts["UPDATED"],
-			"changed":   counts["CHANGED"],
-			"unchanged": counts["UNCHANGED"],
+			"total":          total,
+			"new":            counts["NEW"],
+			"updated":        counts["UPDATED"],
+			"changed":        counts["CHANGED"],
+			"unchanged":      counts["UNCHANGED"],
+			"deleted":        counts["DELETE"],
+			"deleteNotFound": counts["DELETE_NOT_FOUND"],
 		},
 		"rows": preview,
 	})
+}
+
+func udStandardLabelSet(ds udDataset) map[string]bool {
+	out := make(map[string]bool, len(ds.Columns))
+	for _, cdef := range ds.Columns {
+		out[cdef.Label] = true
+	}
+	return out
 }
 
 func findUploadDataHeader(rows [][]string, ds udDataset) (int, map[string]int) {
@@ -674,7 +707,13 @@ func UploadDataFile(c *gin.Context) {
 	userID, userName := lookupUserName(c)
 	now := time.Now()
 
-	var parsed []models.UploadDataRow
+	type parsedUpload struct {
+		row  models.UploadDataRow
+		data map[string]string
+		line int
+	}
+
+	var parsed []parsedUpload
 	skipped := 0
 	componentCells := 0
 
@@ -732,10 +771,6 @@ func UploadDataFile(c *gin.Context) {
 			continue
 		}
 
-		if dataset == models.DatasetPlanning {
-			componentCells += len(planComponentsFilled(data))
-		}
-
 		jsonBytes, _ := json.Marshal(data)
 
 		row := models.UploadDataRow{
@@ -747,7 +782,11 @@ func UploadDataFile(c *gin.Context) {
 		}
 		fillUploadDataKeys(&row, dataset, data)
 
-		parsed = append(parsed, row)
+		if dataset == models.DatasetPlanning && !IsDeleteNote(row.Note) {
+			componentCells += len(planComponentsFilled(data))
+		}
+
+		parsed = append(parsed, parsedUpload{row: row, data: data, line: i + 1})
 	}
 
 	if len(parsed) == 0 {
@@ -755,56 +794,157 @@ func UploadDataFile(c *gin.Context) {
 		return
 	}
 
-	existingSet := map[string]bool{}
-	var existingJSON []string
-	config.DB.Model(&models.UploadDataRow{}).
-		Where("dataset = ?", dataset).Pluck("data_json", &existingJSON)
-	for _, j := range existingJSON {
-		existingSet[j] = true
+	var existingRows []models.UploadDataRow
+	if err := config.DB.Select("id", "data_json", "note").
+		Where("dataset = ?", dataset).Order("id asc").
+		Find(&existingRows).Error; err != nil {
+		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+		return
 	}
 
-	var toInsert []models.UploadDataRow
+	standardLabels := udStandardLabelSet(ds)
+	fullIndex := map[string][]uint{}
+	stdIndex := map[string][]uint{}
+	noteByID := map[uint]string{}
+	for _, r := range existingRows {
+		m := map[string]string{}
+		if json.Unmarshal([]byte(r.DataJSON), &m) != nil {
+			continue
+		}
+		fullIndex[uploadDataSignature(m, nil)] = append(fullIndex[uploadDataSignature(m, nil)], r.ID)
+		stdKey := uploadDataSignature(m, standardLabels)
+		stdIndex[stdKey] = append(stdIndex[stdKey], r.ID)
+		noteByID[r.ID] = strings.TrimSpace(m[uploadNoteLabel])
+	}
+
+	removed := map[uint]bool{}
+	var (
+		deleteIDs []uint
+		problems  []string
+	)
+	for _, p := range parsed {
+		if !IsDeleteNote(p.row.Note) {
+			continue
+		}
+		ids := fullIndex[uploadDataSignature(p.data, nil)]
+		if len(ids) == 0 {
+			ids = stdIndex[uploadDataSignature(p.data, standardLabels)]
+		}
+		hit := false
+		for _, id := range ids {
+			if removed[id] {
+				continue
+			}
+			removed[id] = true
+			deleteIDs = append(deleteIDs, id)
+			hit = true
+		}
+		if !hit {
+			problems = append(problems, "แถว "+strconv.Itoa(p.line)+": ไม่พบข้อมูลที่ตรงกันสำหรับลบ")
+		}
+	}
+
+	type noteUpdate struct {
+		id       uint
+		dataJSON string
+		note     string
+	}
+
+	var (
+		toInsert    []models.UploadDataRow
+		noteUpdates []noteUpdate
+	)
 	seenInFile := map[string]bool{}
 	duplicate := 0
-	for _, r := range parsed {
-		if existingSet[r.DataJSON] || seenInFile[r.DataJSON] {
+	for _, p := range parsed {
+		if IsDeleteNote(p.row.Note) {
+			continue
+		}
+		key := uploadDataSignature(p.data, nil)
+		if seenInFile[key] {
 			duplicate++
 			continue
 		}
-		seenInFile[r.DataJSON] = true
-		toInsert = append(toInsert, r)
+		seenInFile[key] = true
+
+		liveID := uint(0)
+		for _, id := range fullIndex[key] {
+			if !removed[id] {
+				liveID = id
+				break
+			}
+		}
+		if liveID != 0 {
+			if noteByID[liveID] != strings.TrimSpace(p.row.Note) {
+				noteUpdates = append(noteUpdates, noteUpdate{id: liveID, dataJSON: p.row.DataJSON, note: p.row.Note})
+			} else {
+				duplicate++
+			}
+			continue
+		}
+		toInsert = append(toInsert, p.row)
 	}
 
-	if len(toInsert) == 0 {
+	if len(toInsert) == 0 && len(deleteIDs) == 0 && len(noteUpdates) == 0 {
 		c.JSON(200, gin.H{
 			"dataset":    dataset,
 			"imported":   0,
+			"updated":    0,
+			"deleted":    0,
 			"skipped":    skipped,
 			"duplicate":  duplicate,
 			"components": componentCells,
+			"problems":   capProblems(problems),
 			"file":       fileName,
 			"message":    "ไม่มีแถวใหม่ — ข้อมูลในไฟล์ซ้ำกับที่มีอยู่แล้วทั้งหมด",
 		})
 		return
 	}
 
-	tx := config.DB.Begin()
-	if err := tx.CreateInBatches(&toInsert, 1000).Error; err != nil {
-		tx.Rollback()
+	err = config.DB.Transaction(func(tx *gorm.DB) error {
+		for _, part := range chunkSlice(deleteIDs, dbInsertBatch) {
+			if err := tx.Where("id IN ?", part).Delete(&models.UploadDataRow{}).Error; err != nil {
+				return err
+			}
+		}
+		for _, u := range noteUpdates {
+			if err := tx.Model(&models.UploadDataRow{}).Where("id = ?", u.id).Updates(map[string]interface{}{
+				"data_json":   u.dataJSON,
+				"note":        u.note,
+				"file_name":   fileName,
+				"upload_date": now,
+				"user_id":     userID,
+			}).Error; err != nil {
+				return err
+			}
+		}
+		if len(toInsert) > 0 {
+			if err := tx.CreateInBatches(&toInsert, 1000).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
 		c.JSON(500, gin.H{"message": "บันทึกข้อมูลไม่สำเร็จ: " + err.Error()})
 		return
 	}
-	tx.Commit()
 
 	InvalidateMachineIndex()
 	CreateAuditLog("UPLOAD_DATA", 0, "upload_"+dataset, fileName, userID, userName)
+	if len(deleteIDs) > 0 {
+		CreateAuditLog("UPLOAD_DATA", 0, "delete_by_note_"+dataset, strconv.Itoa(len(deleteIDs)), userID, userName)
+	}
 
 	c.JSON(201, gin.H{
 		"dataset":    dataset,
 		"imported":   len(toInsert),
+		"updated":    len(noteUpdates),
+		"deleted":    len(deleteIDs),
 		"skipped":    skipped,
 		"duplicate":  duplicate,
 		"components": componentCells,
+		"problems":   capProblems(problems),
 		"file":       fileName,
 	})
 }
@@ -825,6 +965,7 @@ func fillUploadDataKeys(row *models.UploadDataRow, dataset string, data map[stri
 	case models.DatasetEngine:
 		row.MachineNo = normalizeDigitCell(data["Machine No"])
 	}
+	row.Note = strings.TrimSpace(data[uploadNoteLabel])
 }
 
 func DeleteUploadDataRow(c *gin.Context) {
@@ -893,6 +1034,7 @@ func UpdateUploadDataRow(c *gin.Context) {
 	row.PartsNo = ""
 	row.KCMOrder = ""
 	row.WorkOrder = ""
+	row.Note = ""
 	fillUploadDataKeys(&row, row.Dataset, clean)
 
 	if err := config.DB.Save(&row).Error; err != nil {

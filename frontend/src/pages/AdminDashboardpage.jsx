@@ -9,10 +9,6 @@ export const ADMIN_NAV_ITEMS = [{
   label: 'User Management',
   icon: <Squares2X2Icon className="size-4" />
 }, {
-  to: '/admin/master-data',
-  label: 'Upload Master Data',
-  icon: <CubeIcon className="size-4" />
-}, {
   to: '/admin/mail-recipients',
   label: 'ผู้รับอีเมลแจ้งเตือน',
   icon: <EnvelopeIcon className="size-4" />
@@ -33,6 +29,9 @@ const ROLE_OPTIONS = [{
 }, {
   value: 'QA',
   label: 'QA — ตรวจสอบคุณภาพ'
+}, {
+  value: 'UPLOAD',
+  label: 'UPLOAD — อัพโหลดข้อมูล'
 }, {
   value: 'ADMIN',
   label: 'ADMIN — ผู้ดูแลระบบ'
@@ -256,6 +255,9 @@ export default function AdminDashboardPage() {
         }, {
           v: 'QA',
           label: 'QA'
+        }, {
+          v: 'UPLOAD',
+          label: 'Upload'
         }].map(t => <button key={t.v} onClick={() => setFilter(t.v)} style={{
           border: 'none',
           borderRadius: 8,

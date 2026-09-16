@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"strings"
 	"time"
 
 	"iconfirm/config"
@@ -30,7 +31,7 @@ func Login(c *gin.Context) {
 
 	var candidates []models.User
 	err := config.DB.
-		Where("username = ?", req.Username).
+		Where("LOWER(username) = LOWER(?)", strings.TrimSpace(req.Username)).
 		Find(&candidates).Error
 
 	invalidCreds := func() {

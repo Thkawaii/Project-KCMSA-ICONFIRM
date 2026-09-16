@@ -64,6 +64,7 @@ func SeedOrgUsers() {
 
 	list := []orgUser{
 		{"ADMIN", "admin", "iconfirm", "Administrator"},
+		{"UPLOAD", "upload", "upload", "Upload User"},
 		{"LOG", "log@kobelco.com", "log.kobelco", "LOG User"},
 		{"LOG", "log@kobelco.com", "log01.kobelco", "Panpaporn Prommapong"},
 		{"LOG", "log@kobelco.com", "log02.kobelco", "Sarai Promden"},
@@ -116,7 +117,7 @@ func SeedOrgUsers() {
 	}
 
 	if created > 0 {
-		log.Printf("[seed] เพิ่มผู้ใช้องค์กรใหม่ %d คน (admin/LOG/WH/MFG)", created)
+		log.Printf("[seed] เพิ่มผู้ใช้องค์กรใหม่ %d คน (admin/UPLOAD/LOG/WH/MFG)", created)
 	}
 }
 
@@ -158,6 +159,13 @@ func SeedData() {
 			Password: hashPassword("iconfirm"),
 			Status:   "Active",
 			Name:     "Administrator",
+		},
+		{
+			RoleName: "UPLOAD",
+			Username: "upload",
+			Password: hashPassword("upload"),
+			Status:   "Active",
+			Name:     "Upload User",
 		},
 		{
 			RoleName: "MFG",

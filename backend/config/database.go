@@ -44,8 +44,6 @@ func ConnectDB() {
 	RenameCodeAliasColumns()
 	MigrateCodeAliasOldValue()
 
-	// Must run before AutoMigrate: it clears the way for the unique index that
-	// AutoMigrate is about to put on export_license_items.it_controller_no.
 	MergeExportLicenseDuplicateColumns()
 
 	db.AutoMigrate(
@@ -181,13 +179,6 @@ func DropLegacyAssemblyDataset() {
 	}
 }
 
-// DropRedundantItemColumns removes the leftover row-number columns that sat
-// alongside the primary key. Every one of them was a second numbering scheme
-// for the same row: mfg_assemblies.item held a string copy of the id,
-// matching_assemblies.item held "row count + 1" (which repeated as soon as a
-// row was deleted), and the item_no columns held a number parsed from the
-// uploaded spreadsheet that drifted out of sync on every re-upload. The id is
-// now the single row number, shown as "Item" in the UI.
 func DropRedundantItemColumns() {
 	if DB == nil {
 		return
@@ -221,20 +212,6 @@ func DropRedundantItemColumns() {
 	}
 }
 
-// MergeExportLicenseDuplicateColumns folds two pairs of duplicate columns in
-// export_license_items down to one column each.
-//
-// serial_number never held anything but the IT Controller serial: when the
-// uploaded file had no serial column the parser copied it_controller_no across,
-// and the UI read the two as "it_controller_no or serial_number" everywhere.
-// it_controller_no now carries the key and gains the unique index.
-//
-// exception_license and export_license_no held the same license number, chosen
-// by which header the file happened to use, so every query had to match either
-// one. export_license_no is now the only slot.
-//
-// This runs before AutoMigrate because AutoMigrate cannot add a unique index to
-// a column that still has blanks or duplicates in it.
 func MergeExportLicenseDuplicateColumns() {
 	if DB == nil {
 		return
@@ -254,7 +231,6 @@ func MergeExportLicenseDuplicateColumns() {
 		return n > 0
 	}
 
-	// Nothing to do on a fresh database.
 	if !hasColumn("it_controller_no") {
 		return
 	}
@@ -290,17 +266,12 @@ func MergeExportLicenseDuplicateColumns() {
 		}
 	}
 
-	// A row with no key cannot be re-uploaded or matched under the new rules,
-	// and would collide with every other keyless row once the index exists.
 	if n := exec("drop keyless rows", `
 		DELETE FROM `+table+`
 		WHERE COALESCE(NULLIF(TRIM(it_controller_no), ''), '') = ''`); n > 0 {
 		log.Printf("Export License: ลบแถวที่ไม่มี IT Controller S/N %d แถว (นำเข้าใหม่ไม่ได้อยู่แล้ว)", n)
 	}
 
-	// Duplicates predate the unique index. Keep the lowest id — that is the one
-	// the upsert path would have reused — but carry any "completed" mark from
-	// the copies onto it first, so a manual confirmation is never lost.
 	exec("carry completed flag", `
 		UPDATE `+table+` AS keep
 		SET completed = TRUE,

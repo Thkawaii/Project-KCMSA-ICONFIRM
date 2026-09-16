@@ -58,9 +58,6 @@ export default function ExportLeadTimeAlert({ rows = [], activeFilter = 'all', o
         </span>
         <div className="elt-body">
           <strong className="elt-title">Lead time ยังอยู่ในกำหนดทุกใบ</strong>
-          <span className="elt-sub">
-            ไม่มีใบอนุญาตส่งออกที่เลยกำหนดยื่น หรือใกล้ครบกำหนดยื่น กสทช. (ภายใน {EXPORT_LICENSE_LEAD_WARN_DAYS} วัน)
-          </span>
         </div>
       </div>
     );
@@ -116,9 +113,6 @@ export default function ExportLeadTimeAlert({ rows = [], activeFilter = 'all', o
       <div className="elt-body">
         <div className="elt-head">
           <div className="elt-head-text">
-            <span className="elt-sub">
-              ใบอนุญาตนำออกมีอายุ 1 เดือน · ต้องยื่นก่อนหมดอายุอย่างน้อย {EXPORT_LICENSE_LEAD_DAYS} วัน
-            </span>
           </div>
 
           <div className="elt-chips">

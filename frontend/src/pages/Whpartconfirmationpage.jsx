@@ -231,7 +231,7 @@ export default function WHPartConfirmationPage() {
       toastError(err.message || 'ลบไม่สำเร็จ');
     }
   }
-  async function runScanFlow(partTypeCode) {
+  async function runScanFlow(partTypeCode, presetFirst = '') {
     if (!partTypeCode || busyRef.current) return;
     const part = PART_TYPES.find(t => t.code === partTypeCode);
     if (!part) return;
@@ -243,25 +243,25 @@ export default function WHPartConfirmationPage() {
     busyRef.current = true;
     let successToast = null;
     try {
+      const preset = firstToken(presetFirst);
       let pn = '';
       if (needsPN) {
-        pn = firstToken(await scanStep({
-          title: `${partLabel}( P/N)`,
-          placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ P/N แล้วกดปุ่ม',
+        pn = preset || firstToken(await scanStep({
+          title: `${partLabel} (P/N)`,
           html: ''
         }));
         if (!pn) return;
       }
       const snLabel = part.snLabel || 'S/N';
-      const sn = firstToken(await scanStep({
-        title: `${partLabel}( ${snLabel})`,
-        placeholder: `ยิงบาร์โค้ด หรือพิมพ์ ${snLabel} แล้วกดปุ่ม`,
+      const sn = !needsPN && preset ? preset : firstToken(await scanStep({
+        title: `${partLabel} (${snLabel})`,
         html: needsPN ? `<div class="scan-popup-hint">P/N: <b>${pn}</b></div>` : '',
-        confirmText: 'บันทึก'
+        confirmText: 'บันทึก',
+        validate: v => needsPN && firstToken(v) === pn ? `ค่า ${snLabel} ซ้ำกับ P/N` : undefined
       }));
       if (!sn) return;
       if (needsPN && sn === pn) {
-        await scanErrorAlert(`ค่า S/N ซ้ำกับ P/N (${sn}) — เหมือนสแกนบาร์โค้ดเดิมซ้ำ กรุณาสแกน S/N ของ ${partLabel} อีกครั้ง`);
+        await scanErrorAlert(`ค่า S/N ซ้ำกับ P/N (${sn})`);
         return;
       }
       scanLoading('กำลังตรวจสอบกับบัญชีใบอนุญาต...');
@@ -317,8 +317,10 @@ export default function WHPartConfirmationPage() {
   async function handleScannerFire(code) {
     if (busyRef.current) return;
     let partType = detectPartType(code);
+    let preset = '';
     if (!partType && armedPartRef.current) {
       partType = armedPartRef.current;
+      preset = code;
     }
     if (!partType) {
       busyRef.current = true;
@@ -337,8 +339,9 @@ export default function WHPartConfirmationPage() {
       }
       if (!picked) return;
       partType = picked;
+      preset = code;
     }
-    runScanFlow(partType);
+    runScanFlow(partType, preset);
   }
   fireRef.current = handleScannerFire;
   useEffect(() => {
@@ -505,10 +508,6 @@ export default function WHPartConfirmationPage() {
         </>}
 
       {isManager && <>
-          {!loading && licenseItems.length === 0 && <p className="wh-subtitle">
-              ยังไม่มีบัญชีใบอนุญาตนำเข้าในระบบ — ไปที่เมนู <strong>Import License</strong>{' '}
-              เพื่ออัปโหลดไฟล์ Excel ก่อน แล้วค่อยกลับมาสแกน
-            </p>}
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title" style={{

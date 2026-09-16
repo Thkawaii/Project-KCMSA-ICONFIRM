@@ -52,7 +52,6 @@ export default function LicenseAlertBanner({
         </span>
         <div className="lab-banner-body">
           <strong>ใบอนุญาต{isImport ? 'นำเข้า' : 'ส่งออก'}ทั้งหมดอยู่ในอายุ</strong>
-          <span className="lab-banner-sub">ไม่มีรายการใกล้หมดอายุ ({windowLabel}) หรือหมดอายุ</span>
         </div>
       </div>;
   }

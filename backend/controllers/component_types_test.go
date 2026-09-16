@@ -83,8 +83,6 @@ func TestPlanComponentsFilled(t *testing.T) {
 		t.Errorf("ITC + SM = %v, want 2", got)
 	}
 
-	// One machine is one whole excavator, so every part type may sit on the
-	// same planning row.
 	full := map[string]string{
 		"IT Controller No": "878250022801",
 		"Swing Motor No":   "SW2411001",

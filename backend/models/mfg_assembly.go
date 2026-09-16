@@ -10,8 +10,6 @@ const (
 )
 
 type MFGAssembly struct {
-	// ID is the only row number this table has. The old item column stored a
-	// string copy of ID, which duplicated the primary key for no benefit.
 	ID uint `gorm:"primaryKey"`
 
 	DateAssembly *time.Time `gorm:"column:date_assembly"`
@@ -19,6 +17,10 @@ type MFGAssembly struct {
 	MachineNo string `gorm:"column:machine_no;size:60;index"`
 
 	ITControllerNo string `gorm:"column:no;size:40;index"`
+
+	PartNo string `gorm:"column:part_no;size:100"`
+
+	SerialNo string `gorm:"column:serial_no;size:100;index"`
 
 	Component string `gorm:"column:component;size:10;index"`
 

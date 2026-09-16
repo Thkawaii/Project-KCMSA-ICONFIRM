@@ -318,9 +318,7 @@ func mfgFinalMessage(status string, res MFGPlanResult, licenseNo string) string 
 
 	default:
 		if res.State == PlanStateMatch {
-			// Naming the part saves the operator guessing which one WH still
-			// has to scan. Falls back to the generic wording when the plan
-			// could not identify a component.
+
 			if label := strings.TrimSpace(res.Label); label != "" {
 				return "ข้อมูลตรง แต่ต้องให้ WH สแกน " + label + " ก่อนจึงจะประกอบได้"
 			}

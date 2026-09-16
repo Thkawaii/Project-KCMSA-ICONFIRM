@@ -101,9 +101,6 @@ export default function WeeklyAlertPage() {
       <div className="wh-heading-row">
         <div>
           <h2 className="wh-title">Weekly Alert</h2>
-          <p className="wa-subtitle">
-            สรุปใบอนุญาตนำเข้า–นำออกที่ต้องดำเนินการ ส่งเข้า Outlook / Microsoft 365 อัตโนมัติทุกสัปดาห์ และทุกครั้งที่เปิดเซิร์ฟเวอร์
-          </p>
         </div>
 
         <div className="wa-heading-actions">
@@ -126,7 +123,6 @@ export default function WeeklyAlertPage() {
                 </span>
                 <div>
                   <h3 className="wa-card-title">รอบการส่ง</h3>
-                  <p className="wa-card-sub">ระบบส่งเองโดยไม่ต้องเปิดหน้าเว็บทิ้งไว้ — เปิดเซิร์ฟเวอร์แล้วส่งฉบับล่าสุดทันที 1 ฉบับ</p>
                 </div>
                 <span className={cfg.enabled ? 'wa-pill wa-pill-ok' : 'wa-pill wa-pill-muted'}>
                   {cfg.enabled ? 'เปิดใช้งาน' : 'ปิดอยู่'}
@@ -151,7 +147,6 @@ export default function WeeklyAlertPage() {
                 </span>
                 <div>
                   <h3 className="wa-card-title">ปลายทางและช่องทางส่ง</h3>
-                  <p className="wa-card-sub">แก้ไขได้ที่ไฟล์ .env ของ backend</p>
                 </div>
                 <span className={ready ? 'wa-pill wa-pill-ok' : 'wa-pill wa-pill-bad'}>
                   {ready ? 'พร้อมส่ง' : 'ยังตั้งค่าไม่ครบ'}
@@ -178,14 +173,13 @@ export default function WeeklyAlertPage() {
                   type="text"
                   value={testEmail}
                   onChange={e => setTestEmail(e.target.value)}
-                  placeholder="ส่งทดสอบไปที่อีเมลอื่น (เว้นว่าง = ส่งตามค่าที่ตั้งไว้)"
+                  placeholder="อีเมล"
                 />
                 <button type="button" className="wa-btn wa-btn-primary" onClick={handleSend} disabled={sending}>
                   <PaperAirplaneIcon className="size-4" />
                   {sending ? 'กำลังส่ง…' : 'ส่งเดี๋ยวนี้'}
                 </button>
               </div>
-              <p className="wa-hint">การกดส่งเองไม่กระทบรอบอัตโนมัติ — อีเมลประจำสัปดาห์ยังออกตามเวลาเดิม</p>
             </section>
           </div>
 
@@ -197,7 +191,6 @@ export default function WeeklyAlertPage() {
                 </span>
                 <div>
                   <h3 className="wa-card-title">ตัวอย่างอีเมล</h3>
-                  <p className="wa-card-sub">ข้อมูลจริงของสัปดาห์นี้ — หน้าตาตรงกับที่ผู้รับจะเห็น</p>
                 </div>
               </header>
 

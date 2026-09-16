@@ -1,11 +1,13 @@
 import { apiFetch, API_BASE_URL, getToken } from './client.js';
 export function getMasterData({
   componentType,
-  code
+  code,
+  limit
 } = {}) {
   const params = new URLSearchParams();
   if (componentType) params.set('component_type', componentType);
   if (code) params.set('code', code);
+  if (limit) params.set('limit', String(limit));
   const qs = params.toString();
   return apiFetch(`/master-data${qs ? `?${qs}` : ''}`);
 }

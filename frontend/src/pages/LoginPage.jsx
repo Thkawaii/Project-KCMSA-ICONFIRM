@@ -59,7 +59,6 @@ export default function LoginPage() {
 
       <div className="auth-card">
         <h2 className="card-title">Welcome back</h2>
-        <p className="card-subtitle">Log in to your account</p>
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="field">

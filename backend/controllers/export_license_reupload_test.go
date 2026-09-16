@@ -15,8 +15,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// csvUploadContext builds a multipart request carrying an in-memory CSV, so the
-// test does not depend on the sample .xlsx files being present.
 func csvUploadContext(t *testing.T, name, body string, userID uint, username string) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
 
@@ -60,9 +58,6 @@ func exportIDsByKey(t *testing.T) map[string]uint {
 	return out
 }
 
-// Uploading the same file three times used to produce ids 1,2,3 then 4,5,6 then
-// 7,8,9, because the handler deleted the matching rows and inserted fresh ones.
-// The rows are now overwritten in place, so the ids must not move.
 func TestExportLicenseReuploadKeepsSameIDs(t *testing.T) {
 	db := newTestDB(t)
 	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
@@ -96,8 +91,6 @@ func TestExportLicenseReuploadKeepsSameIDs(t *testing.T) {
 	}
 }
 
-// Clearing everything and uploading again should start the numbering over at 1
-// rather than continuing from wherever the sequence had got to.
 func TestExportLicenseClearThenReuploadRestartsAtOne(t *testing.T) {
 	db := newTestDB(t)
 	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
@@ -138,8 +131,6 @@ func TestExportLicenseClearThenReuploadRestartsAtOne(t *testing.T) {
 	}
 }
 
-// None of these tables should carry a second row-number column beside the
-// primary key any more; the id is the only numbering, shown as "Item" in the UI.
 func TestNoRedundantItemColumns(t *testing.T) {
 	db := newTestDB(t)
 
@@ -167,8 +158,6 @@ func TestNoRedundantItemColumns(t *testing.T) {
 	}
 }
 
-// A second upload carrying different rows continues the numbering rather than
-// restarting, so Item reads 1,2,3 then 4,5,6 in the UI.
 func TestExportLicenseNewRowsContinueNumbering(t *testing.T) {
 	db := newTestDB(t)
 	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
@@ -204,10 +193,6 @@ func TestExportLicenseNewRowsContinueNumbering(t *testing.T) {
 	}
 }
 
-// The real-world case: the same file comes back with extra rows appended, and
-// some of the original rows have already been marked complete by a scan. The
-// completed rows must keep their id and their completed flag; only the appended
-// rows should arrive fresh, numbered after the existing ones.
 func TestExportLicenseReuploadKeepsScannedRows(t *testing.T) {
 	db := newTestDB(t)
 	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
@@ -218,7 +203,6 @@ func TestExportLicenseReuploadKeepsScannedRows(t *testing.T) {
 		t.Fatalf("อัปโหลดครั้งแรกไม่สำเร็จ: %d %s", rec.Code, rec.Body.String())
 	}
 
-	// Simulate a scan completing the second row.
 	done := time.Now()
 	if err := db.Model(&models.ExportLicenseItem{}).
 		Where("it_controller_no = ?", "878250110308").
@@ -230,7 +214,6 @@ func TestExportLicenseReuploadKeepsScannedRows(t *testing.T) {
 		t.Fatalf("mark completed: %v", err)
 	}
 
-	// Same three rows, plus two new ones.
 	grown := exportLicenseCSV + `4,YQ13U1088,878250111088,INV-003,JAPAN
 5,YC12U0517,878250110517,INV-003,JAPAN
 `
@@ -272,9 +255,6 @@ func TestExportLicenseReuploadKeepsScannedRows(t *testing.T) {
 	}
 }
 
-// Regression: a two-row file, then the same file grown to three rows. The first
-// upload must not burn id 1 — the ids have to read 1,2 then 1,2,3 and never
-// shift to 2,3,4.
 func TestExportLicenseGrowingFileStartsAtOne(t *testing.T) {
 	db := newTestDB(t)
 	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
@@ -323,9 +303,6 @@ const masterDataCSV = `Item No.,Part Name,Model,Part No.,Serial No.,IT Controlle
 100,Q4000 IRIDIUM IT CONTROLLER,JRN-260K,YN22E00849FA,KQ3000045142,878250022502
 `
 
-// Master data goes through a different write path from the licence tables
-// (update-in-place rather than upsert), so it gets its own coverage: the ids
-// must survive a re-upload and new rows must continue the numbering.
 func TestMasterDataReuploadKeepsIDsAndContinues(t *testing.T) {
 	db := newTestDB(t)
 	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
@@ -358,7 +335,6 @@ func TestMasterDataReuploadKeepsIDsAndContinues(t *testing.T) {
 		t.Fatalf("รอบแรก: ได้ id %v ต้องเป็น 1 และ 2", first)
 	}
 
-	// Same file again — nothing should move.
 	upload("อัพซ้ำ", masterDataCSV)
 	again := idBySerial()
 	if len(again) != 2 {
@@ -370,7 +346,6 @@ func TestMasterDataReuploadKeepsIDsAndContinues(t *testing.T) {
 		}
 	}
 
-	// File grown by one row — it should land on id 3, not skip ahead.
 	grown := masterDataCSV + "345,Q4000 IRIDIUM IT CONTROLLER,JRN-260K,YN22E00849FA,KQ3000045152,878250022701\n"
 	upload("เพิ่มแถว", grown)
 	final := idBySerial()
@@ -382,7 +357,6 @@ func TestMasterDataReuploadKeepsIDsAndContinues(t *testing.T) {
 	}
 }
 
-// buildMasterCSV makes a file with n data rows, numbered from start.
 func buildMasterCSV(start, n int) string {
 	var b strings.Builder
 	b.WriteString("Item No.,Part Name,Model,Part No.,Serial No.,IT Controller No.\n")
@@ -393,9 +367,6 @@ func buildMasterCSV(start, n int) string {
 	return b.String()
 }
 
-// The write path is batched in chunks of dbInsertBatch, so a file larger than
-// one chunk exercises the chunk boundary. Ids must still run 1..n in file order
-// and a second, larger file must extend the numbering rather than restart it.
 func TestMasterDataLargeFileBatching(t *testing.T) {
 	db := newTestDB(t)
 	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
@@ -424,7 +395,6 @@ func TestMasterDataLargeFileBatching(t *testing.T) {
 		}
 	}
 
-	// Same 1200 rows plus 300 more.
 	c, rec = csvUploadContext(t, "master.csv", buildMasterCSV(1, first+300), admin.ID, admin.Username)
 	UploadMasterData(c)
 	if rec.Code != 201 {
@@ -453,14 +423,10 @@ func TestMasterDataLargeFileBatching(t *testing.T) {
 	}
 }
 
-// A duplicate value on a unique-indexed column kills the whole batch, so the
-// handler retries that batch row by row. The clean rows must still import and
-// the offending row must be named in problems rather than failing the upload.
 func TestMasterDataBatchFallsBackPerRow(t *testing.T) {
 	db := newTestDB(t)
 	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
 
-	// Two different serials sharing one IT Controller No.
 	csv := `Item No.,Part Name,Model,Part No.,Serial No.,IT Controller No.
 1,CONTROLLER,JRN-260K,YN22E00849FA,KQ3000045093,878250022501
 2,CONTROLLER,JRN-260K,YN22E00849FA,KQ3000045142,878250022502
@@ -490,10 +456,6 @@ const importLicenseCSV = `Item No.,Brand,Model,License No.,Invoice No.,Machine N
 2,KOBELCO,SK75-10,E05036901602,TQ60612,A0020000000
 `
 
-// The workflow the warehouse actually runs: upload a file, scan every row on
-// it, then get a newer copy of the same file with one extra row. The already
-// scanned rows must stay confirmed — nobody should have to scan them twice —
-// and only the appended row should come in unconfirmed.
 func TestImportLicenseReuploadKeepsConfirmedRows(t *testing.T) {
 	db := newTestDB(t)
 	admin := makeUser(t, db, "admin@kobelco.com", "adm07", "ADMIN", "ADMIN")
@@ -504,7 +466,6 @@ func TestImportLicenseReuploadKeepsConfirmedRows(t *testing.T) {
 		t.Fatalf("อัปโหลดครั้งแรกไม่สำเร็จ: %d %s", rec.Code, rec.Body.String())
 	}
 
-	// Both rows get scanned and confirmed.
 	confirmedAt := time.Now()
 	if err := db.Model(&models.ImportLicenseItem{}).
 		Where("machine_no IN ?", []string{"A0010000000", "A0020000000"}).
@@ -525,7 +486,6 @@ func TestImportLicenseReuploadKeepsConfirmedRows(t *testing.T) {
 		before[r.MachineNo] = r.ID
 	}
 
-	// Same file with a third machine appended.
 	grown := importLicenseCSV + "3,KOBELCO,SK75-10,E05036901603,TQ60613,A0030000000\n"
 	c, rec = csvUploadContext(t, "import.csv", grown, admin.ID, admin.Username)
 	UploadImportLicenseItems(c)

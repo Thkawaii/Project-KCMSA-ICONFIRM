@@ -181,9 +181,6 @@ export default function WHAlertBell() {
           <div className="lab-panel-head">
             <div>
               <h3 className="lab-panel-title">แจ้งเตือนอายุใบอนุญาต</h3>
-              <p className="lab-panel-sub">
-                รวมนำเข้า (6 เดือน) และส่งออก (1 เดือน) · ส่งออกเตือน Lead time ยื่น กสทช. ล่วงหน้า {EXPORT_LICENSE_LEAD_WARN_DAYS} วัน
-              </p>
             </div>
             <button className="lab-panel-close" onClick={() => setOpen(false)} aria-label="ปิด">
               <XMarkIcon className="size-4" />
@@ -207,10 +204,6 @@ export default function WHAlertBell() {
                 {it.IssueDate ? ` · ออกใบอนุญาต ${formatThaiDate(it.IssueDate)}` : ''}
               </>} titleField={it => it.ExportLicenseNo || '—'} />
 
-          {totalOutstanding > 0 && <div className="lab-resolve-note">
-              ตัวเลขบนกระดิ่งคือจำนวนที่<strong>ยังไม่ได้เปิดดู</strong> — พอเปิดดูแล้วจะหายไป
-              ส่วน<strong>รายการด้านบน</strong>จะยังอยู่จนกว่าใบจะถูก<strong>ต่ออายุ/แก้ไขข้อมูล</strong>จนพ้นเกณฑ์เตือน
-            </div>}
         </div>}
     </div>;
 }
@@ -300,7 +293,7 @@ function AlertSection({
 
       {noDate > 0 && <div className="lab-foot-note">
           <ClockIcon className="size-4" />
-          มี {noDate} ใบที่{noDateLabel} — เติมวันที่เพื่อให้ระบบเตือนอายุได้
+          {noDateLabel}: {noDate}
         </div>}
     </div>;
 }

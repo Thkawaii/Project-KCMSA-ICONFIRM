@@ -139,7 +139,7 @@ function StageStat({
         </button>
       </div>
 
-      <p className="mt-2 text-[11px] text-slate-400">รวม {total} ชิ้น · แตะตัวเลขเพื่อดูรายละเอียด</p>
+      <p className="mt-2 text-[11px] text-slate-400">รวม {total} ชิ้น</p>
     </div>;
 }
 

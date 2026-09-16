@@ -6,6 +6,7 @@ export function scanMFGAssembly({
   machineNo,
   itControllerNo,
   serialNo,
+  partNo,
   partType
 }) {
   return apiFetch('/mfg-assembly/scan', {
@@ -13,8 +14,9 @@ export function scanMFGAssembly({
     body: JSON.stringify({
       machineNo,
       serialNo: serialNo || itControllerNo,
-      itControllerNo,
-      partType
+      itControllerNo: itControllerNo || '',
+      partNo: partNo || '',
+      partType: partType || ''
     })
   });
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getMFGAssemblies, scanMFGAssembly, createMFGAssembly, updateMFGAssembly, deleteMFGAssembly, uploadMFGAssemblyPhoto } from '../api/mfgAssembly.js';
 import { API_BASE_URL } from '../api/client.js';
 import { getMachinePlans, indexMachinePlans, lookupMachinePlan } from '../api/machinePlans.js';
+import { getMasterData } from '../api/masterData.js';
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js';
 import { inPeriod } from '../lib/dateRange.js';
 import PeriodRangePicker from '../components/PeriodRangePicker.jsx';
@@ -11,6 +12,26 @@ import AppShell from '../components/AppShell.jsx';
 import SelectField from '../components/Selectfield.jsx';
 import PartTag from '../components/Parttag.jsx';
 import bcMachine from '../assets/barcodes/Machine_Barcode.gif';
+function escapeHtml(v) {
+  return String(v ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[ch]);
+}
+function firstToken(v) {
+  if (!v) return '';
+  return String(v).trim().split(/\s+/)[0] || '';
+}
+function normCode(v) {
+  return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+function sameCode(a, b) {
+  const na = normCode(a);
+  return na !== '' && na === normCode(b);
+}
 export const MFG_NAV_ITEMS = [{
   to: '/mfg-assembly',
   label: 'MFG Assembly',
@@ -58,6 +79,8 @@ const EMPTY_FORM = {
   dateAssembly: '',
   machineNo: '',
   itControllerNo: '',
+  partNo: '',
+  serialNo: '',
   country: '',
   checkDate: '',
   status: ''
@@ -207,68 +230,125 @@ export default function MFGAssemblyPage() {
       if (flushTimer) clearTimeout(flushTimer);
     };
   }, []);
-  async function runScanFlow() {
+  async function detectITCScan(code) {
+    const value = String(code || '').trim();
+    if (!value) return null;
+    try {
+      const rows = await getMasterData({
+        componentType: 'it_controller',
+        code: value,
+        limit: 1
+      });
+      const hit = Array.isArray(rows) ? rows[0] : null;
+      if (hit) return sameCode(hit.PartNo, value) ? 'pn' : 'sn';
+    } catch {}
+    return /^\d{10,15}$/.test(value) ? 'sn' : null;
+  }
+  async function runScanFlow(presetMachine = '') {
     if (busyRef.current) return;
     busyRef.current = true;
     try {
-      const code1 = await scanStep({
-        title: 'สแกน Machine No.',
-        placeholder: 'ยิงบาร์โค้ด หรือพิมพ์ Machine No แล้วกดปุ่ม',
-        confirmText: 'ต่อไป'
-      });
-      if (!code1) return;
-      const parsed1 = parseAssemblyCode(code1);
-      const machineNo = parsed1.machineNo || code1.trim();
-      const code2 = await scanStep({
-        title: 'สแกนหมายเลขพาร์ท (S/N)',
-        html: `<div class="scan-popup-hint">Machine No: <b>${machineNo || '-'}</b></div>`,
-        placeholder: 'ยิงบาร์โค้ด หรือพิมพ์หมายเลขพาร์ท แล้วกดปุ่ม',
-        confirmText: 'บันทึก'
-      });
-      if (code2) {
-        const parsed2 = parseAssemblyCode(code2);
-        const itControllerNo = parsed2.itControllerNo || code2.trim();
-        await submitScan(machineNo, itControllerNo);
-      } else if (machineNo) {
-        await submitScan(machineNo, '');
+      let machineNo = String(presetMachine || '').trim();
+      if (machineNo) {
+        machineNo = parseAssemblyCode(machineNo).machineNo || machineNo;
       } else {
-        setEditId(null);
-        setForm({
-          ...EMPTY_FORM,
-          machineNo,
-          itControllerNo: ''
+        const code1 = await scanStep({
+          title: 'สแกน Machine No.',
+          confirmText: 'ต่อไป'
         });
-        setModalOpen(true);
-        toastError('อ่านค่าไม่ได้ — กรุณาตรวจ/เติมข้อมูลก่อนบันทึก');
+        if (!code1) return;
+        machineNo = parseAssemblyCode(code1).machineNo || code1.trim();
       }
+      const machineHint = `<div class="scan-popup-hint">Machine No: <b>${escapeHtml(machineNo)}</b></div>`;
+      const code2 = firstToken(await scanStep({
+        title: 'สแกนหมายเลขพาร์ท',
+        html: machineHint,
+        confirmText: 'ต่อไป',
+        validate: v => sameCode(v, machineNo) ? 'ค่าซ้ำกับ Machine No.' : undefined
+      }));
+      if (!code2) return;
+      scanLoading('กำลังตรวจสอบ...');
+      const itcRole = await detectITCScan(code2);
+      scanClose();
+      if (!itcRole) {
+        await submitScan({
+          machineNo,
+          serialNo: code2
+        });
+        return;
+      }
+      let pn = itcRole === 'pn' ? code2 : '';
+      let sn = itcRole === 'sn' ? code2 : '';
+      if (!pn) {
+        pn = firstToken(await scanStep({
+          title: 'IT Controller (P/N)',
+          html: `${machineHint}<div class="scan-popup-hint">S/N: <b>${escapeHtml(sn)}</b></div>`,
+          confirmText: 'บันทึก',
+          validate: v => {
+            if (sameCode(v, sn)) return 'ค่า P/N ซ้ำกับ S/N';
+            if (sameCode(v, machineNo)) return 'ค่าซ้ำกับ Machine No.';
+            return undefined;
+          }
+        }));
+        if (!pn) return;
+      }
+      if (!sn) {
+        sn = firstToken(await scanStep({
+          title: 'IT Controller (S/N)',
+          html: `${machineHint}<div class="scan-popup-hint">P/N: <b>${escapeHtml(pn)}</b></div>`,
+          confirmText: 'บันทึก',
+          validate: v => {
+            if (sameCode(v, pn)) return 'ค่า S/N ซ้ำกับ P/N';
+            if (sameCode(v, machineNo)) return 'ค่าซ้ำกับ Machine No.';
+            return undefined;
+          }
+        }));
+        if (!sn) return;
+      }
+      await submitScan({
+        machineNo,
+        partNo: pn,
+        serialNo: sn,
+        partType: 'ITC'
+      });
     } finally {
       busyRef.current = false;
     }
   }
-  function handleScannerFire() {
+  function handleScannerFire(code) {
     if (busyRef.current) return;
-    runScanFlow();
+    runScanFlow(code);
   }
   fireRef.current = handleScannerFire;
-  async function submitScan(machineNo, itControllerNo) {
+  async function submitScan({
+    machineNo,
+    partNo = '',
+    serialNo = '',
+    partType = ''
+  }) {
     setScanBusy(true);
     scanLoading('กำลังบันทึก...');
     let successMsg = '';
     try {
       const res = await scanMFGAssembly({
         machineNo,
-        itControllerNo
+        itControllerNo: partType === 'ITC' ? '' : serialNo,
+        serialNo,
+        partNo,
+        partType
       });
       const row = res?.row || {};
       const msg = res?.message || 'บันทึกแล้ว';
       const ok = res?.matched || res?.status === 'MATCHED';
       const isDuplicate = res?.duplicate || res?.status === 'DUPLICATE';
       const isRetired = res?.retiredFormat || res?.status === 'RETIRED_FORMAT';
-      if (row?.ID && !isDuplicate && !isRetired) {
+      const isPartMismatch = Boolean(res?.partMismatch);
+      if (row?.ID && !isDuplicate && !isRetired && !isPartMismatch) {
         await scanCloseWait();
+        const itcLabel = row.ITControllerNo ? ` / No.: <b>${escapeHtml(row.ITControllerNo)}</b>` : '';
         const photoBlob = await scanPhotoCapture({
           title: 'ถ่ายรูปป้ายเครื่อง',
-          html: `<div class="scan-popup-hint">Machine No: <b>${machineNo || '-'}</b>${itControllerNo ? ` / IT Controller: <b>${itControllerNo}</b>` : ''}</div>`
+          html: `<div class="scan-popup-hint">Machine No: <b>${escapeHtml(machineNo || '-')}</b>${itcLabel}</div>`
         });
         if (photoBlob) {
           scanLoading('กำลังบันทึกรูป...');
@@ -283,6 +363,8 @@ export default function MFGAssemblyPage() {
       scanClose();
       if (ok) {
         successMsg = msg;
+      } else if (isPartMismatch) {
+        await scanErrorAlert(res?.detail ? `${msg} — ${res.detail}` : msg);
       } else if (isRetired || res?.whMissing) {
         await scanErrorAlert(msg);
       } else {
@@ -317,7 +399,7 @@ export default function MFGAssemblyPage() {
     if (!row?.ID || photoBusy) return;
     const photoBlob = await scanPhotoCapture({
       title: row.PhotoURL ? 'ถ่ายรูปป้ายใหม่' : 'ถ่ายรูปป้ายเครื่อง',
-      html: `<div class="scan-popup-hint">Machine No: <b>${row.MachineNo || '-'}</b>${row.ITControllerNo ? ` / IT Controller: <b>${row.ITControllerNo}</b>` : ''}</div>`
+      html: `<div class="scan-popup-hint">Machine No: <b>${escapeHtml(row.MachineNo || '-')}</b>${row.ITControllerNo ? ` / No.: <b>${escapeHtml(row.ITControllerNo)}</b>` : ''}</div>`
     });
     if (!photoBlob) return;
     await applyPhotoUpload(row.ID, photoBlob);
@@ -336,14 +418,22 @@ export default function MFGAssemblyPage() {
     await applyPhotoUpload(targetId, file);
   }
   async function runFieldScan(field) {
+    const titles = {
+      itControllerNo: 'No.',
+      machineNo: 'Machine No',
+      partNo: 'P/N',
+      serialNo: 'S/N'
+    };
     const code = await scanStep({
-      title: field === 'itControllerNo' ? 'IT Controller No.' : 'Machine No',
-      placeholder: 'ยิงบาร์โค้ด หรือพิมพ์เอง แล้วกดปุ่ม',
+      title: titles[field] || field,
       confirmText: 'ใช้ค่านี้'
     });
     if (!code) return;
     const parsed = parseAssemblyCode(code);
-    const val = field === 'itControllerNo' ? parsed.itControllerNo || code.trim() : parsed.machineNo || code.trim();
+    let val = code.trim();
+    if (field === 'itControllerNo') val = parsed.itControllerNo || val;
+    if (field === 'machineNo') val = parsed.machineNo || val;
+    if (field === 'partNo' || field === 'serialNo') val = firstToken(val);
     setForm(f => ({
       ...f,
       [field]: val
@@ -360,6 +450,8 @@ export default function MFGAssemblyPage() {
       dateAssembly: toDateInput(row.DateAssembly),
       machineNo: row.MachineNo || '',
       itControllerNo: row.ITControllerNo || '',
+      partNo: row.PartNo || '',
+      serialNo: row.SerialNo || '',
       country: row.Country || '',
       checkDate: toDateInput(row.CheckDate),
       status: row.Status || ''
@@ -419,7 +511,7 @@ export default function MFGAssemblyPage() {
     }
     const term = search.trim().toLowerCase();
     if (term) {
-      list = list.filter(r => (r.MachineNo || '').toLowerCase().includes(term) || (r.ITControllerNo || '').toLowerCase().includes(term) || (r.Country || '').toLowerCase().includes(term) || (r.Status || '').toLowerCase().includes(term));
+      list = list.filter(r => (r.MachineNo || '').toLowerCase().includes(term) || (r.ITControllerNo || '').toLowerCase().includes(term) || (r.PartNo || '').toLowerCase().includes(term) || (r.SerialNo || '').toLowerCase().includes(term) || (r.Country || '').toLowerCase().includes(term) || (r.Status || '').toLowerCase().includes(term));
     }
     return [...list].sort((a, b) => a.ID - b.ID);
   }, [rows, search, periodMode, periodAnchor]);
@@ -436,13 +528,13 @@ export default function MFGAssemblyPage() {
       </div>
 
       <div className="pc-barcode-grid pc-barcode-grid--single">
-        <div className="pc-barcode-card pc-card-mc" role="button" tabIndex={0} title="ยิงบาร์โค้ด หรือพิมพ์ Machine No" onClick={() => !scanBusy && runScanFlow()} onKeyDown={e => {
+        <div className="pc-barcode-card pc-card-mc" role="button" tabIndex={0} title="Machine No" onClick={() => !scanBusy && runScanFlow()} onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           if (!scanBusy) runScanFlow();
         }
       }}>
-          <span className="pc-barcode-kind">Machine No + หมายเลขเครื่อง</span>
+          <span className="pc-barcode-kind">Machine No + หมายเลขพาร์ท</span>
           <div className="pc-barcode-title">
             {scanBusy ? 'กำลังบันทึก...' : 'Machine — Part Confirmation'}
           </div>
@@ -480,7 +572,7 @@ export default function MFGAssemblyPage() {
           entries per page
         </div>
         <div className="mfg-search-actions">
-          <input className="wh-search" type="text" placeholder="ค้นหา Machine No / IT Controller / Country / Status" value={search} onChange={e => setSearch(e.target.value)} />
+          <input className="wh-search" type="text" placeholder="ค้นหา Machine No / No. / P/N / S/N / Country / Status" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
 
@@ -492,6 +584,8 @@ export default function MFGAssemblyPage() {
               <th>Date Ass'y</th>
               <th>Machine No</th>
               <th>No.</th>
+              <th>P/N</th>
+              <th>S/N</th>
               <th>Model</th>
               <th>Country</th>
               <th>Check Date</th>
@@ -503,7 +597,7 @@ export default function MFGAssemblyPage() {
           </thead>
           <tbody>
             {loading && <tr>
-                <td colSpan={11} className="wh-empty-cell">
+                <td colSpan={13} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
@@ -535,6 +629,8 @@ export default function MFGAssemblyPage() {
                           รอ MFG สแกนยืนยัน
                         </span>}
                     </td>
+                    <td className="il-mono" data-label="P/N">{a.PartNo || '—'}</td>
+                    <td className="il-mono" data-label="S/N">{a.SerialNo || '—'}</td>
                     <td data-label="Model" title={asmTitle}>
                       {asm && asm.model ? <button type="button" className="mfg-model-link mfg-model-link-btn" onClick={() => setDetailRow({
                   row: a,
@@ -573,8 +669,8 @@ export default function MFGAssemblyPage() {
                   </tr>;
           })}
             {!loading && filtered.length === 0 && <tr>
-                <td colSpan={11} className="wh-empty-cell">
-                  {rows.length === 0 ? 'ยังไม่มีรายการ — สแกน QR เครื่องที่ประกอบเสร็จแล้วข้อมูลจะขึ้นที่นี่' : 'ไม่พบรายการที่ค้นหา'}
+                <td colSpan={13} className="wh-empty-cell">
+                  {rows.length === 0 ? 'ยังไม่มีรายการ' : 'ไม่พบรายการที่ค้นหา'}
                 </td>
               </tr>}
           </tbody>
@@ -628,7 +724,7 @@ export default function MFGAssemblyPage() {
               </button>
             </div>
 
-            <label className="wh-modal-label">IT Controller No.</label>
+            <label className="wh-modal-label">No.</label>
             <div style={{
           display: 'flex',
           gap: 8,
@@ -642,8 +738,36 @@ export default function MFGAssemblyPage() {
               </button>
             </div>
 
+            <label className="wh-modal-label">P/N</label>
+            <div style={{
+          display: 'flex',
+          gap: 8,
+          alignItems: 'center'
+        }}>
+              <input className="wh-modal-input" style={{
+            flex: 1
+          }} value={form.partNo} onChange={e => setField('partNo', e.target.value)} />
+              <button type="button" className="tsf-action-btn" onClick={() => runFieldScan('partNo')}>
+                <QrCodeIcon className="size-4" /> สแกน
+              </button>
+            </div>
+
+            <label className="wh-modal-label">S/N</label>
+            <div style={{
+          display: 'flex',
+          gap: 8,
+          alignItems: 'center'
+        }}>
+              <input className="wh-modal-input" style={{
+            flex: 1
+          }} value={form.serialNo} onChange={e => setField('serialNo', e.target.value)} />
+              <button type="button" className="tsf-action-btn" onClick={() => runFieldScan('serialNo')}>
+                <QrCodeIcon className="size-4" /> สแกน
+              </button>
+            </div>
+
             <label className="wh-modal-label">Country</label>
-            <input className="wh-modal-input" value={form.country} onChange={e => setField('country', e.target.value)} placeholder="เว้นว่างให้ระบบดึงจากบัญชีใบอนุญาตนำเข้า (ถ้ามี)" />
+            <input className="wh-modal-input" value={form.country} onChange={e => setField('country', e.target.value)} />
 
             <label className="wh-modal-label">Check Date</label>
             <input className="wh-modal-input" type="date" value={form.checkDate} onChange={e => setField('checkDate', e.target.value)} />
@@ -682,10 +806,6 @@ export default function MFGAssemblyPage() {
                 </div> : null}
             </div>
 
-            <p className="mfg-photo-hint">
-              {photoEditRow.PhotoURL ? 'ถ่ายภาพไม่ชัด? ถ่ายใหม่หรืออัปโหลดรูปแทนได้ ระบบจะอัปเดตทับรูปเดิม' : 'รายการนี้ยังไม่มีรูป — ถ่ายใหม่หรืออัปโหลดรูปเพื่อบันทึกได้'}
-            </p>
-
             <div className="mfg-photo-choices">
               <button type="button" className="mfg-photo-choice" disabled={photoBusy} onClick={async () => {
             const row = photoEditRow;
@@ -695,7 +815,6 @@ export default function MFGAssemblyPage() {
                 <CameraIcon className="size-5" />
                 <span className="mfg-photo-choice-text">
                   <span className="mfg-photo-choice-title">ถ่ายรูปใหม่</span>
-                  <span className="mfg-photo-choice-sub">เปิดกล้องถ่ายป้ายเครื่อง</span>
                 </span>
               </button>
               <button type="button" className="mfg-photo-choice" disabled={photoBusy} onClick={() => {
@@ -706,7 +825,6 @@ export default function MFGAssemblyPage() {
                 <ArrowUpTrayIcon className="size-5" />
                 <span className="mfg-photo-choice-text">
                   <span className="mfg-photo-choice-title">อัปโหลดรูป</span>
-                  <span className="mfg-photo-choice-sub">เลือกไฟล์รูปจากเครื่อง</span>
                 </span>
               </button>
             </div>

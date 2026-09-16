@@ -174,10 +174,6 @@ func DetectComponentFromPlan(plan map[string]string, serial string) string {
 	return ""
 }
 
-// planComponentsFilled lists every component that carries a number on a single
-// planning row. One machine is one built excavator, so a row may legitimately
-// hold an IT Controller, a Swing Motor, a Pump, a Motor Propel, a Control Valve,
-// a Counter Weight and an Engine all at once — this is reported, never rejected.
 func planComponentsFilled(data map[string]string) []string {
 	var filled []string
 	for _, s := range componentSpecs {
