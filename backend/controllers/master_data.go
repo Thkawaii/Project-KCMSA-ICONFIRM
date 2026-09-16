@@ -476,26 +476,21 @@ func UploadMasterData(c *gin.Context) {
 		return
 	}
 
-	rows, err := readUploadedRows(fileHeader)
+	userID, userName := lookupUserName(c)
+	now := time.Now()
+
+	result, headerHint, err := parseMasterDataUpload(fileHeader, fallbackComponentType, userID, now)
 	if err != nil {
 		c.JSON(400, gin.H{"message": err.Error()})
 		return
 	}
-	if len(rows) < 2 {
-		c.JSON(400, gin.H{"message": "ไฟล์ไม่มีข้อมูล หรืออ่านไม่ได้"})
+	if headerHint != "" {
+		c.JSON(400, gin.H{"message": headerHint})
 		return
 	}
 
-	headerIdx, headers := findMasterDataHeader(rows, fallbackComponentType)
-	if headerIdx < 0 {
-		c.JSON(400, gin.H{"message": masterDataHeaderHint(rows, fallbackComponentType)})
-		return
-	}
-
-	userID, userName := lookupUserName(c)
-	now := time.Now()
-
-	parsed, skipped, problems, extraColumns := parseMasterDataRows(rows, headerIdx, headers, fallbackComponentType, userID, now)
+	parsed, skipped, problems, extraColumns := result.Parsed, result.Skipped, result.Problems, result.Extra
+	byType := countByComponentType(parsed)
 
 	if len(extraColumns) > 0 {
 		problems = append(problems,
@@ -505,7 +500,11 @@ func UploadMasterData(c *gin.Context) {
 	}
 
 	if len(parsed) == 0 {
-		c.JSON(400, gin.H{"message": "ไม่พบแถวข้อมูลที่นำเข้าได้ในไฟล์นี้"})
+		msg := "ไม่พบแถวข้อมูลที่นำเข้าได้ในไฟล์นี้"
+		if detail := firstProblems(problems, 3); detail != "" {
+			msg += " — " + detail
+		}
+		c.JSON(400, gin.H{"message": msg, "problems": capProblems(problems)})
 		return
 	}
 
@@ -633,6 +632,8 @@ func UploadMasterData(c *gin.Context) {
 		"problems":     capProblems(problems),
 		"extraColumns": extraColumns,
 		"file":         fileHeader.Filename,
+		"byType":       byType,
+		"sheets":       result.Sheets,
 	})
 }
 
@@ -781,12 +782,17 @@ func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallb
 			}
 		}
 
+		unknownType := ""
 		if typeColIdx >= 0 && typeColIdx < len(rows[i]) {
 			raw := strings.TrimSpace(rows[i][typeColIdx])
 			if code, ok := resolveComponentType(raw); ok {
 				row.ComponentType = code
 			} else if raw != "" {
-				problems = append(problems, "แถว "+strconv.Itoa(i+1)+": ไม่รู้จักชนิดอะไหล่ '"+raw+"' — ใช้ "+fallbackComponentType+" แทน")
+				if fallbackComponentType != "" {
+					problems = append(problems, "แถว "+strconv.Itoa(i+1)+": ไม่รู้จักชนิดอะไหล่ '"+raw+"' — ใช้ "+fallbackComponentType+" แทน")
+				} else {
+					unknownType = raw
+				}
 			}
 		}
 
@@ -799,6 +805,15 @@ func parseMasterDataRows(rows [][]string, headerIdx int, headers []string, fallb
 
 		if row.SerialNo == "" {
 			skipped++
+			continue
+		}
+
+		if row.ComponentType == "" {
+			if unknownType != "" {
+				problems = append(problems, "แถว "+strconv.Itoa(i+1)+": ไม่รู้จักชนิดอะไหล่ '"+unknownType+"' — ข้ามแถวนี้")
+			} else {
+				problems = append(problems, "แถว "+strconv.Itoa(i+1)+": Serial "+row.SerialNo+" ไม่ได้ระบุชนิดอะไหล่ — ข้ามแถวนี้")
+			}
 			continue
 		}
 
@@ -870,42 +885,23 @@ func PreviewMasterDataChanges(c *gin.Context) {
 		c.JSON(400, gin.H{"message": "กรุณาแนบไฟล์ Excel หรือ CSV (field name: file)"})
 		return
 	}
-	rows, err := readUploadedRows(fileHeader)
+	result, headerHint, err := parseMasterDataUpload(fileHeader, fallbackComponentType, 0, time.Now())
 	if err != nil {
 		c.JSON(400, gin.H{"message": err.Error()})
 		return
 	}
-	if len(rows) < 2 {
-		c.JSON(400, gin.H{"message": "ไฟล์ไม่มีข้อมูล หรืออ่านไม่ได้"})
-		return
-	}
-
-	headerIdx, headers := findMasterDataHeader(rows, fallbackComponentType)
-	if headerIdx < 0 {
+	if headerHint != "" {
 		c.JSON(200, gin.H{
 			"file":        fileHeader.Filename,
 			"headerFound": false,
-			"message":     masterDataHeaderHint(rows, fallbackComponentType),
+			"message":     headerHint,
 		})
 		return
 	}
 
-	var matchedCols []string
-	seenCol := map[string]bool{}
-	for col, key := range headers {
-		if _, ok := masterDataColumns[key]; !ok {
-			continue
-		}
-		if seenCol[key] {
-			continue
-		}
-		seenCol[key] = true
-		if col < len(rows[headerIdx]) {
-			matchedCols = append(matchedCols, strings.TrimSpace(rows[headerIdx][col]))
-		}
-	}
-
-	parsed, skipped, problems, extraCols := parseMasterDataRows(rows, headerIdx, headers, fallbackComponentType, 0, time.Now())
+	matchedCols := result.Matched
+	parsed, skipped, problems, extraCols := result.Parsed, result.Skipped, result.Problems, result.Extra
+	byType := countByComponentType(parsed)
 
 	deleteRows, keepRows := splitMasterDataDeletes(parsed)
 	parsed = keepRows
@@ -1024,7 +1020,10 @@ func PreviewMasterDataChanges(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"file":        fileHeader.Filename,
 		"headerFound": true,
-		"headerRow":   headerIdx + 1,
+		"headerRow":   result.HeaderRow,
+		"allParts":    isAllPartsComponentType(fallbackComponentType),
+		"byType":      byType,
+		"sheets":      result.Sheets,
 		"matched":     matchedCols,
 		"extra":       extraCols,
 		"skipped":     skipped,
