@@ -109,70 +109,72 @@ func seedMasterFull(t *testing.T, serialNo, itcNo string) uint {
 	return m.ID
 }
 
-func TestUpdateMasterDataSafeFieldAllowed(t *testing.T) {
+func TestUpdateMasterDataLockedAfterMatchedScan(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "up@kobelco.com", "up07", "UPLOAD", "UPLOAD")
 	id := seedMasterFull(t, "KQ3000045093", "878250022802")
-	db.Create(&models.PartCheck{PartType: "ITC", SN: "KQ3000045093", MachineNo: "878250022802"})
+	db.Create(&models.PartCheck{PartType: "ITC", SN: "KQ3000045093", MachineNo: "878250022802", MatchStatus: models.MatchStatusMatch})
 
-	c, rec := patchCtx(id, `{"Name":"ชื่อใหม่"}`, "", u)
-	UpdateMasterData(c)
-
-	mustStatus(t, rec, 200)
-}
-
-func TestUpdateMasterDataKeyEditBlockedWhenReferenced(t *testing.T) {
-	db := newTestDB(t)
-	u := makeUser(t, db, "up@kobelco.com", "up07", "UPLOAD", "UPLOAD")
-	id := seedMasterFull(t, "KQ3000045093", "878250022802")
-	db.Create(&models.PartCheck{PartType: "ITC", SN: "KQ3000045093", MachineNo: "878250022802"})
-
-	c, rec := patchCtx(id, `{"SerialNo":"CHANGED-SN"}`, "", u)
-	UpdateMasterData(c)
-
-	mustStatus(t, rec, 409)
-	resp := decodeJSON(t, rec)
-	if resp["blocked"] != true {
-		t.Fatalf("blocked = %v, want true", resp["blocked"])
+	for _, body := range []string{`{"Name":"ชื่อใหม่"}`, `{"SerialNo":"CHANGED-SN"}`} {
+		c, rec := patchCtx(id, body, "", u)
+		UpdateMasterData(c)
+		mustStatus(t, rec, 409)
+		if resp := decodeJSON(t, rec); resp["locked"] != true {
+			t.Fatalf("locked = %v, want true", resp["locked"])
+		}
 	}
 
-	var after models.MasterData
-	db.First(&after, id)
-	if after.SerialNo != "KQ3000045093" {
-		t.Errorf("SerialNo changed to %q despite block", after.SerialNo)
-	}
-}
-
-func TestUpdateMasterDataKeyEditForceAllowed(t *testing.T) {
-	db := newTestDB(t)
-	u := makeUser(t, db, "up@kobelco.com", "up07", "UPLOAD", "UPLOAD")
-	id := seedMasterFull(t, "KQ3000045093", "878250022802")
-	db.Create(&models.PartCheck{PartType: "ITC", SN: "KQ3000045093", MachineNo: "878250022802"})
-
+	// force=true ใช้ข้ามการล็อกไม่ได้
 	c, rec := patchCtx(id, `{"SerialNo":"CHANGED-SN"}`, "true", u)
 	UpdateMasterData(c)
+	mustStatus(t, rec, 409)
 
+	var after models.MasterData
+	db.First(&after, id)
+	if after.SerialNo != "KQ3000045093" || after.Name != "" {
+		t.Errorf("row changed despite lock: %+v", after)
+	}
+
+	dc, drec := patchCtx(id, ``, "", u)
+	DeleteMasterData(dc)
+	mustStatus(t, drec, 409)
+}
+
+func TestUpdateMasterDataEditableAfterFailedScan(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "up@kobelco.com", "up07", "UPLOAD", "UPLOAD")
+	id := seedMasterFull(t, "KQ3000045093", "878250022802")
+	db.Create(&models.PartCheck{PartType: "ITC", SN: "KQ3000045093", MachineNo: "878250022802", MatchStatus: models.MatchStatusNotFound})
+	db.Create(&models.MFGAssembly{MachineNo: "LX1", ITControllerNo: "878250022802", Status: models.MFGStatusNotMatched})
+
+	c, rec := patchCtx(id, `{"SerialNo":"NEW-SN"}`, "", u)
+	UpdateMasterData(c)
 	mustStatus(t, rec, 200)
 
 	var after models.MasterData
 	db.First(&after, id)
-	if after.SerialNo != "CHANGED-SN" {
-		t.Errorf("SerialNo = %q, want CHANGED-SN after force", after.SerialNo)
+	if after.SerialNo != "NEW-SN" {
+		t.Errorf("SerialNo = %q, want NEW-SN", after.SerialNo)
 	}
+}
 
-	var logCount int64
-	db.Model(&models.AuditLog{}).
-		Where("source_table = ? AND action = ?", "MASTER_DATA", "update_key").
-		Count(&logCount)
-	if logCount == 0 {
-		t.Error("expected an update_key audit log")
-	}
+func TestUpdateMasterDataLockedAfterMFGMatched(t *testing.T) {
+	db := newTestDB(t)
+	u := makeUser(t, db, "up@kobelco.com", "up07", "UPLOAD", "UPLOAD")
+	id := seedMasterFull(t, "KQ3000045093", "878250022802")
+	db.Create(&models.MFGAssembly{MachineNo: "LX1", ITControllerNo: "878250022802", Status: models.MFGStatusMatched})
+
+	c, rec := patchCtx(id, `{"Model":"X"}`, "", u)
+	UpdateMasterData(c)
+	mustStatus(t, rec, 409)
 }
 
 func TestUpdateMasterDataKeyEditAllowedWhenNoRefs(t *testing.T) {
 	db := newTestDB(t)
 	u := makeUser(t, db, "up@kobelco.com", "up07", "UPLOAD", "UPLOAD")
 	id := seedMasterFull(t, "KQ3000045093", "878250022802")
+	// อ้างอิงจาก Import License ไม่ใช่การสแกน — ต้องแก้ได้
+	db.Create(&models.ImportLicenseItem{MachineNo: "878250022802", InvoiceNo: "TQ60610"})
 
 	c, rec := patchCtx(id, `{"SerialNo":"NEW-SN"}`, "", u)
 	UpdateMasterData(c)
@@ -182,25 +184,5 @@ func TestUpdateMasterDataKeyEditAllowedWhenNoRefs(t *testing.T) {
 	db.First(&after, id)
 	if after.SerialNo != "NEW-SN" {
 		t.Errorf("SerialNo = %q, want NEW-SN", after.SerialNo)
-	}
-}
-
-func TestCountMasterDataRefs(t *testing.T) {
-	db := newTestDB(t)
-	db.Create(&models.PartCheck{PartType: "ITC", SN: "KQ3000045093", MachineNo: "878250022802"})
-	db.Create(&models.MFGAssembly{MachineNo: "LX1", ITControllerNo: "878250022802"})
-	db.Create(&models.MatchingAssembly{MachineNo: "878250022802", ITControllerSN: "KQ3000045093"})
-	db.Create(&models.ImportLicenseItem{MachineNo: "878250022802", InvoiceNo: "TQ60610"})
-
-	refs := countMasterDataRefs("KQ3000045093", "878250022802")
-	if refs.Total == 0 {
-		t.Fatal("expected refs > 0")
-	}
-	if refs.MFGAssembly != 1 || refs.ImportLicense != 1 {
-		t.Errorf("unexpected ref counts: %+v", refs)
-	}
-
-	if countMasterDataRefs("NOPE", "000000000000").Total != 0 {
-		t.Error("expected 0 refs for unknown keys")
 	}
 }

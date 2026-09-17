@@ -76,6 +76,8 @@ func ConnectDB() {
 
 	DropRedundantItemColumns()
 
+	DropUploadNoteColumns()
+
 	NormalizeExportLicenseExpiry()
 
 	SeedData()
@@ -209,6 +211,24 @@ func DropRedundantItemColumns() {
 			continue
 		}
 		log.Printf("Dropped redundant column %s.%s", c.table, c.column)
+	}
+}
+
+// DropUploadNoteColumns ลบคอลัมน์ note ที่เคยเพิ่มไว้สำหรับ "ลบข้อมูลด้วยคำ Delete/ลบ ในช่อง Note"
+// ฟีเจอร์นั้นเลิกใช้แล้ว (เปลี่ยนเป็นแก้ไข/ลบในตารางหน้าอัปโหลดโดยตรง) จึงไม่ต้องเก็บคอลัมน์นี้อีก
+func DropUploadNoteColumns() {
+	if DB == nil {
+		return
+	}
+	for _, table := range []string{"master_data", "upload_data_rows", "import_license_items", "export_license_items"} {
+		if !DB.Migrator().HasColumn(table, "note") {
+			continue
+		}
+		if err := DB.Migrator().DropColumn(table, "note"); err != nil {
+			log.Println("drop column", table+".note", ":", err)
+			continue
+		}
+		log.Printf("Dropped column %s.note (เลิกใช้ลบข้อมูลผ่านช่อง Note)", table)
 	}
 }
 

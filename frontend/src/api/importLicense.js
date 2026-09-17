@@ -30,6 +30,12 @@ export function verifyImportLicenseCode({
     })
   });
 }
+export function updateImportLicenseItem(id, patch) {
+  return apiFetch(`/import-license/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch)
+  });
+}
 export function deleteImportLicenseItem(id) {
   return apiFetch(`/import-license/${id}`, {
     method: 'DELETE'

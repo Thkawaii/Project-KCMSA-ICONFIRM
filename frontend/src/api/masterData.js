@@ -52,11 +52,9 @@ export async function previewMasterDataChanges(file, componentType) {
   }
   return data;
 }
-export function updateMasterData(id, patch, {
-  force = false
-} = {}) {
-  const qs = force ? '?force=true' : '';
-  return apiFetch(`/master-data/${id}${qs}`, {
+// แก้ไขทีละช่องจากตาราง — แถวที่สแกนผ่านแล้วจะได้ error 409 (locked)
+export function updateMasterData(id, patch) {
+  return apiFetch(`/master-data/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch)
   });

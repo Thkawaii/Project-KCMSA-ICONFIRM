@@ -60,9 +60,10 @@ export function deleteUploadDataRow(id) {
     method: 'DELETE'
   });
 }
+// ส่งมาเฉพาะช่องที่แก้ ({ "Machine": "..." }) ระบบรวมกับค่าเดิมให้
 export function updateUploadDataRow(id, data) {
   return apiFetch(`/upload-data/${id}`, {
-    method: 'PUT',
+    method: 'PATCH',
     body: JSON.stringify({
       data
     })

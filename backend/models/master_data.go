@@ -23,12 +23,14 @@ type MasterData struct {
 
 	ConnectivityType string `gorm:"column:connectivity_type;size:30;index"`
 
-	Note string `gorm:"column:note;type:text"`
-
 	ExtraJSON string `gorm:"type:text" json:"extra_json,omitempty"`
 
 	UploadDate time.Time
 
 	UserID uint
 	User   User
+
+	// Locked = ถูกสแกนผ่านไปแล้ว แก้ไข/ลบไม่ได้ (คำนวณตอนอ่าน ไม่ได้เก็บในฐานข้อมูล)
+	Locked     bool   `gorm:"-"`
+	LockReason string `gorm:"-"`
 }

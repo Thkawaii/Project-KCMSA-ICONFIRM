@@ -675,8 +675,21 @@ func findCodeAliasHeader(rows [][]string) (int, []string) {
 	return -1, nil
 }
 
+// codeAliasSheetScore: ไฟล์หลายชีต — เลือกชีต Change Format Part ให้อัตโนมัติ
+func codeAliasSheetScore(name string, rows [][]string) int {
+	idx, _ := findCodeAliasHeader(rows)
+	if idx < 0 {
+		return -1
+	}
+	score := 1
+	if sheetNameHas(name, "changeformat", "format", "codealias") {
+		score += sheetNameMatchBonus
+	}
+	return score
+}
+
 func UploadCodeAliases(c *gin.Context) {
-	rows, fileName, err := readUploadedRowsFromForm(c)
+	rows, fileName, err := readBestSheetFromForm(c, codeAliasSheetScore)
 	if err != nil {
 		c.JSON(400, gin.H{"message": err.Error()})
 		return

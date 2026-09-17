@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import AppShell from '../components/AppShell.jsx';
 import SelectField from '../components/Selectfield.jsx';
 import useFileDrop from '../lib/useFileDrop.js';
-import { getMasterData, uploadMasterData, deleteMasterData, clearMasterData, previewMasterDataChanges } from '../api/masterData.js';
+import { getMasterData, uploadMasterData, deleteMasterData, clearMasterData, previewMasterDataChanges, updateMasterData } from '../api/masterData.js';
 import { getUploadData, uploadDataFile, deleteUploadDataRow, updateUploadDataRow, clearUploadData, previewUploadData } from '../api/uploadData.js';
-import { PreviewResult, ChangePreview, MasterDataEditModal } from '../components/FormatTools.jsx';
+import { PreviewResult, ChangePreview } from '../components/FormatTools.jsx';
+import { EditableCell, EditHint, LockBadge, useLiveRefresh } from '../components/InlineEdit.jsx';
 import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js';
 import { buildStyledXlsxBlob, buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js';
 import { CloudArrowUpIcon } from '../components/icons.jsx';
@@ -182,14 +183,15 @@ export default function MasterDataPage() {
         const result = await uploadMasterData(pendingFile, uploadType);
         const breakdown = isAllParts ? formatByType(result.byType) : '';
         setUploadMsg({
-          success: `เพิ่มใหม่ ${result.imported ?? 0} · อัปเดต ${result.updated ?? 0} · ลบ ${result.deleted ?? 0}` + (breakdown ? ` — ${breakdown}` : ''),
+          success: `เพิ่มใหม่ ${result.imported ?? 0} · อัปเดต ${result.updated ?? 0}` + (result.unchanged ? ` · เหมือนเดิม ${result.unchanged}` : '') + (result.locked ? ` · สแกนแล้ว ไม่อัปเดต ${result.locked}` : '') + (breakdown ? ` — ${breakdown}` : ''),
           problems: result.problems || []
         });
       } else {
         const result = await uploadDataFile(uploadType, pendingFile);
-        const parts = [`เพิ่มใหม่ ${result.imported ?? 0}`, `อัปเดต ${result.updated ?? 0}`, `ลบ ${result.deleted ?? 0}`];
+        const parts = [`เพิ่มใหม่ ${result.imported ?? 0}`, `อัปเดต ${result.updated ?? 0}`];
+        if (result.duplicate) parts.push(`เหมือนเดิม ${result.duplicate}`);
+        if (result.locked) parts.push(`สแกนแล้ว ไม่อัปเดต ${result.locked}`);
         if (result.skipped) parts.push(`ข้าม ${result.skipped}`);
-        if (result.duplicate) parts.push(`ซ้ำ ${result.duplicate}`);
         setUploadMsg({
           success: parts.join(' · '),
           problems: result.problems || []
@@ -314,33 +316,43 @@ function ITControllerView({
   const [loadError, setLoadError] = useState('');
   const [keyword, setKeyword] = useState('');
   const [deletingId, setDeletingId] = useState(0);
-  const [editRow, setEditRow] = useState(null);
   const [connFilter, setConnFilter] = useState('all');
   const noLabel = NO_LABEL_BY_TYPE[compType] || 'IT Controller no.';
   const showITCols = compType === 'all' || compType === 'it_controller';
-  const editComponentOptions = COMPONENT_TYPES.map(t => ({
-    value: t.value,
-    label: t.label
-  }));
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
+  const loadSeq = useRef(0);
+  async function load(silent = false) {
+    const seq = ++loadSeq.current;
+    if (!silent) {
       setLoading(true);
       setLoadError('');
-      try {
-        const data = await getMasterData({});
-        if (!cancelled) setRows(data || []);
-      } catch (err) {
-        if (!cancelled) setLoadError(err.message || 'โหลดทะเบียนไม่สำเร็จ');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
     }
-    load();
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const data = await getMasterData({});
+      if (seq === loadSeq.current) setRows(data || []);
+    } catch (err) {
+      if (!silent && seq === loadSeq.current) setLoadError(err.message || 'โหลดทะเบียนไม่สำเร็จ');
+    } finally {
+      if (!silent && seq === loadSeq.current) setLoading(false);
+    }
+  }
+  useEffect(() => {
+    load(false);
   }, [reloadKey]);
+  useLiveRefresh(() => load(true));
+  async function saveField(row, key, value) {
+    try {
+      const updated = await updateMasterData(row.ID, {
+        [key]: value
+      });
+      setRows(list => list.map(r => r.ID === row.ID ? {
+        ...r,
+        ...updated
+      } : r));
+    } catch (err) {
+      if (err?.status === 409) load(true);
+      throw err;
+    }
+  }
   const filtered = useMemo(() => {
     let result = rows;
     if (compType !== 'all') {
@@ -348,7 +360,7 @@ function ITControllerView({
     }
     const kw = keyword.trim().toLowerCase();
     if (kw) {
-      result = result.filter(row => [row.Name, row.Model, row.PartNo, row.SerialNo, row.ITControllerNo, row.IMEI, row.Note].filter(Boolean).some(field => String(field).toLowerCase().includes(kw)));
+      result = result.filter(row => [row.Name, row.Model, row.PartNo, row.SerialNo, row.ITControllerNo, row.IMEI].filter(Boolean).some(field => String(field).toLowerCase().includes(kw)));
     }
     if (showITCols && connFilter !== 'all') {
       result = result.filter(row => (row.ConnectivityType || 'UNKNOWN') === connFilter);
@@ -380,8 +392,8 @@ function ITControllerView({
       toastSuccess(`ลบ ${label} แล้ว`);
     } catch (err) {
       const msg = err.message || 'ลบไม่สำเร็จ';
-      setLoadError(msg);
       toastError(msg);
+      if (err?.status === 409) load(true);
     } finally {
       setDeletingId(0);
     }
@@ -443,10 +455,6 @@ function ITControllerView({
       key: 'connectivity',
       header: 'Connectivity',
       type: 'text'
-    }, {
-      key: 'note',
-      header: 'Note',
-      type: 'text'
     }] : [{
       key: 'itemNo',
       header: 'Item No.',
@@ -468,10 +476,6 @@ function ITControllerView({
       key: 'itcNo',
       header: noLabel,
       type: 'text'
-    }, {
-      key: 'note',
-      header: 'Note',
-      type: 'text'
     }];
     if (compType === 'all') {
       // ใส่ชนิดอะไหล่ไว้ในไฟล์ เพื่อให้แก้แล้วอัปโหลดกลับด้วย ALL PART ได้ทันที
@@ -490,8 +494,7 @@ function ITControllerView({
       serialNo: row.SerialNo || '',
       itcNo: row.ITControllerNo || '',
       imei: row.IMEI || '',
-      connectivity: row.ComponentType === 'it_controller' ? CONNECTIVITY_LABELS[row.ConnectivityType || 'UNKNOWN'] : '',
-      note: row.Note || ''
+      connectivity: row.ComponentType === 'it_controller' ? CONNECTIVITY_LABELS[row.ConnectivityType || 'UNKNOWN'] : ''
     }));
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     if (compType === 'all') {
@@ -515,6 +518,8 @@ function ITControllerView({
     });
     downloadBlob(blob, `master-data-${compType}-${stamp}.xlsx`);
   }
+  const colCount = showITCols ? 10 : 7;
+  const lockedCount = filtered.filter(r => r.Locked).length;
   return <>
       {loadError && <p className="form-error" role="alert">
           {loadError}
@@ -569,6 +574,7 @@ function ITControllerView({
         }}>
             {(keyword.trim() || compType !== 'all') && `พบ ${filtered.length} จาก ${rows.length}`}
           </h2>
+          <EditHint lockedCount={lockedCount} />
         </div>
         <div className="uv-list-tools md-list-tools" style={{
         display: 'flex',
@@ -612,67 +618,84 @@ function ITControllerView({
               <th>{noLabel}</th>
               {showITCols && <th>IMEI</th>}
               {showITCols && <th>Connectivity</th>}
-              <th>Note</th>
+              <th>สถานะ</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && <tr>
-                <td colSpan={showITCols ? 10 : 7} className="wh-empty-cell">
+                <td colSpan={colCount} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
 
-            {!loading && filtered.map((row, i) => <tr key={row.ID}>
+            {!loading && filtered.map((row, i) => {
+            const isITC = row.ComponentType === 'it_controller';
+            const lock = {
+              locked: !!row.Locked,
+              lockReason: row.LockReason
+            };
+            return <tr key={row.ID} className={row.Locked ? 'ie-row-locked' : ''}>
                   <td className="wh-cell-head" data-label="Item No.">
                     <strong>{i + 1}</strong>
                   </td>
-                  <td data-label="Part Name">{row.Name || DASH}</td>
-                  <td data-label="Model">{row.Model || DASH}</td>
+                  <td data-label="Part Name">
+                    <EditableCell {...lock} label="Part Name" value={row.Name} onSave={v => saveField(row, 'Name', v)} />
+                  </td>
+                  <td data-label="Model">
+                    <EditableCell {...lock} label="Model" value={row.Model} onSave={v => saveField(row, 'Model', v)} />
+                  </td>
                   {showITCols && <td data-label="Part No." style={codeStyle}>
-                      {row.PartNo || DASH}
+                      {isITC ? <EditableCell {...lock} mono label="Part No." value={row.PartNo} onSave={v => saveField(row, 'PartNo', v)} /> : DASH}
                     </td>}
                   <td data-label="Serial No." style={codeStyle}>
-                    {row.SerialNo || DASH}
+                    <EditableCell {...lock} mono label="Serial No." value={row.SerialNo} onSave={v => saveField(row, 'SerialNo', v)} />
                   </td>
                   <td data-label={noLabel} style={codeStyle}>
-                    {row.ITControllerNo || DASH}
+                    <EditableCell {...lock} mono label={NO_LABEL_BY_TYPE[row.ComponentType] || noLabel} value={row.ITControllerNo} onSave={v => saveField(row, 'ITControllerNo', v)} />
                   </td>
                   {showITCols && <td data-label="IMEI" style={codeStyle}>
-                      {row.IMEI || DASH}
+                      {isITC ? <EditableCell {...lock} mono label="IMEI" value={row.IMEI} onSave={v => saveField(row, 'IMEI', v)} /> : DASH}
                     </td>}
                   {showITCols && <td data-label="Connectivity">
-                      {row.ComponentType === 'it_controller' ? CONNECTIVITY_LABELS[row.ConnectivityType || 'UNKNOWN'] : DASH}
+                      {isITC ? <EditableCell {...lock} type="select" label="Connectivity" value={row.ConnectivityType || ''} options={CONNECTIVITY_EDIT_OPTIONS} display={CONNECTIVITY_LABELS[row.ConnectivityType || 'UNKNOWN']} onSave={v => saveField(row, 'ConnectivityType', v)} /> : DASH}
                     </td>}
-                  <td data-label="Note">{row.Note || DASH}</td>
+                  <td data-label="สถานะ">
+                    {row.Locked ? <LockBadge locked reason={row.LockReason} /> : <span className="ie-empty">แก้ไขได้</span>}
+                  </td>
                   <td className="wh-cell-action">
                     <div style={{
-                display: 'flex',
-                gap: 6,
-                justifyContent: 'flex-end'
-              }}>
-                      <button className="wh-issue-btn" onClick={() => setEditRow(row)}>
-                        แก้ไข
-                      </button>
-                      <button className="qa-fail-btn" disabled={deletingId === row.ID} onClick={() => handleDelete(row)}>
+                  display: 'flex',
+                  gap: 6,
+                  justifyContent: 'flex-end'
+                }}>
+                      <button className="qa-fail-btn" disabled={deletingId === row.ID || row.Locked} title={row.Locked ? `ลบไม่ได้ — ${row.LockReason || 'สแกนผ่านแล้ว'}` : ''} onClick={() => handleDelete(row)}>
                         {deletingId === row.ID ? 'กำลังลบ...' : 'ลบ'}
                       </button>
                     </div>
                   </td>
-                </tr>)}
+                </tr>;
+          })}
 
             {!loading && filtered.length === 0 && <tr>
-                <td colSpan={showITCols ? 10 : 7} className="wh-empty-cell">
+                <td colSpan={colCount} className="wh-empty-cell">
                   {keyword.trim() || compType !== 'all' ? 'ไม่พบรายการตามตัวกรอง' : 'ยังไม่มีข้อมูลในทะเบียน'}
                 </td>
               </tr>}
           </tbody>
         </table>
       </div>
-
-      {editRow && <MasterDataEditModal row={editRow} componentOptions={editComponentOptions} itcLabel={noLabel} onClose={() => setEditRow(null)} onSaved={bumpReload} />}
     </>;
 }
+const CONNECTIVITY_EDIT_OPTIONS = [...CONNECTIVITY_ORDER.filter(v => v !== 'UNKNOWN').map(v => ({
+  value: v,
+  label: CONNECTIVITY_LABELS[v]
+})), {
+  value: '',
+  label: 'อัตโนมัติ',
+  hint: 'ระบบจัดให้ตาม Part Name / Model'
+}];
+
 const UD_PAGE_SIZE = 100;
 function DatasetView({
   dataset
@@ -685,10 +708,10 @@ function DatasetView({
   const [keyword, setKeyword] = useState('');
   const [exporting, setExporting] = useState(false);
   const [localReload, setLocalReload] = useState(0);
-  const [editRow, setEditRow] = useState(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const loadSeq = useRef(0);
   function runSearch() {
     setPage(1);
     setLocalReload(n => n + 1);
@@ -702,48 +725,55 @@ function DatasetView({
     const t = setTimeout(runSearch, 350);
     return () => clearTimeout(t);
   }, [keyword]);
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
+  async function load(silent = false) {
+    const seq = ++loadSeq.current;
+    if (!silent) {
       setLoading(true);
       setLoadError('');
-      try {
-        const data = await getUploadData(dataset, keyword || undefined, page, UD_PAGE_SIZE);
-        if (!cancelled) {
-          setColumns(data?.columns || []);
-          setRows(data?.rows || []);
-          setTotal(data?.total ?? 0);
-          setTotalPages(data?.totalPages || 1);
-        }
-      } catch (err) {
-        if (!cancelled) setLoadError(err.message || 'โหลดรายการไม่สำเร็จ');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
     }
-    load();
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const data = await getUploadData(dataset, keyword || undefined, page, UD_PAGE_SIZE);
+      if (seq !== loadSeq.current) return;
+      setColumns(data?.columns || []);
+      setRows(data?.rows || []);
+      setTotal(data?.total ?? 0);
+      setTotalPages(data?.totalPages || 1);
+    } catch (err) {
+      if (!silent && seq === loadSeq.current) setLoadError(err.message || 'โหลดรายการไม่สำเร็จ');
+    } finally {
+      if (!silent && seq === loadSeq.current) setLoading(false);
+    }
+  }
+  useEffect(() => {
+    load(false);
   }, [dataset, localReload, page]);
-  async function handleDelete(id) {
+  useLiveRefresh(() => load(true));
+  async function saveCell(row, col, value) {
+    try {
+      const res = await updateUploadDataRow(row.ID, {
+        [col]: value
+      });
+      if (res?.row) {
+        setRows(list => list.map(r => r.ID === row.ID ? res.row : r));
+      }
+    } catch (err) {
+      if (err?.status === 409) load(true);
+      throw err;
+    }
+  }
+  async function handleDelete(row) {
     const ok = await confirmDelete({
       text: 'ลบแถวนี้? กู้คืนไม่ได้'
     });
     if (!ok) return;
     try {
-      await deleteUploadDataRow(id);
+      await deleteUploadDataRow(row.ID);
       setLocalReload(n => n + 1);
       toastSuccess('ลบแถวแล้ว');
     } catch (err) {
       toastError(err.message || 'ลบไม่สำเร็จ');
+      if (err?.status === 409) load(true);
     }
-  }
-  async function handleSaveEdit(id, data) {
-    await updateUploadDataRow(id, data);
-    setEditRow(null);
-    setLocalReload(n => n + 1);
-    toastSuccess('บันทึกการแก้ไขแล้ว');
   }
   async function handleClear() {
     const ok = await confirmDelete({
@@ -873,6 +903,7 @@ function DatasetView({
       return '';
     }
   }
+  const lockedCount = rows.filter(r => r.Locked).length;
   const isPlanning = dataset === 'planning';
   const displayColumns = isPlanning ? columns.filter(c => c !== 'Line') : columns;
   return <>
@@ -887,6 +918,7 @@ function DatasetView({
         }}>
             {total.toLocaleString()} รายการ
           </h2>
+          <EditHint lockedCount={lockedCount} />
         </div>
         <div className="uv-list-tools" style={{
         display: 'flex',
@@ -913,37 +945,38 @@ function DatasetView({
             <tr>
               <th className="ud-th-sticky">#</th>
               {displayColumns.map(c => <th key={c}>{c}</th>)}
+              <th>สถานะ</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && <tr>
-                <td colSpan={displayColumns.length + 2} className="wh-empty-cell">
+                <td colSpan={displayColumns.length + 3} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
-            {!loading && rows.map((row, i) => <tr key={row.ID}>
+            {!loading && rows.map((row, i) => <tr key={row.ID} className={row.Locked ? 'ie-row-locked' : ''}>
                   <td className="ud-td-sticky">{isPlanning ? cellValue(row, 'Line') || (page - 1) * UD_PAGE_SIZE + i + 1 : (page - 1) * UD_PAGE_SIZE + i + 1}</td>
                   {displayColumns.map(c => <td key={c} data-label={c}>
-                      {cellValue(row, c) || DASH}
+                      <EditableCell locked={!!row.Locked} lockReason={row.LockReason} label={c} value={cellValue(row, c)} onSave={v => saveCell(row, c, v)} />
                     </td>)}
+                  <td data-label="สถานะ">
+                    {row.Locked ? <LockBadge locked reason={row.LockReason} /> : <span className="ie-empty">แก้ไขได้</span>}
+                  </td>
                   <td className="wh-cell-action">
                     <div style={{
                 display: 'flex',
                 gap: 6,
                 justifyContent: 'flex-end'
               }}>
-                      <button className="wh-issue-btn" onClick={() => setEditRow(row)}>
-                        แก้ไข
-                      </button>
-                      <button className="qa-fail-btn" onClick={() => handleDelete(row.ID)}>
+                      <button className="qa-fail-btn" disabled={row.Locked} title={row.Locked ? `ลบไม่ได้ — ${row.LockReason || 'สแกนผ่านแล้ว'}` : ''} onClick={() => handleDelete(row)}>
                         ลบ
                       </button>
                     </div>
                   </td>
                 </tr>)}
             {!loading && rows.length === 0 && <tr>
-                <td colSpan={displayColumns.length + 2} className="wh-empty-cell">
+                <td colSpan={displayColumns.length + 3} className="wh-empty-cell">
                   ยังไม่มีรายการที่อัปโหลด
                 </td>
               </tr>}
@@ -971,86 +1004,8 @@ function DatasetView({
           </button>
         </div>}
 
-      {editRow && <UploadRowEditModal row={editRow} columns={columns} datasetLabel={label} onClose={() => setEditRow(null)} onSave={handleSaveEdit} />}
     </>;
 }
 const codeStyle = {
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace'
 };
-function UploadRowEditModal({
-  row,
-  columns,
-  datasetLabel,
-  onClose,
-  onSave
-}) {
-  const initial = useMemo(() => {
-    let data = {};
-    try {
-      data = JSON.parse(row.DataJSON || '{}');
-    } catch {
-      data = {};
-    }
-    const out = {};
-    columns.forEach(c => {
-      out[c] = data[c] == null ? '' : String(data[c]);
-    });
-    return out;
-  }, [row, columns]);
-  const [form, setForm] = useState(initial);
-  const [saving, setSaving] = useState(false);
-  const set = col => e => setForm(f => ({
-    ...f,
-    [col]: e.target.value
-  }));
-  async function submit() {
-    setSaving(true);
-    try {
-      await onSave(row.ID, form);
-    } catch (err) {
-      toastError(err.message || 'บันทึกไม่สำเร็จ');
-    } finally {
-      setSaving(false);
-    }
-  }
-  return <div className="wh-modal-overlay" onClick={onClose}>
-      <div className="wh-modal" style={{
-      maxWidth: 720,
-      maxHeight: '85vh',
-      overflowY: 'auto'
-    }} onClick={e => e.stopPropagation()}>
-        <h3 className="wh-modal-title">แก้ไขข้อมูล {datasetLabel}</h3>
-
-        <div className="fmt-form fmt-form-compact" style={{
-        marginTop: 12
-      }}>
-          {columns.map(col => <div className="fmt-field" key={col}>
-              <label className="fmt-label">{col}</label>
-              <input className="fmt-input" value={form[col] ?? ''} onChange={set(col)} />
-            </div>)}
-        </div>
-
-        {columns.length === 0 && <p style={{
-        fontSize: 13,
-        color: '#94a3b8',
-        marginTop: 10
-      }}>
-            ยังไม่มีคอลัมน์ให้แก้ไข
-          </p>}
-
-        <div style={{
-        display: 'flex',
-        justifyContent: 'flex-end',
-        gap: 10,
-        marginTop: 16
-      }}>
-          <button className="wh-modal-cancel" onClick={onClose} disabled={saving}>
-            ยกเลิก
-          </button>
-          <button className="wh-modal-confirm" onClick={submit} disabled={saving || columns.length === 0}>
-            {saving ? 'กำลังบันทึก...' : 'บันทึก'}
-          </button>
-        </div>
-      </div>
-    </div>;
-}

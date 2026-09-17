@@ -9,6 +9,12 @@ export function getExportLicense(q = '', link = '') {
 export function getExportLicenseTrace(id) {
   return apiFetch(`/export-license/${id}/trace`);
 }
+export function updateExportLicense(id, patch) {
+  return apiFetch(`/export-license/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch)
+  });
+}
 export function deleteExportLicense(id) {
   return apiFetch(`/export-license/${id}`, {
     method: 'DELETE'
