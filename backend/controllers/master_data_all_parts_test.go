@@ -110,13 +110,13 @@ func TestUploadMasterDataAllPartsMultiSheet(t *testing.T) {
 		}
 	}
 
-	// อัปโหลดซ้ำต้องเป็นการอัปเดต ไม่ใช่เพิ่มแถวใหม่
+	// อัปโหลดไฟล์เดิมซ้ำ: ไม่เพิ่มแถวใหม่ และไม่นับเป็นการแก้ (ค่าเหมือนเดิม)
 	c, rec = allPartsUploadContext(t, allPartsWorkbook(t), admin.ID, admin.Username)
 	UploadMasterData(c)
 	mustStatus(t, rec, 201)
 	resp = decodeJSON(t, rec)
-	if resp["imported"].(float64) != 0 || resp["updated"].(float64) != 5 {
-		t.Fatalf("reupload imported=%v updated=%v, want 0/5", resp["imported"], resp["updated"])
+	if resp["imported"].(float64) != 0 || resp["updated"].(float64) != 0 || resp["unchanged"].(float64) != 5 {
+		t.Fatalf("reupload imported=%v updated=%v unchanged=%v, want 0/0/5", resp["imported"], resp["updated"], resp["unchanged"])
 	}
 }
 

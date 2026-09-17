@@ -2,66 +2,14 @@ package controllers
 
 import (
 	"errors"
-	"path/filepath"
+	"mime/multipart"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
 )
 
-var (
-	errUploadNoFile    = errors.New("กรุณาแนบไฟล์ Excel หรือ CSV (field name: file)")
-	errUploadOpen      = errors.New("เปิดไฟล์ไม่สำเร็จ")
-	errUploadNotExcel  = errors.New("ไฟล์ไม่ใช่ Excel ที่ถูกต้อง")
-	errUploadReadExcel = errors.New("อ่านไฟล์ Excel ไม่สำเร็จ")
-)
-
-func readSheetRows(c *gin.Context, names []string) ([][]string, string, error) {
-	fileHeader, err := c.FormFile("file")
-	if err != nil {
-		return nil, "", errUploadNoFile
-	}
-
-	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
-	if ext == ".csv" {
-		rows, err := readUploadedRows(fileHeader)
-		return rows, fileHeader.Filename, err
-	}
-
-	f, err := fileHeader.Open()
-	if err != nil {
-		return nil, fileHeader.Filename, errUploadOpen
-	}
-	defer f.Close()
-
-	xl, err := excelize.OpenReader(f)
-	if err != nil {
-		return nil, fileHeader.Filename, errUploadNotExcel
-	}
-	defer xl.Close()
-
-	want := map[string]bool{}
-	for _, n := range names {
-		want[n] = true
-	}
-
-	target := ""
-	for _, name := range xl.GetSheetList() {
-		if want[normalizeHeader(name)] {
-			target = name
-			break
-		}
-	}
-	if target == "" {
-		target = xl.GetSheetName(0)
-	}
-
-	rows, err := readSheetAllRows(xl, target)
-	if err != nil {
-		return nil, fileHeader.Filename, errUploadReadExcel
-	}
-	return rows, fileHeader.Filename, nil
-}
+var errUploadNoFile = errors.New("กรุณาแนบไฟล์ Excel หรือ CSV (field name: file)")
 
 const sheetSparseTailStop = 20000
 
@@ -112,4 +60,81 @@ func readSheetAllRows(xl *excelize.File, sheet string) ([][]string, error) {
 		return results[:lastDense], nil
 	}
 	return results[:lastFilled], nil
+}
+
+// ---------------------------------------------------------------------------
+// เลือกชีตให้อัตโนมัติ — ไฟล์ที่มีหลายชีต (เช่น Excel_Form ที่รวมทุกประเภทไว้ไฟล์เดียว)
+// จะเลือกชีตที่ "ชื่อชีต" ตรงกับประเภทที่อัปโหลดก่อน แล้วค่อยดูชีตที่หาหัวตารางเจอ
+// และมีคอลัมน์ที่รู้จักมากที่สุด; ถ้าไม่มีชีตไหนเข้าเลย จะคืนชีตแรก (ให้ข้อความ error เดิมทำงาน)
+// ---------------------------------------------------------------------------
+
+// sheetScore คืนคะแนนของชีต (< 0 = ชีตนี้ใช้ไม่ได้)
+type sheetScore func(sheetName string, rows [][]string) int
+
+const sheetNameMatchBonus = 1000
+
+func sheetNameHas(sheetName string, keys ...string) bool {
+	n := normalizeHeader(sheetName)
+	if n == "" {
+		return false
+	}
+	for _, k := range keys {
+		if strings.Contains(n, k) {
+			return true
+		}
+	}
+	return false
+}
+
+func pickBestSheet(sheets []namedSheetRows, score sheetScore) ([][]string, string) {
+	if len(sheets) == 0 {
+		return nil, ""
+	}
+	if len(sheets) == 1 || score == nil {
+		return sheets[0].rows, sheets[0].name
+	}
+	best, bestScore := -1, -1
+	for i, sh := range sheets {
+		if len(sh.rows) < 2 {
+			continue
+		}
+		if s := score(sh.name, sh.rows); s > bestScore {
+			best, bestScore = i, s
+		}
+	}
+	if best < 0 {
+		return sheets[0].rows, sheets[0].name
+	}
+	return sheets[best].rows, sheets[best].name
+}
+
+func readBestSheet(fileHeader *multipart.FileHeader, score sheetScore) ([][]string, string, error) {
+	sheets, err := readAllUploadedSheets(fileHeader)
+	if err != nil {
+		return nil, "", err
+	}
+	rows, name := pickBestSheet(sheets, score)
+	return rows, name, nil
+}
+
+func readBestSheetFromForm(c *gin.Context, score sheetScore) ([][]string, string, error) {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		return nil, "", errUploadNoFile
+	}
+	rows, _, err := readBestSheet(fileHeader, score)
+	if err != nil {
+		return nil, fileHeader.Filename, err
+	}
+	return rows, fileHeader.Filename, nil
+}
+
+func countKnownHeaders(headers []string, known func(string) bool) int {
+	n := 0
+	for _, h := range headers {
+		if h != "" && known(h) {
+			n++
+		}
+	}
+	return n
 }

@@ -37,8 +37,20 @@ var componentNoHeaderTypes = map[string]string{
 
 // componentTypeFromSheetName อ่านชนิดอะไหล่จากชื่อชีต
 // ตรงเป๊ะก่อน (เช่น "Swing Motor") ถ้าไม่ตรงให้ดูว่าชื่อชีตมีคำของชนิดเดียวอยู่ (เช่น "Swing Motor 2026")
+// sheetShortTypes: ชื่อชีตแบบย่อที่ใช้ใน Excel_Form (ITC, SM, PH, MP, CV)
+var sheetShortTypes = map[string]string{
+	"itc": "it_controller",
+	"sm":  "swing_motor",
+	"ph":  "pump_assy_hyd",
+	"mp":  "motor_propel",
+	"cv":  "control_valve",
+}
+
 func componentTypeFromSheetName(name string) string {
 	if code, ok := resolveComponentType(name); ok {
+		return code
+	}
+	if code, ok := sheetShortTypes[normalizeHeader(name)]; ok {
 		return code
 	}
 	key := normalizeHeader(name)
@@ -152,7 +164,7 @@ func matchedMasterColumns(rows [][]string, headerIdx int, headers []string) []st
 // คืน headerHint != "" เมื่อหาหัวตารางไม่เจอเลย
 func parseMasterDataUpload(fileHeader *multipart.FileHeader, componentType string, userID uint, now time.Time) (*masterUploadParse, string, error) {
 	if !isAllPartsComponentType(componentType) {
-		rows, err := readUploadedRows(fileHeader)
+		rows, _, err := readBestSheet(fileHeader, masterSheetScore(componentType))
 		if err != nil {
 			return nil, "", err
 		}
@@ -184,7 +196,6 @@ func parseMasterDataUpload(fileHeader *multipart.FileHeader, componentType strin
 	seenMatched := map[string]bool{}
 	seenExtra := map[string]bool{}
 	seenKeep := map[string]bool{}
-	seenDelete := map[string]bool{}
 	anyHeader := false
 	var lastRows [][]string
 
@@ -210,7 +221,7 @@ func parseMasterDataUpload(fileHeader *multipart.FileHeader, componentType strin
 
 		headerIdx, headers := findMasterDataHeader(sh.rows, scope)
 		if headerIdx < 0 {
-			if multi {
+			if multi && !sheetBelongsToOtherUpload(sh.name) {
 				out.Problems = append(out.Problems, prefix+"หาหัวตารางไม่เจอ — ข้ามชีตนี้")
 			}
 			out.Sheets = append(out.Sheets, info)
@@ -259,20 +270,12 @@ func parseMasterDataUpload(fileHeader *multipart.FileHeader, componentType strin
 
 		// กันซ้ำข้ามชีต (ในชีตเดียวกัน parseMasterDataRows กันไว้แล้ว)
 		for _, row := range parsed {
-			if IsDeleteNote(row.Note) {
-				delKey := row.ComponentType + "|" + row.SerialNo + "|" + row.PartNo + "|" + derefStr(row.ITControllerNo) + "|" + derefStr(row.IMEI)
-				if seenDelete[delKey] {
-					continue
-				}
-				seenDelete[delKey] = true
-			} else {
-				key := row.ComponentType + "|" + row.SerialNo
-				if seenKeep[key] {
-					out.Problems = append(out.Problems, prefix+"Serial "+row.SerialNo+" ซ้ำกับชีตก่อนหน้า — ข้าม")
-					continue
-				}
-				seenKeep[key] = true
+			key := row.ComponentType + "|" + row.SerialNo
+			if seenKeep[key] {
+				out.Problems = append(out.Problems, prefix+"Serial "+row.SerialNo+" ซ้ำกับชีตก่อนหน้า — ข้าม")
+				continue
 			}
+			seenKeep[key] = true
 			out.Parsed = append(out.Parsed, row)
 			info.Rows++
 		}
@@ -289,6 +292,30 @@ func parseMasterDataUpload(fileHeader *multipart.FileHeader, componentType strin
 		return nil, "หาหัวตารางไม่เจอในชีตใดเลย — แต่ละชีตต้องมีคอลัมน์ Serial No. และคอลัมน์ที่รู้จักอย่างน้อย 3 คอลัมน์", nil
 	}
 	return out, "", nil
+}
+
+// sheetBelongsToOtherUpload: ชีตของประเภทอัปโหลดอื่นในไฟล์ฟอร์มรวม (Planning, WH1, Engine, License ...)
+// ข้ามได้เงียบ ๆ ตอนอัปโหลด ALL PART ไม่ต้องแจ้งเป็นปัญหา
+func sheetBelongsToOtherUpload(name string) bool {
+	return sheetNameHas(name, "planning", "wh1", "wh2", "engine", "import", "export", "changeformat")
+}
+
+// masterSheetScore: อัปโหลดทีละชนิดจากไฟล์หลายชีต — เลือกชีตที่ชื่อ/หัวคอลัมน์ตรงชนิดนั้นก่อน
+func masterSheetScore(componentType string) sheetScore {
+	return func(name string, rows [][]string) int {
+		idx, headers := findMasterDataHeader(rows, componentType)
+		if idx < 0 {
+			return -1
+		}
+		score := countKnownHeaders(headers, func(h string) bool { _, ok := masterDataColumns[h]; return ok })
+		switch {
+		case componentTypeFromSheetName(name) == componentType:
+			score += sheetNameMatchBonus
+		case componentTypeFromHeaders(headers) == componentType:
+			score += sheetNameMatchBonus / 2
+		}
+		return score
+	}
 }
 
 type componentTypeCount struct {

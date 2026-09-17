@@ -43,8 +43,6 @@ type ImportLicenseItem struct {
 	Remark        string `gorm:"type:text"`
 	ExportCountry string `gorm:"size:100"`
 
-	Note string `gorm:"column:note;type:text"`
-
 	ExtraJSON string `gorm:"type:text" json:"extra_json"`
 
 	ConfirmStatus     string `gorm:"size:20;index;default:PENDING"`
@@ -60,6 +58,10 @@ type ImportLicenseItem struct {
 
 	UserID uint
 	User   User
+
+	// Locked = ถูกสแกนผ่านไปแล้ว แก้ไข/ลบไม่ได้ (คำนวณตอนอ่าน ไม่ได้เก็บในฐานข้อมูล)
+	Locked     bool   `gorm:"-"`
+	LockReason string `gorm:"-"`
 }
 
 const ImportLicenseValidityMonths = 6

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -70,15 +71,17 @@ var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"issuedate":         func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
 	"exportlicensedate": func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
 	"licensedate":       func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
-	"วันที่ออกใบอนุญาต": func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
-	"วันนำออกใบอนุญาต":  func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"วันที่ออกใบอนุญาต":   func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"วันนำออกใบอนุญาต":    func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
+	"วันที่นำออกใบอนุญาต": func(m *models.ExportLicenseItem, v string) { m.IssueDate = parseLicenseDate(v) },
 
-	"expiredate": func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
-	"expire":     func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
-	"expirydate": func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
-	"expiry":     func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
-	"วันหมดอายุ": func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
-	"หมดอายุ":    func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
+	"expiredate":    func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
+	"expire":        func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
+	"expirydate":    func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
+	"expiry":        func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
+	"วันหมดอายุ":    func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
+	"หมดอายุ":       func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
+	"หมดอายุ1เดือน": func(m *models.ExportLicenseItem, v string) { m.ExpireDate = parseLicenseDate(v) },
 
 	"item":   func(*models.ExportLicenseItem, string) {},
 	"itemno": func(*models.ExportLicenseItem, string) {},
@@ -112,6 +115,7 @@ var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"invoiceno":     func(m *models.ExportLicenseItem, v string) { m.InvoiceNo = normalizeDigitCell(v) },
 	"invoicenumber": func(m *models.ExportLicenseItem, v string) { m.InvoiceNo = normalizeDigitCell(v) },
 	"invno":         func(m *models.ExportLicenseItem, v string) { m.InvoiceNo = normalizeDigitCell(v) },
+	"invoice":       func(m *models.ExportLicenseItem, v string) { m.InvoiceNo = normalizeDigitCell(v) },
 
 	"exportentry":   func(m *models.ExportLicenseItem, v string) { m.ExportEntry = strings.TrimSpace(v) },
 	"exportentryno": func(m *models.ExportLicenseItem, v string) { m.ExportEntry = strings.TrimSpace(v) },
@@ -126,8 +130,6 @@ var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"exportlicenseininvoice": func(m *models.ExportLicenseItem, v string) { forceExportLicenseNo(m, v) },
 	"exportlicenseno":        func(m *models.ExportLicenseItem, v string) { forceExportLicenseNo(m, v) },
 
-	"note":     func(m *models.ExportLicenseItem, v string) { m.Note = strings.TrimSpace(v) },
-	"notes":    func(m *models.ExportLicenseItem, v string) { m.Note = strings.TrimSpace(v) },
 	"remark":   func(m *models.ExportLicenseItem, v string) { m.Remark = strings.TrimSpace(v) },
 	"remarks":  func(m *models.ExportLicenseItem, v string) { m.Remark = strings.TrimSpace(v) },
 	"หมายเหตุ": func(m *models.ExportLicenseItem, v string) { m.Remark = strings.TrimSpace(v) },
@@ -139,6 +141,24 @@ var exportLicenseColumns = map[string]func(*models.ExportLicenseItem, string){
 	"ประเทศ":        func(m *models.ExportLicenseItem, v string) { m.Country = strings.TrimSpace(v) },
 	"ปลายทาง":       func(m *models.ExportLicenseItem, v string) { m.Country = strings.TrimSpace(v) },
 	"ส่งออกไปประเทศ": func(m *models.ExportLicenseItem, v string) { m.Country = strings.TrimSpace(v) },
+}
+
+// exportIgnoredHeaders: คอลัมน์ NOTE เดิม (เคยใช้สั่งลบข้อมูลตอนอัปโหลด) — เลิกใช้แล้ว ข้ามเงียบ ๆ
+var exportIgnoredHeaders = map[string]bool{"note": true, "notes": true}
+
+var exportHeaderAnchors = []string{"serialnumber", "serialno", "serial", "sn", "snno", "itcontrollerserialno", "itcontrollerno", "itcontrollersn", "machineno"}
+
+// exportLicenseSheetScore: ไฟล์หลายชีต — เลือกชีต Export License ให้อัตโนมัติ
+func exportLicenseSheetScore(name string, rows [][]string) int {
+	idx, headers := findExportHeaderRow(rows, exportLicenseKnownHeaders(), exportHeaderAnchors, 2)
+	if idx < 0 {
+		return -1
+	}
+	score := countKnownHeaders(headers, func(h string) bool { _, ok := exportLicenseColumns[h]; return ok })
+	if sheetNameHas(name, "export", "serail", "serial", "total", "ส่งออก") {
+		score += sheetNameMatchBonus
+	}
+	return score
 }
 
 func exportLicenseKnownHeaders() map[string]bool {
@@ -433,7 +453,7 @@ func exportRowOverLimit(m *models.ExportLicenseItem) (label string, limit int) {
 }
 
 func UploadExportLicense(c *gin.Context) {
-	rows, fileName, err := readSheetRows(c, []string{"export", "exportlicense", "serail", "serial", "total"})
+	rows, fileName, err := readBestSheetFromForm(c, exportLicenseSheetScore)
 	if err != nil {
 		c.JSON(400, gin.H{"message": err.Error()})
 		return
@@ -443,12 +463,7 @@ func UploadExportLicense(c *gin.Context) {
 		return
 	}
 
-	headerIdx, headers := findExportHeaderRow(
-		rows,
-		exportLicenseKnownHeaders(),
-		[]string{"serialnumber", "serialno", "serial", "sn", "snno", "itcontrollerserialno", "itcontrollerno", "itcontrollersn", "machineno"},
-		2,
-	)
+	headerIdx, headers := findExportHeaderRow(rows, exportLicenseKnownHeaders(), exportHeaderAnchors, 2)
 	if headerIdx < 0 {
 		c.JSON(400, gin.H{"message": "หาหัวตารางไม่เจอ — ต้องมีคอลัมน์คีย์ (Serial Number หรือ IT Controller Serial No.) และคอลัมน์อื่นอย่างน้อย 1 คอลัมน์"})
 		return
@@ -459,11 +474,10 @@ func UploadExportLicense(c *gin.Context) {
 	fileName = clampRunes(fileName, 255)
 
 	var (
-		parsed     []models.ExportLicenseItem
-		deleteRows []models.ExportLicenseItem
-		seen       = map[string]bool{}
-		skipped    int
-		problems   []string
+		parsed   []models.ExportLicenseItem
+		seen     = map[string]bool{}
+		skipped  int
+		problems []string
 	)
 
 	dupSkip, dupProblems := findDuplicateKnownColumns(
@@ -492,6 +506,9 @@ func UploadExportLicense(c *gin.Context) {
 				setter(&row, val)
 				continue
 			}
+			if exportIgnoredHeaders[header] {
+				continue
+			}
 			label := ""
 			if headerIdx >= 0 && headerIdx < len(rows) && col < len(rows[headerIdx]) {
 				label = strings.TrimSpace(rows[headerIdx][col])
@@ -517,10 +534,6 @@ func UploadExportLicense(c *gin.Context) {
 			problems = append(problems, "แถว "+strconv.Itoa(i+1)+": "+label+" ยาวเกิน "+strconv.Itoa(limit)+" ตัวอักษร — ข้ามแถวนี้")
 			continue
 		}
-		if IsDeleteNote(row.Note) {
-			deleteRows = append(deleteRows, row)
-			continue
-		}
 		if seen[row.ITControllerNo] {
 			continue
 		}
@@ -531,66 +544,38 @@ func UploadExportLicense(c *gin.Context) {
 		parsed = append(parsed, row)
 	}
 
-	if len(parsed) == 0 && len(deleteRows) == 0 {
+	if len(parsed) == 0 {
 		c.JSON(400, gin.H{"message": "ไม่พบแถวข้อมูลที่นำเข้าได้ (ต้องมี IT Controller S/N)"})
 		return
 	}
 
-	deleteIDs, deleteProblems, err := matchExportLicenseNoteDeletes(deleteRows)
+	matches, err := matchExportLicenseExisting(parsed)
 	if err != nil {
 		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
 		return
 	}
-	problems = append(problems, deleteProblems...)
-	willDelete := make(map[uint]bool, len(deleteIDs))
-	for _, id := range deleteIDs {
-		willDelete[id] = true
-	}
-
-	keys := make([]string, 0, len(parsed))
-	for _, r := range parsed {
-		keys = append(keys, r.ITControllerNo)
-	}
-
-	type prevMark struct {
-		id          uint
-		completed   bool
-		completedBy string
-		completedAt *time.Time
-	}
-	prev := map[string]prevMark{}
-	var prevRows []models.ExportLicenseItem
-	if err := findWhereInChunks(config.DB, "it_controller_no", keys, &prevRows); err != nil {
-		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
-		return
-	}
-	for _, r := range prevRows {
-		if willDelete[r.ID] {
-			continue
-		}
-		prev[r.ITControllerNo] = prevMark{
-			id:          r.ID,
-			completed:   r.Completed,
-			completedBy: r.CompletedBy,
-			completedAt: r.CompletedAt,
-		}
-	}
 
 	var (
-		toUpdate []models.ExportLicenseItem
-		toCreate []models.ExportLicenseItem
+		toUpdate  []models.ExportLicenseItem
+		toCreate  []models.ExportLicenseItem
+		unchanged int
 	)
 	for i := range parsed {
-		mark, ok := prev[parsed[i].ITControllerNo]
-		if !ok {
+		old := matches[i]
+		if old == nil {
 			toCreate = append(toCreate, parsed[i])
 			continue
 		}
-		parsed[i].ID = mark.id
-		if mark.completed {
-			parsed[i].Completed = mark.completed
-			parsed[i].CompletedBy = mark.completedBy
-			parsed[i].CompletedAt = mark.completedAt
+		if !exportLicenseChanged(*old, parsed[i]) {
+			unchanged++
+			continue
+		}
+		// แก้ข้อมูล (รวม IT Controller S/N ที่จับคู่จาก Machine No) → อัปเดตแถวเดิม
+		parsed[i].ID = old.ID
+		if old.Completed {
+			parsed[i].Completed = old.Completed
+			parsed[i].CompletedBy = old.CompletedBy
+			parsed[i].CompletedAt = old.CompletedAt
 		}
 		toUpdate = append(toUpdate, parsed[i])
 	}
@@ -599,18 +584,10 @@ func UploadExportLicense(c *gin.Context) {
 		"assembly_date", "machine_no", "it_controller_no", "country",
 		"invoice_no", "invoice_date", "export_entry", "import_license_no",
 		"export_license_no", "issue_date", "expire_date",
-		"remark", "note", "extra_json", "file_name", "upload_date", "user_id",
+		"remark", "extra_json", "file_name", "upload_date", "user_id",
 	}
 
-	deleted := 0
 	err = config.DB.Transaction(func(tx *gorm.DB) error {
-		for _, part := range chunkSlice(deleteIDs, dbInsertBatch) {
-			res := tx.Where("id IN ?", part).Delete(&models.ExportLicenseItem{})
-			if res.Error != nil {
-				return res.Error
-			}
-			deleted += int(res.RowsAffected)
-		}
 		overwrite := clause.OnConflict{
 			Columns:   []clause.Column{{Name: "id"}},
 			DoUpdates: clause.AssignmentColumns(updatable),
@@ -637,53 +614,36 @@ func UploadExportLicense(c *gin.Context) {
 	}
 
 	CreateAuditLog("EXPORT_LICENSE", 0, "upload_excel", fileName, userID, userName)
-	if deleted > 0 {
-		CreateAuditLog("EXPORT_LICENSE", 0, "delete_by_note", strconv.Itoa(deleted), userID, userName)
-	}
 
 	c.JSON(201, gin.H{
-		"imported": len(toCreate),
-		"updated":  len(toUpdate),
-		"deleted":  deleted,
-		"skipped":  skipped,
-		"problems": capProblems(problems),
-		"file":     fileName,
+		"imported":  len(toCreate),
+		"updated":   len(toUpdate),
+		"unchanged": unchanged,
+		"skipped":   skipped,
+		"problems":  capProblems(problems),
+		"file":      fileName,
 	})
 }
 
-func matchExportLicenseNoteDeletes(rows []models.ExportLicenseItem) ([]uint, []string, error) {
-	var (
-		ids      []uint
-		problems []string
-		taken    = map[uint]bool{}
-	)
-	for _, row := range rows {
-		var candidates []models.ExportLicenseItem
-		if err := config.DB.Where("it_controller_no = ?", row.ITControllerNo).Order("id asc").Find(&candidates).Error; err != nil {
-			return nil, nil, err
+// exportLicenseChanged: ค่าในไฟล์ต่างจากระบบหรือไม่
+func exportLicenseChanged(old, cur models.ExportLicenseItem) bool {
+	txt := func(a, b string) bool { return strings.TrimSpace(a) != strings.TrimSpace(b) }
+	day := func(a, b *time.Time) bool {
+		if a == nil || b == nil {
+			return (a == nil) != (b == nil)
 		}
-		found := false
-		for _, cand := range candidates {
-			if taken[cand.ID] {
-				continue
-			}
-			if !sameOptionalCode(row.MachineNo, cand.MachineNo) ||
-				!sameOptionalText(row.ExportLicenseNo, cand.ExportLicenseNo) {
-				continue
-			}
-			taken[cand.ID] = true
-			ids = append(ids, cand.ID)
-			found = true
-		}
-		if !found {
-			problems = append(problems, "IT Controller S/N "+row.ITControllerNo+": ไม่พบข้อมูลที่ตรงกันสำหรับลบ")
-		}
+		return a.Format("2006-01-02") != b.Format("2006-01-02")
 	}
-	return ids, problems, nil
+	return txt(old.ITControllerNo, cur.ITControllerNo) || txt(old.MachineNo, cur.MachineNo) ||
+		txt(old.Country, cur.Country) || txt(old.InvoiceNo, cur.InvoiceNo) ||
+		txt(old.ExportEntry, cur.ExportEntry) || txt(old.ImportLicenseNo, cur.ImportLicenseNo) ||
+		txt(old.ExportLicenseNo, cur.ExportLicenseNo) || txt(old.Remark, cur.Remark) ||
+		day(old.AssemblyDate, cur.AssemblyDate) || day(old.InvoiceDate, cur.InvoiceDate) ||
+		day(old.IssueDate, cur.IssueDate) || !extraJSONEqual(old.ExtraJSON, cur.ExtraJSON)
 }
 
 func PreviewExportLicenseMapping(c *gin.Context) {
-	rows, fileName, err := readSheetRows(c, []string{"export", "exportlicense", "serail", "serial", "total"})
+	rows, fileName, err := readBestSheetFromForm(c, exportLicenseSheetScore)
 	if err != nil {
 		c.JSON(400, gin.H{"message": err.Error()})
 		return
@@ -692,12 +652,7 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 		c.JSON(400, gin.H{"message": "ไฟล์ไม่มีข้อมูล หรืออ่านไม่ได้"})
 		return
 	}
-	headerIdx, headers := findExportHeaderRow(
-		rows,
-		exportLicenseKnownHeaders(),
-		[]string{"serialnumber", "serialno", "serial", "sn", "snno", "itcontrollerserialno", "itcontrollerno", "itcontrollersn", "machineno"},
-		2,
-	)
+	headerIdx, headers := findExportHeaderRow(rows, exportLicenseKnownHeaders(), exportHeaderAnchors, 2)
 	if headerIdx < 0 {
 		c.JSON(200, gin.H{
 			"file":        fileName,
@@ -721,12 +676,12 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 			}
 			continue
 		}
-		if label != "" {
+		if label != "" && !exportIgnoredHeaders[key] {
 			extra = append(extra, label)
 		}
 	}
 
-	var newItems, deleteItems []models.ExportLicenseItem
+	var newItems []models.ExportLicenseItem
 	seenKey := map[string]bool{}
 	dupSkip, _ := findDuplicateKnownColumns(
 		headers,
@@ -747,10 +702,6 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 				setter(&it, val)
 			}
 		}
-		if it.ITControllerNo != "" && IsDeleteNote(it.Note) {
-			deleteItems = append(deleteItems, it)
-			continue
-		}
 		if it.ITControllerNo == "" || seenKey[it.ITControllerNo] {
 			continue
 		}
@@ -758,33 +709,10 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 		newItems = append(newItems, it)
 	}
 
-	deleteIDs, _, err := matchExportLicenseNoteDeletes(deleteItems)
+	matches, err := matchExportLicenseExisting(newItems)
 	if err != nil {
 		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
 		return
-	}
-	willDelete := make(map[uint]bool, len(deleteIDs))
-	for _, id := range deleteIDs {
-		willDelete[id] = true
-	}
-
-	keys := make([]string, 0, len(newItems))
-	for _, it := range newItems {
-		keys = append(keys, it.ITControllerNo)
-	}
-	existing := map[string]models.ExportLicenseItem{}
-	if len(keys) > 0 {
-		var existingRows []models.ExportLicenseItem
-		if err := findWhereInChunks(config.DB, "it_controller_no", keys, &existingRows); err != nil {
-			c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
-			return
-		}
-		for _, r := range existingRows {
-			if willDelete[r.ID] {
-				continue
-			}
-			existing[r.ITControllerNo] = r
-		}
 	}
 
 	type fieldDiff struct {
@@ -797,30 +725,19 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 		Status string      `json:"status"`
 		Diffs  []fieldDiff `json:"diffs,omitempty"`
 	}
-	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0, "DELETE": 0, "DELETE_NOT_FOUND": 0}
+	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0}
 	preview := make([]rowResult, 0, 300)
 
-	for _, it := range deleteItems {
-		single, _, err := matchExportLicenseNoteDeletes([]models.ExportLicenseItem{it})
-		status := "DELETE"
-		if err != nil || len(single) == 0 {
-			status = "DELETE_NOT_FOUND"
-		}
-		counts[status]++
-		if len(preview) < 300 {
-			preview = append(preview, rowResult{Key: it.ITControllerNo, Status: status})
-		}
-	}
-
-	for _, it := range newItems {
-		old, ok := existing[it.ITControllerNo]
-		if !ok {
+	for i, it := range newItems {
+		oldPtr := matches[i]
+		if oldPtr == nil {
 			counts["NEW"]++
 			if len(preview) < 300 {
 				preview = append(preview, rowResult{Key: it.ITControllerNo, Status: "NEW"})
 			}
 			continue
 		}
+		old := *oldPtr
 		var diffs []fieldDiff
 		coreChanged := false
 		add := func(field, o, n string, core bool) {
@@ -831,6 +748,7 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 				}
 			}
 		}
+		add("IT Controller S/N", old.ITControllerNo, it.ITControllerNo, true)
 		add("Export License", old.ExportLicenseNo, it.ExportLicenseNo, true)
 		add("Import License", old.ImportLicenseNo, it.ImportLicenseNo, true)
 		add("Machine No", old.MachineNo, it.MachineNo, false)
@@ -838,7 +756,6 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 		add("Export Entry", old.ExportEntry, it.ExportEntry, false)
 		add("Country", old.Country, it.Country, false)
 		add("Remark", old.Remark, it.Remark, false)
-		add("Note", old.Note, it.Note, false)
 
 		var status string
 		switch {
@@ -855,7 +772,7 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 		}
 	}
 
-	total := counts["NEW"] + counts["UPDATED"] + counts["CHANGED"] + counts["UNCHANGED"] + counts["DELETE"] + counts["DELETE_NOT_FOUND"]
+	total := counts["NEW"] + counts["UPDATED"] + counts["CHANGED"] + counts["UNCHANGED"]
 
 	c.JSON(200, gin.H{
 		"file":        fileName,
@@ -866,13 +783,11 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 		"keyLabel":    "IT Controller S/N",
 		"coreFields":  []string{"Export License", "Import License"},
 		"summary": gin.H{
-			"total":          total,
-			"new":            counts["NEW"],
-			"updated":        counts["UPDATED"],
-			"changed":        counts["CHANGED"],
-			"unchanged":      counts["UNCHANGED"],
-			"deleted":        counts["DELETE"],
-			"deleteNotFound": counts["DELETE_NOT_FOUND"],
+			"total":     total,
+			"new":       counts["NEW"],
+			"updated":   counts["UPDATED"],
+			"changed":   counts["CHANGED"],
+			"unchanged": counts["UNCHANGED"],
 		},
 		"rows": preview,
 	})
@@ -1046,6 +961,120 @@ func GetExportLicenseAlerts(c *gin.Context) {
 		},
 		"items": out,
 	})
+}
+
+// UpdateExportLicense แก้ไขรายการ Export License จากตาราง (ส่งมาเฉพาะช่องที่แก้)
+// Export License ไม่มีการสแกนที่อ้างถึงตารางนี้โดยตรง จึงแก้ได้ตลอด
+func UpdateExportLicense(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(400, gin.H{"message": "id ไม่ถูกต้อง"})
+		return
+	}
+
+	var row models.ExportLicenseItem
+	if err := config.DB.First(&row, id).Error; err != nil {
+		c.JSON(404, gin.H{"message": "ไม่พบรายการนี้"})
+		return
+	}
+
+	var body map[string]*string
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(400, gin.H{"message": "ข้อมูลไม่ถูกต้อง: " + err.Error()})
+		return
+	}
+
+	parseDate := func(v string) (*time.Time, bool) {
+		if v == "" {
+			return nil, true
+		}
+		d := parseLicenseDate(v)
+		return d, d != nil
+	}
+
+	updates := map[string]interface{}{}
+	for key, ptr := range body {
+		if ptr == nil {
+			continue
+		}
+		v := strings.TrimSpace(*ptr)
+		switch key {
+		case "AssemblyDate":
+			d, ok := parseDate(v)
+			if !ok {
+				c.JSON(400, gin.H{"message": "รูปแบบวันที่ไม่ถูกต้อง: " + v})
+				return
+			}
+			updates["assembly_date"] = d
+		case "MachineNo":
+			updates["machine_no"] = normalizeDigitCell(v)
+		case "ITControllerNo":
+			v = normalizeDigitCell(v)
+			if v == "" {
+				c.JSON(400, gin.H{"message": "IT Controller S/N ต้องไม่ว่าง"})
+				return
+			}
+			updates["it_controller_no"] = v
+		case "Country":
+			updates["country"] = v
+		case "InvoiceNo":
+			updates["invoice_no"] = normalizeDigitCell(v)
+		case "ExportEntry":
+			updates["export_entry"] = v
+		case "ImportLicenseNo":
+			updates["import_license_no"] = v
+		case "ExportLicenseNo":
+			updates["export_license_no"] = v
+		case "Remark":
+			updates["remark"] = v
+		case "IssueDate":
+			d, ok := parseDate(v)
+			if !ok {
+				c.JSON(400, gin.H{"message": "รูปแบบวันที่ไม่ถูกต้อง: " + v})
+				return
+			}
+			updates["issue_date"] = d
+			if d != nil {
+				exp := models.AddMonthsClamped(*d, models.ExportLicenseValidityMonths)
+				updates["expire_date"] = &exp
+			} else {
+				updates["expire_date"] = nil
+			}
+		default:
+			c.JSON(400, gin.H{"message": "แก้ไขช่อง " + key + " ไม่ได้"})
+			return
+		}
+	}
+	if len(updates) == 0 {
+		c.JSON(400, gin.H{"message": "ไม่มีช่องที่ต้องแก้ไข"})
+		return
+	}
+	probe := row
+	if v, ok := updates["it_controller_no"].(string); ok {
+		probe.ITControllerNo = v
+	}
+	if v, ok := updates["machine_no"].(string); ok {
+		probe.MachineNo = v
+	}
+	if label, limit := exportRowOverLimit(&probe); label != "" {
+		c.JSON(400, gin.H{"message": label + " ยาวเกิน " + strconv.Itoa(limit) + " ตัวอักษร"})
+		return
+	}
+
+	if err := config.DB.Model(&models.ExportLicenseItem{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		log.Printf("update export_license_items id=%d: %v", id, err)
+		c.JSON(400, gin.H{"message": "อัปเดตไม่สำเร็จ"})
+		return
+	}
+
+	userID, userName := lookupUserName(c)
+	InvalidateMachineIndex()
+	CreateAuditLog("EXPORT_LICENSE", uint(id), "edit", row.ITControllerNo, userID, userName)
+
+	var out models.ExportLicenseItem
+	config.DB.First(&out, id)
+	rows := resolveExportLinks([]models.ExportLicenseItem{out})
+	c.JSON(200, rows[0])
 }
 
 func DeleteExportLicense(c *gin.Context) {

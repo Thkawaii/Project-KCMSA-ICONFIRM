@@ -365,10 +365,10 @@ export default function MFGAssemblyPage() {
         successMsg = msg;
       } else if (isPartMismatch) {
         await scanErrorAlert(res?.detail ? `${msg} — ${res.detail}` : msg);
-      } else if (isRetired || res?.whMissing) {
-        await scanErrorAlert(msg);
       } else {
-        toastError(msg);
+        // ผลสแกนที่ไม่ผ่านทุกกรณี (ไม่พบข้อมูล / ซ้ำ / รูปแบบเดิม / ต้องให้ WH สแกนก่อน)
+        // แสดงเป็นหน้าต่างกลางจอแบบเดียวกับหน้า WH
+        await scanErrorAlert(msg);
       }
     } catch (err) {
       scanClose();

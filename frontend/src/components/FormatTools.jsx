@@ -3,7 +3,6 @@ import SelectField from './Selectfield.jsx';
 import './FormatTools.css';
 import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js';
 import { getColumnAliases, createColumnAlias, deleteColumnAlias, getCodeAliases, createCodeAlias, deleteCodeAlias, uploadCodeAliases } from '../api/formatConfig.js';
-import { updateMasterData } from '../api/masterData.js';
 import { buildStyledXlsxBlob, downloadBlob } from '../lib/xlsx.js';
 import useFileDrop from '../lib/useFileDrop.js';
 const panelStyle = {
@@ -688,8 +687,7 @@ export function ChangePreview({
       NEW: ['#dcfce7', '#166534'],
       UPDATED: ['#dbeafe', '#1e40af'],
       CHANGED: ['#fef3c7', '#92400e'],
-      DELETE: ['#fee2e2', '#991b1b'],
-      DELETE_NOT_FOUND: ['#f1f5f9', '#b91c1c']
+      LOCKED: ['#eafcfb', '#146a66']
     };
     const [bg, color] = map[status] || ['#f1f5f9', '#475569'];
     return <span style={{
@@ -734,8 +732,7 @@ export function ChangePreview({
         {stat('อัปเดต', s.updated, '#dbeafe', '#1e40af')}
         {stat('ค่าเปลี่ยน', s.changed, '#fef3c7', '#92400e')}
         {stat('เหมือนเดิม', s.unchanged, '#f1f5f9', '#475569')}
-        {stat('ลบ', s.deleted, '#fee2e2', '#991b1b')}
-        {s.deleteNotFound > 0 && stat('ไม่พบที่จะลบ', s.deleteNotFound, '#f1f5f9', '#b91c1c')}
+        {s.locked > 0 && stat('สแกนแล้ว (ไม่อัปเดต)', s.locked, '#eafcfb', '#146a66')}
       </div>
 
       {showType && byType.length > 0 && <div style={{
@@ -867,114 +864,5 @@ export function ChangePreview({
     }}>
           {result.problems.map((p, i) => <li key={i}>{p}</li>)}
         </ul>}
-    </div>;
-}
-export function MasterDataEditModal({
-  row,
-  componentOptions = [],
-  itcLabel = 'IT Controller no.',
-  onClose,
-  onSaved
-}) {
-  const [form, setForm] = useState({
-    Name: row.Name || '',
-    Model: row.Model || '',
-    ComponentType: row.ComponentType || '',
-    PartNo: row.PartNo || '',
-    SerialNo: row.SerialNo || '',
-    ITControllerNo: row.ITControllerNo || '',
-    IMEI: row.IMEI || '',
-    Note: row.Note || ''
-  });
-  const [saving, setSaving] = useState(false);
-  const set = k => e => setForm(f => ({
-    ...f,
-    [k]: e.target.value
-  }));
-  async function handleSave() {
-    if (!form.SerialNo.trim() && !form.Name.trim()) {
-      toastError('อย่างน้อยต้องมี Serial No. หรือ Part Name');
-      return;
-    }
-    setSaving(true);
-    try {
-      const patch = {
-        Name: form.Name.trim(),
-        Model: form.Model.trim(),
-        ComponentType: form.ComponentType.trim(),
-        PartNo: form.PartNo.trim(),
-        SerialNo: form.SerialNo.trim(),
-        ITControllerNo: form.ITControllerNo.trim(),
-        IMEI: form.IMEI.trim(),
-        Note: form.Note.trim()
-      };
-      await saveWithGuard(patch);
-      toastSuccess('บันทึกการแก้ไขแล้ว');
-      onSaved && onSaved();
-      onClose && onClose();
-    } catch (err) {
-      if (err?.message !== '__CANCELLED__') {
-        toastError(err.message || 'บันทึกไม่สำเร็จ');
-      }
-    } finally {
-      setSaving(false);
-    }
-  }
-  async function saveWithGuard(patch) {
-    try {
-      await updateMasterData(row.ID, patch);
-    } catch (err) {
-      if (err?.status === 409 && err?.data?.blocked) {
-        const refs = err.data.refs || {};
-        const ok = await confirmDelete({
-          title: 'ยืนยันการแก้ข้อมูลกุญแจ',
-          text: (err.message || 'แถวนี้ถูกใช้ยืนยัน/จับคู่ไปแล้ว') + `\n\nรายการที่อ้างอิงอยู่: PartCheck ${refs.part_check || 0}, MFG ${refs.mfg_assembly || 0}, ` + `Matching ${refs.matching_assembly || 0}, Import License ${refs.import_license || 0}` + '\n\nยืนยันแก้ต่อ (อาจกระทบการ match เดิม)?',
-          confirmText: 'ยืนยันแก้ (force)'
-        });
-        if (!ok) throw new Error('__CANCELLED__');
-        await updateMasterData(row.ID, patch, {
-          force: true
-        });
-        return;
-      }
-      throw err;
-    }
-  }
-  const field = (label, key, mono = false) => <div className="fmt-field">
-      <label className="fmt-label">{label}</label>
-      <input className={'fmt-input' + (mono ? ' fmt-input-mono' : '')} value={form[key]} onChange={set(key)} />
-    </div>;
-  return <div className="wh-modal-overlay" onClick={onClose}>
-      <div className="wh-modal" style={{
-      maxWidth: 560
-    }} onClick={e => e.stopPropagation()}>
-        <h3 className="wh-modal-title">แก้ไขข้อมูล</h3>
-
-        <div className="fmt-form fmt-form-compact" style={{
-        marginTop: 12
-      }}>
-          {field('Part Name', 'Name')}
-          {field('Model', 'Model')}
-          <div className="fmt-field">
-            <label className="fmt-label">ชนิดอะไหล่</label>
-            {componentOptions.length > 0 ? <SelectField value={form.ComponentType} onChange={v => setForm(f => ({
-            ...f,
-            ComponentType: v
-          }))} options={componentOptions} /> : <input className="fmt-input" value={form.ComponentType} onChange={set('ComponentType')} />}
-          </div>
-          {form.ComponentType === 'it_controller' && field('Part No.', 'PartNo', true)}
-          {field('Serial No.', 'SerialNo', true)}
-          {field(itcLabel, 'ITControllerNo', true)}
-          {form.ComponentType === 'it_controller' && field('IMEI', 'IMEI', true)}
-          {field('Note', 'Note')}
-        </div>
-
-        <div className="wh-modal-actions">
-          <button className="wh-modal-cancel" onClick={onClose} disabled={saving}>ยกเลิก</button>
-          <button className="wh-issue-btn" onClick={handleSave} disabled={saving}>
-            {saving ? 'กำลังบันทึก...' : 'บันทึก'}
-          </button>
-        </div>
-      </div>
     </div>;
 }

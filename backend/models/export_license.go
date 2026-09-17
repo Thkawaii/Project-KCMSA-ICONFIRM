@@ -33,8 +33,6 @@ type ExportLicenseItem struct {
 
 	Remark string `gorm:"column:remark;type:text"`
 
-	Note string `gorm:"column:note;type:text"`
-
 	Completed   bool   `gorm:"index;not null;default:false"`
 	CompletedBy string `gorm:"size:100"`
 	CompletedAt *time.Time

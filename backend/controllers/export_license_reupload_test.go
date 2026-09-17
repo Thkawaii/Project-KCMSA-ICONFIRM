@@ -402,8 +402,9 @@ func TestMasterDataLargeFileBatching(t *testing.T) {
 	}
 
 	out := decodeJSON(t, rec)
-	if got := out["updated"]; got != float64(first) {
-		t.Errorf("updated = %v ต้องเป็น %d", got, first)
+	// แถวเดิมที่ค่าเหมือนเดิมนับเป็น unchanged (ไม่เขียนทับ), ที่ค่าเปลี่ยนนับเป็น updated
+	if got := out["updated"].(float64) + out["unchanged"].(float64); got != float64(first) {
+		t.Errorf("updated+unchanged = %v ต้องเป็น %d", got, first)
 	}
 	if got := out["imported"]; got != float64(300) {
 		t.Errorf("imported = %v ต้องเป็น 300", got)

@@ -460,7 +460,7 @@ func ScanMFGAssembly(c *gin.Context) {
 
 	if resolver.planOf(resolveMachineNo(machineNo)) == nil && mfgCodeIsPart(machineNo) {
 		c.JSON(422, gin.H{
-			"message":        "Machine No. ไม่ถูกต้อง — ค่าที่สแกนเป็นหมายเลขพาร์ท กรุณาสแกนบาร์โค้ด Machine",
+			"message":        "ข้อมูลไม่ถูกต้อง",
 			"invalidMachine": true,
 		})
 		return
