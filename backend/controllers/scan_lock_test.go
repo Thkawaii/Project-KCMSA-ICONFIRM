@@ -30,6 +30,11 @@ func jsonCtx(method string, id uint, body string, u models.User) (*gin.Context, 
 // xlsxUploadCtx สร้างไฟล์ Excel หลายชีตในหน่วยความจำ แล้วแนบเป็น multipart
 func xlsxUploadCtx(t *testing.T, sheets map[string][][]string, order []string, form map[string]string, params gin.Params, u models.User) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
+	return xlsxUploadCtxNamed(t, "form.xlsx", sheets, order, form, params, u)
+}
+
+func xlsxUploadCtxNamed(t *testing.T, fileName string, sheets map[string][][]string, order []string, form map[string]string, params gin.Params, u models.User) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
 	f := excelize.NewFile()
 	for i, name := range order {
 		if i == 0 {
@@ -54,7 +59,7 @@ func xlsxUploadCtx(t *testing.T, sheets map[string][][]string, order []string, f
 	for k, v := range form {
 		_ = w.WriteField(k, v)
 	}
-	part, _ := w.CreateFormFile("file", "form.xlsx")
+	part, _ := w.CreateFormFile("file", fileName)
 	_, _ = part.Write(xbuf.Bytes())
 	w.Close()
 

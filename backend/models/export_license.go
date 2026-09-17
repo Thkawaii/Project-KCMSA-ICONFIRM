@@ -42,6 +42,9 @@ type ExportLicenseItem struct {
 	FileName   string `gorm:"size:255"`
 	UploadDate time.Time
 
+	// SortOrder = ลำดับการแสดงผล ตามลำดับแถวในไฟล์ Excel ล่าสุดที่อัปโหลด
+	SortOrder int64 `gorm:"column:sort_order;index;default:0"`
+
 	UserID uint
 	User   User
 }

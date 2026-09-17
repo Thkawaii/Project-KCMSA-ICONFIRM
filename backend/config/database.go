@@ -78,6 +78,8 @@ func ConnectDB() {
 
 	DropUploadNoteColumns()
 
+	BackfillUploadSortOrder()
+
 	NormalizeExportLicenseExpiry()
 
 	SeedData()
@@ -211,6 +213,25 @@ func DropRedundantItemColumns() {
 			continue
 		}
 		log.Printf("Dropped redundant column %s.%s", c.table, c.column)
+	}
+}
+
+// BackfillUploadSortOrder ตั้งลำดับแสดงผลให้แถวเดิมที่ยังไม่มี (ตามลำดับที่เข้าระบบ)
+// ใช้บล็อกละ 1,000,000 ต่อแถว เพื่อให้ไฟล์ที่อัปซ้ำเรียงแถวของตัวเองในบล็อกนั้นได้
+func BackfillUploadSortOrder() {
+	if DB == nil {
+		return
+	}
+	for _, table := range []string{"master_data", "upload_data_rows", "import_license_items", "export_license_items"} {
+		if !DB.Migrator().HasColumn(table, "sort_order") {
+			continue
+		}
+		res := DB.Exec("UPDATE " + table + " SET sort_order = id * 1000000 WHERE sort_order IS NULL OR sort_order = 0")
+		if res.Error != nil {
+			log.Println("backfill sort_order", table, ":", res.Error)
+		} else if res.RowsAffected > 0 {
+			log.Printf("Backfilled %s.sort_order (%d rows)", table, res.RowsAffected)
+		}
 	}
 }
 

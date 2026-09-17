@@ -19,6 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -29,7 +30,7 @@ func GetMasterData(c *gin.Context) {
 	componentType := strings.TrimSpace(c.Query("component_type"))
 	code := strings.TrimSpace(c.Query("code"))
 
-	query := config.DB.Order("id asc")
+	query := config.DB.Order("sort_order asc, id asc")
 	if componentType != "" {
 		query = query.Where("component_type = ?", componentType)
 	}
@@ -50,7 +51,7 @@ func GetMasterData(c *gin.Context) {
 
 	if code != "" && len(masterData) == 0 {
 		if a := lookupCodeAlias(componentType, code); a != nil {
-			q2 := config.DB.Order("id asc").
+			q2 := config.DB.Order("sort_order asc, id asc").
 				Where("serial_no = ?", a.ToOld)
 			if componentType != "" {
 				q2 = q2.Where("component_type = ?", componentType)
@@ -474,11 +475,26 @@ func UploadMasterData(c *gin.Context) {
 		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
 		return
 	}
+	fileName := fileHeader.Filename
+	deletes, err := masterDataSyncDeletes(matches, fileName, fallbackComponentType)
+	if err != nil {
+		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+		return
+	}
+	sortBase := uploadSortBase(func() *gorm.DB { return config.DB.Model(&models.MasterData{}) }, fileName)
+
+	type reposition struct {
+		id   uint
+		sort int64
+	}
+	var moves []reposition
 
 	locks := buildScanLockIndex()
 	lockedSkipped, unchanged := 0, 0
 	var toUpdate, toCreate []models.MasterData
 	for i, row := range parsed {
+		row.FileName = fileName
+		row.SortOrder = sortBase + int64(i)
 		old := matches[i]
 		if old == nil {
 			toCreate = append(toCreate, row)
@@ -490,11 +506,13 @@ func UploadMasterData(c *gin.Context) {
 		}
 		if !masterDataChanged(*old, row) {
 			unchanged++
+			moves = append(moves, reposition{old.ID, row.SortOrder})
 			continue
 		}
 		if locked, reason := locks.masterData(old); locked {
 			lockedSkipped++
 			problems = append(problems, "Serial "+old.SerialNo+": "+scanLockedMessage+" ("+reason+") — ไม่อัปเดตแถวนี้")
+			moves = append(moves, reposition{old.ID, row.SortOrder})
 			continue
 		}
 		row.ID = old.ID
@@ -504,6 +522,7 @@ func UploadMasterData(c *gin.Context) {
 	updatable := []string{
 		"serial_no", "name", "component_type", "model", "part_no", "it_controller_no",
 		"imei", "connectivity_type", "extra_json", "upload_date", "user_id",
+		"file_name", "sort_order",
 	}
 
 	applyOne := func(row models.MasterData) error {
@@ -521,6 +540,8 @@ func UploadMasterData(c *gin.Context) {
 				"extra_json":        row.ExtraJSON,
 				"upload_date":       now,
 				"user_id":           userID,
+				"file_name":         row.FileName,
+				"sort_order":        row.SortOrder,
 			}).Error
 	}
 
@@ -565,12 +586,39 @@ func UploadMasterData(c *gin.Context) {
 		}
 	}
 
+	for _, m := range moves {
+		config.DB.Model(&models.MasterData{}).Where("id = ?", m.id).
+			Updates(map[string]interface{}{"sort_order": m.sort, "file_name": fileName})
+	}
+
+	deleteIDs := syncDeleteIDs(deletes)
+	_, lockedKept := countSyncDeletes(deletes)
+	for _, d := range deletes {
+		if d.locked {
+			problems = append(problems, "Serial "+d.label+": ไม่มีในไฟล์แล้ว แต่"+scanLockedMessage+" ("+d.reason+") — ไม่ลบแถวนี้")
+		}
+	}
+	deleted := 0
+	for _, part := range chunkSlice(deleteIDs, dbInsertBatch) {
+		res := config.DB.Where("id IN ?", part).Delete(&models.MasterData{})
+		if res.Error != nil {
+			problems = append(problems, "ลบแถวที่ไม่มีในไฟล์ไม่สำเร็จ")
+			continue
+		}
+		deleted += int(res.RowsAffected)
+	}
+
 	InvalidateMachineIndex()
 	CreateAuditLog("MASTER_DATA", 0, "upload_excel", fallbackComponentType, userID, userName)
+	if deleted > 0 {
+		CreateAuditLog("MASTER_DATA", 0, "sync_delete", fileName+": "+strconv.Itoa(deleted), userID, userName)
+	}
 
 	c.JSON(201, gin.H{
 		"imported":     imported,
 		"updated":      updated,
+		"deleted":      deleted,
+		"lockedKept":   lockedKept,
 		"unchanged":    unchanged,
 		"locked":       lockedSkipped,
 		"skipped":      skipped,
@@ -816,6 +864,12 @@ func PreviewMasterDataChanges(c *gin.Context) {
 		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
 		return
 	}
+	deletes, err := masterDataSyncDeletes(matches, fileHeader.Filename, fallbackComponentType)
+	if err != nil {
+		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+		return
+	}
+	deleteCount, deleteLocked := countSyncDeletes(deletes)
 
 	type fieldDiff struct {
 		Field string `json:"field"`
@@ -870,6 +924,16 @@ func PreviewMasterDataChanges(c *gin.Context) {
 	}
 
 	preview := make([]rowResult, 0, 300)
+	for _, d := range deletes {
+		if len(preview) >= 300 {
+			break
+		}
+		status := "DELETE"
+		if d.locked {
+			status = "DELETE_LOCKED"
+		}
+		preview = append(preview, rowResult{Serial: d.label, Status: status})
+	}
 	for _, r := range results {
 		if r.Status == "UNCHANGED" {
 			continue
@@ -892,12 +956,14 @@ func PreviewMasterDataChanges(c *gin.Context) {
 		"skipped":     skipped,
 		"problems":    capProblems(problems),
 		"summary": gin.H{
-			"total":     len(parsed),
-			"new":       counts["NEW"],
-			"updated":   counts["UPDATED"],
-			"changed":   counts["CHANGED"],
-			"unchanged": counts["UNCHANGED"],
-			"locked":    counts["LOCKED"],
+			"total":        len(parsed),
+			"new":          counts["NEW"],
+			"updated":      counts["UPDATED"],
+			"changed":      counts["CHANGED"],
+			"unchanged":    counts["UNCHANGED"],
+			"locked":       counts["LOCKED"],
+			"deleted":      deleteCount,
+			"deleteLocked": deleteLocked,
 		},
 		"rows": preview,
 	})

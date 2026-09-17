@@ -25,6 +25,12 @@ type MasterData struct {
 
 	ExtraJSON string `gorm:"type:text" json:"extra_json,omitempty"`
 
+	// FileName = ไฟล์ล่าสุดที่อัปโหลดแถวนี้ (ใช้ลบแถวที่ถูกลบออกจากไฟล์เดิม)
+	FileName string `gorm:"column:file_name;size:255;index"`
+
+	// SortOrder = ลำดับการแสดงผล ตามลำดับแถวในไฟล์ Excel ล่าสุดที่อัปโหลด
+	SortOrder int64 `gorm:"column:sort_order;index;default:0"`
+
 	UploadDate time.Time
 
 	UserID uint

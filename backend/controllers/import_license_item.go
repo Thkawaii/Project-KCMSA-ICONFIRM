@@ -265,7 +265,7 @@ func GetImportLicenseItems(c *gin.Context) {
 
 	var items []models.ImportLicenseItem
 
-	query := config.DB.Order("id asc")
+	query := config.DB.Order("sort_order asc, id asc")
 
 	if v := strings.TrimSpace(c.Query("license_no")); v != "" {
 		query = query.Where("license_no = ?", v)
@@ -574,6 +574,18 @@ func UploadImportLicenseItems(c *gin.Context) {
 		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
 		return
 	}
+	fileName := clampRunes(fileHeader.Filename, 255)
+	deletes, err := importLicenseSyncDeletes(matches, fileName)
+	if err != nil {
+		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+		return
+	}
+	sortBase := uploadSortBase(func() *gorm.DB { return config.DB.Model(&models.ImportLicenseItem{}) }, fileName)
+	type reposition struct {
+		id   uint
+		sort int64
+	}
+	var moves []reposition
 
 	type pendingUpdate struct {
 		id  uint
@@ -588,6 +600,7 @@ func UploadImportLicenseItems(c *gin.Context) {
 	)
 	locks := buildScanLockIndex()
 	for i, row := range parsed {
+		row.SortOrder = sortBase + int64(i)
 		old := matches[i]
 		if old == nil {
 			toCreate = append(toCreate, row)
@@ -595,11 +608,13 @@ func UploadImportLicenseItems(c *gin.Context) {
 		}
 		if len(importLicenseDiffs(*old, row)) == 0 && extraJSONEqual(old.ExtraJSON, row.ExtraJSON) {
 			unchanged++
+			moves = append(moves, reposition{old.ID, row.SortOrder})
 			continue
 		}
 		if locked, reason := locks.importLicense(old); locked {
 			lockedSkipped++
 			problems = append(problems, "หมายเลขเครื่อง "+old.MachineNo+": "+scanLockedMessage+" ("+reason+") — ไม่อัปเดตแถวนี้")
+			moves = append(moves, reposition{old.ID, row.SortOrder})
 			continue
 		}
 		if old.MachineNo != row.MachineNo {
@@ -630,6 +645,7 @@ func UploadImportLicenseItems(c *gin.Context) {
 				"upload_date":    now,
 				"user_id":        userID,
 				"machine_no":     row.MachineNo,
+				"sort_order":     row.SortOrder,
 			}).Error
 	}
 
@@ -640,7 +656,7 @@ func UploadImportLicenseItems(c *gin.Context) {
 		DoUpdates: clause.AssignmentColumns([]string{
 			"brand", "model", "license_no", "invoice_no", "declaration_no",
 			"qty", "production_no", "remark", "export_country", "issue_date", "expire_date",
-			"extra_json", "file_name", "upload_date", "user_id",
+			"extra_json", "file_name", "upload_date", "user_id", "sort_order",
 		}),
 	}
 	for _, part := range chunkSlice(toUpdate, dbInsertBatch) {
@@ -693,16 +709,46 @@ func UploadImportLicenseItems(c *gin.Context) {
 		}
 	}
 
+	for _, m := range moves {
+		config.DB.Model(&models.ImportLicenseItem{}).Where("id = ?", m.id).
+			Updates(map[string]interface{}{"sort_order": m.sort, "file_name": fileName})
+	}
+
+	deleteIDs := syncDeleteIDs(deletes)
+	_, lockedKept := countSyncDeletes(deletes)
+	for _, d := range deletes {
+		if d.locked {
+			problems = append(problems, "หมายเลขเครื่อง "+d.label+": ไม่มีในไฟล์แล้ว แต่"+scanLockedMessage+" ("+d.reason+") — ไม่ลบแถวนี้")
+		}
+	}
+	deleted := 0
+	for _, part := range chunkSlice(deleteIDs, dbInsertBatch) {
+		res := config.DB.Where("id IN ?", part).Delete(&models.ImportLicenseItem{})
+		if res.Error != nil {
+			problems = append(problems, "ลบรายการที่ไม่มีในไฟล์ไม่สำเร็จ")
+			continue
+		}
+		deleted += int(res.RowsAffected)
+	}
+	if deleted > 0 {
+		InvalidateMachineIndex()
+	}
+
 	CreateAuditLog("IMPORT_LICENSE", 0, "upload_excel", fileHeader.Filename, userID, userName)
+	if deleted > 0 {
+		CreateAuditLog("IMPORT_LICENSE", 0, "sync_delete", fileName+": "+strconv.Itoa(deleted), userID, userName)
+	}
 
 	c.JSON(201, gin.H{
-		"imported":  imported,
-		"updated":   updated,
-		"unchanged": unchanged,
-		"locked":    lockedSkipped,
-		"skipped":   skipped,
-		"problems":  capProblems(problems),
-		"file":      fileHeader.Filename,
+		"imported":   imported,
+		"updated":    updated,
+		"deleted":    deleted,
+		"lockedKept": lockedKept,
+		"unchanged":  unchanged,
+		"locked":     lockedSkipped,
+		"skipped":    skipped,
+		"problems":   capProblems(problems),
+		"file":       fileHeader.Filename,
 	})
 }
 
@@ -870,6 +916,12 @@ func PreviewImportLicenseMapping(c *gin.Context) {
 		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
 		return
 	}
+	deletes, err := importLicenseSyncDeletes(matches, clampRunes(fileHeader.Filename, 255))
+	if err != nil {
+		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+		return
+	}
+	deleteCount, deleteLocked := countSyncDeletes(deletes)
 
 	type fieldDiff struct {
 		Field string `json:"field"`
@@ -884,6 +936,16 @@ func PreviewImportLicenseMapping(c *gin.Context) {
 	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0, "LOCKED": 0}
 	preview := make([]rowResult, 0, 300)
 	locks := buildScanLockIndex()
+	for _, d := range deletes {
+		if len(preview) >= 300 {
+			break
+		}
+		status := "DELETE"
+		if d.locked {
+			status = "DELETE_LOCKED"
+		}
+		preview = append(preview, rowResult{Key: d.label, Status: status})
+	}
 
 	for i, it := range newItems {
 		oldPtr := matches[i]
@@ -933,12 +995,14 @@ func PreviewImportLicenseMapping(c *gin.Context) {
 		"keyLabel":    "หมายเลขเครื่อง",
 		"coreFields":  []string{"เลขใบอนุญาต", "อินวอยซ์", "หมายเลขการผลิต", "แบบ/รุ่น"},
 		"summary": gin.H{
-			"total":     total,
-			"new":       counts["NEW"],
-			"updated":   counts["UPDATED"],
-			"changed":   counts["CHANGED"],
-			"unchanged": counts["UNCHANGED"],
-			"locked":    counts["LOCKED"],
+			"total":        total,
+			"new":          counts["NEW"],
+			"updated":      counts["UPDATED"],
+			"changed":      counts["CHANGED"],
+			"unchanged":    counts["UNCHANGED"],
+			"locked":       counts["LOCKED"],
+			"deleted":      deleteCount,
+			"deleteLocked": deleteLocked,
 		},
 		"rows": preview,
 	})

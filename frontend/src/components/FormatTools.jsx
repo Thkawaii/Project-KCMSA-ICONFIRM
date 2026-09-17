@@ -687,7 +687,9 @@ export function ChangePreview({
       NEW: ['#dcfce7', '#166534'],
       UPDATED: ['#dbeafe', '#1e40af'],
       CHANGED: ['#fef3c7', '#92400e'],
-      LOCKED: ['#eafcfb', '#146a66']
+      LOCKED: ['#eafcfb', '#146a66'],
+      DELETE: ['#fee2e2', '#991b1b'],
+      DELETE_LOCKED: ['#f1f5f9', '#475569']
     };
     const [bg, color] = map[status] || ['#f1f5f9', '#475569'];
     return <span style={{
@@ -733,6 +735,8 @@ export function ChangePreview({
         {stat('ค่าเปลี่ยน', s.changed, '#fef3c7', '#92400e')}
         {stat('เหมือนเดิม', s.unchanged, '#f1f5f9', '#475569')}
         {s.locked > 0 && stat('สแกนแล้ว (ไม่อัปเดต)', s.locked, '#eafcfb', '#146a66')}
+        {s.deleted > 0 && stat('ลบ (ไม่มีในไฟล์แล้ว)', s.deleted, '#fee2e2', '#991b1b')}
+        {s.deleteLocked > 0 && stat('ไม่มีในไฟล์ แต่สแกนแล้ว (ไม่ลบ)', s.deleteLocked, '#f1f5f9', '#475569')}
       </div>
 
       {showType && byType.length > 0 && <div style={{
