@@ -19,15 +19,22 @@ func SetupRoutes(r *gin.Engine) {
 		masterData.GET("", controllers.GetMasterData)
 		masterData.GET("/summary", controllers.GetMasterDataSummary)
 
+		// อัปโหลด/ลบ: UPLOAD และ ADMIN
 		manage := masterData.Group("")
-		manage.Use(middleware.RoleMiddleware("UPLOAD"))
+		manage.Use(middleware.RoleMiddleware("UPLOAD", "ADMIN"))
 		{
 			manage.POST("", controllers.CreateMasterData)
 			manage.POST("/upload", controllers.UploadMasterData)
 			manage.POST("/preview", controllers.PreviewMasterDataChanges)
-			manage.PATCH("/:id", controllers.UpdateMasterData)
 			manage.DELETE("/:id", controllers.DeleteMasterData)
 			manage.DELETE("", controllers.ClearMasterData)
+		}
+
+		// แก้ไขในตาราง (ปุ่มดินสอ): ADMIN เท่านั้น — UPLOAD แก้ข้อมูลใน Excel แล้วอัปโหลดใหม่
+		edit := masterData.Group("")
+		edit.Use(middleware.RoleMiddleware("ADMIN"))
+		{
+			edit.PATCH("/:id", controllers.UpdateMasterData)
 		}
 	}
 
@@ -41,14 +48,19 @@ func SetupRoutes(r *gin.Engine) {
 		uploadData.GET("/export", controllers.ExportUploadData)
 
 		manage := uploadData.Group("")
-		manage.Use(middleware.RoleMiddleware("UPLOAD"))
+		manage.Use(middleware.RoleMiddleware("UPLOAD", "ADMIN"))
 		{
 			manage.POST("/upload/:dataset", controllers.UploadDataFile)
 			manage.POST("/preview/:dataset", controllers.PreviewUploadDataMapping)
-			manage.PUT("/:id", controllers.UpdateUploadDataRow)
-			manage.PATCH("/:id", controllers.UpdateUploadDataRow)
 			manage.DELETE("/:id", controllers.DeleteUploadDataRow)
 			manage.DELETE("", controllers.ClearUploadData)
+		}
+
+		edit := uploadData.Group("")
+		edit.Use(middleware.RoleMiddleware("ADMIN"))
+		{
+			edit.PUT("/:id", controllers.UpdateUploadDataRow)
+			edit.PATCH("/:id", controllers.UpdateUploadDataRow)
 		}
 	}
 
@@ -78,6 +90,7 @@ func SetupRoutes(r *gin.Engine) {
 
 	}
 
+	// Import / Export License: ไม่มีการแก้ไขในตาราง — LOG แก้/ลบข้อมูลใน Excel แล้วอัปโหลดไฟล์เดิมอีกครั้ง
 	importLicense := auth.Group("/import-license")
 	importLicense.Use(middleware.RoleMiddleware("WH", "LOG"))
 	{
@@ -93,7 +106,6 @@ func SetupRoutes(r *gin.Engine) {
 			manage.POST("/verify", controllers.VerifyImportLicenseCode)
 			manage.POST("/renew", controllers.RenewImportLicense)
 			manage.POST("/complete", controllers.SetImportLicenseComplete)
-			manage.PATCH("/:id", controllers.UpdateImportLicenseItem)
 			manage.DELETE("/:id", controllers.DeleteImportLicenseItem)
 			manage.DELETE("", controllers.ClearImportLicenseItems)
 		}
@@ -109,7 +121,6 @@ func SetupRoutes(r *gin.Engine) {
 		exportLicense.POST("/preview", controllers.PreviewExportLicenseMapping)
 		exportLicense.POST("/renew", controllers.RenewExportLicense)
 		exportLicense.POST("/complete", controllers.SetExportLicenseComplete)
-		exportLicense.PATCH("/:id", controllers.UpdateExportLicense)
 		exportLicense.DELETE("/:id", controllers.DeleteExportLicense)
 		exportLicense.DELETE("", controllers.ClearExportLicense)
 	}

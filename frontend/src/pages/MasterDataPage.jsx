@@ -6,6 +6,8 @@ import { getMasterData, uploadMasterData, deleteMasterData, clearMasterData, pre
 import { getUploadData, uploadDataFile, deleteUploadDataRow, updateUploadDataRow, clearUploadData, previewUploadData } from '../api/uploadData.js';
 import { PreviewResult, ChangePreview } from '../components/FormatTools.jsx';
 import { EditableCell, EditHint, LockBadge, useLiveRefresh } from '../components/InlineEdit.jsx';
+import { ADMIN_NAV_ITEMS } from './AdminDashboardpage.jsx';
+import { confirmUploadDeletes, syncResultParts } from '../lib/uploadSync.js';
 import { confirmDelete, toastError, toastSuccess } from '../lib/toast.js';
 import { buildStyledXlsxBlob, buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js';
 import { CloudArrowUpIcon } from '../components/icons.jsx';
@@ -110,8 +112,11 @@ const uploadNavItems = [{
 }];
 const DASH = '—';
 export default function MasterDataPage() {
-  const navItems = uploadNavItems;
-  const shellRoleLabel = 'Upload';
+  const role = (localStorage.getItem('iconfirm_role') || '').toUpperCase();
+  // แก้ไขในตาราง (ปุ่มดินสอ) เฉพาะ ADMIN — UPLOAD แก้ข้อมูลใน Excel แล้วอัปโหลดใหม่
+  const canEdit = role === 'ADMIN';
+  const navItems = canEdit ? ADMIN_NAV_ITEMS : uploadNavItems;
+  const shellRoleLabel = canEdit ? 'Admin' : 'Upload';
   const [uploadType, setUploadType] = useState(ALL_PARTS_UPLOAD);
   const [viewType, setViewType] = useState('it_controller');
   const [compType, setCompType] = useState('all');
@@ -179,11 +184,19 @@ export default function MasterDataPage() {
     setUploading(true);
     setUploadMsg(null);
     try {
+      let summary = previewData?.summary;
+      if (!summary) {
+        const pv = isMasterType ? await previewMasterDataChanges(pendingFile, uploadType) : await previewUploadData(uploadType, pendingFile);
+        summary = pv?.summary;
+      }
+      if (!(await confirmUploadDeletes(summary, pendingFile.name))) {
+        return;
+      }
       if (isMasterType) {
         const result = await uploadMasterData(pendingFile, uploadType);
         const breakdown = isAllParts ? formatByType(result.byType) : '';
         setUploadMsg({
-          success: `เพิ่มใหม่ ${result.imported ?? 0} · อัปเดต ${result.updated ?? 0}` + (result.unchanged ? ` · เหมือนเดิม ${result.unchanged}` : '') + (result.locked ? ` · สแกนแล้ว ไม่อัปเดต ${result.locked}` : '') + (breakdown ? ` — ${breakdown}` : ''),
+          success: [`เพิ่มใหม่ ${result.imported ?? 0}`, `อัปเดต ${result.updated ?? 0}`, ...(result.unchanged ? [`เหมือนเดิม ${result.unchanged}`] : []), ...(result.locked ? [`สแกนแล้ว ไม่อัปเดต ${result.locked}`] : []), ...syncResultParts(result)].join(' · ') + (breakdown ? ` — ${breakdown}` : ''),
           problems: result.problems || []
         });
       } else {
@@ -191,6 +204,7 @@ export default function MasterDataPage() {
         const parts = [`เพิ่มใหม่ ${result.imported ?? 0}`, `อัปเดต ${result.updated ?? 0}`];
         if (result.duplicate) parts.push(`เหมือนเดิม ${result.duplicate}`);
         if (result.locked) parts.push(`สแกนแล้ว ไม่อัปเดต ${result.locked}`);
+        parts.push(...syncResultParts(result));
         if (result.skipped) parts.push(`ข้าม ${result.skipped}`);
         setUploadMsg({
           success: parts.join(' · '),
@@ -302,10 +316,11 @@ export default function MasterDataPage() {
         </div>
       </div>
 
-      {viewType === 'it_controller' ? <ITControllerView reloadKey={reloadKey} bumpReload={() => setReloadKey(n => n + 1)} compType={compType} setCompType={setCompType} /> : <DatasetView key={`${viewType}-${reloadKey}`} dataset={viewType} />}
+      {viewType === 'it_controller' ? <ITControllerView canEdit={canEdit} reloadKey={reloadKey} bumpReload={() => setReloadKey(n => n + 1)} compType={compType} setCompType={setCompType} /> : <DatasetView key={`${viewType}-${reloadKey}`} dataset={viewType} canEdit={canEdit} />}
     </AppShell>;
 }
 function ITControllerView({
+  canEdit = false,
   reloadKey,
   bumpReload,
   compType,
@@ -574,7 +589,7 @@ function ITControllerView({
         }}>
             {(keyword.trim() || compType !== 'all') && `พบ ${filtered.length} จาก ${rows.length}`}
           </h2>
-          <EditHint lockedCount={lockedCount} />
+          <EditHint lockedCount={lockedCount} canEdit={canEdit} />
         </div>
         <div className="uv-list-tools md-list-tools" style={{
         display: 'flex',
@@ -618,7 +633,7 @@ function ITControllerView({
               <th>{noLabel}</th>
               {showITCols && <th>IMEI</th>}
               {showITCols && <th>Connectivity</th>}
-              <th>สถานะ</th>
+              <th>สถานะการสแกน</th>
               <th></th>
             </tr>
           </thead>
@@ -633,7 +648,8 @@ function ITControllerView({
             const isITC = row.ComponentType === 'it_controller';
             const lock = {
               locked: !!row.Locked,
-              lockReason: row.LockReason
+              lockReason: row.LockReason,
+              readOnly: !canEdit
             };
             return <tr key={row.ID} className={row.Locked ? 'ie-row-locked' : ''}>
                   <td className="wh-cell-head" data-label="Item No.">
@@ -660,8 +676,8 @@ function ITControllerView({
                   {showITCols && <td data-label="Connectivity">
                       {isITC ? <EditableCell {...lock} type="select" label="Connectivity" value={row.ConnectivityType || ''} options={CONNECTIVITY_EDIT_OPTIONS} display={CONNECTIVITY_LABELS[row.ConnectivityType || 'UNKNOWN']} onSave={v => saveField(row, 'ConnectivityType', v)} /> : DASH}
                     </td>}
-                  <td data-label="สถานะ">
-                    {row.Locked ? <LockBadge locked reason={row.LockReason} /> : <span className="ie-empty">แก้ไขได้</span>}
+                  <td data-label="สถานะการสแกน">
+                    {row.Locked ? <LockBadge locked reason={row.LockReason} /> : <span className="ie-empty">ยังไม่ได้สแกน</span>}
                   </td>
                   <td className="wh-cell-action">
                     <div style={{
@@ -698,7 +714,8 @@ const CONNECTIVITY_EDIT_OPTIONS = [...CONNECTIVITY_ORDER.filter(v => v !== 'UNKN
 
 const UD_PAGE_SIZE = 100;
 function DatasetView({
-  dataset
+  dataset,
+  canEdit = false
 }) {
   const label = typeLabel(dataset);
   const [columns, setColumns] = useState([]);
@@ -918,7 +935,7 @@ function DatasetView({
         }}>
             {total.toLocaleString()} รายการ
           </h2>
-          <EditHint lockedCount={lockedCount} />
+          <EditHint lockedCount={lockedCount} canEdit={canEdit} />
         </div>
         <div className="uv-list-tools" style={{
         display: 'flex',
@@ -945,7 +962,7 @@ function DatasetView({
             <tr>
               <th className="ud-th-sticky">#</th>
               {displayColumns.map(c => <th key={c}>{c}</th>)}
-              <th>สถานะ</th>
+              <th>สถานะการสแกน</th>
               <th></th>
             </tr>
           </thead>
@@ -958,10 +975,10 @@ function DatasetView({
             {!loading && rows.map((row, i) => <tr key={row.ID} className={row.Locked ? 'ie-row-locked' : ''}>
                   <td className="ud-td-sticky">{isPlanning ? cellValue(row, 'Line') || (page - 1) * UD_PAGE_SIZE + i + 1 : (page - 1) * UD_PAGE_SIZE + i + 1}</td>
                   {displayColumns.map(c => <td key={c} data-label={c}>
-                      <EditableCell locked={!!row.Locked} lockReason={row.LockReason} label={c} value={cellValue(row, c)} onSave={v => saveCell(row, c, v)} />
+                      <EditableCell locked={!!row.Locked} lockReason={row.LockReason} readOnly={!canEdit} label={c} value={cellValue(row, c)} onSave={v => saveCell(row, c, v)} />
                     </td>)}
-                  <td data-label="สถานะ">
-                    {row.Locked ? <LockBadge locked reason={row.LockReason} /> : <span className="ie-empty">แก้ไขได้</span>}
+                  <td data-label="สถานะการสแกน">
+                    {row.Locked ? <LockBadge locked reason={row.LockReason} /> : <span className="ie-empty">ยังไม่ได้สแกน</span>}
                   </td>
                   <td className="wh-cell-action">
                     <div style={{

@@ -41,7 +41,7 @@ const ROUTE_CONFIG = {
   },
   '/warehouse/confirm': {
     component: WHPartConfirmationPage,
-    roles: ['WH', 'LOG']
+    roles: ['WH']
   },
   '/mfg-assembly': {
     component: MFGAssemblyPage,
@@ -53,7 +53,7 @@ const ROUTE_CONFIG = {
   },
   '/master-data': {
     component: MasterDataPage,
-    roles: ['UPLOAD']
+    roles: ['UPLOAD', 'ADMIN']
   },
   '/format-settings': {
     component: FormatSettingsPage,

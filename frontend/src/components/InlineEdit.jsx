@@ -36,7 +36,8 @@ export function EditableCell({
   display,
   mono = false,
   label = '',
-  placeholder = '—'
+  placeholder = '—',
+  readOnly = false
 }) {
   const current = normalize(type, value);
   const [editing, setEditing] = useState(false);
@@ -64,6 +65,10 @@ export function EditableCell({
   }, [flash]);
 
   const shown = display !== undefined ? display : current.trim() ? current : <span className="ie-empty">{placeholder}</span>;
+
+  if (readOnly && !locked) {
+    return <span className={['ie-cell', mono ? 'ie-mono' : ''].join(' ')}>{shown}</span>;
+  }
 
   if (locked) {
     return <span className={['ie-cell', 'ie-locked', mono ? 'ie-mono' : ''].join(' ')} title={lockReason ? `แก้ไม่ได้ — ${lockReason}` : 'แก้ไม่ได้ — สแกนผ่านแล้ว'}>
@@ -274,13 +279,14 @@ export function LockBadge({
 // EditHint: บอกวิธีแก้ในตาราง + จำนวนแถวที่ล็อก (สแกนแล้ว)
 export function EditHint({
   lockedCount = 0,
-  showLock = true
+  showLock = true,
+  canEdit = true
 }) {
   return <p className="ie-live-hint" style={{
     margin: '4px 0 0'
   }}>
       <span className="ie-live-dot" aria-hidden="true" />
-      กดไอคอนดินสอเพื่อแก้ไข กด Enter เพื่อบันทึก ข้อมูลอัปเดตอัตโนมัติ
+      {canEdit ? 'กดไอคอนดินสอเพื่อแก้ไข กด Enter เพื่อบันทึก ข้อมูลอัปเดตอัตโนมัติ' : 'แก้ไขข้อมูลในไฟล์ Excel แล้วอัปโหลดไฟล์เดิมอีกครั้ง ข้อมูลอัปเดตอัตโนมัติ'}
       {showLock && lockedCount > 0 && `, ${lockedCount} แถวสแกนแล้วแก้ไม่ได้`}
     </p>;
 }

@@ -281,3 +281,96 @@ func matchExportLicenseExisting(items []models.ExportLicenseItem) ([]*models.Exp
 	}
 	return out, nil
 }
+
+// masterDataSyncDeletes: แถวของไฟล์ชื่อเดียวกัน (และชนิดเดียวกัน ถ้าอัปทีละชนิด) ที่ไม่อยู่ในไฟล์รอบนี้
+func masterDataSyncDeletes(matches []*models.MasterData, fileName, componentType string) ([]syncDelete, error) {
+	if normFileName(fileName) == "" {
+		return nil, nil
+	}
+	present := map[uint]bool{}
+	for _, m := range matches {
+		if m != nil {
+			present[m.ID] = true
+		}
+	}
+	q := config.DB.Where("file_name <> '' AND LOWER(TRIM(file_name)) = ?", normFileName(fileName))
+	if !isAllPartsComponentType(componentType) {
+		q = q.Where("component_type = ?", componentType)
+	}
+	var rows []models.MasterData
+	if err := q.Order("sort_order asc, id asc").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	var out []syncDelete
+	var locks *scanLockIndex
+	for i := range rows {
+		r := rows[i]
+		if present[r.ID] {
+			continue
+		}
+		if locks == nil {
+			locks = buildScanLockIndex()
+		}
+		locked, reason := locks.masterData(&r)
+		out = append(out, syncDelete{id: r.ID, label: r.SerialNo, locked: locked, reason: reason})
+	}
+	return out, nil
+}
+
+// importLicenseSyncDeletes: รายการของไฟล์ชื่อเดียวกันที่ไม่อยู่ในไฟล์รอบนี้
+func importLicenseSyncDeletes(matches []*models.ImportLicenseItem, fileName string) ([]syncDelete, error) {
+	if normFileName(fileName) == "" {
+		return nil, nil
+	}
+	present := map[uint]bool{}
+	for _, m := range matches {
+		if m != nil {
+			present[m.ID] = true
+		}
+	}
+	var rows []models.ImportLicenseItem
+	if err := config.DB.Where("file_name <> '' AND LOWER(TRIM(file_name)) = ?", normFileName(fileName)).
+		Order("sort_order asc, id asc").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	var out []syncDelete
+	var locks *scanLockIndex
+	for i := range rows {
+		r := rows[i]
+		if present[r.ID] {
+			continue
+		}
+		if locks == nil {
+			locks = buildScanLockIndex()
+		}
+		locked, reason := locks.importLicense(&r)
+		out = append(out, syncDelete{id: r.ID, label: r.MachineNo, locked: locked, reason: reason})
+	}
+	return out, nil
+}
+
+// exportLicenseSyncDeletes: Export License ไม่มีการสแกนที่อ้างถึง จึงลบได้ทุกแถวที่ไม่อยู่ในไฟล์
+func exportLicenseSyncDeletes(matches []*models.ExportLicenseItem, fileName string) ([]syncDelete, error) {
+	if normFileName(fileName) == "" {
+		return nil, nil
+	}
+	present := map[uint]bool{}
+	for _, m := range matches {
+		if m != nil {
+			present[m.ID] = true
+		}
+	}
+	var rows []models.ExportLicenseItem
+	if err := config.DB.Where("file_name <> '' AND LOWER(TRIM(file_name)) = ?", normFileName(fileName)).
+		Order("sort_order asc, id asc").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	var out []syncDelete
+	for _, r := range rows {
+		if present[r.ID] {
+			continue
+		}
+		out = append(out, syncDelete{id: r.ID, label: r.ITControllerNo})
+	}
+	return out, nil
+}

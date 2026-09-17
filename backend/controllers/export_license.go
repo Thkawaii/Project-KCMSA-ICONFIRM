@@ -344,7 +344,7 @@ func keysOf(m map[string]bool) []string {
 
 func GetExportLicense(c *gin.Context) {
 	var rows []models.ExportLicenseItem
-	query := config.DB.Order("id asc")
+	query := config.DB.Order("sort_order asc, id asc")
 
 	if q := strings.TrimSpace(c.Query("q")); q != "" {
 		like := "%" + q + "%"
@@ -555,12 +555,26 @@ func UploadExportLicense(c *gin.Context) {
 		return
 	}
 
+	deletes, err := exportLicenseSyncDeletes(matches, fileName)
+	if err != nil {
+		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+		return
+	}
+	deleteIDs := syncDeleteIDs(deletes)
+	sortBase := uploadSortBase(func() *gorm.DB { return config.DB.Model(&models.ExportLicenseItem{}) }, fileName)
+	type reposition struct {
+		id   uint
+		sort int64
+	}
+	var moves []reposition
+
 	var (
 		toUpdate  []models.ExportLicenseItem
 		toCreate  []models.ExportLicenseItem
 		unchanged int
 	)
 	for i := range parsed {
+		parsed[i].SortOrder = sortBase + int64(i)
 		old := matches[i]
 		if old == nil {
 			toCreate = append(toCreate, parsed[i])
@@ -568,6 +582,7 @@ func UploadExportLicense(c *gin.Context) {
 		}
 		if !exportLicenseChanged(*old, parsed[i]) {
 			unchanged++
+			moves = append(moves, reposition{old.ID, parsed[i].SortOrder})
 			continue
 		}
 		// แก้ข้อมูล (รวม IT Controller S/N ที่จับคู่จาก Machine No) → อัปเดตแถวเดิม
@@ -584,7 +599,7 @@ func UploadExportLicense(c *gin.Context) {
 		"assembly_date", "machine_no", "it_controller_no", "country",
 		"invoice_no", "invoice_date", "export_entry", "import_license_no",
 		"export_license_no", "issue_date", "expire_date",
-		"remark", "extra_json", "file_name", "upload_date", "user_id",
+		"remark", "extra_json", "file_name", "upload_date", "user_id", "sort_order",
 	}
 
 	err = config.DB.Transaction(func(tx *gorm.DB) error {
@@ -606,6 +621,17 @@ func UploadExportLicense(c *gin.Context) {
 				return err
 			}
 		}
+		for _, m := range moves {
+			if err := tx.Model(&models.ExportLicenseItem{}).Where("id = ?", m.id).
+				Updates(map[string]interface{}{"sort_order": m.sort, "file_name": fileName}).Error; err != nil {
+				return err
+			}
+		}
+		for _, part := range chunkSlice(deleteIDs, dbInsertBatch) {
+			if err := tx.Where("id IN ?", part).Delete(&models.ExportLicenseItem{}).Error; err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -614,10 +640,14 @@ func UploadExportLicense(c *gin.Context) {
 	}
 
 	CreateAuditLog("EXPORT_LICENSE", 0, "upload_excel", fileName, userID, userName)
+	if len(deleteIDs) > 0 {
+		CreateAuditLog("EXPORT_LICENSE", 0, "sync_delete", fileName+": "+strconv.Itoa(len(deleteIDs)), userID, userName)
+	}
 
 	c.JSON(201, gin.H{
 		"imported":  len(toCreate),
 		"updated":   len(toUpdate),
+		"deleted":   len(deleteIDs),
 		"unchanged": unchanged,
 		"skipped":   skipped,
 		"problems":  capProblems(problems),
@@ -714,6 +744,11 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
 		return
 	}
+	deletes, err := exportLicenseSyncDeletes(matches, fileName)
+	if err != nil {
+		c.JSON(500, gin.H{"message": "อ่านข้อมูลเดิมไม่สำเร็จ: " + err.Error()})
+		return
+	}
 
 	type fieldDiff struct {
 		Field string `json:"field"`
@@ -727,6 +762,12 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 	}
 	counts := map[string]int{"NEW": 0, "UPDATED": 0, "CHANGED": 0, "UNCHANGED": 0}
 	preview := make([]rowResult, 0, 300)
+	for _, d := range deletes {
+		if len(preview) >= 300 {
+			break
+		}
+		preview = append(preview, rowResult{Key: d.label, Status: "DELETE"})
+	}
 
 	for i, it := range newItems {
 		oldPtr := matches[i]
@@ -788,6 +829,7 @@ func PreviewExportLicenseMapping(c *gin.Context) {
 			"updated":   counts["UPDATED"],
 			"changed":   counts["CHANGED"],
 			"unchanged": counts["UNCHANGED"],
+			"deleted":   len(deletes),
 		},
 		"rows": preview,
 	})

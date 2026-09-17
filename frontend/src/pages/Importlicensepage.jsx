@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getImportLicenseItems, getImportLicenseSummary, uploadImportLicense, previewImportLicense, deleteImportLicenseItem, clearImportLicense, renewImportLicense, setImportLicenseComplete, updateImportLicenseItem } from '../api/importLicense.js';
 import { EditableCell, EditHint, LockBadge, useLiveRefresh } from '../components/InlineEdit.jsx';
+import { confirmUploadDeletes, syncResultParts } from '../lib/uploadSync.js';
 import { getExportLicense, getExportLicenseTrace, uploadExportLicense, previewExportLicense, deleteExportLicense, clearExportLicense, renewExportLicense, setExportLicenseComplete, updateExportLicense } from '../api/exportLicense.js';
 import { PreviewResult, ChangePreview, ExtraColumnsCell } from '../components/FormatTools.jsx';
 import AppShell from '../components/AppShell.jsx';
@@ -28,11 +29,8 @@ export const WH_NAV_ITEMS = [{
 }, {
   to: '/warehouse/confirm',
   label: 'Part Confirmation',
-  labelByRole: {
-    LOG: 'Part Checklist'
-  },
   icon: <ClipboardDocumentCheckIcon className="size-4" />,
-  roles: ['WH', 'LOG']
+  roles: ['WH']
 }];
 const EXPIRY_BADGE_CLASS = {
   [EXPIRY_STATUS.EXPIRED]: 'il-badge il-badge-bad',
@@ -379,9 +377,13 @@ export default function ImportLicensePage() {
     setUploading(true);
     setUploadMsg(null);
     try {
+      const summary = previewData?.summary || (await previewImportLicense(file))?.summary;
+      if (!(await confirmUploadDeletes(summary, file.name))) {
+        return;
+      }
       const result = await uploadImportLicense(file);
       setUploadMsg({
-        success: `เพิ่มใหม่ ${result.imported ?? 0} · อัปเดต ${result.updated ?? 0}` + (result.unchanged ? ` · เหมือนเดิม ${result.unchanged}` : '') + (result.locked ? ` · สแกนแล้ว ไม่อัปเดต ${result.locked}` : '') + ` · ข้าม ${result.skipped ?? 0}`,
+        success: [`เพิ่มใหม่ ${result.imported ?? 0}`, `อัปเดต ${result.updated ?? 0}`, ...(result.unchanged ? [`เหมือนเดิม ${result.unchanged}`] : []), ...(result.locked ? [`สแกนแล้ว ไม่อัปเดต ${result.locked}`] : []), ...syncResultParts(result), `ข้าม ${result.skipped ?? 0}`].join(' · '),
         problems: result.problems || []
       });
       setFile(null);
@@ -487,7 +489,7 @@ export default function ImportLicensePage() {
     if (term) {
       rows = rows.filter(r => (r.MachineNo || '').toLowerCase().includes(term) || (r.ProductionNo || '').toLowerCase().includes(term) || (r.LicenseNo || '').toLowerCase().includes(term) || (r.InvoiceNo || '').toLowerCase().includes(term) || (r.DeclarationNo || '').toLowerCase().includes(term) || (r.Model || '').toLowerCase().includes(term) || (r.ExportCountry || '').toLowerCase().includes(term));
     }
-    rows = [...rows].sort((a, b) => a.ID - b.ID);
+    rows = [...rows].sort((a, b) => (a.SortOrder || 0) - (b.SortOrder || 0) || a.ID - b.ID);
     return rows;
   }, [items, selectedLot, countryFilter, expiryFilter, search, today]);
   const countryOptions = useMemo(() => buildCountryOptions(items.map(r => r.ExportCountry)), [items]);
@@ -814,7 +816,7 @@ export default function ImportLicensePage() {
         </div>
       </div>
 
-      <EditHint lockedCount={filtered.filter(r => r.Locked).length} />
+      <EditHint canEdit={false} lockedCount={filtered.filter(r => r.Locked).length} />
 
       <SelectionBar selectedRows={selectedRows} busy={completing} onComplete={() => applyComplete(true)} onUncomplete={() => applyComplete(false)} onClear={clearSelection} allSelected={allSelected} filterActive={filterActive} />
 
@@ -839,7 +841,7 @@ export default function ImportLicensePage() {
               <th>หมายเหตุ</th>
               <th>ส่งออกไปประเทศ</th>
               <th>คอลัมน์เพิ่ม</th>
-              <th>สถานะ</th>
+              <th>สถานะการสแกน</th>
               <th></th>
             </tr>
           </thead>
@@ -863,49 +865,49 @@ export default function ImportLicensePage() {
                     {(page - 1) * pageSize + i + 1}
                   </td>
                   <td data-label="ตราอักษร">
-                    <EditableCell {...lock} label="ตราอักษร" value={row.Brand} onSave={save('Brand')} />
+                    <EditableCell readOnly {...lock} label="ตราอักษร" value={row.Brand} onSave={save('Brand')} />
                   </td>
                   <td data-label="แบบ/รุ่น">
-                    <EditableCell {...lock} label="แบบ/รุ่น" value={row.Model} onSave={save('Model')} />
+                    <EditableCell readOnly {...lock} label="แบบ/รุ่น" value={row.Model} onSave={save('Model')} />
                   </td>
                   <td data-label="เลขใบอนุญาตนำเข้า">
                     <span className="il-license-cell">
                       <CompleteFlag show={isLicenseCompleted(row)} />
-                      <EditableCell {...lock} label="เลขใบอนุญาตนำเข้า" value={row.LicenseNo} onSave={save('LicenseNo')} />
+                      <EditableCell readOnly {...lock} label="เลขใบอนุญาตนำเข้า" value={row.LicenseNo} onSave={save('LicenseNo')} />
                     </span>
                   </td>
                   <td data-label="วันที่ออกใบอนุญาต">
-                    <EditableCell {...lock} type="date" label="วันที่ออกใบอนุญาต" value={row.IssueDate} display={formatThaiDate(row.IssueDate)} onSave={save('IssueDate')} />
+                    <EditableCell readOnly {...lock} type="date" label="วันที่ออกใบอนุญาต" value={row.IssueDate} display={formatThaiDate(row.IssueDate)} onSave={save('IssueDate')} />
                   </td>
                   <td data-label="หมดอายุ (6 เดือน)">
                     <ExpiryCell row={row} issueDate={row.IssueDate} expireDate={row.ExpireDate} />
                   </td>
                   <td data-label="เลขอินวอยซ์นำเข้า">
-                    <EditableCell {...lock} label="เลขอินวอยซ์นำเข้า" value={row.InvoiceNo} onSave={save('InvoiceNo')} />
+                    <EditableCell readOnly {...lock} label="เลขอินวอยซ์นำเข้า" value={row.InvoiceNo} onSave={save('InvoiceNo')} />
                   </td>
                   <td data-label="เลขใบขนสินค้าขาเข้า">
-                    <EditableCell {...lock} label="เลขใบขนสินค้าขาเข้า" value={row.DeclarationNo} onSave={save('DeclarationNo')} />
+                    <EditableCell readOnly {...lock} label="เลขใบขนสินค้าขาเข้า" value={row.DeclarationNo} onSave={save('DeclarationNo')} />
                   </td>
                   <td data-label="จำนวน (เครื่อง)">
-                    <EditableCell {...lock} type="number" label="จำนวน (เครื่อง)" value={row.Qty} onSave={save('Qty')} />
+                    <EditableCell readOnly {...lock} type="number" label="จำนวน (เครื่อง)" value={row.Qty} onSave={save('Qty')} />
                   </td>
                   <td className="il-mono" data-label="หมายเลขเครื่อง">
-                    <EditableCell {...lock} mono label="หมายเลขเครื่อง" value={row.MachineNo} display={<strong>{row.MachineNo}</strong>} onSave={save('MachineNo')} />
+                    <EditableCell readOnly {...lock} mono label="หมายเลขเครื่อง" value={row.MachineNo} display={<strong>{row.MachineNo}</strong>} onSave={save('MachineNo')} />
                   </td>
                   <td className="il-mono" data-label="หมายเลขการผลิต">
-                    <EditableCell {...lock} mono label="หมายเลขการผลิต" value={row.ProductionNo} onSave={save('ProductionNo')} />
+                    <EditableCell readOnly {...lock} mono label="หมายเลขการผลิต" value={row.ProductionNo} onSave={save('ProductionNo')} />
                   </td>
                   <td data-label="หมายเหตุ">
-                    <EditableCell {...lock} label="หมายเหตุ" value={row.Remark} onSave={save('Remark')} />
+                    <EditableCell readOnly {...lock} label="หมายเหตุ" value={row.Remark} onSave={save('Remark')} />
                   </td>
                   <td data-label="ส่งออกไปประเทศ">
-                    <EditableCell {...lock} label="ส่งออกไปประเทศ" value={row.ExportCountry} display={row.ExportCountry || <span className="il-no-country">{NO_COUNTRY_LABEL}</span>} onSave={save('ExportCountry')} />
+                    <EditableCell readOnly {...lock} label="ส่งออกไปประเทศ" value={row.ExportCountry} display={row.ExportCountry || <span className="il-no-country">{NO_COUNTRY_LABEL}</span>} onSave={save('ExportCountry')} />
                   </td>
                   <td data-label="คอลัมน์เพิ่ม">
                     <ExtraColumnsCell json={row.extra_json} />
                   </td>
-                  <td data-label="สถานะ">
-                    {row.Locked ? <LockBadge locked reason={row.LockReason} /> : <span className="ie-empty">แก้ไขได้</span>}
+                  <td data-label="สถานะการสแกน">
+                    {row.Locked ? <LockBadge locked reason={row.LockReason} /> : <span className="ie-empty">ยังไม่ได้สแกน</span>}
                   </td>
                   <td className="wh-cell-action">
                     <div className="il-row-actions">
@@ -1763,9 +1765,13 @@ export function WHExportLicensePanel() {
     setUploading(true);
     setMsg(null);
     try {
+      const summary = previewData?.summary || (await previewExportLicense(file))?.summary;
+      if (!(await confirmUploadDeletes(summary, file.name))) {
+        return;
+      }
       const r = await uploadExportLicense(file);
       setMsg({
-        success: `เพิ่มใหม่ ${r.imported ?? 0} · อัปเดต ${r.updated ?? 0}` + (r.unchanged ? ` · เหมือนเดิม ${r.unchanged}` : '') + ` · ข้าม ${r.skipped ?? 0}`,
+        success: [`เพิ่มใหม่ ${r.imported ?? 0}`, `อัปเดต ${r.updated ?? 0}`, ...(r.unchanged ? [`เหมือนเดิม ${r.unchanged}`] : []), ...syncResultParts(r), `ข้าม ${r.skipped ?? 0}`].join(' · '),
         problems: r.problems || []
       });
       setFile(null);
@@ -2244,7 +2250,7 @@ export function WHExportLicensePanel() {
         </div>
       </div>
 
-      <EditHint showLock={false} />
+      <EditHint canEdit={false} showLock={false} />
 
       <SelectionBar selectedRows={selectedRows} busy={completing} onComplete={() => applyComplete(true)} onUncomplete={() => applyComplete(false)} onClear={clearSelection} allSelected={allSelected} filterActive={filterActive} />
 
@@ -2288,37 +2294,37 @@ export function WHExportLicensePanel() {
                     {(page - 1) * pageSize + i + 1}
                   </td>
                   <td data-label="Date Ass'y">
-                    <EditableCell type="date" label="Date Ass'y" value={row.AssemblyDate} display={formatThaiDate(row.AssemblyDate)} onSave={save('AssemblyDate')} />
+                    <EditableCell readOnly type="date" label="Date Ass'y" value={row.AssemblyDate} display={formatThaiDate(row.AssemblyDate)} onSave={save('AssemblyDate')} />
                   </td>
                   <td className="il-mono wh-cell-head" data-label="Machine No">
-                    <EditableCell mono label="Machine No" value={row.MachineNo} display={<strong>{row.MachineNo || '—'}</strong>} onSave={save('MachineNo')} />
+                    <EditableCell readOnly mono label="Machine No" value={row.MachineNo} display={<strong>{row.MachineNo || '—'}</strong>} onSave={save('MachineNo')} />
                   </td>
                   <td className="il-mono" data-label="IT Controller S/N">
-                    <EditableCell mono label="IT Controller S/N" value={row.ITControllerNo} onSave={save('ITControllerNo')} />
+                    <EditableCell readOnly mono label="IT Controller S/N" value={row.ITControllerNo} onSave={save('ITControllerNo')} />
                   </td>
                   <td data-label="Country">
-                    <EditableCell label="Country" value={row.Country} display={countryOf(row) || <span className="il-no-country">{NO_COUNTRY_LABEL}</span>} onSave={save('Country')} />
+                    <EditableCell readOnly label="Country" value={row.Country} display={countryOf(row) || <span className="il-no-country">{NO_COUNTRY_LABEL}</span>} onSave={save('Country')} />
                   </td>
                   <td data-label="Invoice">
-                    <EditableCell mono label="Invoice" value={row.InvoiceNo} onSave={save('InvoiceNo')} />
+                    <EditableCell readOnly mono label="Invoice" value={row.InvoiceNo} onSave={save('InvoiceNo')} />
                     {row.InvoiceDate && <div className="il-invoice-date">
                         {formatThaiDate(row.InvoiceDate)}
                       </div>}
                   </td>
                   <td className="il-mono" data-label="Export Entry">
-                    <EditableCell mono label="Export Entry" value={row.ExportEntry} onSave={save('ExportEntry')} />
+                    <EditableCell readOnly mono label="Export Entry" value={row.ExportEntry} onSave={save('ExportEntry')} />
                   </td>
                   <td className="il-mono" data-label="Import License">
-                    <EditableCell mono label="Import License" value={row.ImportLicenseNo} onSave={save('ImportLicenseNo')} />
+                    <EditableCell readOnly mono label="Import License" value={row.ImportLicenseNo} onSave={save('ImportLicenseNo')} />
                   </td>
                   <td className="il-mono" data-label="Export License">
                     <span className="il-license-cell">
                       <CompleteFlag show={isLicenseCompleted(row)} />
-                      <EditableCell mono label="Export License" value={row.ExportLicenseNo} onSave={save('ExportLicenseNo')} />
+                      <EditableCell readOnly mono label="Export License" value={row.ExportLicenseNo} onSave={save('ExportLicenseNo')} />
                     </span>
                   </td>
                   <td data-label="วันที่นำออกใบอนุญาต">
-                    <EditableCell type="date" label="วันที่นำออกใบอนุญาต" value={row.IssueDate} display={formatThaiDate(row.IssueDate)} onSave={save('IssueDate')} />
+                    <EditableCell readOnly type="date" label="วันที่นำออกใบอนุญาต" value={row.IssueDate} display={formatThaiDate(row.IssueDate)} onSave={save('IssueDate')} />
                   </td>
                   <td data-label="หมดอายุ (1 เดือน)">
                     <ExportOneMonthExpiryCell row={row} />
@@ -2327,7 +2333,7 @@ export function WHExportLicensePanel() {
                     <ExportLeadTimeCell row={row} />
                   </td>
                   <td data-label="Remark">
-                    <EditableCell label="Remark" value={row.Remark} onSave={save('Remark')} />
+                    <EditableCell readOnly label="Remark" value={row.Remark} onSave={save('Remark')} />
                   </td>
                   <td data-label="คอลัมน์เพิ่ม">
                     <ExtraColumnsCell json={row.extra_json} />

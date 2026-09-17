@@ -13,6 +13,10 @@ export const ADMIN_NAV_ITEMS = [{
   label: 'ผู้รับอีเมลแจ้งเตือน',
   icon: <EnvelopeIcon className="size-4" />
 }, {
+  to: '/master-data',
+  label: 'อัพโหลดข้อมูล',
+  icon: <RectangleStackIcon className="size-4" />
+}, {
   to: '/format-settings',
   label: 'Setting',
   icon: <Squares2X2Icon className="size-4" />
