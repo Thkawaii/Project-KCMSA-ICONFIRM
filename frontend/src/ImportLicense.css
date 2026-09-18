@@ -2481,34 +2481,3 @@
   }
 }
 
-/* สถานะการประกอบ (Export License) */
-.il-asm-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  white-space: nowrap;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1px solid transparent;
-  cursor: default;
-}
-
-.il-asm-ok {
-  color: #15803d;
-  background: #dcfce7;
-  border-color: #86efac;
-}
-
-.il-asm-warn {
-  color: #b45309;
-  background: #fffbeb;
-  border-color: #fcd34d;
-}
-
-.il-asm-bad {
-  color: #b91c1c;
-  background: #fef2f2;
-  border-color: #fecaca;
-}
