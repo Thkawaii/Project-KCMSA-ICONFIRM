@@ -183,8 +183,9 @@ export function scanSpecAlert(result) {
         <tbody>${rows}</tbody>
       </table>
     </div>` : '';
-  const head = r.machineNo ? `<div class="scan-popup-hint">Machine No: <b>${escapeHtml(r.machineNo)}</b></div>` : '';
-  const detail = !rows && r.detail ? `<div class="scan-error-text">${escapeHtml(r.detail)}</div>` : '';
+  // ไม่มีตารางเทียบ (เช่น ไม่พบเครื่องใน Daily Plan) → แสดงแค่หัวข้อ ไม่ต้องมีรายละเอียด
+  const head = rows && r.machineNo ? `<div class="scan-popup-hint">Machine No: <b>${escapeHtml(r.machineNo)}</b></div>` : '';
+  const detail = '';
   return Swal.fire({
     icon: 'error',
     title: r.message || 'ข้อมูลไม่ตรงกับ Specification sheet',

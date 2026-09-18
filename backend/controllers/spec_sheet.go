@@ -408,7 +408,7 @@ func CheckSpecQR(plans map[string]map[string]string, rawQR string) SpecCheckResu
 	plan := specPlanFor(plans, q.MachineNo)
 	if plan == nil {
 		res.State = SpecStateNoPlan
-		res.Message = "ไม่พบเครื่องนี้ใน Specification sheet"
+		res.Message = "ข้อมูลการประกอบไม่ถูกต้อง"
 		res.Detail = "ไม่พบ Machine No. " + q.MachineNo + " ในตาราง Daily Plan — กรุณาอัปโหลด Daily Plan ล่าสุด"
 		return res
 	}

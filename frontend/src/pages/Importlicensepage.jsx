@@ -1580,43 +1580,6 @@ function ExportLeadTimeCell({
       </span>
     </div>;
 }
-// สถานะการประกอบ (Export License) — ดูจากข้อมูล MFG Assembly ในระบบ (Link.MFGStatus)
-// แสดงเฉพาะในตาราง ไม่เกี่ยวกับไฟล์ที่อัปโหลด
-const ASSEMBLY_STATUS_META = {
-  MATCHED: {
-    label: 'ประกอบแล้ว',
-    cls: 'il-asm-badge il-asm-ok',
-    icon: 'ok'
-  },
-  NOT_MATCHED: {
-    label: 'รอยืนยันการประกอบ',
-    cls: 'il-asm-badge il-asm-warn'
-  },
-  DUPLICATE: {
-    label: 'ข้อมูลซ้ำ',
-    cls: 'il-asm-badge il-asm-bad'
-  },
-  RETIRED_FORMAT: {
-    label: 'รูปแบบเดิมถูกยกเลิก',
-    cls: 'il-asm-badge il-asm-bad'
-  }
-};
-function AssemblyStatusCell({
-  row
-}) {
-  const link = row?.Link || {};
-  if (!link.MFGMatched) return <span className="ie-empty">ยังไม่ประกอบ</span>;
-  const meta = ASSEMBLY_STATUS_META[link.MFGStatus] || {
-    label: link.MFGStatus || 'ไม่ทราบสถานะ',
-    cls: 'il-asm-badge il-asm-warn'
-  };
-  const title = link.MFGMachineNo ? `ประกอบกับเครื่อง ${link.MFGMachineNo}` : undefined;
-  return <span className={meta.cls} title={title}>
-      {meta.icon === 'ok' && <CheckCircleIcon className="size-3.5" aria-hidden="true" />}
-      {meta.label}
-    </span>;
-}
-
 function ExportTraceModal({
   row,
   country,
@@ -2701,13 +2664,12 @@ export function WHExportLicensePanel() {
               <th>Lead time ({EXPORT_LICENSE_LEAD_DAYS} วัน)</th>
               <th>Remark</th>
               <th>คอลัมน์เพิ่ม</th>
-              <th>สถานะการประกอบ</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && <tr>
-                <td colSpan={17} className="wh-empty-cell">
+                <td colSpan={16} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
@@ -2765,9 +2727,6 @@ export function WHExportLicensePanel() {
                   <td data-label="คอลัมน์เพิ่ม">
                     <ExtraColumnsCell json={row.extra_json} />
                   </td>
-                  <td data-label="สถานะการประกอบ">
-                    <AssemblyStatusCell row={row} />
-                  </td>
                   <td className="wh-cell-action">
                     <div className="il-row-actions">
                       <button className="wh-modal-cancel" onClick={() => setTraceRow(row)}>
@@ -2781,7 +2740,7 @@ export function WHExportLicensePanel() {
                 </tr>;
           })}
             {!loading && paged.length === 0 && <tr>
-                <td colSpan={17} className="wh-empty-cell">
+                <td colSpan={16} className="wh-empty-cell">
                   ยังไม่มีข้อมูล
                 </td>
               </tr>}
