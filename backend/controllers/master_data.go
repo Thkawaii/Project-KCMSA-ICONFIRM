@@ -90,9 +90,11 @@ func GetMasterDataSummary(c *gin.Context) {
 	q.Scan(&rows)
 
 	byConn := map[string]int64{
-		models.ConnMobile4GNormal: 0,
-		models.ConnMobile4GHigh:   0,
 		models.ConnSatelliteIrid:  0,
+		models.ConnMobile4GHighH:  0,
+		models.ConnMobile4GNormal: 0,
+		models.ConnMobile4G3High:  0,
+		models.ConnMobile4GHigh:   0,
 		"UNKNOWN":                 0,
 	}
 	var total int64

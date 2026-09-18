@@ -1,8 +1,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getImportLicenseItems, getImportLicenseSummary, uploadImportLicense, previewImportLicense, deleteImportLicenseItem, clearImportLicense, renewImportLicense, setImportLicenseComplete, updateImportLicenseItem } from '../api/importLicense.js';
-import { EditableCell, EditHint, LockBadge, useLiveRefresh } from '../components/InlineEdit.jsx';
+import { getImportLicenseItems, getImportLicenseSummary, uploadImportLicense, previewImportLicense, deleteImportLicenseItem, bulkDeleteImportLicenseItems, clearImportLicense, renewImportLicense, setImportLicenseComplete, updateImportLicenseItem } from '../api/importLicense.js';
+import { EditableCell, LockBadge, useLiveRefresh } from '../components/InlineEdit.jsx';
 import { confirmUploadDeletes, syncResultParts } from '../lib/uploadSync.js';
-import { getExportLicense, getExportLicenseTrace, uploadExportLicense, previewExportLicense, deleteExportLicense, clearExportLicense, renewExportLicense, setExportLicenseComplete, updateExportLicense } from '../api/exportLicense.js';
+import { getExportLicense, getExportLicenseTrace, uploadExportLicense, previewExportLicense, deleteExportLicense, bulkDeleteExportLicense, clearExportLicense, renewExportLicense, setExportLicenseComplete, updateExportLicense } from '../api/exportLicense.js';
 import { PreviewResult, ChangePreview, ExtraColumnsCell } from '../components/FormatTools.jsx';
 import AppShell from '../components/AppShell.jsx';
 import FileDropZone from '../components/Filedropzone.jsx';
@@ -15,7 +15,7 @@ import { useAppParams } from '../lib/nav.jsx';
 import { buildStyledXlsxWorkbookBlob, downloadBlob } from '../lib/xlsx.js';
 import PeriodRangePicker from '../components/PeriodRangePicker.jsx';
 import { inPeriod, periodRangeLabel, periodFileTag } from '../lib/dateRange.js';
-import { ArrowPathIcon, CheckBadgeIcon, CheckBadgeSolidIcon, CheckCircleIcon, CheckIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardDocumentCheckIcon, ClockIcon, CubeIcon, DocumentTextIcon, MinusIcon, RectangleStackIcon, ReceiptPercentIcon, ShieldCheckIcon, Squares2X2Icon, TagIcon, TruckIcon, WrenchScrewdriverIcon, XMarkIcon } from '../components/icons.jsx';
+import { ArrowPathIcon, ArrowsRightLeftIcon, CheckBadgeIcon, CheckBadgeSolidIcon, CheckCircleIcon, CheckIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardDocumentCheckIcon, ClockIcon, CubeIcon, DocumentTextIcon, MinusIcon, RectangleStackIcon, ReceiptPercentIcon, ShieldCheckIcon, Squares2X2Icon, TagIcon, TrashIcon, TruckIcon, WrenchScrewdriverIcon, XMarkIcon } from '../components/icons.jsx';
 export const WH_NAV_ITEMS = [{
   to: '/warehouse',
   label: 'Import License',
@@ -152,10 +152,19 @@ function SelectCheckbox({
   title,
   disabled = false
 }) {
-  return <label className={'il-check' + (disabled ? ' il-check-disabled' : '')} title={title} onClick={e => e.stopPropagation()}>
+  // จำว่ากด Shift ค้างไว้ตอนคลิกหรือไม่ — ใช้เลือกเป็นช่วง (คลิกแถวแรก แล้ว Shift+คลิกแถวสุดท้าย)
+  const shiftRef = useRef(false);
+  return <label className={'il-check' + (disabled ? ' il-check-disabled' : '')} title={title} onClick={e => e.stopPropagation()} onMouseDown={e => {
+    shiftRef.current = e.shiftKey;
+    if (e.shiftKey) e.preventDefault(); // กันไม่ให้ข้อความในตารางถูกไฮไลต์ตอน Shift+คลิก
+  }}>
       <input type="checkbox" checked={checked} disabled={disabled} ref={el => {
       if (el) el.indeterminate = indeterminate && !checked;
-    }} onChange={e => onChange(e.target.checked)} aria-label={label} />
+    }} onChange={e => {
+      const shift = shiftRef.current || !!e.nativeEvent?.shiftKey;
+      shiftRef.current = false;
+      onChange(e.target.checked, shift);
+    }} aria-label={label} />
       <span className="il-check-box" aria-hidden="true">
         {indeterminate && !checked ? <MinusIcon className="size-3" /> : <CheckIcon className="size-3" />}
       </span>
@@ -164,6 +173,7 @@ function SelectCheckbox({
 
 function useRowSelection(visibleRows) {
   const [selected, setSelected] = useState(() => new Set());
+  const lastIdRef = useRef(null);
   useEffect(() => {
     setSelected(prev => {
       if (prev.size === 0) return prev;
@@ -176,13 +186,28 @@ function useRowSelection(visibleRows) {
       return changed ? next : prev;
     });
   }, [visibleRows]);
-  const toggleOne = useCallback(id => {
+  // shift=true: เลือก/ยกเลิกทุกแถวระหว่างแถวที่คลิกล่าสุดกับแถวนี้ (ข้ามหน้าได้ ตามลำดับในตาราง)
+  const toggleOne = useCallback((id, shift = false) => {
+    const lastId = lastIdRef.current;
+    lastIdRef.current = id;
     setSelected(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);else next.add(id);
+      const turnOn = !prev.has(id);
+      if (shift && lastId != null && lastId !== id) {
+        const a = visibleRows.findIndex(r => r.ID === lastId);
+        const b = visibleRows.findIndex(r => r.ID === id);
+        if (a !== -1 && b !== -1) {
+          const [from, to] = a < b ? [a, b] : [b, a];
+          for (let i = from; i <= to; i++) {
+            if (turnOn) next.add(visibleRows[i].ID);else next.delete(visibleRows[i].ID);
+          }
+          return next;
+        }
+      }
+      if (turnOn) next.add(id);else next.delete(id);
       return next;
     });
-  }, []);
+  }, [visibleRows]);
   const setGroup = useCallback((ids, on) => {
     setSelected(prev => {
       const next = new Set(prev);
@@ -192,9 +217,22 @@ function useRowSelection(visibleRows) {
       return next;
     });
   }, []);
-  const clear = useCallback(() => setSelected(new Set()), []);
+  const replaceWith = useCallback(ids => {
+    lastIdRef.current = null;
+    setSelected(new Set(ids));
+  }, []);
+  const clear = useCallback(() => {
+    lastIdRef.current = null;
+    setSelected(new Set());
+  }, []);
   const toggleAll = useCallback(on => {
+    lastIdRef.current = null;
     setSelected(on ? new Set(visibleRows.map(r => r.ID)) : new Set());
+  }, [visibleRows]);
+  // กลับการเลือก: ที่เลือกอยู่ → ไม่เลือก, ที่ไม่ได้เลือก → เลือก
+  const invert = useCallback(() => {
+    lastIdRef.current = null;
+    setSelected(prev => new Set(visibleRows.filter(r => !prev.has(r.ID)).map(r => r.ID)));
   }, [visibleRows]);
   const allSelected = visibleRows.length > 0 && selected.size >= visibleRows.length;
   const someSelected = selected.size > 0 && !allSelected;
@@ -202,20 +240,166 @@ function useRowSelection(visibleRows) {
     selected,
     toggleOne,
     setGroup,
+    replaceWith,
     clear,
     toggleAll,
+    invert,
     allSelected,
     someSelected
   };
 }
 
 const fmtCount = n => Number(n || 0).toLocaleString('en-US');
+
+// LicenseCheckSelect: dropdown ใบอนุญาต ที่มีช่องติ๊กหน้าแต่ละใบ
+// - คลิกชื่อใบ   → ดูเฉพาะใบนั้นในตาราง (เหมือนเดิม) แล้วปิด dropdown
+// - ติ๊กช่องหน้าใบ → เลือกไว้หลายใบ (dropdown ไม่ปิด) แล้วใช้ปุ่มเสร็จสิ้น/ลบ ที่แถบด้านล่าง
+// - ติ๊กช่อง "ทุกใบอนุญาต" → เลือก/ยกเลิกทุกใบ
+function LicenseCheckSelect({
+  value,
+  onChange,
+  options = [],
+  allValue,
+  checked,
+  onToggleCheck,
+  onCheckAll
+}) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    function onOutside(e) {
+      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  const selected = options.find(o => o.value === value);
+  const licenseOpts = options.filter(o => o.value !== allValue);
+  const checkedCount = licenseOpts.filter(o => checked.has(o.value)).length;
+  const allChecked = licenseOpts.length > 0 && checkedCount === licenseOpts.length;
+  function pick(v) {
+    onChange(v);
+    setOpen(false);
+  }
+  return <div className="sf il-lcs" ref={boxRef}>
+      <button type="button" className={'sf-trigger' + (open ? ' sf-trigger-open' : '')} onClick={() => setOpen(o => !o)} aria-haspopup="listbox" aria-expanded={open}>
+        <span className="sf-value-wrap">
+          <span className="sf-value">{selected ? selected.label : options[0]?.label}</span>
+          {selected?.suffix && <span className="sf-suffix">{selected.suffix}</span>}
+        </span>
+        {checkedCount > 0 && <span className="il-lcs-badge">เลือกไว้ {fmtCount(checkedCount)} ใบ</span>}
+        <span className="sf-chevron" aria-hidden="true">
+          <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+            <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </button>
+
+      {open && <ul className="sf-list il-lcs-list" role="listbox">
+          {options.map(o => {
+        const isAll = o.value === allValue;
+        const isChecked = isAll ? allChecked : checked.has(o.value);
+        return <li key={o.value || '__empty__'} className={'il-lcs-row' + (isAll ? ' il-lcs-row-all' : '') + (o.value === value ? ' sf-option-selected' : '') + (isChecked && !isAll ? ' il-lcs-row-checked' : '')}>
+                <SelectCheckbox checked={isChecked} indeterminate={isAll && checkedCount > 0} onChange={on => isAll ? onCheckAll(on) : onToggleCheck(o.value)} label={isAll ? 'เลือกทุกใบอนุญาต' : `เลือก ${o.value}`} title={isAll ? allChecked ? 'ยกเลิกการเลือกทุกใบ' : 'เลือกทุกใบ' : 'เลือกได้หลายใบ'} />
+                <button type="button" role="option" aria-selected={o.value === value} className="il-lcs-label" onClick={() => pick(o.value)}>
+                  {o.label}
+                  {o.suffix && <span className="sf-suffix sf-option-suffix">{o.suffix}</span>}
+                </button>
+              </li>;
+      })}
+          {licenseOpts.length === 0 && <li className="sf-empty">ไม่มีใบอนุญาต</li>}
+        </ul>}
+    </div>;
+}
+
+// แถบปุ่มสำหรับใบอนุญาตที่ติ๊กไว้ (แสดงเมื่อติ๊กอย่างน้อย 1 ใบ)
+function LicenseActionBar({
+  licenseCount,
+  machineCount,
+  openCount,
+  doneCount,
+  busy,
+  onComplete,
+  onUncomplete,
+  onDelete,
+  onClear
+}) {
+  if (licenseCount === 0) return null;
+  return <div className="il-selection-bar il-license-action-bar" role="status">
+      <div className="il-selection-info">
+        <span className="il-selection-count">
+          <CheckBadgeIcon className="size-4" />
+          เลือกไว้ {fmtCount(licenseCount)} ใบอนุญาต ({fmtCount(machineCount)} เครื่อง)
+        </span>
+        <span className="il-selection-hint">
+          {openCount > 0 ? `ยังไม่เสร็จสิ้น ${fmtCount(openCount)} เครื่อง` : 'เสร็จสิ้นแล้วทั้งหมด'}
+          {doneCount > 0 && openCount > 0 ? ` · เสร็จสิ้นแล้ว ${fmtCount(doneCount)} เครื่อง` : ''}
+        </span>
+      </div>
+      <div className="il-selection-actions">
+        <button type="button" className="il-complete-btn" onClick={onComplete} disabled={busy || openCount === 0}>
+          <CheckBadgeIcon className="size-4" />
+          เสร็จสิ้น {fmtCount(licenseCount)} ใบ
+        </button>
+        <button type="button" className="il-uncomplete-btn" onClick={onUncomplete} disabled={busy || doneCount === 0}>
+          <ArrowPathIcon className="size-4" />
+          ยกเลิกเสร็จสิ้น
+        </button>
+        <button type="button" className="il-bulk-delete-btn" onClick={onDelete} disabled={busy}>
+          <TrashIcon className="size-4" />
+          ลบ {fmtCount(licenseCount)} ใบ
+        </button>
+        <button type="button" className="il-selection-clear" onClick={onClear} disabled={busy}>
+          <XMarkIcon className="size-4" />
+          ล้างการเลือก
+        </button>
+      </div>
+    </div>;
+}
+
+// useCheckedSet: เก็บค่าที่ติ๊กไว้ และตัดค่าที่ไม่มีอยู่แล้วออกอัตโนมัติ (เช่น หลังลบใบ)
+function useCheckedSet(validValues) {
+  const [checked, setChecked] = useState(() => new Set());
+  useEffect(() => {
+    setChecked(prev => {
+      if (prev.size === 0) return prev;
+      const alive = new Set(validValues);
+      const next = new Set([...prev].filter(v => alive.has(v)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [validValues]);
+  const toggle = useCallback(v => setChecked(prev => {
+    const next = new Set(prev);
+    if (next.has(v)) next.delete(v);else next.add(v);
+    return next;
+  }), []);
+  const setAll = useCallback(on => setChecked(on ? new Set(validValues) : new Set()), [validValues]);
+  const clear = useCallback(() => setChecked(new Set()), []);
+  return {
+    checked,
+    toggle,
+    setAll,
+    clear
+  };
+}
+
 function SelectionBar({
   selectedRows,
   onComplete,
   onUncomplete,
+  onDelete,
+  onInvert,
   onClear,
   busy,
+  lockedCount = 0,
   allSelected = false,
   filterActive = false
 }) {
@@ -223,6 +407,7 @@ function SelectionBar({
   if (count === 0) return null;
   const doneCount = selectedRows.filter(isLicenseCompleted).length;
   const openCount = count - doneCount;
+  const deletableCount = count - lockedCount;
   return <div className="il-selection-bar" role="status">
       <div className="il-selection-info">
         <span className="il-selection-count">
@@ -235,17 +420,26 @@ function SelectionBar({
         <span className="il-selection-hint">
           {openCount > 0 ? `ยังไม่เสร็จสิ้น ${fmtCount(openCount)} รายการ` : 'เสร็จสิ้นแล้วทั้งหมด'}
           {doneCount > 0 && openCount > 0 ? ` · เสร็จสิ้นแล้ว ${fmtCount(doneCount)} รายการ` : ''}
+          {lockedCount > 0 ? ` · สแกนแล้ว ${fmtCount(lockedCount)} รายการ (ลบไม่ได้)` : ''}
         </span>
       </div>
       <div className="il-selection-actions">
         <button type="button" className="il-complete-btn" onClick={onComplete} disabled={busy || openCount === 0}>
           <CheckBadgeIcon className="size-4" />
-          ทำเครื่องหมายเสร็จสิ้น
+          เสร็จสิ้น {fmtCount(openCount)} รายการ
         </button>
         <button type="button" className="il-uncomplete-btn" onClick={onUncomplete} disabled={busy || doneCount === 0}>
           <ArrowPathIcon className="size-4" />
           ยกเลิกสถานะ
         </button>
+        {onDelete && <button type="button" className="il-bulk-delete-btn" onClick={onDelete} disabled={busy || deletableCount === 0} title={deletableCount === 0 ? 'รายการที่เลือกสแกนแล้วทั้งหมด ลบไม่ได้' : ''}>
+            <TrashIcon className="size-4" />
+            ลบ {fmtCount(deletableCount)} รายการ
+          </button>}
+        {onInvert && !allSelected && <button type="button" className="il-selection-clear" onClick={onInvert} disabled={busy} title="สลับ: รายการที่เลือกอยู่จะถูกยกเลิก และรายการที่เหลือจะถูกเลือกแทน">
+            <ArrowsRightLeftIcon className="size-4" />
+            กลับการเลือก
+          </button>}
         <button type="button" className="il-selection-clear" onClick={onClear} disabled={busy}>
           <XMarkIcon className="size-4" />
           ล้างการเลือก
@@ -253,6 +447,7 @@ function SelectionBar({
       </div>
     </div>;
 }
+
 function ExpiryCell({
   row,
   issueDate,
@@ -575,12 +770,114 @@ export default function ImportLicensePage() {
   const {
     selected,
     toggleOne,
+    replaceWith: replaceSelection,
     clear: clearSelection,
     toggleAll,
+    invert: invertSelection,
     allSelected,
     someSelected
   } = useRowSelection(filtered);
   const selectedRows = useMemo(() => filtered.filter(r => selected.has(r.ID)), [filtered, selected]);
+  const selectedLockedCount = useMemo(() => selectedRows.filter(r => r.Locked).length, [selectedRows]);
+  const lotValues = useMemo(() => summary.map(sm => `${sm.LicenseNo}|${sm.InvoiceNo}`), [summary]);
+  const {
+    checked: checkedLots,
+    toggle: toggleLotCheck,
+    setAll: setAllLotChecks,
+    clear: clearLotChecks
+  } = useCheckedSet(lotValues);
+  const checkedLotRows = useMemo(() => checkedLots.size === 0 ? [] : items.filter(r => checkedLots.has(`${r.LicenseNo}|${r.InvoiceNo}`)), [items, checkedLots]);
+  const checkedLotDone = useMemo(() => checkedLotRows.filter(isLicenseCompleted).length, [checkedLotRows]);
+  function lotLabelOf(value) {
+    const [licenseNo, invoiceNo] = value.split('|');
+    return licenseNo || (invoiceNo ? `Invoice ${invoiceNo}` : '(ไม่มีเลขใบอนุญาต)');
+  }
+
+  async function completeCheckedLots(completed) {
+    const targets = completed ? checkedLotRows.filter(r => !isLicenseCompleted(r)) : checkedLotRows.filter(isLicenseCompleted);
+    if (targets.length === 0) return;
+    const n = checkedLots.size;
+    const ok = await confirmComplete({
+      title: completed ? `ทำเครื่องหมายเสร็จสิ้น ${fmtCount(n)} ใบอนุญาต?` : `ยกเลิกสถานะเสร็จสิ้น ${fmtCount(n)} ใบอนุญาต?`,
+      html: `${fmtCount(targets.length)} เครื่อง`,
+      danger: !completed
+    });
+    if (!ok) return;
+    setCompleting(true);
+    try {
+      await setImportLicenseComplete({
+        ids: targets.map(r => r.ID),
+        completed
+      });
+      clearLotChecks();
+      await loadAll();
+      toastSuccess(completed ? `ปิดงาน ${fmtCount(n)} ใบอนุญาตแล้ว (${fmtCount(targets.length)} เครื่อง) — หยุดนับวันหมดอายุ` : `ยกเลิกสถานะเสร็จสิ้น ${fmtCount(n)} ใบอนุญาตแล้ว`);
+    } catch (err) {
+      toastError(err.message || 'อัปเดตสถานะไม่สำเร็จ');
+    } finally {
+      setCompleting(false);
+    }
+  }
+
+  async function deleteCheckedLots() {
+    const lots = [...checkedLots];
+    if (lots.length === 0) return;
+    const names = lots.slice(0, 5).map(lotLabelOf).join(', ') + (lots.length > 5 ? ` และอีก ${lots.length - 5} ใบ` : '');
+    const ok = await confirmDelete({
+      title: `ลบ ${fmtCount(lots.length)} ใบอนุญาต?`,
+      text: `${names} (${fmtCount(checkedLotRows.length)} เครื่อง) — ลบแล้วกู้คืนไม่ได้`,
+      confirmText: `ลบ ${fmtCount(lots.length)} ใบ`
+    });
+    if (!ok) return;
+    setCompleting(true);
+    let deleted = 0;
+    let failed = 0;
+    try {
+      for (const lot of lots) {
+        const [licenseNo, invoiceNo] = lot.split('|');
+        try {
+          const res = await clearImportLicense(licenseNo, invoiceNo);
+          deleted += res?.deleted ?? 0;
+        } catch {
+          failed += 1;
+        }
+      }
+      if (lots.includes(selectedLot)) setSelectedLot('');
+      clearLotChecks();
+      clearSelection();
+      await loadAll();
+      if (failed > 0) toastError(`ลบไม่สำเร็จ ${fmtCount(failed)} ใบ`);else toastSuccess(`ลบ ${fmtCount(lots.length)} ใบอนุญาตแล้ว (${fmtCount(deleted)} เครื่อง)`);
+    } finally {
+      setCompleting(false);
+    }
+  }
+
+  async function applyBulkDelete() {
+    const deletable = selectedRows.filter(r => !r.Locked);
+    const lockedCount = selectedRows.length - deletable.length;
+    if (deletable.length === 0) {
+      toastError('รายการที่เลือกสแกนแล้วทั้งหมด ลบไม่ได้');
+      return;
+    }
+    const ok = await confirmDelete({
+      title: `ลบ ${fmtCount(deletable.length)} รายการที่เลือก?`,
+      text: `ลบออกจากระบบแล้วกู้คืนไม่ได้${lockedCount > 0 ? ` (ข้าม ${fmtCount(lockedCount)} รายการที่สแกนแล้ว)` : ''}`,
+      confirmText: `ลบ ${fmtCount(deletable.length)} รายการ`
+    });
+    if (!ok) return;
+    setCompleting(true);
+    try {
+      const res = await bulkDeleteImportLicenseItems(deletable.map(r => r.ID));
+      const skipped = res?.skipped?.length ?? 0;
+      clearSelection();
+      await loadAll();
+      toastSuccess(`ลบแล้ว ${fmtCount(res?.deleted ?? deletable.length)} รายการ${skipped > 0 ? ` · ข้าม ${fmtCount(skipped)} รายการที่สแกนแล้ว` : ''}`);
+    } catch (err) {
+      toastError(err.message || 'ลบไม่สำเร็จ');
+    } finally {
+      setCompleting(false);
+    }
+  }
 
   async function applyComplete(completed) {
     const targets = completed ? selectedRows.filter(r => !isLicenseCompleted(r)) : selectedRows.filter(isLicenseCompleted);
@@ -746,9 +1043,11 @@ export default function ImportLicensePage() {
       {summary.length > 0 && <div className="il-lot-filter">
           <label className="il-lot-filter-label">ใบอนุญาต</label>
           <div className="il-lot-filter-select">
-            <SelectField value={selectedLot} onChange={setSelectedLot} options={lotOptions} />
+            <LicenseCheckSelect value={selectedLot} onChange={setSelectedLot} options={lotOptions} allValue="" checked={checkedLots} onToggleCheck={toggleLotCheck} onCheckAll={setAllLotChecks} />
           </div>
         </div>}
+
+      <LicenseActionBar licenseCount={checkedLots.size} machineCount={checkedLotRows.length} openCount={checkedLotRows.length - checkedLotDone} doneCount={checkedLotDone} busy={completing} onComplete={() => completeCheckedLots(true)} onUncomplete={() => completeCheckedLots(false)} onDelete={deleteCheckedLots} onClear={clearLotChecks} />
 
       {currentLot && <div className="wh-so-active-bar il-license-bar">
           <div className="il-lot-info">
@@ -816,9 +1115,7 @@ export default function ImportLicensePage() {
         </div>
       </div>
 
-      <EditHint canEdit={false} lockedCount={filtered.filter(r => r.Locked).length} />
-
-      <SelectionBar selectedRows={selectedRows} busy={completing} onComplete={() => applyComplete(true)} onUncomplete={() => applyComplete(false)} onClear={clearSelection} allSelected={allSelected} filterActive={filterActive} />
+      <SelectionBar selectedRows={selectedRows} busy={completing} lockedCount={selectedLockedCount} onComplete={() => applyComplete(true)} onUncomplete={() => applyComplete(false)} onDelete={applyBulkDelete} onInvert={invertSelection} onClear={clearSelection} allSelected={allSelected} filterActive={filterActive} />
 
       <div className="wh-table-card">
         <table className="wh-table il-table-selectable">
@@ -859,7 +1156,7 @@ export default function ImportLicensePage() {
             const save = key => v => saveImportField(row, key, v);
             return <tr key={row.ID} className={(isLicenseCompleted(row) ? 'il-row-complete' : '') + (selected.has(row.ID) ? ' il-row-selected' : '') + (row.Locked ? ' ie-row-locked' : '')}>
                   <td className="il-check-td" data-label="เลือก">
-                    <SelectCheckbox checked={selected.has(row.ID)} onChange={() => toggleOne(row.ID)} label={`เลือก ${row.MachineNo || 'รายการนี้'}`} />
+                    <SelectCheckbox checked={selected.has(row.ID)} onChange={(_, shift) => toggleOne(row.ID, shift)} label={`เลือก ${row.MachineNo || 'รายการนี้'}`} title="Shift+คลิก เพื่อเลือกเป็นช่วง" />
                   </td>
                   <td className="wh-cell-head" data-label="ลำดับ">
                     {(page - 1) * pageSize + i + 1}
@@ -907,7 +1204,7 @@ export default function ImportLicensePage() {
                     <ExtraColumnsCell json={row.extra_json} />
                   </td>
                   <td data-label="สถานะการสแกน">
-                    {row.Locked ? <LockBadge locked reason={row.LockReason} /> : <span className="ie-empty">ยังไม่ได้สแกน</span>}
+                    {row.Locked ? <LockBadge locked variant="done" reason={row.LockReason} /> : <span className="ie-empty">ยังไม่ได้สแกน</span>}
                   </td>
                   <td className="wh-cell-action">
                     <div className="il-row-actions">
@@ -1283,6 +1580,43 @@ function ExportLeadTimeCell({
       </span>
     </div>;
 }
+// สถานะการประกอบ (Export License) — ดูจากข้อมูล MFG Assembly ในระบบ (Link.MFGStatus)
+// แสดงเฉพาะในตาราง ไม่เกี่ยวกับไฟล์ที่อัปโหลด
+const ASSEMBLY_STATUS_META = {
+  MATCHED: {
+    label: 'ประกอบแล้ว',
+    cls: 'il-asm-badge il-asm-ok',
+    icon: 'ok'
+  },
+  NOT_MATCHED: {
+    label: 'รอยืนยันการประกอบ',
+    cls: 'il-asm-badge il-asm-warn'
+  },
+  DUPLICATE: {
+    label: 'ข้อมูลซ้ำ',
+    cls: 'il-asm-badge il-asm-bad'
+  },
+  RETIRED_FORMAT: {
+    label: 'รูปแบบเดิมถูกยกเลิก',
+    cls: 'il-asm-badge il-asm-bad'
+  }
+};
+function AssemblyStatusCell({
+  row
+}) {
+  const link = row?.Link || {};
+  if (!link.MFGMatched) return <span className="ie-empty">ยังไม่ประกอบ</span>;
+  const meta = ASSEMBLY_STATUS_META[link.MFGStatus] || {
+    label: link.MFGStatus || 'ไม่ทราบสถานะ',
+    cls: 'il-asm-badge il-asm-warn'
+  };
+  const title = link.MFGMachineNo ? `ประกอบกับเครื่อง ${link.MFGMachineNo}` : undefined;
+  return <span className={meta.cls} title={title}>
+      {meta.icon === 'ok' && <CheckCircleIcon className="size-3.5" aria-hidden="true" />}
+      {meta.label}
+    </span>;
+}
+
 function ExportTraceModal({
   row,
   country,
@@ -1960,12 +2294,104 @@ export function WHExportLicensePanel() {
   const {
     selected,
     toggleOne,
+    replaceWith: replaceSelection,
     clear: clearSelection,
     toggleAll,
+    invert: invertSelection,
     allSelected,
     someSelected
   } = useRowSelection(filtered);
   const selectedRows = useMemo(() => filtered.filter(r => selected.has(r.ID)), [filtered, selected]);
+  const licenseValues = useMemo(() => licenseOptions.filter(o => o.value !== 'all').map(o => o.value), [licenseOptions]);
+  const {
+    checked: checkedLicenses,
+    toggle: toggleLicenseCheck,
+    setAll: setAllLicenseChecks,
+    clear: clearLicenseChecks
+  } = useCheckedSet(licenseValues);
+  const checkedLicenseRows = useMemo(() => checkedLicenses.size === 0 ? [] : rows.filter(r => checkedLicenses.has(r.ExportLicenseNo || '')), [rows, checkedLicenses]);
+  const checkedLicenseDone = useMemo(() => checkedLicenseRows.filter(isLicenseCompleted).length, [checkedLicenseRows]);
+
+  async function completeCheckedLicenses(completed) {
+    const targets = completed ? checkedLicenseRows.filter(r => !isLicenseCompleted(r)) : checkedLicenseRows.filter(isLicenseCompleted);
+    if (targets.length === 0) return;
+    const n = checkedLicenses.size;
+    const ok = await confirmComplete({
+      title: completed ? `ทำเครื่องหมายเสร็จสิ้น ${fmtCount(n)} ใบอนุญาต?` : `ยกเลิกสถานะเสร็จสิ้น ${fmtCount(n)} ใบอนุญาต?`,
+      html: `${fmtCount(targets.length)} รายการ`,
+      danger: !completed
+    });
+    if (!ok) return;
+    setCompleting(true);
+    try {
+      await setExportLicenseComplete({
+        ids: targets.map(r => r.ID),
+        completed
+      });
+      clearLicenseChecks();
+      await load();
+      toastSuccess(completed ? `ปิดงาน ${fmtCount(n)} ใบอนุญาตแล้ว (${fmtCount(targets.length)} รายการ) — หยุดนับวันหมดอายุ` : `ยกเลิกสถานะเสร็จสิ้น ${fmtCount(n)} ใบอนุญาตแล้ว`);
+    } catch (err) {
+      toastError(err.message || 'อัปเดตสถานะไม่สำเร็จ');
+    } finally {
+      setCompleting(false);
+    }
+  }
+
+  async function deleteCheckedLicenses() {
+    // กันไว้: clearExportLicense('') = ลบทั้งหมด จึงส่งเฉพาะเลขที่ไม่ว่าง
+    const licenses = [...checkedLicenses].filter(v => String(v || '').trim() !== '');
+    if (licenses.length === 0) return;
+    const names = licenses.slice(0, 5).join(', ') + (licenses.length > 5 ? ` และอีก ${licenses.length - 5} ใบ` : '');
+    const ok = await confirmDelete({
+      title: `ลบ ${fmtCount(licenses.length)} ใบอนุญาตส่งออก?`,
+      text: `${names} (${fmtCount(checkedLicenseRows.length)} รายการ) — ลบแล้วกู้คืนไม่ได้`,
+      confirmText: `ลบ ${fmtCount(licenses.length)} ใบ`
+    });
+    if (!ok) return;
+    setCompleting(true);
+    let deleted = 0;
+    let failed = 0;
+    try {
+      for (const lic of licenses) {
+        try {
+          const res = await clearExportLicense(lic);
+          deleted += res?.deleted ?? 0;
+        } catch {
+          failed += 1;
+        }
+      }
+      if (licenses.includes(licenseFilter)) setLicenseFilter('all');
+      clearLicenseChecks();
+      clearSelection();
+      await load();
+      if (failed > 0) toastError(`ลบไม่สำเร็จ ${fmtCount(failed)} ใบ`);else toastSuccess(`ลบ ${fmtCount(licenses.length)} ใบอนุญาตแล้ว (${fmtCount(deleted)} รายการ)`);
+    } finally {
+      setCompleting(false);
+    }
+  }
+
+  async function applyBulkDelete() {
+    const targets = selectedRows;
+    if (targets.length === 0) return;
+    const ok = await confirmDelete({
+      title: `ลบ ${fmtCount(targets.length)} รายการที่เลือก?`,
+      text: 'ลบออกจากระบบแล้วกู้คืนไม่ได้',
+      confirmText: `ลบ ${fmtCount(targets.length)} รายการ`
+    });
+    if (!ok) return;
+    setCompleting(true);
+    try {
+      const res = await bulkDeleteExportLicense(targets.map(r => r.ID));
+      clearSelection();
+      await load();
+      toastSuccess(`ลบแล้ว ${fmtCount(res?.deleted ?? targets.length)} รายการ`);
+    } catch (err) {
+      toastError(err.message || 'ลบไม่สำเร็จ');
+    } finally {
+      setCompleting(false);
+    }
+  }
   const completedCount = useMemo(() => rows.filter(isLicenseCompleted).length, [rows]);
 
   const exportCounts = useMemo(() => ({
@@ -2161,9 +2587,11 @@ export function WHExportLicensePanel() {
       {rows.length > 0 && <div className="il-lot-filter">
           <label className="il-lot-filter-label">ใบอนุญาตส่งออก</label>
           <div className="il-lot-filter-select">
-            <SelectField value={licenseFilter} onChange={setLicenseFilter} options={licenseOptions} />
+            <LicenseCheckSelect value={licenseFilter} onChange={setLicenseFilter} options={licenseOptions} allValue="all" checked={checkedLicenses} onToggleCheck={toggleLicenseCheck} onCheckAll={setAllLicenseChecks} />
           </div>
         </div>}
+
+      <LicenseActionBar licenseCount={checkedLicenses.size} machineCount={checkedLicenseRows.length} openCount={checkedLicenseRows.length - checkedLicenseDone} doneCount={checkedLicenseDone} busy={completing} onComplete={() => completeCheckedLicenses(true)} onUncomplete={() => completeCheckedLicenses(false)} onDelete={deleteCheckedLicenses} onClear={clearLicenseChecks} />
 
       {licenseFilter !== 'all' && <div className={'wh-so-active-bar il-license-bar' + (refsOpen ? ' il-license-bar-open' : '')}>
           <div className="il-lot-info">
@@ -2250,9 +2678,7 @@ export function WHExportLicensePanel() {
         </div>
       </div>
 
-      <EditHint canEdit={false} showLock={false} />
-
-      <SelectionBar selectedRows={selectedRows} busy={completing} onComplete={() => applyComplete(true)} onUncomplete={() => applyComplete(false)} onClear={clearSelection} allSelected={allSelected} filterActive={filterActive} />
+      <SelectionBar selectedRows={selectedRows} busy={completing} onComplete={() => applyComplete(true)} onUncomplete={() => applyComplete(false)} onDelete={applyBulkDelete} onInvert={invertSelection} onClear={clearSelection} allSelected={allSelected} filterActive={filterActive} />
 
       <div className="wh-table-card">
         <table className="wh-table il-table-selectable">
@@ -2275,12 +2701,13 @@ export function WHExportLicensePanel() {
               <th>Lead time ({EXPORT_LICENSE_LEAD_DAYS} วัน)</th>
               <th>Remark</th>
               <th>คอลัมน์เพิ่ม</th>
+              <th>สถานะการประกอบ</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && <tr>
-                <td colSpan={16} className="wh-empty-cell">
+                <td colSpan={17} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
@@ -2288,7 +2715,7 @@ export function WHExportLicensePanel() {
             const save = key => v => saveExportField(row, key, v);
             return <tr key={row.ID} className={(isLicenseCompleted(row) ? 'il-row-complete' : '') + (selected.has(row.ID) ? ' il-row-selected' : '')}>
                   <td className="il-check-td" data-label="เลือก">
-                    <SelectCheckbox checked={selected.has(row.ID)} onChange={() => toggleOne(row.ID)} label={`เลือก ${row.MachineNo || row.ITControllerNo || 'รายการนี้'}`} />
+                    <SelectCheckbox checked={selected.has(row.ID)} onChange={(_, shift) => toggleOne(row.ID, shift)} label={`เลือก ${row.MachineNo || row.ITControllerNo || 'รายการนี้'}`} title="Shift+คลิก เพื่อเลือกเป็นช่วง" />
                   </td>
                   <td className="wh-cell-head" data-label="Item">
                     {(page - 1) * pageSize + i + 1}
@@ -2338,6 +2765,9 @@ export function WHExportLicensePanel() {
                   <td data-label="คอลัมน์เพิ่ม">
                     <ExtraColumnsCell json={row.extra_json} />
                   </td>
+                  <td data-label="สถานะการประกอบ">
+                    <AssemblyStatusCell row={row} />
+                  </td>
                   <td className="wh-cell-action">
                     <div className="il-row-actions">
                       <button className="wh-modal-cancel" onClick={() => setTraceRow(row)}>
@@ -2351,7 +2781,7 @@ export function WHExportLicensePanel() {
                 </tr>;
           })}
             {!loading && paged.length === 0 && <tr>
-                <td colSpan={16} className="wh-empty-cell">
+                <td colSpan={17} className="wh-empty-cell">
                   ยังไม่มีข้อมูล
                 </td>
               </tr>}

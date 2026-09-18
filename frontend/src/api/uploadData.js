@@ -3,6 +3,9 @@ export const DATASETS = [{
   key: 'planning',
   label: 'Planning'
 }, {
+  key: 'daily_plan',
+  label: 'Daily Plan'
+}, {
   key: 'wh1',
   label: 'WH1'
 }, {

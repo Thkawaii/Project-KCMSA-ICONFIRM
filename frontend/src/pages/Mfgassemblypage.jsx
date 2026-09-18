@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getMFGAssemblies, scanMFGAssembly, createMFGAssembly, updateMFGAssembly, deleteMFGAssembly, uploadMFGAssemblyPhoto } from '../api/mfgAssembly.js';
+import { getMFGAssemblies, scanMFGAssembly, createMFGAssembly, updateMFGAssembly, deleteMFGAssembly, uploadMFGAssemblyPhoto, checkMFGSpecQR, looksLikeSpecQR, specQRMachineNo } from '../api/mfgAssembly.js';
 import { API_BASE_URL } from '../api/client.js';
+import { getUploadData } from '../api/uploadData.js';
 import { getMachinePlans, indexMachinePlans, lookupMachinePlan } from '../api/machinePlans.js';
-import { getMasterData } from '../api/masterData.js';
 import { confirmDelete, toastSuccess, toastError } from '../lib/toast.js';
 import { inPeriod } from '../lib/dateRange.js';
 import PeriodRangePicker from '../components/PeriodRangePicker.jsx';
-import { scanStep, scanLoading, scanClose, scanCloseWait, scanSuccessToast, scanErrorAlert, scanPhotoCapture } from '../lib/scanPopup.js';
+import { scanStep, scanLoading, scanClose, scanCloseWait, scanSuccessToast, scanErrorAlert, scanPhotoCapture, scanSpecAlert } from '../lib/scanPopup.js';
 import { ChevronDoubleLeftIcon, ChevronDoubleRightIcon, ChevronLeftIcon, ChevronRightIcon, QrCodeIcon, CameraIcon, ArrowUpTrayIcon, ArrowsRightLeftIcon, XMarkIcon, DocumentTextIcon, CubeIcon, ClockIcon, TagIcon, WrenchScrewdriverIcon } from '../components/icons.jsx';
 import AppShell from '../components/AppShell.jsx';
 import SelectField from '../components/Selectfield.jsx';
-import PartTag from '../components/Parttag.jsx';
-import bcMachine from '../assets/barcodes/Machine_Barcode.gif';
+import bcKanban from '../assets/barcodes/Kanban.gif';
 function escapeHtml(v) {
   return String(v ?? '').replace(/[&<>"']/g, ch => ({
     '&': '&amp;',
@@ -122,6 +121,22 @@ function parseAssemblyCode(raw) {
     itControllerNo: tokens[1] || ''
   };
 }
+// ผลเทียบ QR กับ Specification sheet ที่บันทึกไว้ในแถว (SpecDetail = JSON)
+function parseSpecDetail(row) {
+  if (!row?.SpecDetail) return null;
+  try {
+    return JSON.parse(row.SpecDetail);
+  } catch {
+    return null;
+  }
+}
+// IT device ของเครื่อง: จาก Daily Plan ก่อน ถ้าไม่มีใช้ค่าจาก Kanban (QR) ที่สแกน
+function itDeviceOf(row, asm) {
+  if (asm?.itDevice) return asm.itDevice;
+  const spec = parseSpecDetail(row);
+  const item = (spec?.items || []).find(it => it.field === 'itDevice');
+  return item ? item.plan || item.qr || '' : '';
+}
 function todayYMD() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -154,6 +169,49 @@ export default function MFGAssemblyPage() {
   const pendingPhotoRowIdRef = useRef(null);
   const [planIndex, setPlanIndex] = useState(null);
   const [detailRow, setDetailRow] = useState(null);
+  // ข้อมูล Spec sheet (Daily Plan) ของเครื่องที่เปิดดูรายละเอียด
+  const [detailPlan, setDetailPlan] = useState({
+    loading: false,
+    columns: [],
+    data: null
+  });
+  useEffect(() => {
+    const mc = detailRow?.row?.MachineNo;
+    if (!mc) return undefined;
+    let cancelled = false;
+    setDetailPlan({
+      loading: true,
+      columns: [],
+      data: null
+    });
+    getUploadData('daily_plan', mc, 1, 20).then(res => {
+      if (cancelled) return;
+      const want = normCode(mc);
+      const hit = (res?.rows || []).find(r => normCode(r.MachineNo) === want);
+      let data = null;
+      if (hit) {
+        try {
+          data = JSON.parse(hit.DataJSON || '{}');
+        } catch {
+          data = null;
+        }
+      }
+      setDetailPlan({
+        loading: false,
+        columns: res?.columns || [],
+        data
+      });
+    }).catch(() => {
+      if (!cancelled) setDetailPlan({
+        loading: false,
+        columns: [],
+        data: null
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [detailRow]);
   const [scanBusy, setScanBusy] = useState(false);
   const busyRef = useRef(false);
   const fireRef = useRef(() => {});
@@ -230,86 +288,39 @@ export default function MFGAssemblyPage() {
       if (flushTimer) clearTimeout(flushTimer);
     };
   }, []);
-  async function detectITCScan(code) {
-    const value = String(code || '').trim();
-    if (!value) return null;
-    try {
-      const rows = await getMasterData({
-        componentType: 'it_controller',
-        code: value,
-        limit: 1
-      });
-      const hit = Array.isArray(rows) ? rows[0] : null;
-      if (hit) return sameCode(hit.PartNo, value) ? 'pn' : 'sn';
-    } catch {}
-    return /^\d{10,15}$/.test(value) ? 'sn' : null;
-  }
-  async function runScanFlow(presetMachine = '') {
+  // ขั้นตอน MFG (ขั้นตอนเดียว): Scan Kanban → เทียบกับ Daily Plan → ตรง = บันทึกเป็น MATCHED
+  async function runScanFlow(presetCode = '') {
     if (busyRef.current) return;
     busyRef.current = true;
     try {
-      let machineNo = String(presetMachine || '').trim();
-      if (machineNo) {
-        machineNo = parseAssemblyCode(machineNo).machineNo || machineNo;
-      } else {
-        const code1 = await scanStep({
-          title: 'สแกน Machine No.',
-          confirmText: 'ต่อไป'
+      let qrCode = String(presetCode || '').trim();
+      if (!looksLikeSpecQR(qrCode)) {
+        qrCode = await scanStep({
+          title: 'Scan Kanban',
+          confirmText: 'บันทึก',
+          validate: v => looksLikeSpecQR(v) ? undefined : 'ค่าที่สแกนไม่ใช่ QR ของ Specification sheet'
         });
-        if (!code1) return;
-        machineNo = parseAssemblyCode(code1).machineNo || code1.trim();
+        if (!qrCode) return;
+        qrCode = qrCode.trim();
       }
-      const machineHint = `<div class="scan-popup-hint">Machine No: <b>${escapeHtml(machineNo)}</b></div>`;
-      const code2 = firstToken(await scanStep({
-        title: 'สแกนหมายเลขพาร์ท',
-        html: machineHint,
-        confirmText: 'ต่อไป',
-        validate: v => sameCode(v, machineNo) ? 'ค่าซ้ำกับ Machine No.' : undefined
-      }));
-      if (!code2) return;
-      scanLoading('กำลังตรวจสอบ...');
-      const itcRole = await detectITCScan(code2);
-      scanClose();
-      if (!itcRole) {
-        await submitScan({
-          machineNo,
-          serialNo: code2
-        });
+      const machineNo = specQRMachineNo(qrCode);
+      scanLoading('กำลังตรวจสอบกับ Daily Plan...');
+      let spec = null;
+      try {
+        spec = await checkMFGSpecQR(qrCode);
+      } catch (err) {
+        scanClose();
+        await scanErrorAlert(friendlyError(err, 'ตรวจสอบ QR ไม่สำเร็จ'));
         return;
       }
-      let pn = itcRole === 'pn' ? code2 : '';
-      let sn = itcRole === 'sn' ? code2 : '';
-      if (!pn) {
-        pn = firstToken(await scanStep({
-          title: 'IT Controller (P/N)',
-          html: `${machineHint}<div class="scan-popup-hint">S/N: <b>${escapeHtml(sn)}</b></div>`,
-          confirmText: 'บันทึก',
-          validate: v => {
-            if (sameCode(v, sn)) return 'ค่า P/N ซ้ำกับ S/N';
-            if (sameCode(v, machineNo)) return 'ค่าซ้ำกับ Machine No.';
-            return undefined;
-          }
-        }));
-        if (!pn) return;
-      }
-      if (!sn) {
-        sn = firstToken(await scanStep({
-          title: 'IT Controller (S/N)',
-          html: `${machineHint}<div class="scan-popup-hint">P/N: <b>${escapeHtml(pn)}</b></div>`,
-          confirmText: 'บันทึก',
-          validate: v => {
-            if (sameCode(v, pn)) return 'ค่า S/N ซ้ำกับ P/N';
-            if (sameCode(v, machineNo)) return 'ค่าซ้ำกับ Machine No.';
-            return undefined;
-          }
-        }));
-        if (!sn) return;
+      scanClose();
+      if (!spec || spec.state !== 'MATCH') {
+        await scanSpecAlert(spec);
+        return;
       }
       await submitScan({
         machineNo,
-        partNo: pn,
-        serialNo: sn,
-        partType: 'ITC'
+        qrCode
       });
     } finally {
       busyRef.current = false;
@@ -324,7 +335,8 @@ export default function MFGAssemblyPage() {
     machineNo,
     partNo = '',
     serialNo = '',
-    partType = ''
+    partType = '',
+    qrCode = ''
   }) {
     setScanBusy(true);
     scanLoading('กำลังบันทึก...');
@@ -335,7 +347,8 @@ export default function MFGAssemblyPage() {
         itControllerNo: partType === 'ITC' ? '' : serialNo,
         serialNo,
         partNo,
-        partType
+        partType,
+        qrCode
       });
       const row = res?.row || {};
       const msg = res?.message || 'บันทึกแล้ว';
@@ -511,10 +524,13 @@ export default function MFGAssemblyPage() {
     }
     const term = search.trim().toLowerCase();
     if (term) {
-      list = list.filter(r => (r.MachineNo || '').toLowerCase().includes(term) || (r.ITControllerNo || '').toLowerCase().includes(term) || (r.PartNo || '').toLowerCase().includes(term) || (r.SerialNo || '').toLowerCase().includes(term) || (r.Country || '').toLowerCase().includes(term) || (r.Status || '').toLowerCase().includes(term));
+      list = list.filter(r => {
+        const asm = assemblyFor(r);
+        return [r.MachineNo, asm?.model, itDeviceOf(r, asm), r.Country, asm?.country, r.Status].some(v => String(v || '').toLowerCase().includes(term));
+      });
     }
     return [...list].sort((a, b) => a.ID - b.ID);
-  }, [rows, search, periodMode, periodAnchor]);
+  }, [rows, search, periodMode, periodAnchor, planIndex]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
   function goToPage(p) {
@@ -528,18 +544,18 @@ export default function MFGAssemblyPage() {
       </div>
 
       <div className="pc-barcode-grid pc-barcode-grid--single">
-        <div className="pc-barcode-card pc-card-mc" role="button" tabIndex={0} title="Machine No" onClick={() => !scanBusy && runScanFlow()} onKeyDown={e => {
+        <div className="pc-barcode-card pc-card-mc" role="button" tabIndex={0} title="Scan Kanban" onClick={() => !scanBusy && runScanFlow()} onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           if (!scanBusy) runScanFlow();
         }
       }}>
-          <span className="pc-barcode-kind">Machine No + หมายเลขพาร์ท</span>
+          <span className="pc-barcode-kind">Kanban</span>
           <div className="pc-barcode-title">
-            {scanBusy ? 'กำลังบันทึก...' : 'Machine — Part Confirmation'}
+            {scanBusy ? 'กำลังบันทึก...' : 'Part Confirmation'}
           </div>
           <div className="pc-barcode-box">
-            <img className="pc-barcode-img" src={bcMachine} alt="บาร์โค้ด Machine" />
+            <img className="pc-barcode-img" src={bcKanban} alt="บาร์โค้ด Kanban" />
           </div>
         </div>
       </div>
@@ -572,7 +588,7 @@ export default function MFGAssemblyPage() {
           entries per page
         </div>
         <div className="mfg-search-actions">
-          <input className="wh-search" type="text" placeholder="ค้นหา Machine No / No. / P/N / S/N / Country / Status" value={search} onChange={e => setSearch(e.target.value)} />
+          <input className="wh-search" type="text" placeholder="ค้นหา Machine No / Model / IT device / Country / Status" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
 
@@ -583,10 +599,8 @@ export default function MFGAssemblyPage() {
               <th>Item</th>
               <th>Date Ass'y</th>
               <th>Machine No</th>
-              <th>No.</th>
-              <th>P/N</th>
-              <th>S/N</th>
               <th>Model</th>
+              <th>IT device</th>
               <th>Country</th>
               <th>Check Date</th>
               <th>Check By</th>
@@ -597,7 +611,7 @@ export default function MFGAssemblyPage() {
           </thead>
           <tbody>
             {loading && <tr>
-                <td colSpan={13} className="wh-empty-cell">
+                <td colSpan={11} className="wh-empty-cell">
                   กำลังโหลดข้อมูล...
                 </td>
               </tr>}
@@ -616,21 +630,6 @@ export default function MFGAssemblyPage() {
                     <td className="il-mono" data-label="Machine No">
                       {a.MachineNo || '—'}
                     </td>
-                    <td className="il-mono" data-label="No.">
-                      {a.ITControllerNo || '—'}
-                      {a.PlanComponent && <PartTag code={a.PlanComponent} label={a.PlanComponentLabel} />}
-                      {a.PlanState === 'MISMATCH' && a.PlanITControllerNo && <span className="mfg-plan-hint" title={a.PlanDetail || a.PlanMessage}>
-                          แผน: {a.PlanITControllerNo}
-                        </span>}
-                      {a.PlanState === 'MATCH' && a.WHRequired && !a.WHMatched && <span className="mfg-plan-hint" title={`ต้องให้ WH สแกนรับ ${a.ComponentLabel || 'พาร์ทนี้'} เข้าคลังก่อน จึงจะประกอบได้`}>
-                          รอ WH สแกน
-                        </span>}
-                      {a.PlanState === 'MATCH' && a.WHRequired && a.WHMatched && a.Status === 'NOT_MATCHED' && <span className="mfg-plan-hint" title="WH สแกนรับเข้าคลังแล้ว — MFG ต้องสแกนยืนยันการประกอบอีกครั้ง จึงจะเป็น MATCHED">
-                          รอ MFG สแกนยืนยัน
-                        </span>}
-                    </td>
-                    <td className="il-mono" data-label="P/N">{a.PartNo || '—'}</td>
-                    <td className="il-mono" data-label="S/N">{a.SerialNo || '—'}</td>
                     <td data-label="Model" title={asmTitle}>
                       {asm && asm.model ? <button type="button" className="mfg-model-link mfg-model-link-btn" onClick={() => setDetailRow({
                   row: a,
@@ -639,6 +638,7 @@ export default function MFGAssemblyPage() {
                           {asm.model}
                         </button> : '—'}
                     </td>
+                    <td data-label="IT device">{itDeviceOf(a, asm) || '—'}</td>
                     <td data-label="Country">{a.Country || asm && asm.country || '—'}</td>
                     <td data-label="Check Date">{fmtDate(a.CheckDate)}</td>
                     <td data-label="Check By">{a.CreatedBy || '—'}</td>
@@ -653,10 +653,10 @@ export default function MFGAssemblyPage() {
                       </span>
                     </td>
                     <td className="wh-cell-action">
-                      {asm && <button className="tsf-action-btn" onClick={() => setDetailRow({
+                      {(asm || a.SpecDetail) && <button className="tsf-action-btn" onClick={() => setDetailRow({
                   row: a,
-                  asm
-                })} title="ดูรายละเอียดการประกอบ (รุ่น/สเปก/ประเทศ)">
+                  asm: asm || {}
+                })} title="ดูรายละเอียดการประกอบ (ข้อมูล Spec sheet)">
                           รายละเอียด
                         </button>}
                       <button className="tsf-action-btn tsf-action-btn-warn" onClick={() => setPhotoEditRow(a)} disabled={photoBusy}>
@@ -669,7 +669,7 @@ export default function MFGAssemblyPage() {
                   </tr>;
           })}
             {!loading && filtered.length === 0 && <tr>
-                <td colSpan={13} className="wh-empty-cell">
+                <td colSpan={11} className="wh-empty-cell">
                   {rows.length === 0 ? 'ยังไม่มีรายการ' : 'ไม่พบรายการที่ค้นหา'}
                 </td>
               </tr>}
@@ -838,7 +838,7 @@ export default function MFGAssemblyPage() {
         </div>}
 
       {detailRow && <div className="wh-modal-overlay" onClick={() => setDetailRow(null)}>
-          <div className="wh-modal wh-detail-modal" onClick={e => e.stopPropagation()}>
+          <div className="wh-modal wh-detail-modal mfg-detail-wide" onClick={e => e.stopPropagation()}>
             <button type="button" className="wh-detail-close" onClick={() => setDetailRow(null)} aria-label="ปิด">
               <XMarkIcon className="size-4" />
             </button>
@@ -863,20 +863,17 @@ export default function MFGAssemblyPage() {
                   <span className="wh-detail-value mono">{detailRow.row.MachineNo || '—'}</span>
                 </div>
                 <div className="wh-detail-item">
-                  <span className="wh-detail-label">No.</span>
-                  <span className="wh-detail-value mono wh-detail-value-tagged">
-                    <span>{detailRow.row.ITControllerNo || '—'}</span>
-                    <PartTag code={detailRow.row.PlanComponent} label={detailRow.row.PlanComponentLabel} />
-                  </span>
+                  <span className="wh-detail-label">Model</span>
+                  <span className="wh-detail-value">{detailRow.asm.model || '—'}</span>
                 </div>
                 <div className="wh-detail-item">
-                  <span className="wh-detail-label">Model (Assembly Parts Name)</span>
-                  <span className="wh-detail-value">{detailRow.asm.model || '—'}</span>
+                  <span className="wh-detail-label">IT device</span>
+                  <span className="wh-detail-value">{itDeviceOf(detailRow.row, detailRow.asm) || '—'}</span>
                 </div>
                 <div className="wh-detail-item">
                   <span className="wh-detail-label">Country</span>
                   <span className="wh-detail-value">
-                    {detailRow.asm.country || detailRow.row.Country || '—'}
+                    {detailRow.row.Country || detailRow.asm.country || '—'}
                   </span>
                 </div>
               </div>
@@ -886,28 +883,14 @@ export default function MFGAssemblyPage() {
 
             <div className="wh-detail-section">
               <span className="wh-detail-section-title">
-                <CubeIcon className="size-4" /> ข้อมูลอะไหล่ประกอบ
+                <CubeIcon className="size-4" /> ข้อมูล Spec sheet
               </span>
-              <div className="wh-detail-grid">
-                <div className="wh-detail-item">
-                  <span className="wh-detail-label">Assembly Parts Number</span>
-                  <span className="wh-detail-value mono">{detailRow.asm.partsNumber || '—'}</span>
-                </div>
-                <div className="wh-detail-item">
-                  <span className="wh-detail-label">Spec Code</span>
-                  <span className="wh-detail-value mono">{detailRow.asm.specCode || '—'}</span>
-                </div>
-                <div className="wh-detail-item">
-                  <span className="wh-detail-label">IT device</span>
-                  <span className="wh-detail-value">{detailRow.asm.itDevice || '—'}</span>
-                </div>
-                <div className="wh-detail-item" style={{
-              gridColumn: '1 / -1'
-            }}>
-                  <span className="wh-detail-label">Specification Detail</span>
-                  <span className="wh-detail-value">{detailRow.asm.specDetail || '—'}</span>
-                </div>
-              </div>
+              {detailPlan.loading ? <span className="wh-detail-value">กำลังโหลด...</span> : detailPlan.data ? <div className="wh-detail-grid">
+                  {detailPlan.columns.filter(col => col !== 'Machine' && String(detailPlan.data[col] ?? '').trim() !== '').map(col => <div className="wh-detail-item" key={col}>
+                      <span className="wh-detail-label">{col.replace(/^\[\+\] /, '')}</span>
+                      <span className="wh-detail-value">{detailPlan.data[col]}</span>
+                    </div>)}
+                </div> : <span className="wh-detail-value">ไม่พบเครื่องนี้ในตาราง Daily Plan</span>}
             </div>
 
             <div className="wh-detail-meta">

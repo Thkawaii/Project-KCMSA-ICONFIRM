@@ -165,6 +165,34 @@ export function scanErrorAlert(text, {
     confirmButtonText: 'ตกลง'
   });
 }
+// scanSpecAlert: แสดงผลเทียบ QR กับ Specification sheet เป็นตาราง (ใช้ตอนไม่ตรง / ไม่พบ)
+export function scanSpecAlert(result) {
+  const r = result || {};
+  const items = Array.isArray(r.items) ? r.items : [];
+  const rows = items.map(it => `
+      <tr class="${it.ok ? 'spec-ok' : 'spec-bad'}">
+        <td>${escapeHtml(it.label)}</td>
+        <td>${escapeHtml(it.qr || '—')}</td>
+        <td>${escapeHtml(it.plan || '(ไม่มีในชีต)')}</td>
+        <td class="spec-mark">${it.ok ? '✓' : '✗'}</td>
+      </tr>`).join('');
+  const table = rows ? `
+    <div class="spec-table-wrap">
+      <table class="spec-table">
+        <thead><tr><th>รายการ</th><th>QR</th><th>Specification sheet</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>` : '';
+  const head = r.machineNo ? `<div class="scan-popup-hint">Machine No: <b>${escapeHtml(r.machineNo)}</b></div>` : '';
+  const detail = !rows && r.detail ? `<div class="scan-error-text">${escapeHtml(r.detail)}</div>` : '';
+  return Swal.fire({
+    icon: 'error',
+    title: r.message || 'ข้อมูลไม่ตรงกับ Specification sheet',
+    html: `${head}${detail}${table}`,
+    width: rows ? 720 : undefined,
+    confirmButtonText: 'ตกลง'
+  });
+}
 export async function scanPhotoCapture({
   title,
   html = ''

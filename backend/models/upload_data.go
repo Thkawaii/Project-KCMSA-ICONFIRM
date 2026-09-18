@@ -7,6 +7,9 @@ const (
 	DatasetWH1      = "wh1"
 	DatasetWH2      = "wh2"
 	DatasetEngine   = "engine"
+
+	// DatasetDailyPlan: Daily plan (ชีต Specification sheet) — ใช้เทียบกับ QR ที่ MFG สแกน
+	DatasetDailyPlan = "daily_plan"
 )
 
 type UploadDataRow struct {

@@ -7,7 +7,8 @@ export function scanMFGAssembly({
   itControllerNo,
   serialNo,
   partNo,
-  partType
+  partType,
+  qrCode
 }) {
   return apiFetch('/mfg-assembly/scan', {
     method: 'POST',
@@ -16,9 +17,29 @@ export function scanMFGAssembly({
       serialNo: serialNo || itControllerNo,
       itControllerNo: itControllerNo || '',
       partNo: partNo || '',
-      partType: partType || ''
+      partType: partType || '',
+      qrCode: qrCode || ''
     })
   });
+}
+
+// ตรวจ QR บน Specification sheet กับตาราง Planning (ยังไม่บันทึก)
+export function checkMFGSpecQR(qrCode) {
+  return apiFetch('/mfg-assembly/spec-check', {
+    method: 'POST',
+    body: JSON.stringify({
+      qrCode
+    })
+  });
+}
+
+// QR บน Specification sheet: "Machine No,Spec code,ลูกค้า,..." (มีเครื่องหมาย , หลายตัว)
+export function looksLikeSpecQR(value) {
+  return (String(value || '').match(/,/g) || []).length >= 5;
+}
+
+export function specQRMachineNo(value) {
+  return String(value || '').split(',')[0].trim().toUpperCase();
 }
 export function createMFGAssembly(payload) {
   return apiFetch('/mfg-assembly', {
