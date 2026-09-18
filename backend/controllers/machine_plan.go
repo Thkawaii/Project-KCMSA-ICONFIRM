@@ -14,6 +14,10 @@ const (
 	PlanStateNoPlan      = "NO_PLAN"
 	PlanStateNoITC       = "NO_ITC_PLAN"
 	PlanStateNotInMaster = "NOT_IN_MASTER"
+
+	// IT Controller: MFG สแกน QR บน Specification sheet แล้วเทียบกับตาราง Planning
+	PlanStateSpecMismatch = "SPEC_MISMATCH"
+	PlanStateNoQR         = "NO_QR"
 )
 
 var planITCKeys = []string{
@@ -75,6 +79,9 @@ type mfgPlanResolver struct {
 
 	itcOwner  map[string]string
 	masterITC map[string]bool
+
+	// specPlans: ตาราง Planning (Specification sheet) ล่าสุด สำหรับเทียบกับ QR
+	specPlans map[string]map[string]string
 }
 
 func newMFGPlanResolver() *mfgPlanResolver {
@@ -83,6 +90,7 @@ func newMFGPlanResolver() *mfgPlanResolver {
 		machineByCode: map[string]string{},
 		itcOwner:      map[string]string{},
 		masterITC:     map[string]bool{},
+		specPlans:     loadSpecPlans(),
 	}
 
 	for mc, plan := range r.planByMachine {
@@ -207,6 +215,59 @@ func (r *mfgPlanResolver) evaluateComponent(machineNo, scanned, component string
 	return res
 }
 
+// evaluateWithSpec: ตรวจรายการที่ MFG สแกน
+//   - Kanban อย่างเดียว (ไม่มีพาร์ท): ผลขึ้นกับ QR บน Specification sheet เทียบกับ Daily Plan อย่างเดียว
+//   - IT Controller (รายการรูปแบบเดิม): ตรวจ P/N-S/N ในทะเบียนตามเดิม แต่ "ตรงแผน" ดูจาก QR
+//   - พาร์ทอื่น: ใช้วิธีเดิม
+func (r *mfgPlanResolver) evaluateWithSpec(machineNo, scanned, component, qrCode string) (MFGPlanResult, SpecCheckResult) {
+	spec := CheckSpecQR(r.specPlans, qrCode)
+
+	var res MFGPlanResult
+	if strings.TrimSpace(scanned) == "" && strings.TrimSpace(qrCode) != "" {
+		// Scan Kanban ขั้นตอนเดียว
+		res = MFGPlanResult{}
+	} else {
+		res = r.evaluateComponent(machineNo, scanned, component)
+		if res.Component != ComponentITC {
+			return res, spec
+		}
+		switch res.State {
+		case PlanStateNoITC, PlanStateMatch, PlanStateNoPlan:
+			// ใช้ผลจาก QR แทน
+		default:
+			// NO_SCAN / NOT_IN_MASTER / MISMATCH → คงผลเดิม
+			return res, spec
+		}
+	}
+
+	if spec.MachineNo != "" && strings.TrimSpace(machineNo) != "" &&
+		!SameCode(spec.MachineNo, machineNo) &&
+		!SameCode(ResolveMachineNo(spec.MachineNo), ResolveMachineNo(machineNo)) {
+		spec.State = SpecStateMismatch
+		spec.Matched = false
+		spec.Message = "Kanban ไม่ใช่ของเครื่องนี้"
+		spec.Detail = "Kanban เป็นของเครื่อง " + spec.MachineNo + " แต่บันทึกเป็นเครื่อง " + machineNo
+	}
+
+	switch spec.State {
+	case SpecStateMatch:
+		res.State = PlanStateMatch
+	case SpecStateNoPlan:
+		res.State = PlanStateNoPlan
+	case SpecStateMismatch:
+		res.State = PlanStateSpecMismatch
+	default:
+		res.State = PlanStateNoQR
+	}
+	res.Message = mfgPlanMessage(res)
+	if spec.Detail != "" {
+		res.Detail = spec.Detail
+	} else {
+		res.Detail = mfgPlanDetail(machineNo, res)
+	}
+	return res, spec
+}
+
 func (r *mfgPlanResolver) ownerOf(component, serial string) string {
 	if component == ComponentITC {
 		if mc, ok := r.itcOwner[NormalizeCodeValue(serial)]; ok {
@@ -231,6 +292,12 @@ func mfgPlanMessage(res MFGPlanResult) string {
 
 	case PlanStateMismatch, PlanStateNoITC:
 		return "ข้อมูลไม่ตรง"
+
+	case PlanStateSpecMismatch:
+		return "ข้อมูลไม่ตรงกับ Daily Plan"
+
+	case PlanStateNoQR:
+		return "ยังไม่ได้ Scan Kanban"
 
 	default:
 		return "ข้อมูลตรง"

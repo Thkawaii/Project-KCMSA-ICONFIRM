@@ -203,6 +203,8 @@ type machineRefInfo struct {
 func buildMachineIndex() map[string]map[string]string {
 
 	planning := loadUploadRows(models.DatasetPlanning)
+	// Daily Plan (Specification sheet) ใช้เป็นข้อมูลแผนของเครื่องด้วย (Model / Spec code / ประเทศ ...)
+	planning = append(planning, loadUploadRows(models.DatasetDailyPlan)...)
 	wh1 := loadUploadRows(models.DatasetWH1)
 	wh2 := loadUploadRows(models.DatasetWH2)
 	engine := loadUploadRows(models.DatasetEngine)
@@ -589,7 +591,7 @@ func machinePlanRowOf(machineNo string, rec map[string]string) MachinePlanRow {
 		MachineNo:      machineNo,
 		ITControllerNo: get("IT Controller No"),
 
-		Model:       get("Assembly_Parts_Name", "Model"),
+		Model:       get("Assembly_Parts_Name", "Model", "Base machine spec."),
 		PartsNumber: get("Assembly_Parts_Number"),
 		SpecCode:    get("Spec Code"),
 		SpecDetail:  get("Specification Detail"),

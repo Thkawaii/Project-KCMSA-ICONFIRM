@@ -204,6 +204,8 @@ func (x *scanLockIndex) uploadRow(dataset string, data map[string]string) (bool,
 				}
 			}
 		}
+	case models.DatasetDailyPlan:
+		return x.machineLocked(machineFromRow(data))
 	case models.DatasetEngine:
 		if ok, reason := x.machineLocked(pickField(data, "Machine No", "Machine")); ok {
 			return true, reason

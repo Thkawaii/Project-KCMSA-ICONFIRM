@@ -45,6 +45,10 @@ const DATASET_TYPES = [{
   value: 'planning',
   label: 'Planning'
 }, {
+  // Daily Plan: ไฟล์ Daily plan ที่มีชีต "Specification sheet" (เครื่องละ 5 แถว) — ใช้เทียบกับ QR ที่ MFG สแกน
+  value: 'daily_plan',
+  label: 'Daily Plan'
+}, {
   value: 'wh1',
   label: 'WH1'
 }, {
@@ -91,13 +95,16 @@ const HEADING_LABEL_BY_TYPE = {
   all: 'ALL PART',
   ...Object.fromEntries(COMPONENT_TYPES.map(t => [t.value, t.label]))
 };
+// ชื่อตรงกับ "IT device" ใน Daily Plan
 const CONNECTIVITY_LABELS = {
-  SATELLITE_IRIDIUM: 'Satellite (Iridium)',
-  MOBILE_4G_HIGH: '4G (High speed)',
-  MOBILE_4G_NORMAL: '4G (Normal speed)',
+  SATELLITE_IRIDIUM: 'IT(Satellite, iridium)',
+  MOBILE_4G_HIGH_H: 'IT(Mobile4G, high speed-H)',
+  MOBILE_4G_NORMAL: 'IT(Mobile4G, normal speed)',
+  MOBILE_4G3_HIGH: 'IT(Mobile4G-3, high speed)',
+  MOBILE_4G_HIGH: 'IT(Mobile4G, high speed)',
   UNKNOWN: 'ไม่ระบุ'
 };
-const CONNECTIVITY_ORDER = ['SATELLITE_IRIDIUM', 'MOBILE_4G_HIGH', 'MOBILE_4G_NORMAL', 'UNKNOWN'];
+const CONNECTIVITY_ORDER = ['SATELLITE_IRIDIUM', 'MOBILE_4G_HIGH_H', 'MOBILE_4G_NORMAL', 'MOBILE_4G3_HIGH', 'MOBILE_4G_HIGH', 'UNKNOWN'];
 const CONNECTIVITY_FILTER = [{
   value: 'all',
   label: 'ทุก Connectivity'
@@ -837,6 +844,8 @@ function DatasetView({
       const isPlanningExport = dataset === 'planning';
       const exportCols = isPlanningExport ? cols.filter(label => label !== 'Line') : cols;
       const numericByCol = exportCols.map(label => {
+        // LOT NO. (เช่น 10.040) ต้องคงเป็นข้อความ ไม่งั้นเลข 0 ท้ายหาย
+        if (label === 'LOT NO.') return false;
         let sawValue = false;
         for (const obj of parsed) {
           const raw = obj[label];

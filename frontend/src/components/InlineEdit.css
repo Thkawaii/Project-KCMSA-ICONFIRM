@@ -266,3 +266,10 @@ tr.ie-row-locked > td {
     transition: none;
   }
 }
+
+/* ป้าย "สแกนแล้ว" แบบสีเขียว + เครื่องหมายถูก */
+.ie-lock-badge.ie-scan-done-badge {
+  color: #15803d;
+  background: #dcfce7;
+  border-color: #86efac;
+}

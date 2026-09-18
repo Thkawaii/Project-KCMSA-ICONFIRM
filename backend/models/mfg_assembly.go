@@ -32,6 +32,11 @@ type MFGAssembly struct {
 
 	RetiredDetail string `gorm:"column:retired_detail;size:255"`
 
+	// QR บน Specification sheet ที่ MFG สแกน + ผลเทียบกับตาราง Planning (Specification sheet)
+	QRCode     string `gorm:"column:qr_code;type:text"`
+	SpecState  string `gorm:"column:spec_state;size:20"`
+	SpecDetail string `gorm:"column:spec_detail;type:text"`
+
 	WHMatched         bool       `gorm:"column:wh_matched;index"`
 	WHLicenseNo       string     `gorm:"column:wh_license_no;size:50"`
 	WHInvoiceNo       string     `gorm:"column:wh_invoice_no;size:50"`

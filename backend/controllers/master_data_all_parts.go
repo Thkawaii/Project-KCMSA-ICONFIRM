@@ -297,7 +297,7 @@ func parseMasterDataUpload(fileHeader *multipart.FileHeader, componentType strin
 // sheetBelongsToOtherUpload: ชีตของประเภทอัปโหลดอื่นในไฟล์ฟอร์มรวม (Planning, WH1, Engine, License ...)
 // ข้ามได้เงียบ ๆ ตอนอัปโหลด ALL PART ไม่ต้องแจ้งเป็นปัญหา
 func sheetBelongsToOtherUpload(name string) bool {
-	return sheetNameHas(name, "planning", "wh1", "wh2", "engine", "import", "export", "changeformat")
+	return sheetNameHas(name, "planning", "dailyplan", "specification", "wh1", "wh2", "engine", "import", "export", "changeformat")
 }
 
 // masterSheetScore: อัปโหลดทีละชนิดจากไฟล์หลายชีต — เลือกชีตที่ชื่อ/หัวคอลัมน์ตรงชนิดนั้นก่อน

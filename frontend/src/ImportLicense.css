@@ -2366,3 +2366,149 @@
   line-height: 18px;
   vertical-align: 1px;
 }
+
+/* ===== dropdown ใบอนุญาตแบบติ๊กได้หลายใบ ===== */
+.il-lcs .sf-trigger {
+  gap: 8px;
+}
+
+.il-lcs .sf-value-wrap {
+  flex: 1 1 auto;
+}
+
+.il-lcs-badge {
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.il-lcs-list {
+  max-height: 340px;
+}
+
+.il-lcs-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 8px;
+  border-radius: 6px;
+}
+
+.il-lcs-row:hover {
+  background: #f1f5f9;
+}
+
+.il-lcs-row-all {
+  border-bottom: 1px solid #e2e8f0;
+  border-radius: 6px 6px 0 0;
+  margin-bottom: 4px;
+}
+
+.il-lcs-row-checked {
+  background: #f0fdf4;
+}
+
+.il-lcs-row.sf-option-selected {
+  background: #e0f2f1;
+}
+
+.il-lcs-row.sf-option-selected .il-lcs-label {
+  color: #00857f;
+  font-weight: 600;
+}
+
+.il-lcs-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: block;
+  border: none;
+  background: transparent;
+  padding: 10px 8px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #1e293b;
+  text-align: left;
+  cursor: pointer;
+}
+
+.il-license-action-bar {
+  margin-top: -8px;
+}
+
+.il-bulk-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 15px;
+  border-radius: 10px;
+  border: 1px solid #fecaca;
+  background: #fff;
+  color: #dc2626;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.il-bulk-delete-btn:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #f87171;
+}
+
+.il-bulk-delete-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.il-bulk-delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.il-check-td .il-check {
+  user-select: none;
+}
+
+@media (max-width: 640px) {
+  .il-bulk-delete-btn {
+    justify-content: center;
+  }
+}
+
+/* สถานะการประกอบ (Export License) */
+.il-asm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: default;
+}
+
+.il-asm-ok {
+  color: #15803d;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.il-asm-warn {
+  color: #b45309;
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
+
+.il-asm-bad {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}

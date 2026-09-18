@@ -93,3 +93,12 @@ export async function uploadExportLicense(file) {
   }
   return data;
 }
+// ลบหลายรายการในครั้งเดียว
+export function bulkDeleteExportLicense(ids = []) {
+  return apiFetch('/export-license/bulk-delete', {
+    method: 'POST',
+    body: JSON.stringify({
+      ids: ids.map(Number)
+    })
+  });
+}

@@ -29,8 +29,9 @@ func GetMFGAssemblies(c *gin.Context) {
 		rows[i].MachineNo = CurrentCodeOf(rows[i].MachineNo)
 		rows[i].ITControllerNo = CurrentCodeOf(rows[i].ITControllerNo)
 
-		plan := resolver.evaluateComponent(
-			rows[i].MachineNo, rows[i].ITControllerNo, rows[i].Component)
+		plan, spec := resolver.evaluateWithSpec(
+			rows[i].MachineNo, rows[i].ITControllerNo, rows[i].Component, rows[i].QRCode)
+		applyMFGSpec(&rows[i], spec)
 
 		if strings.TrimSpace(rows[i].Component) == "" {
 			rows[i].Component = plan.Component
@@ -83,6 +84,17 @@ func applyMFGPlan(row *models.MFGAssembly, plan MFGPlanResult) {
 	row.PlanMessage = plan.Message
 	row.PlanDetail = plan.Detail
 	row.PlanOwnerMachineNo = plan.OwnerMachine
+}
+
+// applyMFGSpec: เก็บผลเทียบ QR กับ Specification sheet ไว้ในแถว (SpecDetail = JSON ของผลเทียบ)
+func applyMFGSpec(row *models.MFGAssembly, spec SpecCheckResult) {
+	if strings.TrimSpace(row.QRCode) == "" && spec.State == SpecStateNoQR {
+		row.SpecState = ""
+		row.SpecDetail = ""
+		return
+	}
+	row.SpecState = spec.State
+	row.SpecDetail = specResultJSON(spec)
 }
 
 func parseMFGDate(s string) *time.Time {
@@ -354,6 +366,9 @@ type MFGScanRequest struct {
 	PartNo string `json:"partNo"`
 
 	PartType string `json:"partType"`
+
+	// QRCode: ข้อความจาก QR บน Specification sheet (Machine No, Spec code, ลูกค้า, ...)
+	QRCode string `json:"qrCode"`
 }
 
 type mfgITCPartCheck struct {
@@ -449,6 +464,16 @@ func ScanMFGAssembly(c *gin.Context) {
 	}
 
 	machineNo := strings.TrimSpace(req.MachineNo)
+	qrCode := strings.TrimSpace(req.QRCode)
+	if q, ok := ParseSpecQR(qrCode); ok {
+		machineNo = q.MachineNo
+	} else if LooksLikeSpecQR(machineNo) {
+		// เครื่องสแกนส่ง QR มาในช่อง Machine No
+		if q, ok := ParseSpecQR(machineNo); ok {
+			qrCode = machineNo
+			machineNo = q.MachineNo
+		}
+	}
 	itcNo := req.scannedSerial()
 	partType := strings.ToUpper(strings.TrimSpace(req.PartType))
 	if machineNo == "" {
@@ -496,6 +521,7 @@ func ScanMFGAssembly(c *gin.Context) {
 			SerialNo:        scanSerialNo,
 			Status:          models.MFGStatusRetiredFormat,
 			RetiredDetail:   msg,
+			QRCode:          qrCode,
 			CheckDate:       &now,
 			CreatedBy:       name,
 			CreatedDatetime: now,
@@ -521,9 +547,15 @@ func ScanMFGAssembly(c *gin.Context) {
 		return
 	}
 
+	// Scan Kanban ขั้นตอนเดียว (ไม่มีการสแกนพาร์ท)
+	if qrCode != "" && itcNo == "" && strings.TrimSpace(req.PartNo) == "" {
+		scanMFGKanban(c, resolver, machineNo, qrCode)
+		return
+	}
+
 	machineNo = resolveMachineNo(machineNo)
 
-	plan := resolver.evaluateComponent(machineNo, itcNo, req.PartType)
+	plan, spec := resolver.evaluateWithSpec(machineNo, itcNo, req.PartType, qrCode)
 
 	if v := strings.TrimSpace(plan.ScannedITC); v != "" {
 		itcNo = CurrentCodeOf(v)
@@ -552,6 +584,7 @@ func ScanMFGAssembly(c *gin.Context) {
 			SerialNo:        scanSerialNo,
 			Component:       component,
 			Country:         existing.Country,
+			QRCode:          qrCode,
 			CheckDate:       &now,
 			CreatedBy:       name,
 			CreatedDatetime: now,
@@ -560,6 +593,7 @@ func ScanMFGAssembly(c *gin.Context) {
 		}
 
 		enrichMFGWithWH(&dup)
+		applyMFGSpec(&dup, spec)
 		dup.Status = models.MFGStatusDuplicate
 
 		if err := config.DB.Create(&dup).Error; err != nil {
@@ -587,6 +621,7 @@ func ScanMFGAssembly(c *gin.Context) {
 			"plannedITControllerNo": plan.PlannedITC,
 			"plannedState":          plan.State,
 			"plannedMatch":          plan.OK(),
+			"spec":                  spec,
 		})
 		return
 	}
@@ -601,6 +636,7 @@ func ScanMFGAssembly(c *gin.Context) {
 		SerialNo:        scanSerialNo,
 		Component:       plan.Component,
 		Country:         mfgCountryFor(machineNo, itcNo, resolver.planOf(machineNo)),
+		QRCode:          qrCode,
 		CheckDate:       &now,
 		CreatedBy:       name,
 		CreatedDatetime: now,
@@ -619,6 +655,7 @@ func ScanMFGAssembly(c *gin.Context) {
 	}
 
 	enrichMFGWithWH(&row)
+	applyMFGSpec(&row, spec)
 	row.Status = mfgStatusFor(plan.Component, duplicate, plan.State, row.WHMatched)
 	if partFailed {
 		row.Status = models.MFGStatusNotMatched
@@ -670,6 +707,119 @@ func ScanMFGAssembly(c *gin.Context) {
 		"plannedITControllerNo": plan.PlannedITC,
 		"plannedState":          plan.State,
 		"plannedMatch":          plan.OK(),
+		"spec":                  spec,
+	})
+}
+
+// findMFGKanbanRows: รายการของเครื่องนี้ที่บันทึกไว้แล้ว (ไม่นับรายการซ้ำ / รูปแบบเดิมถูกยกเลิก)
+// matched = รายการที่ประกอบผ่านแล้ว, retry = รายการ Kanban ที่เคยไม่ผ่าน (สแกนใหม่จะอัปเดตแถวนี้)
+func findMFGKanbanRows(machineNo string) (matched, retry *models.MFGAssembly) {
+	variants := CodeVariants(machineNo)
+	if len(variants) == 0 {
+		variants = []string{machineNo}
+	}
+	var rows []models.MFGAssembly
+	config.DB.Where("machine_no IN ? AND status NOT IN ?", variants,
+		[]string{models.MFGStatusDuplicate, models.MFGStatusRetiredFormat}).
+		Order("id desc").Find(&rows)
+	for i := range rows {
+		if strings.EqualFold(strings.TrimSpace(rows[i].Status), models.MFGStatusMatched) {
+			if matched == nil {
+				matched = &rows[i]
+			}
+			continue
+		}
+		if retry == nil && strings.TrimSpace(rows[i].ITControllerNo) == "" {
+			retry = &rows[i]
+		}
+	}
+	return matched, retry
+}
+
+// scanMFGKanban: MFG สแกน Kanban (QR บน Specification sheet) → เทียบกับ Daily Plan → ตรง = MATCHED
+func scanMFGKanban(c *gin.Context, resolver *mfgPlanResolver, machineNo, qrCode string) {
+	machineNo = CurrentCodeOf(resolveMachineNo(machineNo))
+	plan, spec := resolver.evaluateWithSpec(machineNo, "", "", qrCode)
+
+	userID, name := lookupUserName(c)
+	now := time.Now()
+
+	country := ""
+	if q, ok := ParseSpecQR(qrCode); ok {
+		country = q.Customer
+	}
+	if country == "" {
+		country = mfgCountryFor(machineNo, "", resolver.planOf(machineNo))
+	}
+
+	row := models.MFGAssembly{
+		DateAssembly:    &now,
+		MachineNo:       machineNo,
+		Country:         country,
+		QRCode:          qrCode,
+		CheckDate:       &now,
+		CreatedBy:       name,
+		CreatedDatetime: now,
+		UpdatedDatetime: now,
+		UserID:          userID,
+	}
+	enrichMFGWithWH(&row)
+	applyMFGSpec(&row, spec)
+
+	matched, retry := findMFGKanbanRows(machineNo)
+
+	// เครื่องนี้ประกอบผ่านไปแล้ว → บันทึกเป็นรายการซ้ำ
+	if matched != nil && plan.OK() {
+		row.Status = models.MFGStatusDuplicate
+		if err := config.DB.Create(&row).Error; err != nil {
+			c.JSON(500, gin.H{"message": err.Error()})
+			return
+		}
+		applyMFGPlan(&row, plan)
+		CreateAuditLog("MFG_ASSEMBLY", row.ID, "scan_repeat", machineNo+"/"+models.MFGStatusDuplicate, userID, name)
+		c.JSON(200, gin.H{
+			"row":        row,
+			"status":     models.MFGStatusDuplicate,
+			"matched":    false,
+			"duplicate":  true,
+			"originalID": matched.ID,
+			"message":    "รายการนี้เคยบันทึกไปแล้ว",
+			"plan":       plan,
+			"spec":       spec,
+		})
+		return
+	}
+
+	row.Status = mfgStatusFor("", false, plan.State, false)
+
+	action := "scan_kanban"
+	if retry != nil {
+		action = "scan_kanban_retry"
+		row.ID = retry.ID
+		row.CreatedBy = retry.CreatedBy
+		row.CreatedDatetime = retry.CreatedDatetime
+		row.PhotoURL = retry.PhotoURL
+		if err := config.DB.Save(&row).Error; err != nil {
+			c.JSON(500, gin.H{"message": err.Error()})
+			return
+		}
+	} else if err := config.DB.Create(&row).Error; err != nil {
+		c.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	applyMFGPlan(&row, plan)
+	CreateAuditLog("MFG_ASSEMBLY", row.ID, action, machineNo+"/"+row.Status, userID, name)
+
+	c.JSON(201, gin.H{
+		"row":     row,
+		"status":  row.Status,
+		"matched": row.Status == models.MFGStatusMatched,
+		"retried": retry != nil,
+		"message": mfgFinalMessage(row.Status, plan, ""),
+		"detail":  plan.Detail,
+		"plan":    plan,
+		"spec":    spec,
 	})
 }
 
@@ -682,6 +832,8 @@ type MFGAssemblyRequest struct {
 	Country        string `json:"country"`
 	CheckDate      string `json:"checkDate"`
 	Status         string `json:"status"`
+	// QRCode: (ไม่บังคับ) QR บน Specification sheet — ส่ง nil = ไม่เปลี่ยนค่าเดิม
+	QRCode *string `json:"qrCode"`
 }
 
 func applyManualStatus(systemStatus, requested string) string {
@@ -717,8 +869,13 @@ func CreateMFGAssembly(c *gin.Context) {
 	machineNo := resolveMachineNo(strings.TrimSpace(req.MachineNo))
 	itcNo := strings.TrimSpace(req.ITControllerNo)
 
+	qrCode := ""
+	if req.QRCode != nil {
+		qrCode = strings.TrimSpace(*req.QRCode)
+	}
+
 	resolver := newMFGPlanResolver()
-	plan := resolver.evaluate(machineNo, itcNo)
+	plan, spec := resolver.evaluateWithSpec(machineNo, itcNo, "", qrCode)
 
 	if v := strings.TrimSpace(plan.ScannedITC); v != "" {
 		itcNo = v
@@ -739,6 +896,7 @@ func CreateMFGAssembly(c *gin.Context) {
 		SerialNo:        strings.TrimSpace(req.SerialNo),
 		Component:       plan.Component,
 		Country:         country,
+		QRCode:          qrCode,
 		CheckDate:       checkDate,
 		CreatedBy:       name,
 		CreatedDatetime: now,
@@ -747,6 +905,7 @@ func CreateMFGAssembly(c *gin.Context) {
 	}
 
 	enrichMFGWithWH(&row)
+	applyMFGSpec(&row, spec)
 	row.Status = applyManualStatus(
 		mfgStatusFor(plan.Component, duplicate, plan.State, row.WHMatched),
 		req.Status,
@@ -796,9 +955,12 @@ func UpdateMFGAssembly(c *gin.Context) {
 	row.UpdatedDatetime = time.Now()
 
 	row.MachineNo = resolveMachineNo(row.MachineNo)
+	if req.QRCode != nil {
+		row.QRCode = strings.TrimSpace(*req.QRCode)
+	}
 
 	resolver := newMFGPlanResolver()
-	plan := resolver.evaluateComponent(row.MachineNo, row.ITControllerNo, row.Component)
+	plan, spec := resolver.evaluateWithSpec(row.MachineNo, row.ITControllerNo, row.Component, row.QRCode)
 	row.Component = plan.Component
 	if v := strings.TrimSpace(plan.ScannedITC); v != "" {
 		row.ITControllerNo = v
@@ -807,6 +969,7 @@ func UpdateMFGAssembly(c *gin.Context) {
 	duplicate := itcUsedOnOtherMachine(row.MachineNo, row.ITControllerNo, row.ID)
 
 	enrichMFGWithWH(&row)
+	applyMFGSpec(&row, spec)
 	row.Status = applyManualStatus(
 		mfgStatusFor(plan.Component, duplicate, plan.State, row.WHMatched),
 		req.Status,

@@ -117,3 +117,12 @@ export async function uploadImportLicense(file) {
   }
   return data;
 }
+// ลบหลายรายการในครั้งเดียว — แถวที่สแกนผ่านแล้วจะถูกข้าม (ดู skipped)
+export function bulkDeleteImportLicenseItems(ids = []) {
+  return apiFetch('/import-license/bulk-delete', {
+    method: 'POST',
+    body: JSON.stringify({
+      ids: ids.map(Number)
+    })
+  });
+}

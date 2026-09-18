@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckIcon, LockClosedIcon, PencilSquareIcon } from './icons.jsx';
+import { CheckCircleIcon, CheckIcon, LockClosedIcon, PencilSquareIcon } from './icons.jsx';
 import { toastError } from '../lib/toast.js';
 import './InlineEdit.css';
 
@@ -267,9 +267,17 @@ function SelectEditor({
 
 export function LockBadge({
   locked,
-  reason
+  reason,
+  variant = 'lock'
 }) {
   if (!locked) return null;
+  // variant="done": ป้ายสีเขียว + ไอคอนเครื่องหมายถูก (ใช้ในหน้า Import License)
+  if (variant === 'done') {
+    return <span className="ie-lock-badge ie-scan-done-badge" title={reason || 'สแกนผ่านแล้ว'}>
+        <CheckCircleIcon className="size-3.5" aria-hidden="true" />
+        สแกนแล้ว
+      </span>;
+  }
   return <span className="ie-lock-badge" title={reason || 'สแกนผ่านแล้ว'}>
       <LockClosedIcon className="size-3.5" aria-hidden="true" />
       สแกนแล้ว
@@ -277,17 +285,19 @@ export function LockBadge({
 }
 
 // EditHint: บอกวิธีแก้ในตาราง + จำนวนแถวที่ล็อก (สแกนแล้ว)
+// ตารางที่แก้ไม่ได้ (canEdit=false) จะไม่แสดงข้อความวิธีแก้ — แสดงเฉพาะจำนวนแถวที่สแกนแล้ว (ถ้ามี)
 export function EditHint({
   lockedCount = 0,
   showLock = true,
   canEdit = true
 }) {
+  const lockText = showLock && lockedCount > 0 ? `${lockedCount} แถวสแกนแล้ว แก้ไข/ลบไม่ได้` : '';
+  if (!canEdit && !lockText) return null;
   return <p className="ie-live-hint" style={{
     margin: '4px 0 0'
   }}>
       <span className="ie-live-dot" aria-hidden="true" />
-      {canEdit ? 'กดไอคอนดินสอเพื่อแก้ไข กด Enter เพื่อบันทึก ข้อมูลอัปเดตอัตโนมัติ' : 'แก้ไขข้อมูลในไฟล์ Excel แล้วอัปโหลดไฟล์เดิมอีกครั้ง ข้อมูลอัปเดตอัตโนมัติ'}
-      {showLock && lockedCount > 0 && `, ${lockedCount} แถวสแกนแล้วแก้ไม่ได้`}
+      {canEdit ? `กดไอคอนดินสอเพื่อแก้ไข กด Enter เพื่อบันทึก ข้อมูลอัปเดตอัตโนมัติ${lockText ? `, ${lockText}` : ''}` : lockText}
     </p>;
 }
 

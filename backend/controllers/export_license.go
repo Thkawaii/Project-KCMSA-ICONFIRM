@@ -284,6 +284,22 @@ func resolveExportLinks(items []models.ExportLicenseItem) []exportLicenseRow {
 		}
 	}
 
+	// MFG ที่สแกน Kanban อย่างเดียว (ไม่มีเลข IT Controller) → โยงด้วย Machine No
+	mfgByMachine := map[string]models.MFGAssembly{}
+	if len(machineNos) > 0 {
+		var mfg []models.MFGAssembly
+		_ = findWhereInChunks(config.DB, "machine_no", machineNos, &mfg)
+		for _, r := range mfg {
+			if strings.EqualFold(r.Status, models.MFGStatusDuplicate) {
+				continue
+			}
+			cur, ok := mfgByMachine[r.MachineNo]
+			if !ok || (cur.Status != models.MFGStatusMatched && r.Status == models.MFGStatusMatched) {
+				mfgByMachine[r.MachineNo] = r
+			}
+		}
+	}
+
 	now := time.Now()
 
 	out := make([]exportLicenseRow, 0, len(items))
@@ -303,6 +319,10 @@ func resolveExportLinks(items []models.ExportLicenseItem) []exportLicenseRow {
 			link.PlanCountry = plannedCountryOf(plan)
 		}
 		if mfg, ok := mfgByITC[it.ITControllerNo]; ok && isControllerNo(it.ITControllerNo) {
+			link.MFGMatched = true
+			link.MFGStatus = mfg.Status
+			link.MFGMachineNo = mfg.MachineNo
+		} else if mfg, ok := mfgByMachine[it.MachineNo]; ok && it.MachineNo != "" {
 			link.MFGMatched = true
 			link.MFGStatus = mfg.Status
 			link.MFGMachineNo = mfg.MachineNo

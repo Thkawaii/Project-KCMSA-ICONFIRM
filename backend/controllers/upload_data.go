@@ -33,6 +33,17 @@ type udDataset struct {
 // legacyNoteHeaders: คอลัมน์ NOTE ที่เคยใช้สั่งลบข้อมูลตอนอัปโหลด (เลิกใช้แล้ว)
 var legacyNoteHeaders = map[string]bool{"note": true, "notes": true}
 
+// planningIgnoredHeaders: หัวคอลัมน์ที่ตาราง Planning ไม่ใช้แล้ว — ข้ามเงียบ ๆ ไม่เก็บ ไม่แสดง
+// (หมายเลขพาร์ทรายเครื่อง: IT Controller / Swing Motor / Pump Assy HYD / Motor Propel / Control Valve)
+var planningIgnoredHeaders = map[string]bool{
+	"note": true, "notes": true,
+	"itcontrollerno": true, "itcontroller": true, "itcontrollernumber": true, "itcno": true, "itcontrollerserial": true,
+	"swingmotorno": true, "swingmotor": true, "swno": true, "swingno": true, "swingmotornumber": true,
+	"pumpassyhydno": true, "pumpassyno": true, "pumpno": true, "pumpassy": true, "pumpassyhyd": true,
+	"motorpropelno": true, "propelno": true, "propelmotorno": true, "propel": true,
+	"controlvalveno": true, "cvno": true, "valveno": true, "controlvalve": true,
+}
+
 func col(label string, aliases ...string) udColumn {
 	all := make([]string, 0, len(aliases)+1)
 	all = append(all, normalizeHeader(label))
@@ -115,11 +126,6 @@ var udDatasets = map[string]udDataset{
 			col("Front ATT", "frontatt"),
 			col("Cab guard", "cabguard"),
 			col("IT device", "itdevice"),
-			col("IT Controller No", "itcontrollerno", "itcontroller", "itcontrollernumber", "itcno", "itcontrollerserial"),
-			col("Swing Motor No", "swingmotorno", "swingmotor", "swno", "swingno", "swingmotornumber"),
-			col("Pump Assy HYD No", "pumpassyhydno", "pumpassyno", "pumpno", "pumpassy", "pumpassyhyd"),
-			col("Motor Propel No", "motorpropelno", "propelno", "propelmotorno", "propel"),
-			col("Control Valve No", "controlvalveno", "cvno", "valveno", "controlvalve"),
 			col("Other option", "otheroption"),
 			col("Additional ATT", "additionalatt"),
 			col("Cold region spec(HYD oil)", "coldregionspechydoil", "hydoil"),
@@ -129,7 +135,54 @@ var udDatasets = map[string]udDataset{
 			col("Note2", "note2"),
 			col("Note3", "note3"),
 		},
-		Ignore: legacyNoteHeaders,
+		Ignore: planningIgnoredHeaders,
+	},
+
+	// Daily Plan: อ่านจากชีต "Specification sheet" (เครื่องละ 5 แถว) — ดู spec_sheet.go
+	models.DatasetDailyPlan: {
+		MinHits: 4,
+		Anchors: []string{"machine", "machineno", "lotno"},
+		Columns: []udColumn{
+			col("LOT NO.", "lotno", "lot"),
+			col("Machine", "machineno", "machinenumber", "machineno1", "mcno", "mcnumber", "machineid"),
+			col("Spec Code", "speccode", "specificationcode"),
+			col("Country Name", "countryname", "customer", "customername"),
+			col("Main line", "mainline", "mainlineplan"),
+			col("Stand by shipping", "standbyshipping"),
+			col("Brand"),
+			col("Destination"),
+			col("Purpose"),
+			col("Upp,lower spec.", "upplowerspec", "upperlowerspec"),
+			col("Base machine spec.", "basemachinespec"),
+			col("Front ATT piping", "frontattpiping"),
+			col("Other piping", "otherpiping"),
+			col("Cab base", "cabbase"),
+			col("Cab"),
+			col("Cab guard", "cabguard"),
+			col("Boom"),
+			col("Piping, boom", "pipingboom"),
+			col("Arm"),
+			col("Piping, arm", "pipingarm"),
+			col("Shoe"),
+			col("Counter weight", "counterweight"),
+			col("Lower ATT", "loweratt"),
+			col("Lever"),
+			col("Multi control", "multicontrol"),
+			col("Air conditioner", "airconditioner"),
+			col("Cold region spec.", "coldregionspec"),
+			col("Auto greasing system", "autogreasingsystem"),
+			col("Seat"),
+			col("Paint"),
+			col("Front ATT", "frontatt"),
+			col("Other option", "otheroption"),
+			col("Additional ATT", "additionalatt"),
+			col("Radio"),
+			col("Engine start key", "enginestartkey"),
+			col("IT device", "itdevice"),
+			col("Cold region spec(HYD oil)", "coldregionspechydoil", "hydoil"),
+			col("Remark", "remarks"),
+		},
+		Ignore: planningIgnoredHeaders,
 	},
 
 	models.DatasetWH1: {
@@ -209,31 +262,35 @@ var udDatasets = map[string]udDataset{
 }
 
 var udDatasetLabels = map[string]string{
-	models.DatasetPlanning: "Planning",
-	models.DatasetWH1:      "WH1",
-	models.DatasetWH2:      "WH2",
-	models.DatasetEngine:   "Engine",
+	models.DatasetPlanning:  "Planning",
+	models.DatasetDailyPlan: "Daily Plan",
+	models.DatasetWH1:       "WH1",
+	models.DatasetWH2:       "WH2",
+	models.DatasetEngine:    "Engine",
 }
 
 var udDatasetKeyFields = map[string][]string{
-	models.DatasetPlanning: {"Machine"},
-	models.DatasetWH1:      {"Order No", "Parts No", "Work order"},
-	models.DatasetWH2:      {"ORDER No.", "Parts No"},
-	models.DatasetEngine:   {"Machine No"},
+	models.DatasetPlanning:  {"Machine"},
+	models.DatasetDailyPlan: {"Machine"},
+	models.DatasetWH1:       {"Order No", "Parts No", "Work order"},
+	models.DatasetWH2:       {"ORDER No.", "Parts No"},
+	models.DatasetEngine:    {"Machine No"},
 }
 
 var udDatasetCoreFields = map[string][]string{
-	models.DatasetPlanning: {"Product Spec 1", "Product Spec 2", "KCM Order", "Country Name"},
-	models.DatasetWH1:      {"Assembly Parts Number", "Name"},
-	models.DatasetWH2:      {"PARTS NAME", "Quantity"},
-	models.DatasetEngine:   {"ENGINE"},
+	models.DatasetPlanning:  {"Product Spec 1", "Product Spec 2", "KCM Order", "Country Name"},
+	models.DatasetDailyPlan: {"Spec Code", "Country Name", "Base machine spec.", "Destination", "Shoe", "Front ATT", "IT device"},
+	models.DatasetWH1:       {"Assembly Parts Number", "Name"},
+	models.DatasetWH2:       {"PARTS NAME", "Quantity"},
+	models.DatasetEngine:    {"ENGINE"},
 }
 
 var udDatasetKeyLabel = map[string]string{
-	models.DatasetPlanning: "Machine No",
-	models.DatasetWH1:      "Order · Parts · WO",
-	models.DatasetWH2:      "Order · Parts",
-	models.DatasetEngine:   "Machine No",
+	models.DatasetPlanning:  "Machine No",
+	models.DatasetDailyPlan: "Machine No",
+	models.DatasetWH1:       "Order · Parts · WO",
+	models.DatasetWH2:       "Order · Parts",
+	models.DatasetEngine:    "Machine No",
 }
 
 func uploadDataDiffKey(dataset string, data map[string]string) string {
@@ -385,12 +442,12 @@ func PreviewUploadDataMapping(c *gin.Context) {
 	dataset := strings.ToLower(strings.TrimSpace(c.Param("dataset")))
 	ds, ok := udDatasets[dataset]
 	if !ok {
-		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine)"})
+		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | daily_plan | wh1 | wh2 | engine)"})
 		return
 	}
 	ds = withRuntimeAliases(ds, dataset)
 
-	rows, fileName, err := readBestSheetFromForm(c, uploadDataSheetScore(dataset, ds))
+	rows, fileName, err := readUploadDataRows(c, dataset, ds)
 	if err != nil {
 		c.JSON(400, gin.H{"message": err.Error()})
 		return
@@ -416,6 +473,11 @@ func PreviewUploadDataMapping(c *gin.Context) {
 	}
 	var matched []matchInfo
 	var missing []string
+	specTable := dataset == models.DatasetDailyPlan && isSpecSheetTable(rows[headerIdx])
+	specColumnSet := map[string]bool{}
+	for _, l := range specSheetColumns {
+		specColumnSet[l] = true
+	}
 
 	occSeen := map[string]int{}
 	for _, cdef := range ds.Columns {
@@ -423,7 +485,8 @@ func PreviewUploadDataMapping(c *gin.Context) {
 		occ := occSeen[cdef.Aliases[0]]
 		if j, found := resolveColumn(headerMap, cdef, occ); found && j < len(rows[headerIdx]) {
 			matched = append(matched, matchInfo{Label: cdef.Label, Source: strings.TrimSpace(rows[headerIdx][j])})
-		} else {
+		} else if !specTable || specColumnSet[cdef.Label] {
+			// ไฟล์ Specification sheet: ไม่นับคอลัมน์ของ Planning รูปแบบเดิมเป็น "ขาด"
 			missing = append(missing, cdef.Label)
 		}
 	}
@@ -627,10 +690,11 @@ func uploadDataHeaderHits(row []string, ds udDataset) int {
 }
 
 var udDatasetSheetNames = map[string][]string{
-	models.DatasetPlanning: {"planning", "plan"},
-	models.DatasetWH1:      {"wh1"},
-	models.DatasetWH2:      {"wh2"},
-	models.DatasetEngine:   {"engine"},
+	models.DatasetPlanning:  {"planning", "plan"},
+	models.DatasetDailyPlan: {"specification", "dailyplan"},
+	models.DatasetWH1:       {"wh1"},
+	models.DatasetWH2:       {"wh2"},
+	models.DatasetEngine:    {"engine"},
 }
 
 func uploadDataSheetScore(dataset string, ds udDataset) sheetScore {
@@ -647,11 +711,32 @@ func uploadDataSheetScore(dataset string, ds udDataset) sheetScore {
 	}
 }
 
+// readUploadDataRows: อ่านไฟล์ที่อัปโหลด
+// Daily Plan: แปลงบล็อกเครื่อง (5 แถว/เครื่อง) ในชีต "Specification sheet" ทุกชีต (20T / 30T) เป็นตารางเดียว
+// ชนิดอื่น: เลือกชีตที่เหมาะที่สุดตามเดิม
+func readUploadDataRows(c *gin.Context, dataset string, ds udDataset) ([][]string, string, error) {
+	if dataset == models.DatasetDailyPlan {
+		fileHeader, err := c.FormFile("file")
+		if err != nil {
+			return nil, "", errUploadNoFile
+		}
+		rows, ok, err := readPlanningSpecSheets(fileHeader)
+		if err != nil {
+			return nil, fileHeader.Filename, err
+		}
+		if !ok {
+			return nil, fileHeader.Filename, errNoSpecSheet
+		}
+		return rows, fileHeader.Filename, nil
+	}
+	return readBestSheetFromForm(c, uploadDataSheetScore(dataset, ds))
+}
+
 func GetUploadData(c *gin.Context) {
 
 	dataset := strings.ToLower(strings.TrimSpace(c.Query("dataset")))
 	if _, ok := udDatasets[dataset]; !ok {
-		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine)"})
+		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | daily_plan | wh1 | wh2 | engine)"})
 		return
 	}
 
@@ -724,12 +809,12 @@ func UploadDataFile(c *gin.Context) {
 	dataset := strings.ToLower(strings.TrimSpace(c.Param("dataset")))
 	ds, ok := udDatasets[dataset]
 	if !ok {
-		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine)"})
+		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | daily_plan | wh1 | wh2 | engine)"})
 		return
 	}
 	ds = withRuntimeAliases(ds, dataset)
 
-	rows, fileName, err := readBestSheetFromForm(c, uploadDataSheetScore(dataset, ds))
+	rows, fileName, err := readUploadDataRows(c, dataset, ds)
 	if err != nil {
 		c.JSON(400, gin.H{"message": err.Error()})
 		return
@@ -1126,6 +1211,9 @@ func fillUploadDataKeys(row *models.UploadDataRow, dataset string, data map[stri
 		row.MachineNo = normalizeDigitCell(data["Machine"])
 		row.LotNo = data["LOT NO."]
 		row.KCMOrder = data["KCM Order"]
+	case models.DatasetDailyPlan:
+		row.MachineNo = normalizeDigitCell(data["Machine"])
+		row.LotNo = data["LOT NO."]
 	case models.DatasetWH1:
 		row.OrderNo = data["Order No"]
 		row.PartsNo = data["Parts No"]
@@ -1282,7 +1370,7 @@ func ExportUploadData(c *gin.Context) {
 
 	dataset := strings.ToLower(strings.TrimSpace(c.Query("dataset")))
 	if _, ok := udDatasets[dataset]; !ok {
-		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | wh1 | wh2 | engine)"})
+		c.JSON(400, gin.H{"message": "dataset ไม่ถูกต้อง (planning | daily_plan | wh1 | wh2 | engine)"})
 		return
 	}
 

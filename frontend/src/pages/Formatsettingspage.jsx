@@ -5,10 +5,14 @@ import { ColumnAliasPanel, CodeAliasPanel } from '../components/FormatTools.jsx'
 import '../components/FormatTools.css';
 import { ADMIN_NAV_ITEMS } from './AdminDashboardpage.jsx';
 const TARGET_COLUMNS = {
-  planning: ['Line', 'LOT NO.', 'Machine', 'Product Spec 1', 'Product Spec 2', 'Domestic/Exp', 'Assembly Status', 'Shipping Status', 'KCM Order', 'Country', 'Country Name', 'Brand', 'Destination', 'IT device', 'IT Controller', 'IT Controller No', 'Swing Motor No', 'Pump Assy HYD No', 'Motor Propel No', 'Control Valve No', 'Counter weight', {
+  planning: ['Line', 'LOT NO.', 'Machine', 'Product Spec 1', 'Product Spec 2', 'Domestic/Exp', 'Assembly Status', 'Shipping Status', 'KCM Order', 'Country', 'Country Name', 'Brand', 'Destination', 'IT device', 'Counter weight', {
     value: 'CW No',
     label: 'CW No (Counter Weight)'
   }, 'Front ATT', 'Engine start key', 'Note1', 'Note2', 'Note3'],
+  daily_plan: ['LOT NO.', 'Machine', 'Spec Code', {
+    value: 'Country Name',
+    label: 'Country Name (Customer)'
+  }, 'Main line', 'Stand by shipping', 'Brand', 'Destination', 'Purpose', 'Upp,lower spec.', 'Base machine spec.', 'Front ATT piping', 'Other piping', 'Cab base', 'Cab', 'Cab guard', 'Boom', 'Piping, boom', 'Arm', 'Piping, arm', 'Shoe', 'Counter weight', 'Lower ATT', 'Lever', 'Multi control', 'Air conditioner', 'Cold region spec.', 'Auto greasing system', 'Seat', 'Paint', 'Front ATT', 'Other option', 'Additional ATT', 'Radio', 'Engine start key', 'IT device', 'Cold region spec(HYD oil)', 'Remark'],
   wh1: ['Warehouse', 'Order No', 'Work order', 'Parts No', 'Name', 'Assembly Parts Number', 'Assembly Parts Name', 'Note', 'Final Color'],
   wh2: ['Order', 'ORDER No.', 'Parts No', 'PARTS NAME', 'Quantity', 'LOCATION', 'Note'],
   engine: ['Machine No', 'History', 'ENGINE'],
@@ -125,6 +129,10 @@ Object.keys(ITC_LABEL_BY_SCOPE).forEach(sc => {
 const SCOPES = [{
   scope: 'planning',
   label: 'Planning',
+  group: 'ข้อมูล'
+}, {
+  scope: 'daily_plan',
+  label: 'Daily Plan',
   group: 'ข้อมูล'
 }, {
   scope: 'wh1',

@@ -106,6 +106,7 @@ func SetupRoutes(r *gin.Engine) {
 			manage.POST("/verify", controllers.VerifyImportLicenseCode)
 			manage.POST("/renew", controllers.RenewImportLicense)
 			manage.POST("/complete", controllers.SetImportLicenseComplete)
+			manage.POST("/bulk-delete", controllers.BulkDeleteImportLicenseItems)
 			manage.DELETE("/:id", controllers.DeleteImportLicenseItem)
 			manage.DELETE("", controllers.ClearImportLicenseItems)
 		}
@@ -121,6 +122,7 @@ func SetupRoutes(r *gin.Engine) {
 		exportLicense.POST("/preview", controllers.PreviewExportLicenseMapping)
 		exportLicense.POST("/renew", controllers.RenewExportLicense)
 		exportLicense.POST("/complete", controllers.SetExportLicenseComplete)
+		exportLicense.POST("/bulk-delete", controllers.BulkDeleteExportLicense)
 		exportLicense.DELETE("/:id", controllers.DeleteExportLicense)
 		exportLicense.DELETE("", controllers.ClearExportLicense)
 	}
@@ -152,6 +154,7 @@ func SetupRoutes(r *gin.Engine) {
 	{
 		mfgAssembly.GET("", controllers.GetMFGAssemblies)
 		mfgAssembly.POST("/scan", controllers.ScanMFGAssembly)
+		mfgAssembly.POST("/spec-check", controllers.CheckMFGSpecQR)
 		mfgAssembly.POST("", controllers.CreateMFGAssembly)
 		mfgAssembly.PATCH("/:id", controllers.UpdateMFGAssembly)
 		mfgAssembly.DELETE("/:id", controllers.DeleteMFGAssembly)
